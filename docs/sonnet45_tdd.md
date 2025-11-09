@@ -591,10 +591,8 @@ from backend.api.websocket.manager import get_connection_manager
 from backend.core.events.bus import EventBus
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 # Track active operations for graceful shutdown
-active_operations: Set[str] = set()
 
 
 @asynccontextmanager
@@ -604,40 +602,26 @@ async def lifespan(app: FastAPI):
     Handles startup, shutdown, and signal handling for clean termination.
     """
     # Startup
-    logger.info("Starting Amelia backend...")
+    ...
 
     # Initialize database
-    await init_db()
-    logger.info("Database initialized")
 
     # Initialize event bus
-    event_bus = EventBus()
     app.state.event_bus = event_bus
-    await event_bus.start()
-    logger.info("Event bus started")
 
     # Connect WebSocket manager to EventBus
-    ws_manager = get_connection_manager()
-    ws_manager.set_event_bus(event_bus)
-    logger.info("WebSocket manager connected to EventBus")
 
     # Initialize accepting_requests flag
     app.state.accepting_requests = True
 
     # Setup signal handlers for graceful shutdown
     def signal_handler(signum, frame):
-        logger.warning(f"Received signal {signum}, initiating graceful shutdown...")
-        asyncio.create_task(graceful_shutdown(app))
+        ...
 
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
 
-    logger.info("Application startup complete")
 
-    yield
 
     # Shutdown
-    await graceful_shutdown(app)
 
 
 async def graceful_shutdown(app: FastAPI):
@@ -645,60 +629,26 @@ async def graceful_shutdown(app: FastAPI):
     Gracefully shutdown the application.
     Waits for active operations to complete with timeout.
     """
-    logger.info("Starting graceful shutdown...")
+    ...
 
     # Stop accepting new requests (application-level)
     app.state.accepting_requests = False
 
     # Wait for active operations with timeout
     shutdown_timeout = 30  # seconds
-    start_time = asyncio.get_event_loop().time()
 
-    while active_operations:
-        elapsed = asyncio.get_event_loop().time() - start_time
 
-        if elapsed >= shutdown_timeout:
-            logger.warning(
-                f"Shutdown timeout: {len(active_operations)} operations still active"
-            )
-            break
 
-        logger.info(
-            f"Waiting for {len(active_operations)} operations to complete... "
-            f"({shutdown_timeout - int(elapsed)}s remaining)"
-        )
-        await asyncio.sleep(1)
 
     # Stop event bus
-    logger.info("Stopping event bus...")
-    await app.state.event_bus.stop()
 
     # Close database connections
-    logger.info("Closing database connections...")
-    await close_db()
 
-    logger.info("Shutdown complete")
 
 
 # Create FastAPI application
-app = FastAPI(
-    title="Amelia API",
-    description="Local LLM Workflow Orchestration API",
-    version="1.0.0",
-    lifespan=lifespan,
-)
 
 # Add middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-app.middleware("http")(error_handler_middleware)
-app.middleware("http")(logging_middleware)
 
 
 # Middleware to track active operations for graceful shutdown
@@ -728,8 +678,7 @@ app.include_router(status.router, prefix="/api/status", tags=["status"])
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time communication.
-    Accepts connections and broadcasts EventBus events to clients.
+    ...
     """
     manager = get_connection_manager()
 
@@ -765,11 +714,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/")
 async def root():
     """Root endpoint"""
-    return {
-        "name": "Amelia API",
-        "version": "1.0.0",
-        "status": "running"
-    }
+    ...
 
 
 @app.get("/health")
@@ -947,12 +892,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_anthropic_key(cls, v: str) -> str:
         """Validate Anthropic API key format."""
-        if not v or v == "":
-            logger.warning("ANTHROPIC_API_KEY not set - Claude features will be unavailable")
-            return v
-        if not v.startswith("sk-ant-"):
-            raise ValueError("ANTHROPIC_API_KEY must start with 'sk-ant-'")
-        return v
+    ...
 
     @field_validator('OPENROUTER_API_KEY')
     @classmethod
@@ -966,9 +906,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_database_url(cls, v: str) -> str:
         """Validate PostgreSQL connection string."""
-        if not v.startswith(('postgresql://', 'postgresql+asyncpg://')):
-            raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
-        return v
+        ...
 
     @field_validator('CHUNK_SIZE')
     @classmethod
@@ -983,9 +921,7 @@ class Settings(BaseSettings):
     @model_validator(mode='after')
     def validate_chunk_overlap(self):
         """Validate chunk overlap is less than chunk size."""
-        if self.CHUNK_OVERLAP >= self.CHUNK_SIZE:
-            raise ValueError("CHUNK_OVERLAP must be less than CHUNK_SIZE")
-        return self
+        ...
 
     @model_validator(mode='after')
     def validate_pool_settings(self):
@@ -1000,7 +936,7 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         """Check if running in development mode."""
-        return self.ENVIRONMENT == Environment.DEVELOPMENT
+        ...
 
     @property
     def is_testing(self) -> bool:
@@ -1010,18 +946,14 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         """Check if running in production mode."""
-        return self.ENVIRONMENT == Environment.PRODUCTION
+        ...
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        ...
         # Create directories if they don't exist
-        self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        self.TEMP_DIR.mkdir(parents=True, exist_ok=True)
-        self.GIT_WORKTREE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # Global settings instance
-settings = Settings()
 ```
 
 #### 5.1.3 WebSocket Implementation (`api/websocket/manager.py`)
@@ -1037,7 +969,6 @@ from fastapi import WebSocket, WebSocketDisconnect
 from backend.core.events.bus import EventBus, Event, EventType
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class ConnectionManager:
@@ -1063,8 +994,7 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, client_id: str = None) -> str:
         """
-        Accept and track WebSocket connection.
-        Returns the client_id for this connection.
+        ...
         """
         await websocket.accept()
 
@@ -1084,14 +1014,9 @@ class ConnectionManager:
 
     async def disconnect(self, websocket: WebSocket, client_id: str):
         """Remove WebSocket connection."""
-        if client_id in self.active_connections:
-            self.active_connections[client_id].discard(websocket)
 
             # Remove client_id if no more connections
-            if not self.active_connections[client_id]:
-                del self.active_connections[client_id]
 
-        logger.info(f"WebSocket disconnected: {client_id} (total connections: {self.connection_count})")
 
     async def send_personal_message(self, message: dict, client_id: str):
         """Send message to a specific client."""
@@ -1113,21 +1038,11 @@ class ConnectionManager:
         """Broadcast message to all connected clients except excluded one."""
         disconnected = []
 
-        for client_id, connections in self.active_connections.items():
+        ...
             # Skip excluded client
-            if client_id == exclude_client:
-                continue
 
-            for websocket in connections:
-                try:
-                    await websocket.send_json(message)
-                except Exception as e:
-                    logger.error(f"Failed to broadcast to {client_id}: {e}")
-                    disconnected.append((client_id, websocket))
 
         # Clean up failed connections
-        for client_id, ws in disconnected:
-            await self.disconnect(ws, client_id)
 
     async def _broadcast_event(self, event: Event):
         """
@@ -1135,13 +1050,8 @@ class ConnectionManager:
         Converts Event objects to JSON and broadcasts to all clients.
         """
         message = {
-            "type": event.type.value,
-            "data": event.data,
-            "timestamp": event.timestamp.isoformat(),
-            "source": event.source
-        }
+        ...
 
-        await self.broadcast(message)
 
     @property
     def connection_count(self) -> int:
@@ -1155,10 +1065,6 @@ _manager: ConnectionManager = None
 
 def get_connection_manager() -> ConnectionManager:
     """Get or create global connection manager instance."""
-    global _manager
-    if _manager is None:
-        _manager = ConnectionManager()
-    return _manager
 ```
 
 #### 5.1.4 Status & Health Check Routes (`api/routes/status.py`)
@@ -1180,8 +1086,6 @@ from backend.models.database.document import Document
 from backend.utils.logger import setup_logger
 from datetime import datetime, timezone
 
-logger = setup_logger(__name__)
-router = APIRouter()
 
 
 @router.get("/health")
@@ -1191,89 +1095,36 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     Returns detailed health status of all system components.
     """
     health_status = {
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "checks": {}
-    }
+    ...
 
     # 1. Database connectivity check
-    try:
-        await db.execute(text("SELECT 1"))
         health_status["checks"]["database"] = {
-            "status": "healthy",
-            "response_time_ms": 0  # Could add actual timing
-        }
-    except Exception as e:
         health_status["checks"]["database"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
         health_status["status"] = "unhealthy"
 
     # 2. Event bus check
-    try:
-        event_bus = get_event_bus()
         health_status["checks"]["event_bus"] = {
-            "status": "healthy" if event_bus._running else "stopped",
-            "queue_size": event_bus._queue.qsize() if event_bus._running else 0
-        }
-        if not event_bus._running:
             health_status["status"] = "degraded"
-    except Exception as e:
         health_status["checks"]["event_bus"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
         health_status["status"] = "unhealthy"
 
     # 3. pgvector extension check
-    try:
-        result = await db.execute(
-            text("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')")
-        )
-        has_vector = result.scalar()
         health_status["checks"]["pgvector"] = {
-            "status": "healthy" if has_vector else "missing",
-            "installed": has_vector
-        }
-        if not has_vector:
             health_status["status"] = "degraded"
-    except Exception as e:
         health_status["checks"]["pgvector"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
 
     # 4. Disk space check
-    try:
         import shutil
         from backend.config import settings
 
-        total, used, free = shutil.disk_usage(settings.UPLOAD_DIR)
-        free_percent = (free / total) * 100
 
         health_status["checks"]["disk_space"] = {
-            "status": "healthy" if free_percent > 10 else "warning",
-            "free_gb": round(free / (1024**3), 2),
-            "total_gb": round(total / (1024**3), 2),
-            "free_percent": round(free_percent, 2)
-        }
 
-        if free_percent < 5:
             health_status["status"] = "degraded"
-    except Exception as e:
         health_status["checks"]["disk_space"] = {
-            "status": "unknown",
-            "error": str(e)
-        }
 
     # Set appropriate HTTP status code
-    if health_status["status"] == "unhealthy":
-        return health_status, http_status.HTTP_503_SERVICE_UNAVAILABLE
-    elif health_status["status"] == "degraded":
-        return health_status, http_status.HTTP_200_OK
-    else:
-        return health_status, http_status.HTTP_200_OK
+    ...
 
 
 @router.get("/metrics")
@@ -1283,56 +1134,16 @@ async def metrics(db: AsyncSession = Depends(get_db)):
     Returns counts and statistics about system resources.
     """
     # Count active agents
-    agents_running = await db.scalar(
-        select(func.count(Agent.id)).where(Agent.status == 'running')
-    )
-    agents_total = await db.scalar(select(func.count(Agent.id)))
+    ...
 
     # Count workflows
-    workflows_running = await db.scalar(
-        select(func.count(Workflow.id)).where(Workflow.status == 'running')
-    )
-    workflows_total = await db.scalar(select(func.count(Workflow.id)))
-    workflows_completed = await db.scalar(
-        select(func.count(Workflow.id)).where(Workflow.status == 'completed')
-    )
-    workflows_failed = await db.scalar(
-        select(func.count(Workflow.id)).where(Workflow.status == 'failed')
-    )
 
     # Count documents
-    total_documents = await db.scalar(select(func.count(Document.id)))
-    total_storage_bytes = await db.scalar(
-        select(func.sum(Document.file_size)).where(Document.file_size.isnot(None))
-    ) or 0
 
     # Get event bus metrics
-    try:
-        event_bus = get_event_bus()
-        event_queue_size = event_bus._queue.qsize() if event_bus._running else 0
-    except:
         event_queue_size = 0
 
-    return {
-        "agents": {
-            "running": agents_running,
-            "total": agents_total
-        },
-        "workflows": {
-            "running": workflows_running,
-            "completed": workflows_completed,
-            "failed": workflows_failed,
-            "total": workflows_total
-        },
-        "documents": {
-            "total": total_documents,
-            "total_size_mb": round(total_storage_bytes / (1024**2), 2)
-        },
-        "event_bus": {
-            "queue_size": event_queue_size,
-            "max_queue_size": 1000
-        }
-    }
+    ...
 
 
 @router.get("/ready")
@@ -1341,22 +1152,15 @@ async def readiness_check(db: AsyncSession = Depends(get_db)):
     Kubernetes-style readiness probe.
     Returns 200 if service is ready to accept traffic, 503 otherwise.
     """
-    try:
+    ...
         # Quick database check
-        await db.execute(text("SELECT 1"))
 
         # Check event bus is running
-        event_bus = get_event_bus()
-        if not event_bus._running:
-            return {"ready": False, "reason": "EventBus not running"}, \
-                   http_status.HTTP_503_SERVICE_UNAVAILABLE
+    ...
 
-        return {"ready": True}, http_status.HTTP_200_OK
+    ...
 
-    except Exception as e:
-        logger.error(f"Readiness check failed: {e}")
-        return {"ready": False, "reason": str(e)}, \
-               http_status.HTTP_503_SERVICE_UNAVAILABLE
+    ...
 
 
 @router.get("/live")
@@ -1365,7 +1169,7 @@ async def liveness_check():
     Kubernetes-style liveness probe.
     Returns 200 if service is alive (even if not ready).
     """
-    return {"alive": True}, http_status.HTTP_200_OK
+    ...
 ```
 
 **Key Features:**
@@ -1439,18 +1243,12 @@ app.include_router(status.router, tags=["status"])
 @router.post("/documents/upload")
 async def upload_document(file: UploadFile, db: AsyncSession = Depends(get_db)):
     # Create document
-    document = Document(name=file.filename, ...)
-    db.add(document)
-    await db.flush()  # Get ID without committing
+    ...
 
     # Create embeddings in same transaction
-    for chunk in chunks:
-        embedding = Embedding(document_id=document.id, ...)
-        db.add(embedding)
 
     # Atomic commit of both document and embeddings
-    await db.commit()
-    return document
+    ...
 ```
 
 **Example - Simple operation with auto-commit:**
@@ -1465,34 +1263,15 @@ async def get_document(id: UUID, db: AsyncSession = Depends(get_db_with_commit))
 Database connection management using SQLAlchemy async.
 """
 from sqlalchemy.ext.asyncio import (
-    create_async_engine,
-    AsyncSession,
-    async_sessionmaker,
-)
 from sqlalchemy.pool import NullPool
 from backend.config import settings
 from backend.models.database.base import Base
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 # Create async engine
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    poolclass=NullPool if settings.DEBUG else None,
-)
 
 # Create session factory
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
 
 
 async def init_db():
@@ -1509,8 +1288,7 @@ async def init_db():
 
 async def close_db():
     """Close database connections"""
-    await engine.dispose()
-    logger.info("Database connections closed")
+    ...
 
 
 async def get_db() -> AsyncSession:
@@ -1523,15 +1301,8 @@ async def get_db() -> AsyncSession:
 
     Usage: db: AsyncSession = Depends(get_db)
     """
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
+    ...
             # Do NOT auto-commit - let the caller control transaction boundaries
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
 
 
 async def get_db_with_commit() -> AsyncSession:
@@ -1540,15 +1311,7 @@ async def get_db_with_commit() -> AsyncSession:
     Use this ONLY for simple single-operation endpoints.
     For complex operations, use get_db() and manage transactions explicitly.
     """
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    ...
 ```
 
 #### 5.2.2 Base Model (`models/database/base.py`)
@@ -1583,17 +1346,7 @@ All timestamps in Amelia use timezone-aware `datetime` objects set to UTC:
 class TimestampMixin:
     """Mixin for created_at and updated_at timestamps with timezone support"""
 
-    created_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
-    updated_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
+    ...
 
 
 class UUIDMixin:
@@ -1605,7 +1358,7 @@ class UUIDMixin:
 class VersionMixin:
     """Mixin for optimistic locking with version field"""
 
-    version = Column(Integer, default=1, nullable=False)
+    ...
 
     def increment_version(self):
         """Increment version for optimistic locking."""
@@ -1628,7 +1381,6 @@ from datetime import datetime, timezone
 from enum import Enum
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class EventType(str, Enum):
@@ -1656,24 +1408,15 @@ class EventType(str, Enum):
 @dataclass
 class Event:
     """Event data structure"""
-    type: EventType
-    data: Dict[str, Any]
+    ...
     timestamp: datetime = None
     source: Optional[str] = None
 
     def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now(timezone.utc)
+        ...
 
 
-**Event Bus Implementation Notes:**
 
-The EventBus uses several safety mechanisms:
-- **Bounded Queue (maxsize=1000)**: Prevents unbounded memory growth if events are published faster than consumed
-- **Async Locks**: Prevents race conditions in start/stop methods
-- **Subscriber Cleanup**: Periodically removes dead subscribers to prevent memory leaks
-- **Queue Full Handling**: Drops events if queue is full rather than blocking
-- **Error Isolation**: Exceptions in subscribers don't crash the event bus
 
 class EventBus:
     """
@@ -1683,10 +1426,9 @@ class EventBus:
     
     def __init__(self):
         self._subscribers: Dict[EventType, List[Callable]] = {}
-        self._queue: asyncio.Queue = asyncio.Queue(maxsize=1000)  # Bounded queue
+        ...
         self._running: bool = False
         self._task: Optional[asyncio.Task] = None
-        self._lock = asyncio.Lock()
     
     async def start(self):
         """Start the event bus processor"""
@@ -1701,21 +1443,13 @@ class EventBus:
     
     async def stop(self):
         """Stop the event bus processor"""
-        async with self._lock:
-            if not self._running:
-                return
+        ...
 
             self._running = False
 
         # Cancel task outside lock to avoid deadlock
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
                 pass
 
-        logger.info("Event bus stopped")
     
     def subscribe(self, event_type: EventType, callback: Callable):
         """
@@ -1723,13 +1457,11 @@ class EventBus:
         Callback should be an async function: async def callback(event: Event)
         Uses weak references to prevent memory leaks.
         """
-        if event_type not in self._subscribers:
+        ...
             self._subscribers[event_type] = []
 
         # Store the callback directly
         # Note: For production use, consider weak references if callbacks are bound methods
-        self._subscribers[event_type].append(callback)
-        logger.debug(f"Subscribed to {event_type}")
     
     def unsubscribe(self, event_type: EventType, callback: Callable):
         """Unsubscribe from an event type"""
@@ -1738,26 +1470,16 @@ class EventBus:
 
     def _cleanup_subscribers(self, event_type: EventType):
         """Remove dead/invalid subscribers for an event type."""
-        if event_type in self._subscribers:
+        ...
             # Filter out None or invalid callbacks
             self._subscribers[event_type] = [
-                cb for cb in self._subscribers[event_type]
-                if cb is not None and callable(cb)
-            ]
 
     async def publish(self, event: Event):
         """
         Publish an event to the bus.
         Will drop event if queue is full to prevent memory issues.
         """
-        try:
-            self._queue.put_nowait(event)
-            logger.debug(f"Published event: {event.type}")
-        except asyncio.QueueFull:
-            logger.warning(
-                f"Event queue full - dropping event {event.type}. "
-                "Consider increasing maxsize or processing events faster."
-            )
+        ...
     
     async def _process_events(self):
         """Background task to process events from queue"""
@@ -1799,10 +1521,6 @@ _event_bus: Optional[EventBus] = None
 
 def get_event_bus() -> EventBus:
     """Get or create global event bus instance"""
-    global _event_bus
-    if _event_bus is None:
-        _event_bus = EventBus()
-    return _event_bus
 ```
 
 ### 5.4 Agent System
@@ -1821,7 +1539,6 @@ from pydantic import BaseModel, Field
 from backend.core.events.bus import EventBus, Event, EventType
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class AgentStatus(str, Enum):
@@ -1835,15 +1552,12 @@ class AgentStatus(str, Enum):
 
 class AgentConfig(BaseModel):
     """Base configuration for agents"""
-    name: str
-    description: str
-    system_prompt: str
+    ...
     model: str = "claude-sonnet-4-5-20250929"
     temperature: float = 0.7
     max_tokens: int = 4096
     timeout: int = 300
     retry_attempts: int = 3
-    context_sources: List[str] = Field(default_factory=list)
 
 
 class AgentResult(BaseModel):
@@ -1868,9 +1582,7 @@ The BaseAgent class provides robust execution with:
 
 class BaseAgent(ABC):
     """
-    Abstract base class for all agents.
-    Provides common functionality for agent execution, event publishing,
-    and lifecycle management.
+    ...
     """
     
     def __init__(
@@ -1893,15 +1605,8 @@ class BaseAgent(ABC):
         timeout: Optional[int] = None
     ) -> AgentResult:
         """
-        Execute the agent with given input.
-        Handles lifecycle events, timeout enforcement, and error handling.
 
-        Args:
-            input_data: Input data for the agent
-            timeout: Optional timeout in seconds (overrides config.timeout)
 
-        Returns:
-            AgentResult with execution status and output
         """
         self._started_at = datetime.now(timezone.utc)
         self.status = AgentStatus.RUNNING
@@ -2017,15 +1722,11 @@ class BaseAgent(ABC):
     @abstractmethod
     async def _run(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Agent-specific execution logic.
-        Must be implemented by subclasses.
         """
         pass
 
     async def _run_with_cleanup(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Wrapper that ensures cleanup on all exit paths.
-        Subclasses should override _run(), not this method.
         """
         try:
             return await self._run(input_data)
@@ -2036,24 +1737,19 @@ class BaseAgent(ABC):
 
     async def cleanup(self):
         """
-        Override this in subclasses to clean up resources.
-        Called automatically on timeout, cancellation, or error.
 
-        Examples: close file handles, kill subprocesses, release locks, etc.
         """
         pass
 
     async def cancel(self):
         """
-        Request cancellation of the agent.
-        Sets the cancellation event that agents can check.
         """
         self._cancel_event.set()
         logger.info(f"Cancellation requested for agent {self.agent_id}")
 
     def is_cancelled(self) -> bool:
         """Check if cancellation has been requested."""
-        return self._cancel_event.is_set()
+    ...
 
     async def _publish_event(self, event_type: EventType, data: Dict[str, Any]):
         """Publish an event to the event bus"""
@@ -2066,12 +1762,7 @@ class BaseAgent(ABC):
     
     async def update_progress(self, progress: float, message: str):
         """Update and publish agent progress"""
-        await self._publish_event(EventType.AGENT_PROGRESS, {
-            "agent_id": self.agent_id,
-            "agent_name": self.config.name,
-            "progress": progress,
-            "message": message
-        })
+        ...
 ```
 
 #### 5.4.2 Discovery Agent (`core/agents/discovery.py`)
@@ -2085,7 +1776,6 @@ from backend.core.agents.base import BaseAgent, AgentConfig
 from backend.core.rag.retriever import RAGRetriever
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class DiscoveryAgent(BaseAgent):
@@ -2095,7 +1785,7 @@ class DiscoveryAgent(BaseAgent):
     """
     
     def __init__(self, config: AgentConfig, event_bus, rag_retriever: RAGRetriever):
-        super().__init__(config, event_bus)
+        ...
         self.rag_retriever = rag_retriever
     
     async def _run(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -2106,44 +1796,26 @@ class DiscoveryAgent(BaseAgent):
         3. Extract features
         4. Organize findings
         """
-        query = input_data.get("query", "")
+        ...
         
         # Update progress
-        await self.update_progress(0.1, "Retrieving relevant documents...")
         
         # Retrieve context from RAG
-        rag_results = await self.rag_retriever.retrieve(
-            query=query,
-            top_k=input_data.get("rag_top_k", 5)
-        )
         
-        await self.update_progress(0.3, "Analyzing requirements...")
         
         # Build context from RAG results
-        context = self._build_context(rag_results)
         
         # Create prompt for Claude
-        prompt = self._create_discovery_prompt(query, context)
         
-        await self.update_progress(0.5, "Discovering features...")
         
         # Call LLM (Claude Code or API)
         # This would use the Claude integration
-        discovery_output = await self._call_llm(prompt)
         
-        await self.update_progress(0.8, "Organizing findings...")
         
         # Parse and structure the output
-        structured_output = self._structure_output(discovery_output)
         
-        await self.update_progress(1.0, "Discovery complete!")
         
-        return {
-            "features": structured_output.get("features", []),
-            "requirements": structured_output.get("requirements", []),
-            "context_used": len(rag_results),
-            "raw_output": discovery_output
-        }
+        ...
     
     def _build_context(self, rag_results: List[Dict]) -> str:
         """Build context string from RAG results"""
@@ -2186,7 +1858,7 @@ Provide your analysis in a structured format with clear sections.
         """
         # TODO: Implement actual LLM call
         # For now, return placeholder
-        return "Discovery output placeholder"
+        ...
     
     def _structure_output(self, raw_output: str) -> Dict[str, Any]:
         """Parse and structure the LLM output"""
@@ -2219,7 +1891,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class CircuitState(str, Enum):
@@ -2245,14 +1916,9 @@ class CircuitBreakerError(Exception):
 
 class CircuitBreaker:
     """
-    Circuit breaker for LLM API calls.
+    ...
 
-    Prevents wasting API quota and degrading performance when
-    external services are experiencing issues.
 
-    Usage:
-        breaker = CircuitBreaker("anthropic", config)
-        result = await breaker.call(llm_api_function, *args, **kwargs)
     """
 
     def __init__(
@@ -2278,19 +1944,9 @@ class CircuitBreaker:
         **kwargs
     ) -> Any:
         """
-        Execute function with circuit breaker protection.
 
-        Args:
-            func: Async function to execute
-            *args: Function arguments
-            **kwargs: Function keyword arguments
 
-        Returns:
-            Function result
 
-        Raises:
-            CircuitBreakerError: If circuit is open
-            Exception: Original exception from function
         """
         async with self._lock:
             # Check if circuit should transition from OPEN to HALF_OPEN
@@ -2334,20 +1990,11 @@ class CircuitBreaker:
 
     async def _on_success(self):
         """Handle successful call"""
-        if self.state == CircuitState.HALF_OPEN:
-            self.success_count += 1
-            self.half_open_calls -= 1
 
-            if self.success_count >= self.config.success_threshold:
-                logger.info(
-                    f"Circuit breaker '{self.name}': HALF_OPEN -> CLOSED "
-                    f"(success threshold reached)"
-                )
                 self.state = CircuitState.CLOSED
                 self.failure_count = 0
                 self.success_count = 0
 
-        elif self.state == CircuitState.CLOSED:
             # Reset failure count on success
             self.failure_count = 0
 
@@ -2375,11 +2022,9 @@ class CircuitBreaker:
 
     def _should_attempt_reset(self) -> bool:
         """Check if enough time has passed to attempt recovery"""
-        if self.last_failure_time is None:
-            return True
+        ...
 
-        elapsed = time.time() - self.last_failure_time
-        return elapsed >= self.config.timeout
+        ...
 
     def get_state(self) -> dict:
         """Get current circuit breaker state for monitoring"""
@@ -2400,14 +2045,8 @@ _circuit_breakers: dict[str, CircuitBreaker] = {}
 
 def get_circuit_breaker(name: str, config: Optional[CircuitBreakerConfig] = None) -> CircuitBreaker:
     """
-    Get or create a circuit breaker for a named service.
 
-    Args:
-        name: Service name (e.g., "anthropic", "openrouter")
-        config: Optional configuration (uses defaults if not provided)
 
-    Returns:
-        CircuitBreaker instance
     """
     if name not in _circuit_breakers:
         _circuit_breakers[name] = CircuitBreaker(name, config)
@@ -2423,38 +2062,25 @@ from backend.core.agents.circuit_breaker import get_circuit_breaker, CircuitBrea
 
 class DiscoveryAgent(BaseAgent):
     def __init__(self, config: AgentConfig, event_bus: EventBus, rag_retriever):
-        super().__init__(config, event_bus)
+        ...
         self.rag_retriever = rag_retriever
 
         # Get circuit breaker for Anthropic API
-        self.circuit_breaker = get_circuit_breaker("anthropic")
 
     async def _call_llm(self, prompt: str) -> str:
         """
         Call LLM with circuit breaker protection.
         Automatically handles outages and rate limiting.
         """
-        try:
+        ...
             # Wrap LLM call in circuit breaker
-            result = await self.circuit_breaker.call(
-                self._make_api_call,
-                prompt
-            )
-            return result
+        ...
 
-        except CircuitBreakerError as e:
-            logger.warning(f"Circuit breaker prevented API call: {e}")
 
             # Publish event about circuit breaker activation
-            await self._publish_event(EventType.SYSTEM_WARNING, {
-                "message": "LLM API temporarily unavailable",
-                "circuit_breaker": self.circuit_breaker.get_state()
-            })
 
             # Return fallback response or re-raise
-            raise RuntimeError(
-                "LLM API temporarily unavailable. Please try again later."
-            ) from e
+        ...
 
     async def _make_api_call(self, prompt: str) -> str:
         """Actual API call implementation"""
@@ -2503,24 +2129,8 @@ async def circuit_breaker_status():
 
 ```python
 # For services with frequent transient errors
-anthropic_breaker = get_circuit_breaker(
-    "anthropic",
-    CircuitBreakerConfig(
-        failure_threshold=3,  # Open after 3 failures
-        success_threshold=2,  # Require 2 successes to close
-        timeout=30,  # Try recovery after 30s
-        half_open_max_calls=2  # Limit test calls
-    )
-)
 
 # For more stable services
-openrouter_breaker = get_circuit_breaker(
-    "openrouter",
-    CircuitBreakerConfig(
-        failure_threshold=10,  # More tolerant
-        timeout=120  # Wait longer before retry
-    )
-)
 ```
 
 ### 5.5 Custom Exception Handling
@@ -2548,15 +2158,12 @@ class AmeliaException(Exception):
     """
 
     def __init__(
-        self,
-        message: str,
+    ...
         details: Optional[Dict[str, Any]] = None,
         status_code: int = 500
-    ):
         self.message = message
         self.details = details or {}
         self.status_code = status_code
-        super().__init__(message)
 
 
 # Document/RAG Exceptions
@@ -2576,11 +2183,7 @@ class DocumentProcessingError(AmeliaException):
     """Failed to process document (parsing, chunking, embedding)"""
 
     def __init__(self, document_path: str, reason: str):
-        super().__init__(
-            message=f"Failed to process document: {reason}",
-            details={"document_path": document_path, "reason": reason},
-            status_code=500
-        )
+        ...
 
 
 class EmbeddingGenerationError(AmeliaException):
@@ -2604,11 +2207,7 @@ class AgentNotFoundError(AmeliaException):
     """Agent not found in database"""
 
     def __init__(self, agent_id: str):
-        super().__init__(
-            message=f"Agent not found: {agent_id}",
-            details={"agent_id": agent_id},
-            status_code=404
-        )
+        ...
 
 
 class AgentExecutionError(AmeliaException):
@@ -2626,11 +2225,7 @@ class AgentTimeoutError(AmeliaException):
     """Agent execution exceeded timeout"""
 
     def __init__(self, agent_name: str, timeout: int):
-        super().__init__(
-            message=f"Agent '{agent_name}' exceeded timeout of {timeout}s",
-            details={"agent_name": agent_name, "timeout": timeout},
-            status_code=504
-        )
+        ...
 
 
 # Workflow Exceptions
@@ -2650,15 +2245,7 @@ class WorkflowStateError(AmeliaException):
     """Invalid workflow state transition"""
 
     def __init__(self, workflow_id: str, current_state: str, requested_action: str):
-        super().__init__(
-            message=f"Cannot {requested_action} workflow in {current_state} state",
-            details={
-                "workflow_id": workflow_id,
-                "current_state": current_state,
-                "requested_action": requested_action
-            },
-            status_code=400
-        )
+        ...
 
 
 class ConcurrentModificationError(AmeliaException):
@@ -2682,11 +2269,7 @@ class LLMAPIError(AmeliaException):
     """LLM API call failed"""
 
     def __init__(self, provider: str, model: str, error: str):
-        super().__init__(
-            message=f"LLM API error from {provider}",
-            details={"provider": provider, "model": model, "error": error},
-            status_code=502
-        )
+        ...
 
 
 class RateLimitError(AmeliaException):
@@ -2710,15 +2293,7 @@ class StorageQuotaExceededError(AmeliaException):
     """Storage quota exceeded"""
 
     def __init__(self, current_size_mb: float, max_size_mb: float):
-        super().__init__(
-            message="Storage quota exceeded",
-            details={
-                "current_size_mb": current_size_mb,
-                "max_size_mb": max_size_mb,
-                "help": "Please delete some documents"
-            },
-            status_code=507
-        )
+        ...
 
 
 class InvalidFileTypeError(AmeliaException):
@@ -2741,11 +2316,7 @@ class ConfigurationError(AmeliaException):
     """Invalid configuration"""
 
     def __init__(self, setting: str, reason: str):
-        super().__init__(
-            message=f"Invalid configuration for {setting}: {reason}",
-            details={"setting": setting, "reason": reason},
-            status_code=500
-        )
+        ...
 ```
 
 #### 5.5.2 Exception Middleware (`api/middleware/error_handler.py`)
@@ -2760,7 +2331,6 @@ from fastapi.responses import JSONResponse
 from backend.core.exceptions import AmeliaException
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 async def amelia_exception_middleware(request: Request, call_next):
@@ -2768,58 +2338,18 @@ async def amelia_exception_middleware(request: Request, call_next):
     Catch and handle all exceptions globally.
     Provides consistent error response format.
     """
-    try:
-        response = await call_next(request)
-        return response
+    ...
 
-    except AmeliaException as e:
         # Amelia-specific exceptions - already have nice messages
-        logger.error(
-            f"Amelia exception: {e.message}",
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-                "details": e.details
-            }
-        )
 
-        return JSONResponse(
-            status_code=e.status_code,
-            content={
-                "error": e.__class__.__name__,
-                "message": e.message,
-                "details": e.details,
-                "path": request.url.path
-            }
-        )
+    ...
 
-    except ValueError as e:
         # Validation errors
-        logger.warning(f"Validation error: {str(e)}")
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "error": "ValidationError",
-                "message": str(e),
-                "path": request.url.path
-            }
-        )
+    ...
 
-    except Exception as e:
         # Unexpected errors - log with full traceback
-        logger.exception(
-            f"Unexpected error: {str(e)}",
-            extra={"path": request.url.path, "method": request.method}
-        )
 
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "error": "InternalServerError",
-                "message": "An unexpected error occurred",
-                "path": request.url.path
-            }
-        )
+    ...
 ```
 
 #### 5.5.3 Usage Examples
@@ -2827,32 +2357,22 @@ async def amelia_exception_middleware(request: Request, call_next):
 ```python
 # In api/routes/rag.py
 from backend.core.exceptions import (
-    DocumentNotFoundError,
-    InvalidFileTypeError,
-    StorageQuotaExceededError
-)
 
 @router.get("/documents/{document_id}")
 async def get_document(document_id: UUID, db: AsyncSession = Depends(get_db)):
-    document = await db.get(Document, document_id)
+    ...
 
-    if not document:
-        raise DocumentNotFoundError(str(document_id))
+    ...
 
-    return document
+    ...
 
 
 @router.post("/documents/upload")
 async def upload_document(file: UploadFile):
     # Validate file type
-    try:
-        validate_file_upload(file)
-    except ValueError as e:
+    ...
         # Convert to our custom exception
-        raise InvalidFileTypeError(
-            detected_type=detect_mime_type(file),
-            allowed_types=list(ALLOWED_TYPES.keys())
-        )
+    ...
 
     # ... rest of upload logic
 
@@ -2861,26 +2381,20 @@ async def upload_document(file: UploadFile):
 from backend.core.exceptions import AgentNotFoundError, AgentTimeoutError
 
 async def get_agent(self, agent_id: UUID) -> Agent:
-    agent = await self.db.get(Agent, agent_id)
+    ...
 
-    if not agent:
-        raise AgentNotFoundError(str(agent_id))
+    ...
 
-    return agent
+    ...
 
 
 # In core/workflows/manager.py
 from backend.core.exceptions import ConcurrentModificationError, WorkflowStateError
 
 async def pause_workflow(self, workflow_id: UUID):
-    result = await self.db.execute(
-        update(Workflow)
-        .where(Workflow.id == workflow_id, Workflow.version == current_version)
-        .values(status="paused", version=current_version + 1)
-    )
+    ...
 
-    if result.rowcount == 0:
-        raise ConcurrentModificationError("Workflow", str(workflow_id))
+    ...
 ```
 
 ### 5.6 Datetime Handling Standards
@@ -2892,19 +2406,14 @@ async def pause_workflow(self, workflow_id: UUID):
 from datetime import datetime, timezone
 
 # Creating timestamps
-now = datetime.now(timezone.utc)  # ✅ CORRECT
-timestamp = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)  # ✅ CORRECT
 
 # Database models
-created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))  # ✅ CORRECT
 ```
 
 #### Incorrect Usage:
 ```python
 # NEVER use these:
-now = datetime.utcnow()  # ❌ WRONG - returns naive datetime
-now = datetime.now()  # ❌ WRONG - uses server local timezone
-created_at = Column(DateTime, default=datetime.utcnow)  # ❌ WRONG - naive datetime
+...
 ```
 
 #### Why This Matters:
@@ -2919,8 +2428,7 @@ from datetime import datetime
 
 # When you need to enforce timezone-aware datetimes:
 def process_event(timestamp: datetime) -> None:
-    if timestamp.tzinfo is None:
-        raise ValueError("timestamp must be timezone-aware")
+    ...
     # ... process
 ```
 
@@ -3962,13 +3470,7 @@ class WorkflowStatus(str, Enum):
 
 class AgentNodeState(TypedDict):
     """State for individual agent node"""
-    agent_id: str
-    agent_name: str
-    status: str
-    progress: float
-    input: Dict[str, Any]
-    output: Optional[Dict[str, Any]]
-    error: Optional[str]
+    ...
 
 
 class WorkflowState(TypedDict):
@@ -3995,7 +3497,6 @@ from backend.core.workflows.state import WorkflowState, AgentNodeState
 from backend.core.agents.base import BaseAgent
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class WorkflowGraphBuilder:
@@ -4005,16 +3506,12 @@ class WorkflowGraphBuilder:
     """
     
     def __init__(self):
-        self.graph = StateGraph(WorkflowState)
+        ...
         self.agents: Dict[str, BaseAgent] = {}
         self.node_configs: Dict[str, Dict[str, Any]] = {}
     
     def add_agent_node(
-        self,
-        node_name: str,
-        agent: BaseAgent,
         dependencies: List[str] = None
-    ):
         """
         Add an agent as a node in the workflow graph.
         
@@ -4025,8 +3522,6 @@ class WorkflowGraphBuilder:
         """
         self.agents[node_name] = agent
         self.node_configs[node_name] = {
-            "dependencies": dependencies or [],
-        }
         
         # Create node function
         async def node_function(state: WorkflowState) -> WorkflowState:
@@ -4070,7 +3565,6 @@ class WorkflowGraphBuilder:
         node_name: str
     ) -> Dict[str, Any]:
         """
-        Prepare input for a node by collecting outputs from dependencies.
         """
         config = self.node_configs[node_name]
         dependencies = config["dependencies"]
@@ -4094,8 +3588,6 @@ class WorkflowGraphBuilder:
     
     def build(self) -> StateGraph:
         """
-        Build and compile the workflow graph.
-        Automatically adds edges based on dependencies.
         """
         # Add edges based on dependencies
         for node_name, config in self.node_configs.items():
@@ -4125,7 +3617,6 @@ class WorkflowGraphBuilder:
 
 async def create_discovery_design_planning_workflow() -> StateGraph:
     """
-    Create a preset workflow: Discovery → Design → Planning
     """
     from backend.core.agents.discovery import DiscoveryAgent
     from backend.core.agents.design import DesignAgent
@@ -4188,7 +3679,6 @@ from backend.database.session import get_db
 from backend.core.events.bus import get_event_bus, Event, EventType
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class WorkflowManager:
@@ -4197,78 +3687,39 @@ class WorkflowManager:
     """
     
     def __init__(self):
-        self.event_bus = get_event_bus()
+        ...
         self.active_workflows: Dict[str, Any] = {}
     
     async def create_workflow(
-        self,
-        name: str,
-        description: str,
-        graph_definition: Dict[str, Any]
-    ) -> Workflow:
         """
         Create a new workflow from definition.
         """
-        async with get_db() as db:
-            workflow = Workflow(
-                name=name,
-                description=description,
-                graph_definition=graph_definition,
-                status=WorkflowStatus.IDLE,
-                state={}
-            )
             
-            db.add(workflow)
-            await db.commit()
-            await db.refresh(workflow)
             
-            logger.info(f"Created workflow: {workflow.id}")
-            return workflow
+        ...
     
     async def start_workflow(
-        self,
-        workflow_id: UUID,
-        initial_input: Dict[str, Any]
-    ) -> WorkflowState:
         """
         Start workflow execution.
         """
-        async with get_db() as db:
-            workflow = await db.get(Workflow, workflow_id)
-            if not workflow:
-                raise ValueError(f"Workflow {workflow_id} not found")
+        ...
             
             # Initialize workflow state
-            state = self._initialize_state(workflow, initial_input)
             
             # Update database
             workflow.status = WorkflowStatus.RUNNING
             workflow.state = state
-            await db.commit()
             
             # Publish event
-            await self.event_bus.publish(Event(
-                type=EventType.WORKFLOW_STARTED,
-                data={
-                    "workflow_id": str(workflow_id),
-                    "workflow_name": workflow.name
-                }
-            ))
             
             # Build and execute graph
-            graph = await self._build_graph(workflow)
             
             # Execute asynchronously
             import asyncio
-            asyncio.create_task(self._execute_workflow(workflow, graph, state))
             
-            return state
+        ...
     
     def _initialize_state(
-        self,
-        workflow: Workflow,
-        initial_input: Dict[str, Any]
-    ) -> WorkflowState:
         """Initialize workflow state"""
         graph_def = workflow.graph_definition
         
@@ -4300,16 +3751,10 @@ class WorkflowManager:
         """Build LangGraph from workflow definition"""
         # This would use the graph definition to build the actual graph
         # For now, simplified
-        builder = WorkflowGraphBuilder()
         # ... build nodes from workflow.graph_definition
-        return builder.build()
+        ...
     
     async def _execute_workflow(
-        self,
-        workflow: Workflow,
-        graph: Any,
-        state: WorkflowState
-    ):
         """Execute workflow graph"""
         try:
             # Execute graph
@@ -4351,20 +3796,9 @@ class WorkflowManager:
     
     async def get_workflow_status(self, workflow_id: UUID) -> Dict[str, Any]:
         """Get current workflow status"""
-        async with get_db() as db:
-            workflow = await db.get(Workflow, workflow_id)
-            if not workflow:
-                raise ValueError(f"Workflow {workflow_id} not found")
+        ...
             
-            return {
-                "id": str(workflow.id),
-                "name": workflow.name,
-                "status": workflow.status,
-                "progress": workflow.progress,
-                "state": workflow.state,
-                "started_at": workflow.started_at,
-                "completed_at": workflow.completed_at
-            }
+        ...
 ```
 
 ### 8.3 Workflow Checkpointing and State Management
@@ -4386,7 +3820,6 @@ from sqlalchemy import update, func
 from backend.database.session import get_db
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class PostgresCheckpointSaver(BaseCheckpointSaver):
@@ -4419,32 +3852,15 @@ class PostgresCheckpointSaver(BaseCheckpointSaver):
 
     async def aput(self, config: Dict[str, Any], checkpoint: Checkpoint) -> None:
         """Save checkpoint to database."""
-        workflow_id = config.get("configurable", {}).get("workflow_id")
-        if not workflow_id:
-            logger.warning("No workflow_id in checkpoint config")
-            return
+        ...
 
-        async with get_db() as db:
             from backend.models.database.workflow import Workflow
 
             # Update workflow state with checkpoint data
             checkpoint_state = {
-                "channel_values": checkpoint.channel_values,
-                "channel_versions": checkpoint.channel_versions,
-                "versions_seen": checkpoint.versions_seen
-            }
 
-            stmt = update(Workflow).where(
-                Workflow.id == UUID(workflow_id)
-            ).values(
-                state=checkpoint_state,
-                updated_at=func.now()
-            )
 
-            await db.execute(stmt)
-            await db.commit()
 
-            logger.debug(f"Saved checkpoint for workflow {workflow_id}")
 ```
 
 #### 8.3.2 Workflow Manager with Pause/Resume
@@ -4466,13 +3882,12 @@ from backend.database.session import get_db
 from backend.core.events.bus import EventBus
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class WorkflowManager:
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
-        self.checkpointer = PostgresCheckpointSaver()
+        ...
         self.running_workflows: Dict[UUID, asyncio.Task] = {}
 
     async def _build_graph(self, workflow: Workflow):
@@ -4493,8 +3908,7 @@ class WorkflowManager:
 
     async def pause_workflow(self, workflow_id: UUID) -> bool:
         """
-        Pause a running workflow.
-        Uses optimistic locking to prevent race conditions.
+        ...
         """
         async with get_db() as db:
             from backend.models.database.workflow import Workflow
@@ -4533,8 +3947,6 @@ class WorkflowManager:
 
     async def resume_workflow(self, workflow_id: UUID) -> bool:
         """
-        Resume a paused workflow from checkpoint.
-        Uses optimistic locking to prevent race conditions.
         """
         async with get_db() as db:
             from backend.models.database.workflow import Workflow
@@ -4591,25 +4003,14 @@ class WorkflowManager:
         graph: Any
     ):
         """Execute workflow from checkpoint state."""
-        try:
             # Load checkpoint and continue execution
             config = {
-                "configurable": {
-                    "workflow_id": str(workflow_id)
-                }
-            }
 
             # Continue from last checkpoint
-            async for chunk in graph.astream(None, config=config):
                 # Process node outputs
-                logger.debug(f"Workflow {workflow_id} node output: {chunk}")
 
             # Mark as completed
-            await self._mark_workflow_completed(workflow_id)
 
-        except Exception as e:
-            logger.error(f"Workflow {workflow_id} failed: {e}")
-            await self._mark_workflow_failed(workflow_id, str(e))
 
     async def _mark_workflow_completed(self, workflow_id: UUID):
         """Mark workflow as completed with optimistic locking."""
@@ -4629,20 +4030,7 @@ class WorkflowManager:
 
     async def _mark_workflow_failed(self, workflow_id: UUID, error: str):
         """Mark workflow as failed with optimistic locking."""
-        async with get_db() as db:
-            workflow = await db.get(Workflow, workflow_id)
-            if workflow:
-                stmt = update(Workflow).where(
-                    Workflow.id == workflow_id,
-                    Workflow.version == workflow.version
-                ).values(
-                    status=WorkflowStatus.FAILED,
-                    error_message=error,
-                    completed_at=func.now(),
-                    version=workflow.version + 1
-                )
-                await db.execute(stmt)
-                await db.commit()
+        ...
 ```
 
 #### 8.3.3 Key Features
@@ -4682,7 +4070,6 @@ from backend.core.rag.embeddings import EmbeddingGenerator
 from backend.database.session import get_db
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class DocumentIngestor:
@@ -4691,14 +4078,9 @@ class DocumentIngestor:
     """
     
     def __init__(self):
-        self.chunker = TextChunker()
-        self.embedding_generator = EmbeddingGenerator()
+        ...
     
     async def ingest_file(
-        self,
-        file_path: Path,
-        document_type: str
-    ) -> Document:
         """
         Ingest a file into the RAG system.
         
@@ -4709,36 +4091,17 @@ class DocumentIngestor:
         Returns:
             Created Document instance
         """
-        logger.info(f"Ingesting file: {file_path}")
         
         # Convert to text
-        content = await self._convert_to_text(file_path, document_type)
         
         # Create document record
-        async with get_db() as db:
-            document = Document(
-                name=file_path.name,
-                type=document_type,
-                content=content,
-                file_path=str(file_path),
-                file_size=file_path.stat().st_size
-            )
             
-            db.add(document)
-            await db.commit()
-            await db.refresh(document)
         
         # Chunk and embed
-        await self._chunk_and_embed(document)
         
-        logger.info(f"Successfully ingested document: {document.id}")
-        return document
+        ...
     
     async def _convert_to_text(
-        self,
-        file_path: Path,
-        document_type: str
-    ) -> str:
         """Convert document to plain text"""
         if document_type == "markdown":
             return file_path.read_text(encoding="utf-8")
@@ -4764,27 +4127,12 @@ class DocumentIngestor:
         from backend.models.database.embedding import Embedding
         
         # Chunk the content
-        chunks = self.chunker.chunk_text(document.content)
         
-        logger.info(f"Created {len(chunks)} chunks for document {document.id}")
         
         # Generate embeddings for chunks
-        for i, chunk in enumerate(chunks):
-            vector = await self.embedding_generator.generate(chunk)
             
-            async with get_db() as db:
-                embedding = Embedding(
-                    document_id=document.id,
-                    chunk_index=i,
-                    content=chunk,
-                    vector=vector,
-                    metadata={"chunk_size": len(chunk)}
-                )
                 
-                db.add(embedding)
-                await db.commit()
         
-        logger.info(f"Created {len(chunks)} embeddings for document {document.id}")
 ```
 
 #### 9.1.2 Text Chunker (`core/rag/chunker.py`)
@@ -4817,7 +4165,6 @@ from typing import List
 from backend.config import settings
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class TextChunker:
@@ -4833,20 +4180,15 @@ class TextChunker:
     """
 
     def __init__(
-        self,
+    ...
         chunk_size: int = None,
         chunk_overlap: int = None
-    ):
         self.chunk_size = chunk_size or settings.CHUNK_SIZE
         self.chunk_overlap = chunk_overlap or settings.CHUNK_OVERLAP
 
         # Precompile regex patterns for better performance
         # Matches sentence boundaries: . ! ? followed by space and capital letter
-        self.sentence_pattern = re.compile(
-            r'(?<=[.!?])\s+(?=[A-Z])'
-        )
         # Matches paragraph boundaries: double newlines
-        self.paragraph_pattern = re.compile(r'\n\n+')
 
     def chunk_text(self, text: str) -> List[str]:
         """
@@ -4858,71 +4200,41 @@ class TextChunker:
         Returns:
             List of text chunks with overlap
         """
-        if not text or not text.strip():
-            return []
+        ...
 
         # First, split into paragraphs
-        paragraphs = self.paragraph_pattern.split(text)
 
         chunks = []
         current_chunk = []
         current_length = 0
 
-        for para in paragraphs:
             # Skip empty paragraphs
-            if not para.strip():
-                continue
 
             # Split paragraph into sentences
-            sentences = self.sentence_pattern.split(para)
 
-            for sentence in sentences:
-                sentence = sentence.strip()
-                if not sentence:
-                    continue
 
-                sentence_length = len(sentence)
 
                 # If single sentence exceeds chunk_size, split it
-                if sentence_length > self.chunk_size:
                     # Flush current chunk if it has content
-                    if current_chunk:
-                        chunks.append(' '.join(current_chunk))
                         current_chunk = []
                         current_length = 0
 
                     # Split long sentence into word-based chunks
-                    long_sentence_chunks = self._split_long_sentence(sentence)
-                    chunks.extend(long_sentence_chunks)
-                    continue
 
                 # Check if adding sentence would exceed chunk_size
-                if current_length + sentence_length > self.chunk_size and current_chunk:
                     # Save current chunk
-                    chunks.append(' '.join(current_chunk))
 
                     # Create overlap for next chunk
-                    overlap_chunk = self._create_overlap(current_chunk)
                     current_chunk = overlap_chunk
-                    current_length = sum(len(s) for s in current_chunk)
 
                 # Add sentence to current chunk
-                current_chunk.append(sentence)
-                current_length += sentence_length + 1  # +1 for space
 
         # Add final chunk if it has content
-        if current_chunk:
-            chunks.append(' '.join(current_chunk))
 
         # Clean and filter chunks
-        cleaned_chunks = [c.strip() for c in chunks if c.strip()]
 
-        logger.debug(
-            f"Chunked text into {len(cleaned_chunks)} chunks "
-            f"(avg length: {sum(len(c) for c in cleaned_chunks) // len(cleaned_chunks) if cleaned_chunks else 0})"
-        )
 
-        return cleaned_chunks
+        ...
 
     def _split_long_sentence(self, sentence: str) -> List[str]:
         """
@@ -4935,42 +4247,26 @@ class TextChunker:
         Returns:
             List of word-based chunks
         """
-        words = sentence.split()
+        ...
         chunks = []
         current = []
         current_length = 0
 
-        for word in words:
-            word_length = len(word) + 1  # +1 for space
 
             # If single word exceeds chunk_size, split it
-            if word_length > self.chunk_size:
-                if current:
-                    chunks.append(' '.join(current))
                     current = []
                     current_length = 0
 
                 # Split word into character-based chunks as last resort
-                for i in range(0, len(word), self.chunk_size):
-                    chunks.append(word[i:i + self.chunk_size])
-                continue
 
             # Check if adding word would exceed chunk_size
-            if current_length + word_length > self.chunk_size and current:
-                chunks.append(' '.join(current))
 
                 # Create overlap
-                overlap_words = self._create_word_overlap(current)
                 current = overlap_words
-                current_length = sum(len(w) + 1 for w in current)
 
-            current.append(word)
-            current_length += word_length
 
-        if current:
-            chunks.append(' '.join(current))
 
-        return chunks
+        ...
 
     def _create_overlap(self, sentences: List[str]) -> List[str]:
         """
@@ -4986,16 +4282,10 @@ class TextChunker:
         overlap_length = 0
 
         # Work backwards through sentences to create overlap
-        for sentence in reversed(sentences):
-            sentence_length = len(sentence)
+        ...
 
-            if overlap_length + sentence_length <= self.chunk_overlap:
-                overlap_sentences.insert(0, sentence)
-                overlap_length += sentence_length
-            else:
-                break
 
-        return overlap_sentences
+        ...
 
     def _create_word_overlap(self, words: List[str]) -> List[str]:
         """
@@ -5011,16 +4301,10 @@ class TextChunker:
         overlap_length = 0
 
         # Work backwards through words to create overlap
-        for word in reversed(words):
-            word_length = len(word) + 1  # +1 for space
+        ...
 
-            if overlap_length + word_length <= self.chunk_overlap:
-                overlap_words.insert(0, word)
-                overlap_length += word_length
-            else:
-                break
 
-        return overlap_words
+        ...
 ```
 
 ### 9.2 Embedding Generation
@@ -5037,7 +4321,6 @@ from sentence_transformers import SentenceTransformer
 from backend.config import settings
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class EmbeddingGenerator:
@@ -5046,8 +4329,7 @@ class EmbeddingGenerator:
     """
     
     def __init__(self):
-        logger.info(f"Loading embedding model: {settings.EMBEDDING_MODEL}")
-        self.model = SentenceTransformer(settings.EMBEDDING_MODEL)
+        ...
         self.dimension = settings.EMBEDDING_DIMENSION
     
     async def generate(self, text: str) -> List[float]:
@@ -5061,10 +4343,10 @@ class EmbeddingGenerator:
             Embedding vector as list of floats
         """
         # Generate embedding
-        embedding = self.model.encode(text, convert_to_numpy=True)
+        ...
         
         # Convert to list
-        return embedding.tolist()
+        ...
     
     async def generate_batch(self, texts: List[str]) -> List[List[float]]:
         """
@@ -5076,8 +4358,7 @@ class EmbeddingGenerator:
         Returns:
             List of embedding vectors
         """
-        embeddings = self.model.encode(texts, convert_to_numpy=True)
-        return embeddings.tolist()
+        ...
 ```
 
 ### 9.3 Vector Retrieval
@@ -5098,7 +4379,6 @@ from backend.config import settings
 from backend.database.session import get_db
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class RAGRetriever:
@@ -5107,14 +4387,11 @@ class RAGRetriever:
     """
     
     def __init__(self):
-        self.embedding_generator = EmbeddingGenerator()
+        ...
     
     async def retrieve(
-        self,
-        query: str,
         top_k: int = None,
         similarity_threshold: float = None
-    ) -> List[Dict[str, Any]]:
         """
         Retrieve relevant document chunks for a query.
         
@@ -5129,43 +4406,17 @@ class RAGRetriever:
         top_k = top_k or settings.RAG_TOP_K
         similarity_threshold = similarity_threshold or settings.RAG_SIMILARITY_THRESHOLD
         
-        logger.info(f"Retrieving documents for query: {query[:50]}...")
         
         # Generate query embedding
-        query_vector = await self.embedding_generator.generate(query)
         
         # Perform vector similarity search
-        async with get_db() as db:
             # Using pgvector cosine similarity
-            stmt = select(
-                Embedding,
-                Document.name.label('document_name'),
-                (1 - Embedding.vector.cosine_distance(query_vector)).label('similarity')
-            ).join(
-                Document, Embedding.document_id == Document.id
-            ).where(
-                (1 - Embedding.vector.cosine_distance(query_vector)) > similarity_threshold
-            ).order_by(
-                (1 - Embedding.vector.cosine_distance(query_vector)).desc()
-            ).limit(top_k)
             
-            result = await db.execute(stmt)
-            rows = result.all()
         
         # Format results
         results = []
-        for embedding, doc_name, similarity in rows:
-            results.append({
-                "content": embedding.content,
-                "document_id": str(embedding.document_id),
-                "document_name": doc_name,
-                "chunk_index": embedding.chunk_index,
-                "similarity": float(similarity),
-                "metadata": embedding.metadata
-            })
         
-        logger.info(f"Retrieved {len(results)} relevant chunks")
-        return results
+        ...
 ```
 
 ---
@@ -5188,7 +4439,6 @@ from backend.core.chat.claude import ClaudeClient
 from backend.core.chat.openrouter import OpenRouterClient
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class ChatManager:
@@ -5197,14 +4447,11 @@ class ChatManager:
     """
     
     def __init__(self):
-        self.claude_client = ClaudeClient()
-        self.openrouter_client = OpenRouterClient()
+        ...
     
     async def create_session(
-        self,
         title: Optional[str] = None,
         model: str = None
-    ) -> ChatSession:
         """Create a new chat session"""
         from backend.config import settings
         
@@ -5230,24 +4477,11 @@ class ChatManager:
         metadata: Dict[str, Any] = None
     ) -> ChatMessage:
         """Add a message to a session"""
-        async with get_db() as db:
-            message = ChatMessage(
-                session_id=session_id,
-                role=role,
-                content=content,
-                metadata=metadata or {}
-            )
             
-            db.add(message)
-            await db.commit()
-            await db.refresh(message)
             
-            return message
+        ...
     
     async def get_session_messages(
-        self,
-        session_id: UUID
-    ) -> List[ChatMessage]:
         """Get all messages in a session"""
         async with get_db() as db:
             from sqlalchemy import select
@@ -5266,15 +4500,8 @@ class ChatManager:
         use_rag: bool = False
     ) -> AsyncIterator[str]:
         """
-        Stream a response from the LLM.
         
-        Args:
-            session_id: Chat session ID
-            user_message: User's message
-            use_rag: Whether to use RAG for context
         
-        Yields:
-            Chunks of the response
         """
         # Add user message
         await self.add_message(session_id, "user", user_message)
@@ -5330,7 +4557,6 @@ import anthropic
 from backend.config import settings
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class ClaudeClient:
@@ -5339,17 +4565,12 @@ class ClaudeClient:
     """
     
     def __init__(self):
-        self.client = anthropic.AsyncAnthropic(
-            api_key=settings.ANTHROPIC_API_KEY
-        )
+        ...
         self.model = settings.DEFAULT_MODEL
     
     async def stream_chat(
-        self,
-        messages: List[Dict[str, str]],
         temperature: float = None,
         max_tokens: int = None
-    ) -> AsyncIterator[str]:
         """
         Stream a chat response from Claude.
         
@@ -5364,19 +4585,7 @@ class ClaudeClient:
         temperature = temperature or settings.DEFAULT_TEMPERATURE
         max_tokens = max_tokens or settings.DEFAULT_MAX_TOKENS
         
-        try:
-            async with self.client.messages.stream(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens
-            ) as stream:
-                async for text in stream.text_stream:
-                    yield text
         
-        except Exception as e:
-            logger.error(f"Error streaming from Claude: {e}")
-            raise
 ```
 
 ---
@@ -5397,7 +4606,6 @@ from pathlib import Path
 from backend.config import settings
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 class GitManager:
@@ -5406,7 +4614,7 @@ class GitManager:
     """
     
     def __init__(self, repo_path: Path = None):
-        self.repo_path = repo_path or Path.cwd()
+        ...
     
     async def list_branches(self) -> List[str]:
         """List all branches in the repository"""
@@ -5427,17 +4635,10 @@ class GitManager:
     
     async def create_branch(self, branch_name: str, from_branch: str = "main"):
         """Create a new branch"""
-        result = subprocess.run(
-            ["git", "checkout", "-b", branch_name, from_branch],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True
-        )
+        ...
         
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to create branch: {result.stderr}")
+        ...
         
-        logger.info(f"Created branch: {branch_name}")
     
     async def list_worktrees(self) -> List[Dict[str, Any]]:
         """List all worktrees"""
@@ -5472,23 +4673,14 @@ class GitManager:
         path: Path = None
     ) -> Path:
         """Create a new worktree"""
-        if path is None:
+        ...
             path = settings.GIT_WORKTREE_DIR / branch_name
         
-        path.mkdir(parents=True, exist_ok=True)
         
-        result = subprocess.run(
-            ["git", "worktree", "add", str(path), branch_name],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True
-        )
         
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to add worktree: {result.stderr}")
+        ...
         
-        logger.info(f"Created worktree at: {path}")
-        return path
+        ...
     
     async def remove_worktree(self, path: Path):
         """Remove a worktree"""
@@ -5545,10 +4737,8 @@ from backend.config import settings
 
 # Create logs directory
 LOGS_DIR = settings.BASE_DIR / "logs"
-LOGS_DIR.mkdir(exist_ok=True)
 
 # Rich console for beautiful output
-console = Console(stderr=True)
 
 
 def add_timestamp(logger: Any, method_name: str, event_dict: dict) -> dict:
@@ -5559,8 +4749,7 @@ def add_timestamp(logger: Any, method_name: str, event_dict: dict) -> dict:
 
 def add_log_level(logger: Any, method_name: str, event_dict: dict) -> dict:
     """Add log level to event dict"""
-    event_dict["level"] = method_name.upper()
-    return event_dict
+    ...
 
 
 def setup_logger(name: str) -> structlog.BoundLogger:
@@ -5574,44 +4763,19 @@ def setup_logger(name: str) -> structlog.BoundLogger:
         Configured structlog logger
     """
     # Configure structlog
-    structlog.configure(
-        processors=[
+    ...
             # Add context
-            structlog.contextvars.merge_contextvars,
             # Add log level
-            add_log_level,
             # Add timestamp
-            add_timestamp,
             # Add caller info in development
-            structlog.processors.CallsiteParameterAdder(
-                [
-                    structlog.processors.CallsiteParameter.FILENAME,
-                    structlog.processors.CallsiteParameter.FUNC_NAME,
-                    structlog.processors.CallsiteParameter.LINENO,
-                ]
-            ) if settings.DEBUG else lambda *args: args[2],
             # Stack info for exceptions
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
             # Format for output
-            structlog.processors.JSONRenderer() if not settings.DEBUG
-            else structlog.dev.ConsoleRenderer(colors=True),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            logging_level_from_string(settings.LOG_LEVEL)
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
-        cache_logger_on_first_use=True,
-    )
 
     # Get logger
-    logger = structlog.get_logger(name)
 
     # Bind module name
-    logger = logger.bind(module=name)
 
-    return logger
+    ...
 
 
 def logging_level_from_string(level: str) -> int:
@@ -5622,8 +4786,7 @@ def logging_level_from_string(level: str) -> int:
 
 def setup_file_logging():
     """
-    Setup file-based JSON logging for production.
-    Logs are rotated daily and kept for 30 days.
+    ...
     """
     from logging.handlers import TimedRotatingFileHandler
     import logging
@@ -5653,8 +4816,6 @@ def setup_file_logging():
 
 def setup_rich_logging():
     """
-    Setup Rich console logging for development.
-    Provides beautiful, syntax-highlighted console output.
     """
     import logging
 
@@ -5689,36 +4850,18 @@ else:
 ```python
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 # Simple messages
-logger.info("Agent started")
-logger.warning("Resource usage high")
-logger.error("Operation failed")
 
 # With context
-logger.info(
-    "Agent completed",
-    agent_id="agent-123",
-    duration_seconds=45.2,
-    status="success"
-)
 ```
 
 #### 13.3.2 Structured Context
 
 ```python
 # Bind context that persists across log calls
-logger = logger.bind(
-    request_id="req-abc123",
-    user_id="user-456",
-    workflow_id="wf-789"
-)
 
 # All subsequent logs include this context
-logger.info("Starting workflow")  # Includes request_id, user_id, workflow_id
-logger.info("Processing step 1")  # Same context
-logger.info("Workflow complete")  # Same context
 ```
 
 #### 13.3.3 Performance Tracking
@@ -5727,35 +4870,16 @@ logger.info("Workflow complete")  # Same context
 import time
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
-start_time = time.time()
 
 # ... do work ...
 
-logger.info(
-    "Operation completed",
-    operation="document_ingestion",
-    duration_ms=(time.time() - start_time) * 1000,
-    documents_processed=150,
-    success=True
-)
 ```
 
 #### 13.3.4 Error Logging with Context
 
 ```python
-try:
-    result = await risky_operation()
-except Exception as e:
-    logger.exception(
-        "Operation failed",
-        operation="risky_operation",
-        error_type=type(e).__name__,
-        error_message=str(e),
         # Exception traceback automatically included
-    )
-    raise
 ```
 
 ### 13.4 Logging Middleware
@@ -5772,7 +4896,6 @@ from fastapi import Request
 from structlog import get_logger
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 async def logging_middleware(request: Request, call_next):
@@ -5780,55 +4903,28 @@ async def logging_middleware(request: Request, call_next):
     Log all HTTP requests and responses with timing and context.
     """
     # Generate request ID
-    request_id = str(uuid.uuid4())
+    ...
 
     # Bind request context
-    request_logger = logger.bind(
-        request_id=request_id,
-        method=request.method,
-        path=request.url.path,
-        client_host=request.client.host if request.client else None,
-    )
 
     # Log request
-    request_logger.info(
-        "HTTP request received",
-        query_params=dict(request.query_params),
-    )
 
     # Add request ID to request state
     request.state.request_id = request_id
     request.state.logger = request_logger
 
     # Process request
-    start_time = time.time()
 
-    try:
-        response = await call_next(request)
 
-        duration_ms = (time.time() - start_time) * 1000
 
         # Log response
-        request_logger.info(
-            "HTTP request completed",
-            status_code=response.status_code,
-            duration_ms=round(duration_ms, 2),
-        )
 
         # Add request ID to response headers
         response.headers["X-Request-ID"] = request_id
 
-        return response
+    ...
 
-    except Exception as e:
-        duration_ms = (time.time() - start_time) * 1000
 
-        request_logger.exception(
-            "HTTP request failed",
-            error=str(e),
-            duration_ms=round(duration_ms, 2),
-        )
-        raise
 ```
 
 ### 13.5 Log Levels
@@ -5900,56 +4996,21 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 async def error_handler_middleware(request: Request, call_next):
     """
     Catch all unhandled exceptions and return formatted error responses.
     """
-    try:
-        response = await call_next(request)
-        return response
+    ...
     
-    except ValueError as e:
-        logger.error(f"ValueError: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "error": "Bad Request",
-                "detail": str(e)
-            }
-        )
+    ...
     
-    except PermissionError as e:
-        logger.error(f"PermissionError: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content={
-                "error": "Forbidden",
-                "detail": str(e)
-            }
-        )
+    ...
     
-    except FileNotFoundError as e:
-        logger.error(f"FileNotFoundError: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "error": "Not Found",
-                "detail": str(e)
-            }
-        )
+    ...
     
-    except Exception as e:
-        logger.error(f"Unhandled exception: {e}", exc_info=True)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "error": "Internal Server Error",
-                "detail": "An unexpected error occurred"
-            }
-        )
+    ...
 ```
 
 ---
@@ -5986,19 +5047,13 @@ def event_loop():
 @pytest.fixture(scope="session")
 async def test_engine():
     """Create test database engine"""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=True)
+    ...
     
     # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     
-    yield engine
     
     # Drop tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
     
-    await engine.dispose()
 
 
 @pytest.fixture
@@ -6018,11 +5073,7 @@ async def db_session(test_engine):
 @pytest.fixture
 def sample_document():
     """Sample document for testing"""
-    return {
-        "name": "test_doc.md",
-        "type": "markdown",
-        "content": "# Test Document\n\nThis is a test document."
-    }
+    ...
 ```
 
 #### 15.1.2 Agent Tests (`tests/test_agents.py`)
@@ -6046,24 +5097,12 @@ class MockAgent(BaseAgent):
 @pytest.mark.asyncio
 async def test_agent_execution():
     """Test basic agent execution"""
-    config = AgentConfig(
-        name="TestAgent",
-        description="Test agent",
-        system_prompt="Test prompt"
-    )
+    ...
     
-    event_bus = EventBus()
-    await event_bus.start()
     
-    agent = MockAgent(config, event_bus)
     
-    result = await agent.execute({"test": "input"})
     
-    assert result.status == AgentStatus.COMPLETED
-    assert result.output["result"] == "success"
-    assert result.output["input"]["test"] == "input"
     
-    await event_bus.stop()
 
 
 @pytest.mark.asyncio
@@ -6236,35 +5275,12 @@ pnpm dev
 ```python
 # /api/agents
 
-GET /api/agents
-- List all agents
-- Response: List[Agent]
 
-POST /api/agents
-- Create new agent
-- Body: AgentConfig
-- Response: Agent
 
-GET /api/agents/{agent_id}
-- Get agent details
-- Response: Agent
 
-POST /api/agents/{agent_id}/start
-- Start agent execution
-- Body: {"input": Dict[str, Any]}
-- Response: AgentResult
 
-POST /api/agents/{agent_id}/stop
-- Stop running agent
-- Response: {"status": "stopped"}
 
-DELETE /api/agents/{agent_id}
-- Delete agent
-- Response: {"status": "deleted"}
 
-GET /api/agents/{agent_id}/logs
-- Get agent execution logs
-- Response: List[str]
 ```
 
 ### 17.2 Workflow Endpoints
@@ -6272,35 +5288,12 @@ GET /api/agents/{agent_id}/logs
 ```python
 # /api/workflows
 
-GET /api/workflows
-- List all workflows
-- Response: List[Workflow]
 
-POST /api/workflows
-- Create new workflow
-- Body: WorkflowDefinition
-- Response: Workflow
 
-GET /api/workflows/{workflow_id}
-- Get workflow details
-- Response: Workflow
 
-POST /api/workflows/{workflow_id}/start
-- Start workflow execution
-- Body: {"input": Dict[str, Any]}
-- Response: WorkflowState
 
-POST /api/workflows/{workflow_id}/pause
-- Pause running workflow
-- Response: {"status": "paused"}
 
-POST /api/workflows/{workflow_id}/resume
-- Resume paused workflow
-- Response: {"status": "running"}
 
-DELETE /api/workflows/{workflow_id}
-- Delete workflow
-- Response: {"status": "deleted"}
 ```
 
 ### 17.3 RAG Endpoints
@@ -6308,32 +5301,11 @@ DELETE /api/workflows/{workflow_id}
 ```python
 # /api/rag
 
-GET /api/rag/documents
-- List all documents
-- Response: List[Document]
 
-POST /api/rag/documents/upload
-- Upload document
-- Body: multipart/form-data
-- Response: Document
 
-POST /api/rag/documents/scrape
-- Scrape web page
-- Body: {"url": str}
-- Response: Document
 
-GET /api/rag/documents/{document_id}
-- Get document details
-- Response: Document
 
-DELETE /api/rag/documents/{document_id}
-- Delete document
-- Response: {"status": "deleted"}
 
-POST /api/rag/query
-- Query RAG system
-- Body: {"query": str, "top_k": int}
-- Response: List[RetrievalResult]
 ```
 
 ### 17.4 Chat Endpoints
@@ -6341,27 +5313,10 @@ POST /api/rag/query
 ```python
 # /api/chat
 
-GET /api/chat/sessions
-- List chat sessions
-- Response: List[ChatSession]
 
-POST /api/chat/sessions
-- Create new session
-- Body: {"title": str, "model": str}
-- Response: ChatSession
 
-GET /api/chat/sessions/{session_id}/messages
-- Get session messages
-- Response: List[ChatMessage]
 
-POST /api/chat/sessions/{session_id}/stream
-- Stream chat response (SSE)
-- Body: {"message": str, "use_rag": bool}
-- Response: text/event-stream
 
-DELETE /api/chat/sessions/{session_id}
-- Delete session
-- Response: {"status": "deleted"}
 ```
 
 ---
@@ -6395,7 +5350,7 @@ class AgentConfigSchema(BaseModel):
 
 class AgentCreateSchema(BaseModel):
     """Agent creation request"""
-    config: AgentConfigSchema
+    ...
 
 
 class AgentResponse(BaseModel):
@@ -6414,7 +5369,7 @@ class AgentResponse(BaseModel):
 
 class AgentExecuteSchema(BaseModel):
     """Agent execution request"""
-    input: Dict[str, Any]
+    ...
 
 
 class AgentResultSchema(BaseModel):
@@ -6452,12 +5407,6 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
 # Allowed MIME types with their extensions
 ALLOWED_TYPES = {
-    'application/pdf': ['.pdf'],
-    'text/markdown': ['.md', '.markdown'],
-    'text/html': ['.html', '.htm'],
-    'text/plain': ['.txt'],
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-}
 
 
 def validate_file_upload(file: UploadFile) -> None:
@@ -6474,49 +5423,23 @@ def validate_file_upload(file: UploadFile) -> None:
         HTTPException: If validation fails
     """
     # Check filename for path traversal attempts
-    if '..' in file.filename or '/' in file.filename or '\\' in file.filename:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid filename - path traversal detected"
-        )
+    ...
 
     # Read first 2KB for magic byte detection
-    file.file.seek(0)
-    header = file.file.read(2048)
-    file.file.seek(0)
 
     # Detect MIME type using magic bytes (not extension)
-    mime = magic.Magic(mime=True)
-    detected_type = mime.from_buffer(header)
 
     # Verify MIME type is allowed
-    if detected_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File type not allowed: {detected_type}. "
-                   f"Allowed types: {', '.join(ALLOWED_TYPES.keys())}"
-        )
+    ...
 
     # Verify extension matches MIME type
-    file_ext = Path(file.filename).suffix.lower()
     allowed_extensions = ALLOWED_TYPES[detected_type]
 
-    if file_ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File extension {file_ext} doesn't match detected type {detected_type}"
-        )
+    ...
 
     # Check file size
-    file.file.seek(0, 2)  # Seek to end
-    size = file.file.tell()
-    file.file.seek(0)  # Reset
 
-    if size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large. Maximum size: {MAX_FILE_SIZE / (1024*1024):.1f} MB"
-        )
+    ...
 
     # Check storage quota
     # This would query database for total storage used
@@ -6537,21 +5460,15 @@ def safe_filename(filename: str) -> str:
     from uuid import uuid4
 
     # Remove path components
-    filename = Path(filename).name
+    ...
 
     # Remove all non-alphanumeric except . - _
-    safe_name = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
 
     # Prevent hidden files
-    if safe_name.startswith('.'):
         safe_name = 'file_' + safe_name
 
     # Add unique prefix to prevent collisions
-    name_parts = safe_name.rsplit('.', 1)
-    if len(name_parts) == 2:
-        return f"{name_parts[0]}_{uuid4().hex[:8]}.{name_parts[1]}"
-    else:
-        return f"{safe_name}_{uuid4().hex[:8]}"
+    ...
 ```
 
 ### 20.2 Path Traversal Protection
@@ -6580,24 +5497,17 @@ def safe_path(base_dir: Path, user_path: str) -> Path:
         ValueError: If path traversal detected
     """
     # Resolve both paths to absolute
-    base_dir = base_dir.resolve()
+    ...
 
     # Combine and resolve
-    if Path(user_path).is_absolute():
         # Don't allow absolute paths from user
-        raise ValueError("Absolute paths not allowed")
+    ...
 
-    target = (base_dir / user_path).resolve()
 
     # Ensure target is within base_dir using is_relative_to (Python 3.9+)
-    try:
-        target.relative_to(base_dir)
-    except ValueError:
-        raise ValueError(
-            f"Path traversal detected: {user_path} would escape {base_dir}"
-        )
+    ...
 
-    return target
+    ...
 
 
 # Usage in document upload:
@@ -6632,7 +5542,6 @@ import re
 from typing import List
 from backend.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
 
 
 def validate_git_ref(ref: str) -> str:
@@ -6649,26 +5558,17 @@ def validate_git_ref(ref: str) -> str:
         ValueError: If reference contains invalid characters
     """
     # Allow alphanumeric, hyphens, underscores, slashes, dots
-    if not re.match(r'^[a-zA-Z0-9_/-]+$', ref):
-        raise ValueError(
-            f"Invalid Git reference: {ref}. "
-            "Only alphanumeric, -, _, / allowed"
-        )
+    ...
 
     # Prevent special refs that could be dangerous
     dangerous_refs = ['..', '.git', 'refs/']
-    for danger in dangerous_refs:
-        if danger in ref:
-            raise ValueError(f"Invalid Git reference: {ref}")
+    ...
 
-    return ref
+    ...
 
 
 async def run_git_command(
-    args: List[str],
-    cwd: Path,
     timeout: int = 30
-) -> subprocess.CompletedProcess:
     """
     Run git command safely with validation.
 
@@ -6685,29 +5585,14 @@ async def run_git_command(
         subprocess.TimeoutExpired: If command exceeds timeout
     """
     # Validate all arguments
-    for arg in args:
-        if arg.startswith('-'):
             # Allow known safe flags
             safe_flags = ['-b', '-m', '--', '-f', '-d']
-            if not any(arg.startswith(flag) for flag in safe_flags):
-                logger.warning(f"Potentially unsafe git flag: {arg}")
-        elif ';' in arg or '|' in arg or '&' in arg or '$' in arg:
-            raise ValueError(f"Command injection attempt detected: {arg}")
+    ...
 
     # Run with shell=False for safety
-    result = subprocess.run(
-        ['git'] + args,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False  # Don't raise on non-zero exit
-    )
 
-    if result.returncode != 0:
-        logger.error(f"Git command failed: {result.stderr}")
 
-    return result
+    ...
 
 
 # Example usage in GitManager:
@@ -6741,34 +5626,24 @@ def check_env_file_security():
     Check .env file permissions on startup.
     Warn if permissions are too open.
     """
-    env_path = Path('.env')
+    ...
 
-    if not env_path.exists():
-        return
 
     # Check file permissions (Unix only)
     import stat
     import os
 
-    if os.name != 'nt':  # Not Windows
-        st = env_path.stat()
         mode = st.st_mode
 
         # Check if readable by group or others
-        if mode & stat.S_IRGRP or mode & stat.S_IROTH:
-            logger.warning(
-                f".env file has overly permissive permissions: {oct(mode)[-3:]}. "
-                "Run: chmod 600 .env"
-            )
 
 
 # Add to main.py startup:
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("Starting Amelia backend...")
+    ...
 
     # Check .env security
-    check_env_file_security()
 
     # ... rest of startup
 ```
@@ -6791,7 +5666,6 @@ from slowapi.errors import RateLimitExceeded
 from fastapi import Request, FastAPI
 
 # Create limiter
-limiter = Limiter(key_func=get_remote_address)
 
 
 def setup_rate_limiting(app: FastAPI):
