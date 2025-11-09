@@ -17,6 +17,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Blog posts
+docs/blog_posts/
+
 # Claude
 .claude/
 
