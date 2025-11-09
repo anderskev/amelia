@@ -1,0 +1,130 @@
+/* app/globals.css */
+@import "tailwindcss";
+
+/* =========
+   Design tokens (your 7 colors)
+   ========= */
+:root {
+  /* Light mode */
+  --background: hsl(85 61% 93%);        /* #eff8e2 */
+  --foreground: hsl(165 24% 15%);       /* #1f332e - darker teal */
+
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+
+  --primary: hsl(222 82% 21%);          /* #0a2463 */
+  --primary-foreground: hsl(85 61% 93%);/* #eff8e2 */
+
+  --secondary: hsl(85 18% 48%);         /* #88976b - lighter green/sage */
+  --secondary-foreground: hsl(165 24% 15%);
+
+  --muted: hsl(85 18% 48% / 0.2);
+  --muted-foreground: hsl(165 24% 15% / 0.7);
+
+  --accent: hsl(40 100% 67%);           /* #ffc857 */
+  --accent-foreground: hsl(165 24% 15%);
+
+  --destructive: hsl(10 70% 37%);       /* #a0311c */
+  --destructive-foreground: hsl(85 61% 93%);
+
+  --border: hsl(85 18% 48% / 0.3);
+  --input: hsl(85 18% 48% / 0.4);
+  --ring: hsl(40 100% 67%);             /* accent ring */
+
+  /* Additional color tokens */
+  --gray: hsl(98 4% 43%);               /* #6d726a */
+  --sage: hsl(85 18% 48%);              /* #88976b */
+  --teal: hsl(165 24% 15%);             /* #1f332e */
+
+  --radius: 0.5rem;
+}
+
+/* Dark mode: add `class="dark"` on <html> or <body> */
+.dark {
+  --background: hsl(165 24% 15%);       /* #1f332e - darker teal */
+  --foreground: hsl(85 61% 93%);        /* #eff8e2 */
+
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+
+  /* make primary pop in dark */
+  --primary: hsl(40 100% 67%);          /* #ffc857 */
+  --primary-foreground: hsl(165 24% 15%);
+
+  --secondary: hsl(85 18% 48%);         /* #88976b - sage green */
+  --secondary-foreground: hsl(165 24% 15%);
+
+  --muted: hsl(85 18% 48% / 0.25);
+  --muted-foreground: hsl(85 61% 93% / 0.75);
+
+  /* swap the blue to accent in dark */
+  --accent: hsl(222 82% 21%);           /* #0a2463 */
+  --accent-foreground: hsl(85 61% 93%);
+
+  --destructive: hsl(10 70% 37%);       /* #a0311c */
+  --destructive-foreground: hsl(85 61% 93%);
+
+  --border: hsl(85 18% 48% / 0.2);
+  --input: hsl(85 18% 48% / 0.3);
+  --ring: hsl(40 100% 67%);
+}
+
+/* =========
+   Publish tokens to Tailwind utilities
+   ========= */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* radii */
+  --radius: var(--radius);
+}
+
+/* =========
+   Base styles (shadcn-style)
+   ========= */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Optional: nicer text selection */
+  ::selection {
+    background: hsl(var(--color-primary) / 0.18);
+  }
+}
+
+/* =========
+   Example focus states (optional)
+   ========= */
+:where(button, a, input, textarea, select):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--color-background)), 0 0 0 4px hsl(var(--color-ring));
+}
