@@ -2,8 +2,6 @@
 Structured logging setup using structlog and rich.
 """
 import logging
-import sys
-from typing import Optional
 import structlog
 from rich.logging import RichHandler
 
