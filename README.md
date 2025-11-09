@@ -4,6 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
@@ -64,7 +65,7 @@ amelia/
 ### Prerequisites
 
 - Python 3.12+
-- Poetry
+- [uv](https://github.com/astral-sh/uv) (Astral's fast Python package installer)
 - PostgreSQL 15+ with pgvector extension
 - Node.js 20+ (for frontend)
 - Anthropic API key
@@ -79,7 +80,7 @@ amelia/
 
 2. **Install dependencies**
    ```bash
-   poetry install
+   uv sync
    ```
 
 3. **Configure environment**
@@ -94,12 +95,12 @@ amelia/
    createdb amelia
 
    # Run migrations
-   poetry run alembic upgrade head
+   uv run alembic upgrade head
    ```
 
 5. **Run the backend**
    ```bash
-   poetry run uvicorn backend.main:app --reload
+   uv run uvicorn backend.main:app --reload
    ```
 
    The API will be available at `http://localhost:8000`
@@ -143,10 +144,10 @@ See `.env.example` for complete configuration options.
 
 ```bash
 # Backend tests
-poetry run pytest
+uv run pytest
 
 # With coverage
-poetry run pytest --cov=backend --cov-report=html
+uv run pytest --cov=backend --cov-report=html
 
 # Frontend tests
 cd frontend
@@ -157,13 +158,13 @@ npm test
 
 ```bash
 # Format code
-poetry run black backend tests
+uv run black backend tests
 
 # Lint
-poetry run ruff check backend tests
+uv run ruff check backend tests
 
 # Type checking
-poetry run mypy backend
+uv run mypy backend
 ```
 
 ## Project Status
