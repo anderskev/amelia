@@ -39,15 +39,19 @@ This document outlines specialized sub-agents that would accelerate development 
 
 ## 2. RAG Strategy Architect
 
-**Purpose:** Implements and optimizes retrieval-augmented generation strategies.
+**Purpose:** Designs and optimizes retrieval-augmented generation strategies and algorithms.
 
 **Key Responsibilities:**
-- Implement vector search algorithms
-- Design hybrid search (vector + BM25) with RRF fusion
-- Build contextual embedding pipelines
-- Integrate cross-encoder re-ranking
+- Design vector search algorithms and similarity metrics
+- Design hybrid search strategies (vector + BM25) with RRF fusion formulas
+- Build contextual embedding strategies
+- Design cross-encoder re-ranking approaches
 - Tune strategy auto-selection logic
-- Benchmark retrieval quality (NDCG, precision@k)
+- Benchmark retrieval quality (NDCG, precision@k, MRR)
+- Create evaluation harnesses for retrieval quality
+- Define ranking fusion weights and parameters
+
+**Note:** Works closely with LangChain Integration Specialist (#16) who implements these algorithms as LangChain LCEL chains and retrievers.
 
 **Tool Access:**
 - Read, Write, Edit
@@ -55,16 +59,18 @@ This document outlines specialized sub-agents that would accelerate development 
 - WebFetch (for researching latest RAG techniques)
 
 **When to Use:**
-- "Implement hybrid search with reciprocal rank fusion"
-- "Add contextual embeddings to improve retrieval"
-- "Tune the BM25 weighting in hybrid search"
+- "Design a hybrid search strategy with reciprocal rank fusion"
+- "Define contextual embedding strategy to improve retrieval"
+- "Calculate optimal BM25 weighting for hybrid search"
 - "Create an evaluation harness for retrieval quality"
+- "Design auto-selection logic for query routing"
 
 **System Prompt Focus:**
 - Vector similarity search algorithms
 - BM25 and text search fundamentals
 - Ranking fusion techniques (RRF, CombSUM)
-- Retrieval evaluation metrics
+- Retrieval evaluation metrics (NDCG, MRR, precision@k)
+- Algorithm design and optimization
 
 ---
 
@@ -317,7 +323,7 @@ This document outlines specialized sub-agents that would accelerate development 
 
 ## 11. Performance Optimization Engineer
 
-**Purpose:** Profiles and optimizes system performance.
+**Purpose:** Profiles and optimizes system performance across all components including LangChain pipelines.
 
 **Key Responsibilities:**
 - Profile database query performance
@@ -327,6 +333,10 @@ This document outlines specialized sub-agents that would accelerate development 
 - Optimize batch processing
 - Monitor memory usage and prevent leaks
 - Benchmark latencies (vector search, hybrid search, transcription)
+- Profile LangChain LCEL chain execution
+- Optimize LangChain batching and streaming performance
+- Measure LangChain tracing overhead
+- Tune retriever response times
 
 **Tool Access:**
 - Read, Edit
@@ -337,18 +347,23 @@ This document outlines specialized sub-agents that would accelerate development 
 - "Reduce P95 latency for hybrid search"
 - "Optimize memory usage during batch ingestion"
 - "Benchmark transcription performance"
+- "Profile LangChain chain execution and identify bottlenecks"
+- "Optimize batching in LangChain retrievers"
+- "Measure tracing overhead in production"
 
 **System Prompt Focus:**
 - PostgreSQL query optimization (EXPLAIN, ANALYZE)
 - Memory profiling tools (psutil, memory_profiler)
 - Asyncio performance patterns
 - Latency measurement and P95/P99 analysis
+- LangChain performance profiling
+- Chain composition optimization
 
 ---
 
 ## 12. Testing & Quality Assurance Specialist
 
-**Purpose:** Writes comprehensive tests and ensures quality gates.
+**Purpose:** Writes comprehensive tests and ensures quality gates including LangChain component testing.
 
 **Key Responsibilities:**
 - Write unit tests for core components
@@ -358,6 +373,10 @@ This document outlines specialized sub-agents that would accelerate development 
 - Implement chaos tests for retry/backpressure
 - Design soak tests for long-running operations
 - Write contract tests with recorded fixtures
+- Test LangChain custom retrievers with deterministic outputs
+- Write integration tests for LCEL chain composition
+- Validate LangChain tracing and fixture recording
+- Test golden answers for retrieval chains
 
 **Tool Access:**
 - Read, Write, Edit
@@ -368,12 +387,18 @@ This document outlines specialized sub-agents that would accelerate development 
 - "Create integration tests for the crawl pipeline"
 - "Design an eval harness for retrieval quality"
 - "Add chaos tests for job coordinator retries"
+- "Write unit tests for LangChain pgvector retriever"
+- "Create integration test for hybrid search LCEL chain"
+- "Validate tracing IDs in contract tests"
+- "Test retriever chain outputs against golden answers"
 
 **System Prompt Focus:**
 - pytest framework and fixtures
 - Test design patterns (AAA, Given-When-Then)
 - Coverage measurement and analysis
 - Retrieval evaluation metrics (NDCG, MRR)
+- LangChain testing patterns (retriever tests, chain tests)
+- Fixture recording and golden answer validation
 
 ---
 
@@ -467,20 +492,71 @@ This document outlines specialized sub-agents that would accelerate development 
 
 ---
 
+## 16. LangChain Integration Specialist
+
+**Purpose:** Manages LangChain framework integration across the Amelia RAG pipeline.
+
+**Key Responsibilities:**
+- Design and implement LCEL (LangChain Expression Language) chains for retrieval workflows
+- Build custom LangChain retrievers wrapping pgvector and BM25 backends
+- Integrate cross-encoder rerankers as LangChain components
+- Implement `tool_router` module for MCP tool orchestration within chains
+- Configure LangChain tracing and observability (LangSmith integration)
+- Propagate trace IDs to structured logs and database tables (jobs, search_requests)
+- Design batching and streaming patterns for efficient retrieval
+- Bridge RAG algorithms to MCP tools via LangChain pipeline
+- Write LangChain-specific unit and integration tests
+- Optimize chain composition for latency and memory efficiency
+
+**Note:** The TDD states "All MCP search requests go through this LangChain pipeline—there is no fallback path—making it a first-class, mandatory dependency." This specialist is critical from Phase 1.
+
+**Tool Access:**
+- Read, Write, Edit
+- Bash (for testing chains, running benchmarks)
+- WebFetch (for LangChain documentation, LCEL patterns)
+- Grep, Glob
+
+**When to Use:**
+- "Implement the LCEL chain for hybrid search in amelia/langchain/pipeline.py"
+- "Create a custom pgvector retriever for LangChain"
+- "Add LangSmith tracing to the search pipeline"
+- "Design the tool_router for MCP orchestration"
+- "Optimize batching in LangChain retrievers"
+- "Implement the parallel vector + BM25 retriever chain"
+- "Add cross-encoder reranker as LangChain component"
+
+**System Prompt Focus:**
+- LangChain Expression Language (LCEL) patterns and composition
+- Custom retriever development (BaseRetriever interface)
+- LangChain tracing and observability (LangSmith)
+- Batching and streaming interfaces
+- Chain orchestration and parallel execution
+- Integration with external tools (MCP)
+- LangChain testing patterns (unit tests for retrievers, integration tests for chains)
+
+---
+
 ## How to Use These Sub-Agents
 
 ### Priority for Phase 1 (MVP)
 1. **Database Schema Engineer** – critical for initial setup
 2. **MCP Protocol Expert** – core functionality
-3. **Embedding Pipeline Engineer** – essential for vector search
-4. **Document Parser Engineer** – needed for ingestion
-5. **Testing & Quality Assurance Specialist** – ensures quality gates
+3. **LangChain Integration Specialist** – mandatory pipeline infrastructure (no fallback path)
+4. **Embedding Pipeline Engineer** – essential for vector search
+5. **RAG Strategy Architect** – algorithm design (works with LangChain specialist)
+6. **Document Parser Engineer** – needed for ingestion
+7. **Testing & Quality Assurance Specialist** – ensures quality gates
+
+**Note:** LangChain Integration Specialist is critical from Phase 1 because all MCP search requests must go through the LangChain pipeline.
 
 ### Priority for Phase 2 (Advanced RAG)
-1. **RAG Strategy Architect** – hybrid search implementation
-2. **Chunking Strategy Specialist** – hierarchical chunking
-3. **Versioning & Change Detection Expert** – incremental updates
-4. **Performance Optimization Engineer** – latency improvements
+1. **RAG Strategy Architect** – algorithm design for hybrid search, contextual embeddings
+2. **LangChain Integration Specialist** – LCEL chain expansion, parallel retrievers, reranker integration
+3. **Chunking Strategy Specialist** – hierarchical chunking
+4. **Versioning & Change Detection Expert** – incremental updates
+5. **Performance Optimization Engineer** – latency improvements, LangChain chain profiling
+
+**Note:** Heavy collaboration between RAG Strategy Architect (algorithm design) and LangChain Integration Specialist (framework implementation) in this phase.
 
 ### Priority for Phase 3 (Web & Audio)
 1. **Web Crawler Engineer** – Crawl4AI integration

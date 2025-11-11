@@ -2,7 +2,7 @@
 
 **Version:** 1.0 | **Last Updated:** 2025-11-10
 
-A Model Context Protocol (MCP) server that makes your local documents searchable by Claude Code using advanced RAG techniques.
+This Technical Design Doc is my personal learning playbook for Amelia: a local MCP server that helps me explore RAG, LangChain/LangGraph, Crawl4AI, Whisper, and MCP tooling in one cohesive project. It is scoped for a single developer workflow (me), prioritizing rapid experimentation over production polish. For the problem statement and long-term vision, see `docs/prd.md`; for the motivation and future orchestration ideas, see `docs/blog_posts/0001_why_build_amelia.md`.
 
 ---
 
@@ -16,14 +16,13 @@ Amelia is a local-first document search tool that:
 - Uses advanced RAG strategies for accurate retrieval
 - Runs entirely on your machine (privacy-friendly)
 
-**Key Features:**
+**Key Learning Areas:**
 - MCP server integration (plug right into Claude Code)
 - Advanced RAG: contextual embeddings, hybrid search, re-ranking
 - Audio transcription via Whisper ASR (Automatic Speech Recognition)
 - Web crawling via Crawl4AI with browser automation
 - PostgreSQL + pgvector for vector storage
 - Configurable strategies based on query type
-- Fast: <100ms for vector search, <200ms for hybrid, ~5-10x real-time transcription
 
 ---
 
@@ -123,104 +122,70 @@ Ranking → Format Results → Return to Claude
 - Error handling
 
 ### 2. Job Coordinator
-**What it does:** Orchestrates long-running operations and manages system resources
 
-**Key parts:**
-- **Job Queue Manager:** Separate queues for ingestion, crawling, and transcription jobs
-- **Status Tracking:** Monitors job progress (pending, running, completed, failed)
-- **Retry Logic:** Exponential backoff for failed operations with persisted retry state
-  - Retry delays: 1s, 2s, 4s, 8s, 16s, 32s (max 60s)
-  - Default max retries: 3 attempts per job
-  - Persists `retry_count`, `max_retries`, `next_run_at`, `last_retry_at`, and `backoff_delay` to jobs table
-- **Backpressure Management:** Limits concurrent jobs to prevent resource exhaustion
-  - Max 3 crawl jobs concurrently
-  - Max 2 transcription jobs (memory intensive)
-  - Max 5 ingestion jobs
-- **Crash Recovery:** Full state persistence enables recovery after server restarts
-  - On startup, queries jobs table for `status='running'` or jobs with `next_run_at <= NOW()`
-  - Reconstructs retry state from `retry_count`, `next_run_at`, and `backoff_delay` columns
-  - Resumes pending retries or marks stale jobs as failed
-  - Re-enqueues interrupted jobs based on persisted progress and metadata
-- **Progress Reporting:** Returns real-time status to MCP clients
+**Learning Objectives**
+- Practice building asyncio-based job queues with persisted retry state.
+- Capture job telemetry I can inspect manually (CLI or MCP status command) to understand backlogs.
 
-**Implementation:**
-- Uses asyncio.Queue for in-memory job queuing
-- PostgreSQL `jobs` table for durable state persistence
-- Worker pool pattern with semaphores for concurrency control
-- Periodic background task to check for scheduled retries (`next_run_at`)
+**Minimum Build**
+- Single queue manager covering ingest + crawl + transcription jobs backed by a PostgreSQL `jobs` table that stores `retry_count`, `next_run_at`, `backoff_delay`, and `status` fields.
+- Background worker that enforces a simple exponential backoff (1s, 2s, 4s, 8s, 16s, 32s; max 3 attempts) and resurrects in-flight jobs on restart by scanning `status in ('running','scheduled')`.
+- `amelia jobs status` (or equivalent MCP tool) that prints pending/running/failed jobs with timestamps so I can manually triage.
+
+**Stretch Experiments**
+- Configurable backpressure caps per job type (e.g., crawl=3, transcription=2, ingestion=5) and a chaos-test script that randomly fails Crawl4AI/Whisper runs to validate retries.
+- Remote/worker-process prototype to offload heavy transcription jobs without redesigning the coordinator.
+- Structured tracing that correlates job IDs with LangChain/LangSmith runs for easier debugging.
+
 
 ### 3. Document Processing Pipeline
-**What it does:** Ingests and prepares documents for search
 
-**Key parts:**
-- **Parsers:** PDF, DOCX, TXT, MD, HTML
-- **Audio Transcriber:** Whisper ASR for speech-to-text
-- **Content Hash Generator:** Computes SHA256 hash of document content for change detection
-- **Version Manager:** Compares content hash with existing documents
-  - If hash matches: Skip re-embedding, keep existing version
-  - If hash differs: Increment version, re-chunk, re-embed, update timestamp
-  - Enables efficient incremental updates without manual tracking
-- **Chunker:** Splits docs into searchable pieces
-  - Hierarchical markdown chunking (respects headers)
-  - Semantic chunking (respects sentences/paragraphs)
-  - Timestamp-aware chunking for audio transcripts
-  - Fixed-size with overlap (fallback)
-- **Metadata extractor:** Pulls out title, author, headers, audio duration, etc.
-- **Embedding generator:** Creates vector embeddings
+**Learning Objectives**
+- Explore how parsing, hashing, and chunking feed a pgvector/BM25-backed RAG system.
+- Practice incremental updates so local docs can be re-indexed quickly while I iterate.
+
+**Minimum Build**
+- Parsers for MD/TXT/PDF (plus lightweight HTML) that normalize text and metadata into the `documents` table.
+- SHA256 content hash + version manager that decides whether to skip, update, or recreate chunks; store `content_hash`, `version`, `last_modified`.
+- Hierarchical chunker (H1→H3 headers, then 1000-char chunks w/200-char overlap) producing `Chunk.metadata` with headers + language for BM25 triggers.
+- Embedding generator using Snowflake Arctic Embed (1024-d) that writes to `embeddings` and triggers BM25 index population.
+
+**Stretch Experiments**
+- Selective re-embedding only for modified sections by diffing chunk hashes.
+- Notebook visualizer comparing chunk boundaries vs. semantic cohesion to tune overlap.
+- Repo/worktree watcher that auto-runs ingest when files change so Claude always has current docs.
 
 ### 4. Web Crawling Pipeline
-**What it does:** Fetches and processes web documentation
 
-**Key parts:**
-- **URL Detection:** Identifies sitemap, llms.txt, or regular pages
-- **Crawl4AI Integration:** Browser automation for JavaScript-heavy sites
-- **Worker Pool:** Manages concurrent crawlers with configurable pool size
-  - Default: 5 workers per crawl job
-  - Adaptive sizing based on available memory
-- **Per-Domain Rate Limiting:** Prevents overwhelming target servers
-  - Default: 1 request/second per domain
-  - Configurable via `rate_limit_per_domain` setting
-  - Uses token bucket algorithm for burst handling
-- **Link Extractor:** Finds and follows internal links
-- **Deduplication:** Prevents re-crawling same URLs
-- **Content Normalizer:** Cleans and extracts main content
-- **Batch Processor:** Parallel crawling with memory management
-- **Depth Tracker:** Enforces max crawl depth limits
-- **Retry with Backoff:** Handles transient failures (timeouts, 5xx errors)
-  - Max 3 retries per URL
-  - Exponential backoff: 2^retry_count seconds (2s, 4s, 8s)
-  - Uses `last_attempt_at` timestamp to enforce retry delays
-  - Query-based: SELECT URLs WHERE (status='failed' AND retry_count < 3 AND last_attempt_at < NOW() - backoff_interval)
-- **Circuit Breaker:** Stops crawling a domain after repeated failures
-  - Query-based: Before selecting a URL, count failed URLs from same domain
-  - Skip domains with >= 10 recent failures (within last 5 minutes)
-  - No separate state table needed - queries `crawl_queue` for failure counts
+**Learning Objectives**
+- Compare Crawl4AI vs. lightweight fetchers and learn how to manage recursion/dedup inside LangChain workflows.
+- Practice respectful crawling (depth limits, rate limiting) for personal doc harvesting.
 
-**Implementation:**
-- asyncio worker pool with semaphores
-- aiohttp for HTTP requests with connection pooling
-- Per-domain rate limiters using asyncio locks + timestamps
-- Backoff/circuit-breaker implemented via SQL queries (no in-memory state)
-- Change detection: SHA256 content hashing to avoid re-embedding unchanged documents (see Data Flows above)
-  - Note: MVP supports detecting changes during crawls, but does NOT include automated re-crawl scheduling
+**Minimum Build**
+- Crawl4AI-powered fetcher that accepts a seed list, enforces depth ≤3, and saves normalized HTML → markdown content.
+- `crawl_queue` + `crawled_urls` tables for per-collection dedup plus manual include/exclude glob filters.
+- Simple aiohttp-based fallback fetcher for static pages so I can contrast performance.
+
+**Stretch Experiments**
+- Auto-discover seeds via `llms.txt`/sitemaps and generate crawl plans automatically.
+- Adaptive per-domain rate limiter + circuit breaker metrics surfaced via the job-status CLI.
+- Store DOM snapshots or screenshots for debugging Crawl4AI behavior.
 
 ### 5. Audio Processing Pipeline
-**What it does:** Transcribes audio files into searchable text with multi-language support
 
-**Key parts:**
-- **Format Detector:** Identifies MP3, WAV, M4A, FLAC files
-- **FFmpeg Integration:** Audio format conversion and validation
-- **Whisper ASR:** OpenAI Whisper for transcription
-  - Turbo model for speed/accuracy balance
-  - 90+ language support with automatic detection
-  - Language detection is CRITICAL for search quality
-- **Language Propagation:** Detected language flows to chunks.metadata for BM25 indexing
-  - Ensures correct stemming and tokenization for non-English content
-  - Example: Spanish content gets 'spanish' config, not 'english' stemming rules
-  - Prevents silent degradation of multilingual search quality
-- **Timestamp Extractor:** Preserves temporal markers in transcripts
-- **Metadata Collector:** Audio duration, bitrate, format, detected language
-- **Transcript Formatter:** Converts to markdown with timestamp annotations
+**Learning Objectives**
+- Integrate Whisper (CPU-first) and keep timestamp metadata intact for RAG chunks.
+- Understand multilingual impacts on BM25 configs by piping detected language through metadata.
+
+**Minimum Build**
+- Format detector + FFmpeg normalization for mp3/wav/m4a/flac files dropped into ingest paths.
+- Whisper `base` model invocation (via CLI or python binding) that emits `[time:start-end]` annotations and detected language.
+- Transcript chunker that respects timestamp boundaries, stores duration + language on `documents/chunks`, and routes text through the existing embedding + BM25 pipeline.
+
+**Stretch Experiments**
+- Speaker diarization + labeling for multi-speaker calls.
+- GPU inference toggle + benchmarking notes comparing CPU vs. GPU throughput.
+- Folder-watcher script that auto-transcribes new meeting recordings into the default collection.
 
 ### 6. Vector Storage (PostgreSQL + pgvector)
 **What it does:** Stores and searches document vectors
@@ -241,18 +206,43 @@ Ranking → Format Results → Return to Claude
 - `jobs` - Job coordinator state persistence
 
 ### 7. RAG Strategy Engine
-**What it does:** Intelligently combines multiple search approaches
 
-**Strategies:**
-1. **Vector Search** - Semantic similarity (always used)
-2. **Hybrid Search** - Combines vector + BM25 keyword search
-3. **Contextual Embeddings** - Adds document context to chunks
-4. **Re-ranking** - Uses cross-encoder for final ranking (optional, slower)
+**Learning Objectives**
+- Wire LangChain retrievers (pgvector + BM25) together and observe how query routing impacts answer quality.
+- Experiment with rerankers and contextual embeddings in a controlled, local setup.
 
-**Auto-selection logic:**
-- Technical terms/acronyms? → Add BM25
-- Long query? → Use contextual embeddings
-- Large corpus? → Apply re-ranking
+**Minimum Build**
+- Vector retriever using pgvector HNSW and BM25 retriever using PostgreSQL `tsvector` plus simple metadata filters.
+- Reciprocal Rank Fusion merge path plus an optional cross-encoder reranker (bge or MiniLM) behind a flag so I can baseline impact/cost.
+- Structured logging of query decisions (which strategies fired, latency, chunk IDs) to feed manual evaluations.
+
+**Stretch Experiments**
+- LangGraph workflow that chains `crawl → ingest → search` when a query lacks coverage.
+- Lightweight eval harness that records my manual relevance notes (NDCG-ish) for future tuning.
+- Multi-collection fusion strategy that boosts personal notes vs. public docs differently.
+
+**Implementation Notes**
+- The LangChain Expression Language (LCEL) chain in `amelia/langchain/pipeline.py` remains the orchestrator: `router → vector + bm25 → merge → optional reranker → formatter`.
+- LangChain tracing IDs flow into structured logs so I can correlate with Job Coordinator telemetry while experimenting.
+
+---
+
+### 8. LangChain Modules
+**Purpose:** Centralize all LangChain components (retrievers, rerankers, query planners) that power the production Strategy Engine.
+
+**Modules:**
+- `amelia/langchain/pipeline.py` – builds the default LCEL chain wired into `search_documents`.
+- `amelia/langchain/retrievers.py` – wraps our pgvector + BM25 backends as LangChain retrievers with filter awareness.
+- `amelia/langchain/rerankers.py` – pluggable cross-encoders (default: `cross-encoder/ms-marco-MiniLM-L-6-v2`).
+- `amelia/langchain/tool_router.py` – optional node that can call MCP tools (e.g., trigger a crawl) when the query is better served by ingestion.
+
+**Observability:**
+- LangChain tracing IDs are propagated into our structured logs and tied to `jobs` / `search_requests` tables.
+- Configurable via `LANGCHAIN_TRACING_V2` so you can surface runs in LangSmith or keep them local.
+
+**Testing:**
+- Unit tests assert each retriever returns deterministic sets for a seeded corpus.
+- Integration tests run the full chain and compare outputs against golden answers.
 
 ---
 
@@ -700,6 +690,9 @@ source venv/bin/activate  # or: venv\Scripts\activate on Windows
 # Install dependencies
 pip install -r requirements.txt
 
+# Optional/learning extras (enabled by default for local dev)
+pip install langchain langchain-community
+
 # Install Playwright browsers (for web crawling)
 playwright install chromium
 
@@ -908,6 +901,10 @@ MAX_FILE_SIZE_MB=100
 
 # Logging
 LOG_LEVEL=INFO
+
+# LangChain telemetry
+LANGCHAIN_TRACING_V2=0
+LANGCHAIN_PROJECT=amelia-local
 ```
 
 ### config.yaml (optional)
@@ -934,6 +931,13 @@ search:
     reranking:
       enabled: false
       model: cross-encoder/ms-marco-MiniLM-L-6-v2
+
+langchain:
+  chain_factory: amelia.langchain.pipeline:create_chain
+  reranker_model: cross-encoder/ms-marco-MiniLM-L-6-v2
+  tracing:
+    enabled: ${LANGCHAIN_TRACING_V2}
+    project: ${LANGCHAIN_PROJECT}
 
 ingestion:
   chunk_size: 1000
@@ -976,122 +980,21 @@ audio:
 
 ## Testing Strategy
 
-### Unit Tests
+Goal: keep a lean suite that proves the core algorithms still work after edits. CI and coverage gates are nice-to-have, not required.
 
-```python
-# tests/test_chunking.py
-def test_hierarchical_chunking():
-    markdown = """
-    # Main Header
-    Content 1
-    ## Sub Header
-    Content 2
-    """
-    chunks = smart_chunk_markdown(markdown, max_len=100)
-    assert len(chunks) > 0
-    assert any("# Main Header" in c for c in chunks)
+**Unit-ish checks (kept small on purpose)**
+- `test_chunking.py`: hierarchical chunk boundaries stay intact for basic markdown samples.
+- `test_crawler.py`: URL type detection, deduping, and depth limits behave with fake fixtures.
+- `test_audio.py`: Whisper stub produces timestamped text; metadata + chunking preserve language + timing info.
 
-# tests/test_search.py
-@pytest.mark.asyncio
-async def test_vector_search():
-    results = await search_engine.vector_search("test query")
-    assert len(results) > 0
-    assert results[0].score > 0
+**Integration sanity**
+- `test_pipeline.py`: ingest a scratch file then confirm `search_documents` returns the chunk.
+- Optional `test_mcp_e2e.py`: smoke the MCP server locally when I change transport/tool wiring (manual run only).
 
-# tests/test_crawler.py
-@pytest.mark.asyncio
-async def test_url_detection():
-    assert await detect_url_type("https://example.com/sitemap.xml") == "sitemap"
-    assert await detect_url_type("https://example.com/llms.txt") == "llms_txt"
-    assert await detect_url_type("https://example.com/page") == "regular"
-
-@pytest.mark.asyncio
-async def test_crawl_deduplication():
-    dedup = CrawlDeduplicator(db)
-    await dedup.mark_crawled("https://example.com/page", "test-collection", 200)
-    assert await dedup.is_crawled("https://example.com/page", "test-collection")
-
-@pytest.mark.asyncio
-async def test_recursive_crawl_depth():
-    crawler = WebCrawler(max_depth=2)
-    results = await crawler.crawl("https://example.com", "test")
-    # Should not crawl beyond depth 2
-    assert all(r.metadata.get("depth", 0) <= 2 for r in results)
-
-# tests/test_audio.py
-def test_audio_format_validation():
-    assert validate_audio_format("test.mp3") == True
-    assert validate_audio_format("test.wav") == True
-    assert validate_audio_format("test.txt") == False
-
-@pytest.mark.asyncio
-async def test_audio_transcription():
-    # Mock audio file
-    audio_path = "tests/fixtures/sample.mp3"
-    transcript = await transcribe_audio(audio_path, language="en")
-    assert len(transcript) > 0
-    assert "[time:" in transcript  # Check for timestamp markers
-
-def test_audio_metadata_extraction():
-    metadata = get_audio_metadata("tests/fixtures/sample.mp3")
-    assert "duration" in metadata
-    assert metadata["duration"] > 0
-    assert metadata["format"] in ["mp3", "wav", "m4a", "flac"]
-
-def test_transcript_chunking_preserves_timestamps():
-    transcript = "[time: 0.0-4.5] First segment. [time: 4.5-10.2] Second segment."
-    chunks = chunk_transcript_with_timestamps(transcript, max_chunk_size=50)
-    assert len(chunks) > 0
-    for text, start, end in chunks:
-        assert start < end
-        assert len(text) <= 50
-```
-
-### Integration Tests
-
-```python
-# tests/test_pipeline.py
-@pytest.mark.asyncio
-async def test_ingest_and_search(tmp_path):
-    # Create test document
-    doc = tmp_path / "test.txt"
-    doc.write_text("This is about RAG systems.")
-
-    # Ingest
-    result = await pipeline.ingest(str(doc))
-    assert result.success
-
-    # Search
-    results = await search_engine.search("RAG systems")
-    assert len(results) > 0
-    assert "RAG" in results[0].content
-```
-
-### End-to-End Test
-
-```python
-# tests/test_mcp_e2e.py
-def test_mcp_workflow(tmp_path):
-    # Start Amelia server
-    server = start_amelia()
-
-    # Call ingest_documents
-    response = server.call_tool("ingest_documents", {
-        "paths": [str(tmp_path)]
-    })
-    assert response["status"] == "success"
-
-    # Call search_documents
-    response = server.call_tool("search_documents", {
-        "query": "test"
-    })
-    assert len(response["results"]) > 0
-```
-
-**Run tests:**
+**How to run when needed**
 ```bash
-pytest tests/ -v
-pytest tests/ --cov=amelia  # with coverage
+pytest tests/test_chunking.py tests/test_crawler.py tests/test_audio.py -v
+pytest tests/test_pipeline.py -v  # after major ingestion/search changes
 ```
 
 ---
@@ -2289,88 +2192,6 @@ docker-compose logs -f amelia
 # Stop services
 docker-compose down
 ```
-
----
-
-## Implementation Roadmap
-
-### Phase 1: MVP (2-3 weeks)
-**Goal:** Basic working MCP server
-
-- [ ] MCP server with stdio transport
-- [ ] Basic document ingestion (TXT, MD)
-- [ ] Vector search
-- [ ] PostgreSQL + pgvector setup
-- [ ] Simple chunking (fixed-size)
-- [ ] Basic tools: ingest, search, list
-
-**Success:** Can ingest and search markdown files
-
-**Gate to Phase 2 (all required):**
-- Contract tests for `ingest_documents`, `search_documents`, `list_sources` running in CI with recorded fixtures.
-- Repeatable database bootstrap verified via `docker-compose up` + smoke test script (no manual tweaks).
-- P95 vector search latency <500 ms on the 10K-chunk sample corpus captured under `tests/data/sample_corpus`.
-- Structured logs (JSON) emitted for every MCP request with trace IDs so failures can be replayed.
-
-### Phase 2: Advanced RAG (3-4 weeks)
-**Goal:** Production-quality search
-
-- [ ] Hybrid search (vector + BM25)
-- [ ] Contextual embeddings
-- [ ] Hierarchical chunking
-- [ ] Support PDF, DOCX, HTML
-- [ ] Cross-encoder re-ranking
-- [ ] Advanced tools: remove, statistics
-
-**Success:** 20% improvement in search accuracy
-
-**Gate to Phase 3 (all required):**
-- Retrieval evaluation harness demonstrating ≥20% NDCG lift over Phase 1 baseline and checked into `tests/evals/`.
-- Hybrid + re-ranker paths covered by integration tests with golden answers.
-- Benchmark notebook (or markdown report) showing hierarchical chunking quality vs. runtime trade-offs.
-- Alerting hook (statsd/Prometheus) for embedding latency regressions wired into Job Coordinator metrics.
-
-### Phase 3: Web Crawling & Audio (3-4 weeks)
-**Goal:** Add web documentation and audio support
-
-- [ ] Crawl4AI integration
-- [ ] URL type detection (sitemap, llms.txt, regular)
-- [ ] Recursive crawling with depth limits
-- [ ] Parallel/batched crawling
-- [ ] URL deduplication
-- [ ] Content extraction and normalization
-- [ ] crawl_website MCP tool
-- [ ] Web source metadata tracking
-- [ ] Audio transcription (Whisper ASR)
-- [ ] FFmpeg integration
-- [ ] Timestamp preservation
-- [ ] Audio metadata extraction
-- [ ] Multi-language support
-
-**Success:** Can crawl documentation sites and transcribe audio files
-
-**Gate to Phase 4 (all required):**
-- End-to-end soak tests for `crawl_website` and audio transcription covering >3 hour workload without orphaned jobs.
-- Backpressure and retry policies validated in CI via chaos test (forced Crawl4AI/playwright failures).
-- Data retention policy docs for crawled pages + transcripts (location, TTL, manual purge steps).
-- Minimum telemetry dashboards for crawl throughput, transcription queue depth, and failure counts.
-
-### Phase 4: Polish (2-3 weeks)
-**Goal:** Production-ready
-
-- [ ] Performance optimization
-- [ ] Caching (embeddings, queries)
-- [ ] Docker packaging
-- [ ] Documentation
-- [ ] Testing (>85% coverage)
-- [ ] Error handling & logging
-
-**Success:** <100ms vector search, complete docs, robust crawling, audio transcription ~5-10x real-time
-
-**Release Gate:**
-- Full regression suite (unit + integration + eval harness) green on CI twice consecutively.
-- Disaster recovery drill documented: restore database from snapshot + rebuild embeddings.
-- Operational playbooks published for on-call (startup, shutdown, log triage, manual job retry).
 
 ---
 

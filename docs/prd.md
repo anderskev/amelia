@@ -90,6 +90,11 @@ Amelia indexes your local docs AND crawls web documentation, letting Claude Code
 - Automatic tool invocation from Claude Code
 - No manual API calls needed
 
+### 9. LangChain Retrieval Engine
+- Production search path runs through a LangChain LCEL pipeline that fuses pgvector, BM25, and cross-encoder reranking
+- Configure retriever weights, reranker models, and tracing straight from config without editing core code
+- Built-in LangChain telemetry (LangSmith-compatible) so you can inspect how each query flowed through the chain
+
 ---
 
 ## How It Works
@@ -202,6 +207,11 @@ Claude Code asks question → Amelia searches → Returns relevant chunks
    - All processing and storage is local
    - Optional: Use OpenAI/Cohere embeddings for better quality
 
+13. **Tune the LangChain retrieval pipeline**
+   - "Show me the LangChain trace for this query" to understand which retrievers fired
+   - Adjust retriever weights/reranker settings in config and immediately see their impact in Claude
+   - Capture LangChain run IDs to reproduce or share interesting retrieval behaviors with teammates
+
 ---
 
 ## Technical Overview
@@ -209,13 +219,13 @@ Claude Code asks question → Amelia searches → Returns relevant chunks
 ### Stack
 - **Language:** Python 3.10+
 - **Vector DB:** PostgreSQL + pgvector (local, persistent)
-- **Embeddings:** Sentence Transformers (local, privacy-first)
+- **Embeddings:** Snowflake Arctic Embed L v2.0 (local weights, 1024-d)
 - **Web Crawler:** Crawl4AI (browser automation)
 - **Browser:** Playwright (headless Chrome/Firefox)
 - **Audio Transcription:** OpenAI Whisper (via Docling ASR)
 - **Audio Processing:** FFmpeg (format conversion)
 - **MCP Framework:** FastMCP v2
-- **Optional:** OpenAI or Cohere embeddings (better quality, requires API key)
+- **RAG Orchestration:** LangChain LCEL pipeline (vector + BM25 + reranker)
 
 ### Architecture
 ```
