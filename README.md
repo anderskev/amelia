@@ -1,213 +1,198 @@
-# Amelia
+# Amelia - Local RAG for Claude Code
 
-> **Local LLM Workflow Orchestration** - A developer-first command center for orchestrating AI agents in software development workflows.
+**Semantic search over your local documentation and web docs, right from Claude Code.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+Version: 0.1.0 (Phase 0 - In Development)
+Status: 🚧 Planning Complete, Ready to Build
 
-## Overview
+---
 
-Amelia is a visual control panel for managing complex LLM agent workflows, RAG document knowledge bases, and interactive chat sessions with Claude and other LLMs. Built for developers who need to orchestrate multi-agent workflows with real-time visibility and control.
+## What is Amelia?
 
-### Key Features
+Amelia is an MCP server that makes your documentation instantly searchable using natural language. Ask Claude Code questions about your docs, and Amelia retrieves the most relevant content using semantic search.
 
-- **Visual Workflow Management**: Real-time agent execution with dependency graphs
-- **Unified Knowledge Hub**: RAG-powered document management and context retrieval
-- **Multi-Agent Orchestration**: Discovery, Design, Planning, and Implementation agents
-- **Git Integration**: Seamless worktree and branch management
-- **WebSocket Streaming**: Live progress updates and streaming responses
-- **Developer-Centric UI**: Clean, functional interface built with shadcn/ui
+**Key Features** (when complete):
+- 🔍 Semantic search (find by meaning, not just keywords)
+- 📁 Local files (markdown, PDF, DOCX, audio)
+- 🌐 Web documentation (crawl and index)
+- 🏃 Fast (sub-second queries)
+- 🔒 Private (runs locally, your data stays on your machine)
+- 🎯 Accurate (hybrid search combining semantic + keyword matching)
 
-## Architecture
+---
 
-```
-amelia/
-├── backend/           # FastAPI backend with SQLAlchemy
-│   ├── agents/       # Agent implementations (Discovery, Design, Planning, Claude Code)
-│   ├── api/          # REST and WebSocket endpoints
-│   ├── db/           # Database models and migrations
-│   ├── rag/          # RAG system (ingestor, embeddings, retriever)
-│   ├── workflows/    # LangGraph workflow definitions
-│   ├── config.py     # Pydantic settings
-│   └── utils/        # Logging and utilities
-├── frontend/         # React + TypeScript web UI
-│   └── src/
-│       ├── components/  # shadcn/ui components
-│       ├── pages/       # Main application pages
-│       └── lib/         # Utilities and API client
-├── docs/             # Documentation and specifications
-└── tests/            # Test suite
-```
+## Quick Start
 
-## Tech Stack
-
-### Backend
-- **Framework**: FastAPI with async/await
-- **Database**: PostgreSQL with pgvector for embeddings
-- **ORM**: SQLAlchemy 2.0 (async)
-- **AI/ML**: Anthropic Claude, LangGraph, LangChain, PydanticAI
-- **Logging**: structlog with rich formatting
-- **Testing**: pytest with async support
-
-### Frontend
-- **Framework**: React 18 with TypeScript
-- **UI Library**: shadcn/ui + Radix UI primitives
-- **Styling**: Tailwind CSS
-- **State Management**: Zustand
-- **Charts**: Recharts
-- **Build Tool**: Vite
-
-## Getting Started
+**Current Status**: Planning phase complete. Follow the implementation guide to build Amelia.
 
 ### Prerequisites
 
 - Python 3.12+
-- [uv](https://github.com/astral-sh/uv) (Astral's fast Python package installer)
-- PostgreSQL 15+ with pgvector extension
-- Node.js 20+ (for frontend)
-- Anthropic API key
+- Docker Desktop
+- Claude Code
+- 4GB+ RAM
 
-### Backend Setup
+### Build It Yourself
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/amelia.git
-   cd amelia
-   ```
-
-2. **Install dependencies**
-   ```bash
-   uv sync
-   ```
-
-3. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your ANTHROPIC_API_KEY
-   ```
-
-4. **Set up database**
-   ```bash
-   # Create PostgreSQL database
-   createdb amelia
-
-   # Run migrations
-   uv run alembic upgrade head
-   ```
-
-5. **Run the backend**
-   ```bash
-   uv run uvicorn backend.main:app --reload
-   ```
-
-   The API will be available at `http://localhost:8000`
-
-### Frontend Setup
+This is a learning project! Follow the execution guide to build Amelia using parallel Claude Code subagents:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+# 1. Clone the repo
+git clone https://github.com/your-org/amelia.git
+cd amelia
+
+# 2. Read the execution guide
+cat docs/EXECUTION_GUIDE.md
+
+# 3. Start Phase 0 (Week 1)
+# Follow docs/plans/phase-0-minimal-viable.md
+# Launch parallel agents using templates in docs/agents/phase-0/
+
+# 4. Build incrementally
+# Phase 0 (Week 1): Minimal viable search
+# Phase 1 (Weeks 2-3): Daily-usable tool
+# Phase 2 (Weeks 4-6): Advanced features
+# Phase 3 (Weeks 7-8): Production polish
 ```
 
-The web UI will be available at `http://localhost:5173`
-
-## Configuration
-
-Key environment variables in `.env`:
-
-```bash
-# LLM Provider
-ANTHROPIC_API_KEY=sk-ant-your-key-here
-
-# Database
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/amelia
-
-# Default LLM Settings
-DEFAULT_MODEL=claude-sonnet-4-5-20250929
-DEFAULT_TEMPERATURE=0.7
-DEFAULT_MAX_TOKENS=4096
-
-# RAG Settings
-RAG_TOP_K=5
-RAG_SIMILARITY_THRESHOLD=0.7
-```
-
-See `.env.example` for complete configuration options.
-
-## Development
-
-### Running Tests
-
-```bash
-# Backend tests
-uv run pytest
-
-# With coverage
-uv run pytest --cov=backend --cov-report=html
-
-# Frontend tests
-cd frontend
-npm test
-```
-
-### Code Quality
-
-```bash
-# Format code
-uv run black backend tests
-
-# Lint
-uv run ruff check backend tests
-
-# Type checking
-uv run mypy backend
-```
-
-## Project Status
-
-**Current Phase**: Planning and Methodology Evaluation
-
-This project is currently in the planning phase. We are evaluating different AI-assisted development methodologies by implementing the application in separate git worktrees:
-
-- **SpecKit**: Specification-driven development with formal feature specs
-- **BMAD Method**: Behavior-Model-Action-Data driven approach
-- **Superpowers**: Workflow-based development with specialized skills
-
-Each methodology will be tested in isolation to evaluate:
-- Code quality and maintainability
-- Development velocity
-- Test coverage and reliability
-- Documentation clarity
-- Developer experience
-
-The most effective approach will inform the final implementation strategy.
-
-See [Implementation Plan](docs/plans/2025-11-08-amelia-mvp-backend.md) for detailed roadmap.
+---
 
 ## Documentation
 
-- [Product Specification](docs/amelia-product-spec.md) - Complete MVP specification
-- [Backend Implementation Plan](docs/plans/2025-11-08-amelia-mvp-backend.md) - Detailed implementation guide
-- [TDD Workflow](docs/sonnet45_tdd_improved.md) - Development methodology
+### For Builders
 
-## License
+- **[EXECUTION_GUIDE.md](docs/EXECUTION_GUIDE.md)** - How to build Amelia using parallel subagents
+- **[IMPLEMENTATION_SUMMARY.md](docs/IMPLEMENTATION_SUMMARY.md)** - Overview of the optimized plan
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Phase Plans
 
-## Acknowledgments
+- **[Phase 0: Minimal Viable](docs/plans/phase-0-minimal-viable.md)** (Week 1) - Get something working
+- **[Phase 1: Daily-Usable](docs/plans/phase-1-daily-usable.md)** (Weeks 2-3) - Build a tool you use every day
+- **[Phase 2: Advanced Features](docs/plans/phase-2-advanced-features.md)** (Weeks 4-6) - Production quality
+- **[Phase 3: Production Polish](docs/plans/phase-3-production-polish.md)** (Weeks 7-8) - Team-shareable
 
-- Built with [Claude Code](https://claude.com/claude-code)
-- UI components from [shadcn/ui](https://ui.shadcn.com/)
-- Powered by [Anthropic Claude](https://www.anthropic.com/)
+### Agent Task Templates
 
-## Contributing
+Located in `docs/agents/phase-X/`:
+- Detailed specifications for each development track
+- Code examples and acceptance criteria
+- Testing checklists and validation commands
+- Common issues and solutions
 
-This is currently a personal project. Contributions, issues, and feature requests are welcome once the MVP is complete.
+### Original Design Docs
 
-## Contact
+- **[PRD.md](docs/prd.md)** - Product requirements
+- **[TDD.md](docs/tdd.md)** - Original technical design (comprehensive reference)
 
-For questions or feedback, please open an issue on GitHub.
+---
+
+## Project Goals
+
+This project serves three purposes:
+
+1. **Personal utility**: Build a tool for your own development workflow
+2. **Learning**: Understand RAG, embeddings, vector search, MCP, and more
+3. **Team sharing**: Create something others can learn from and use
+
+The implementation plan is optimized for all three goals.
+
+---
+
+## Technology Stack
+
+**Core**:
+- **MCP**: FastMCP v2 (Model Context Protocol)
+- **Database**: PostgreSQL + pgvector (vector similarity search)
+- **Embeddings**: Snowflake Arctic Embed L (1024 dims, local)
+- **Language**: Python 3.12+
+
+**Phase 1+**:
+- Web crawling: aiohttp + BeautifulSoup
+- Hybrid search: PostgreSQL full-text search (BM25)
+
+**Phase 2+**:
+- Browser automation: Crawl4AI + Playwright
+- Audio transcription: faster-whisper (Whisper Turbo)
+- Document parsing: pypdf2, python-docx
+
+**Phase 3+**:
+- Testing: pytest + pytest-asyncio
+- Deployment: Docker Compose
+- Monitoring: Structured logging (JSON)
+
+---
+
+## Timeline
+
+**Total: 8 weeks** (optimized from original 10-14 weeks)
+
+- **Week 1** (Phase 0): Minimal viable search
+- **Weeks 2-3** (Phase 1): Daily-usable tool with web crawling
+- **Weeks 4-6** (Phase 2): Advanced RAG features
+- **Weeks 7-8** (Phase 3): Production polish and team onboarding
+
+**Execution model**: Single developer orchestrating 3-4 parallel Claude Code subagents
+
+---
+
+## Architecture (Final)
+
+```
+Claude Code
+    ↓ (MCP Protocol)
+Amelia MCP Server
+    ├─ Document Processor (local files, web, audio)
+    ├─ Embedding Manager (Snowflake Arctic Embed)
+    ├─ RAG Engine (hybrid search: vector + BM25)
+    └─ PostgreSQL + pgvector (vector database)
+```
+
+---
+
+## Example Usage (When Complete)
+
+### From Claude Code
+
+```
+You: Index my documentation folder
+Claude: [Calls amelia.ingest_documents]
+Amelia: Indexed 127 files (1,456 chunks) in ~/projects/myapp/docs
+
+You: Crawl the FastAPI documentation
+Claude: [Calls amelia.crawl_website]
+Amelia: Crawled 243 pages from https://fastapi.tiangolo.com
+
+You: How do we handle authentication in our API?
+Claude: [Calls amelia.search_documents]
+Amelia: [Returns relevant chunks from your docs]
+Claude: Based on your documentation, authentication is handled using...
+```
+
+### From CLI
+
+```bash
+# Index local docs
+amelia ingest ~/projects/docs --collection my-docs
+
+# Crawl web docs
+amelia crawl https://docs.python.org --collection python-docs
+
+# Search
+amelia search "async await" --collection python-docs
+
+# Manage collections
+amelia list-collections
+amelia stats --collection my-docs
+```
+
+---
+
+## Let's Build! 🚀
+
+This project is optimized for learning by doing. Follow the execution guide, launch your parallel agents, and build a production-quality RAG system while mastering cutting-edge technologies.
+
+**Ready?** Start with `docs/EXECUTION_GUIDE.md` and launch Phase 0!
+
+---
+
+_Built with Claude Code • Powered by MCP • Designed for Learning_
