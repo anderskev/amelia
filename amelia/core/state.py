@@ -66,9 +66,8 @@ class TaskDAG(BaseModel):
             return False
 
         for tid in task_ids:
-            if color[tid] == WHITE:
-                if dfs(tid):
-                    raise ValueError("Cyclic dependency detected")
+            if color[tid] == WHITE and dfs(tid):
+                raise ValueError("Cyclic dependency detected")
         return tasks
 
 class ReviewResult(BaseModel):
