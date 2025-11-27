@@ -1,6 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel
+from pydantic import Field
 
 
 DriverType = Literal["cli:claude", "api:openai", "cli", "api"]
@@ -23,3 +24,18 @@ class Issue(BaseModel):
     title: str
     description: str
     status: str = "open"
+
+
+class Design(BaseModel):
+    """Structured design from brainstorming output."""
+    title: str
+    goal: str
+    architecture: str
+    tech_stack: list[str]
+    components: list[str]
+    data_flow: str | None = None
+    error_handling: str | None = None
+    testing_strategy: str | None = None
+    relevant_files: list[str] = Field(default_factory=list)
+    conventions: str | None = None
+    raw_content: str

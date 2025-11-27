@@ -6,6 +6,7 @@ from amelia.core.state import FileOperation
 from amelia.core.state import Task
 from amelia.core.state import TaskDAG
 from amelia.core.state import TaskStep
+from amelia.core.types import Design
 from amelia.core.types import Profile
 
 
@@ -91,3 +92,35 @@ def test_task_without_new_fields():
     assert task.files == []
     assert task.steps == []
     assert task.commit_message is None
+
+
+def test_design_minimal():
+    design = Design(
+        title="Auth Feature",
+        goal="Add user authentication",
+        architecture="JWT-based auth with middleware",
+        tech_stack=["FastAPI", "PyJWT"],
+        components=["AuthMiddleware", "TokenService"],
+        raw_content="# Auth Feature Design\n..."
+    )
+    assert design.title == "Auth Feature"
+    assert design.data_flow is None
+    assert design.relevant_files == []
+
+
+def test_design_full():
+    design = Design(
+        title="Auth Feature",
+        goal="Add user authentication",
+        architecture="JWT-based auth",
+        tech_stack=["FastAPI"],
+        components=["AuthMiddleware"],
+        data_flow="Request -> Middleware -> Handler",
+        error_handling="Return 401 on invalid token",
+        testing_strategy="Unit test token validation",
+        relevant_files=["src/auth.py", "src/middleware.py"],
+        conventions="Use async/await throughout",
+        raw_content="# Full design..."
+    )
+    assert design.data_flow == "Request -> Middleware -> Handler"
+    assert len(design.relevant_files) == 2
