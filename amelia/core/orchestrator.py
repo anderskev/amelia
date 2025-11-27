@@ -30,16 +30,16 @@ async def call_architect_node(state: ExecutionState) -> ExecutionState:
         
     driver = DriverFactory.get_driver(state.profile.driver)
     architect = Architect(driver)
-    plan = await architect.plan(state.issue)
-    
+    plan_output = await architect.plan(state.issue)
+
     # Add a message to the state history
-    messages = state.messages + [AgentMessage(role="assistant", content=f"Architect generated plan with {len(plan.tasks)} tasks.")]
-    
+    messages = state.messages + [AgentMessage(role="assistant", content=f"Architect generated plan with {len(plan_output.task_dag.tasks)} tasks.")]
+
     # Return the updated state
     return ExecutionState(
         profile=state.profile,
         issue=state.issue,
-        plan=plan,
+        plan=plan_output.task_dag,
         messages=messages
     )
 
