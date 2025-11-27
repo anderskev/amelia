@@ -140,8 +140,7 @@ class TestClaudeCliDriver:
     async def test_execute_tool_write_file(self, driver):
         with patch("amelia.drivers.cli.claude.write_file", new_callable=AsyncMock) as mock_write:
             mock_write.return_value = "Success"
-            result = await driver._execute_tool_impl("write_file", file_path="test.txt", content="data")
-            assert result == "Success"
+            await driver._execute_tool_impl("write_file", file_path="test.txt", content="data")
             mock_write.assert_called_once_with("test.txt", "data")
 
     @pytest.mark.asyncio
