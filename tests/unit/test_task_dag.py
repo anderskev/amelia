@@ -19,7 +19,6 @@ def test_task_dag_with_dependencies():
     _dag = TaskDAG(tasks=[task1, task2, task3], original_issue="ISSUE-124")
     assert task3.dependencies == ["1", "2"]
 
-@pytest.mark.skip(reason="Cycle detection logic for TaskDAG is not yet implemented")
 def test_task_dag_cycle_detection():
     # Example of a cyclic dependency
     task_a = Task(id="A", description="Task A", dependencies=["C"])

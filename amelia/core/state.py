@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import field_validator
 
 from amelia.core.types import Issue
 from amelia.core.types import Profile
@@ -40,6 +41,35 @@ class Task(BaseModel):
 class TaskDAG(BaseModel):
     tasks: list[Task]
     original_issue: str
+
+    @field_validator("tasks")
+    @classmethod
+    def validate_no_cycles(cls, tasks: list[Task]) -> list[Task]:
+        """Detect cyclic dependencies using DFS."""
+        task_ids = {t.id for t in tasks}
+        adjacency = {t.id: t.dependencies for t in tasks}
+
+        WHITE, GRAY, BLACK = 0, 1, 2
+        color = {tid: WHITE for tid in task_ids}
+
+        def dfs(node: str) -> bool:
+            """Returns True if cycle detected."""
+            color[node] = GRAY
+            for neighbor in adjacency.get(node, []):
+                if neighbor not in task_ids:
+                    continue  # Invalid dep handled elsewhere
+                if color[neighbor] == GRAY:
+                    return True  # Back edge = cycle
+                if color[neighbor] == WHITE and dfs(neighbor):
+                    return True
+            color[node] = BLACK
+            return False
+
+        for tid in task_ids:
+            if color[tid] == WHITE:
+                if dfs(tid):
+                    raise ValueError("Cyclic dependency detected")
+        return tasks
 
 class ReviewResult(BaseModel):
     reviewer_persona: str
