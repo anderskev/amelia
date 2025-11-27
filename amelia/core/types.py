@@ -13,7 +13,7 @@ class Profile(BaseModel):
     driver: DriverType
     tracker: TrackerType = "none"
     strategy: StrategyType = "single"
-    plan_output_template: str = "docs/plans/issue-{issue_id}.md"
+    plan_output_dir: str = "docs/plans"
 
 class Settings(BaseModel):
     active_profile: str

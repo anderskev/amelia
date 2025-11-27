@@ -124,3 +124,17 @@ def test_design_full():
     )
     assert design.data_flow == "Request -> Middleware -> Handler"
     assert len(design.relevant_files) == 2
+
+
+def test_profile_plan_output_dir_default():
+    from amelia.core.types import Profile
+
+    profile = Profile(name="test", driver="api:openai")
+    assert profile.plan_output_dir == "docs/plans"
+
+
+def test_profile_plan_output_dir_custom():
+    from amelia.core.types import Profile
+
+    profile = Profile(name="test", driver="api:openai", plan_output_dir="output/my-plans")
+    assert profile.plan_output_dir == "output/my-plans"
