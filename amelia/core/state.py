@@ -76,6 +76,15 @@ class TaskDAG(BaseModel):
 
         return tasks
 
+    def get_ready_tasks(self) -> list[Task]:
+        """Return tasks that are pending and have all dependencies completed."""
+        completed_ids = {t.id for t in self.tasks if t.status == "completed"}
+        ready = []
+        for task in self.tasks:
+            if task.status == "pending" and all(dep in completed_ids for dep in task.dependencies):
+                ready.append(task)
+        return ready
+
 class ReviewResult(BaseModel):
     reviewer_persona: str
     approved: bool

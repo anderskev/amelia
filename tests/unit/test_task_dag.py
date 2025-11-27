@@ -28,17 +28,24 @@ def test_task_dag_cycle_detection():
     with pytest.raises(ValidationError, match="Cyclic dependency detected"):
         TaskDAG(tasks=[task_a, task_b, task_c], original_issue="ISSUE-CYCLE")
 
-@pytest.mark.skip(reason="Dependency resolution logic for TaskDAG is not yet implemented")
 def test_task_dag_dependency_resolution():
     task1 = Task(id="1", description="Task 1")
     task2 = Task(id="2", description="Task 2", dependencies=["1"])
     task3 = Task(id="3", description="Task 3", dependencies=["1", "2"])
-    _dag = TaskDAG(tasks=[task1, task2, task3], original_issue="ISSUE-125")
+    dag = TaskDAG(tasks=[task1, task2, task3], original_issue="ISSUE-125")
 
-    # Assuming a method like `dag.get_ready_tasks()` or similar
-    # ready_tasks = dag.get_ready_tasks()
-    # assert set(t.id for t in ready_tasks) == {"1"}
-    pass
+    ready_tasks = dag.get_ready_tasks()
+    assert set(t.id for t in ready_tasks) == {"1"}
+
+    # Simulate completing task 1
+    task1.status = "completed"
+    ready_tasks = dag.get_ready_tasks()
+    assert set(t.id for t in ready_tasks) == {"2"}
+
+    # Simulate completing task 2
+    task2.status = "completed"
+    ready_tasks = dag.get_ready_tasks()
+    assert set(t.id for t in ready_tasks) == {"3"}
 
 def test_task_dag_invalid_graph_handling():
     # Task with a dependency that does not exist in the DAG
