@@ -1,37 +1,66 @@
-import asyncio
+# amelia/tools/shell_executor.py
+"""Shell command execution utilities.
+
+This module provides backward-compatible wrappers around SafeShellExecutor
+and SafeFileWriter for existing code that uses the old interface.
+"""
+
+from amelia.tools.safe_file import SafeFileWriter
+from amelia.tools.safe_shell import SafeShellExecutor
 
 
-async def run_shell_command(command: str, timeout: int | None = 30) -> str:
+async def run_shell_command(
+    command: str,
+    timeout: int | None = 30,
+    strict_mode: bool = False,
+) -> str:
     """
-    Executes a shell command and returns its stdout.
-    Raises an exception if the command returns a non-zero exit code or times out.
+    Execute a shell command safely.
+
+    This is a backward-compatible wrapper around SafeShellExecutor.execute().
+
+    Args:
+        command: The command to execute
+        timeout: Maximum execution time in seconds
+        strict_mode: If True, only allow commands in strict allowlist
+
+    Returns:
+        Command stdout as string
+
+    Raises:
+        ValueError: If command is empty or has invalid syntax
+        ShellInjectionError: If shell metacharacters are detected
+        BlockedCommandError: If command is in blocklist
+        DangerousCommandError: If command matches dangerous pattern
+        CommandNotAllowedError: If strict mode and command not in allowlist
+        RuntimeError: If command fails or times out
     """
-    process = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+    return await SafeShellExecutor.execute(
+        command=command,
+        timeout=timeout,
+        strict_mode=strict_mode,
     )
-    
-    try:
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-    except TimeoutError as e:
-        process.kill()
-        stdout, stderr = await process.communicate()
-        raise RuntimeError(f"Command timed out after {timeout} seconds. Stderr: {stderr.decode().strip()}") from e
 
-    if process.returncode != 0:
-        error_message = f"Command failed with exit code {process.returncode}:\n{stderr.decode().strip()}"
-        raise RuntimeError(error_message)
-    
-    return stdout.decode().strip()
 
 async def write_file(file_path: str, content: str) -> str:
     """
-    Writes content to a specified file.
+    Write content to a file safely.
+
+    This is a backward-compatible wrapper around SafeFileWriter.write().
+
+    Args:
+        file_path: Path to write to
+        content: Content to write
+
+    Returns:
+        Success message
+
+    Raises:
+        ValueError: If path is empty
+        PathTraversalError: If path escapes allowed directories
+        OSError: If file cannot be written
     """
-    try:
-        with open(file_path, "w") as f:
-            f.write(content)
-        return f"Successfully wrote to {file_path}"
-    except Exception as e:
-        raise RuntimeError(f"Error writing to file {file_path}: {e}") from e
+    return await SafeFileWriter.write(
+        file_path=file_path,
+        content=content,
+    )
