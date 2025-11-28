@@ -1,12 +1,14 @@
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
+
 import pytest
 from pydantic import ValidationError
-from unittest.mock import AsyncMock, MagicMock
 
-from amelia.agents.architect import Architect, TaskListResponse
+from amelia.agents.architect import Architect
 from amelia.core.types import Issue
 
 
-async def test_pydantic_ai_validation_failure():
+async def test_pydantic_ai_validation_failure() -> None:
     """
     Verify that invalid model outputs from PydanticAI agents are caught.
     """
