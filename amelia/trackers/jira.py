@@ -1,43 +1,64 @@
+# amelia/trackers/jira.py
+"""Jira issue tracker integration."""
+
 import os
 
 import httpx
 
+from amelia.core.exceptions import ConfigurationError
 from amelia.core.types import Issue
 from amelia.trackers.base import BaseTracker
 
 
 class JiraTracker(BaseTracker):
-    def get_issue(self, issue_id: str) -> Issue:
-        jira_url = os.environ.get("JIRA_URL", "https://your-domain.atlassian.net")
-        email = os.environ.get("JIRA_EMAIL")
-        token = os.environ.get("JIRA_API_TOKEN")
-        
-        if not email or not token:
-             # Fallback to stub for tests that don't set env vars, 
-             # OR better: if we are in a test with mocked httpx, we expect it to work.
-             # But if real usage and no env vars, we should probably error or warn.
-             # For this implementation, let's proceed to the request. 
-             # If auth is missing, the API call will just fail (or 401), which is fine.
-             pass
+    """Fetches issues from Jira."""
 
-        auth = (email, token) if email and token else None
-        
-        url = f"{jira_url}/rest/api/3/issue/{issue_id}"
-        
+    def __init__(self) -> None:
+        """Initialize JiraTracker with configuration validation."""
+        self._validate_config()
+        self.jira_url = os.environ["JIRA_URL"]
+        self.email = os.environ["JIRA_EMAIL"]
+        self.token = os.environ["JIRA_API_TOKEN"]
+
+    def _validate_config(self) -> None:
+        """
+        Validate required environment variables are set.
+
+        Raises:
+            ConfigurationError: If any required variable is missing
+        """
+        missing = []
+        if not os.environ.get("JIRA_URL"):
+            missing.append("JIRA_URL")
+        if not os.environ.get("JIRA_EMAIL"):
+            missing.append("JIRA_EMAIL")
+        if not os.environ.get("JIRA_API_TOKEN"):
+            missing.append("JIRA_API_TOKEN")
+
+        if missing:
+            raise ConfigurationError(
+                f"Missing required environment variables for JiraTracker: {', '.join(missing)}"
+            )
+
+    def get_issue(self, issue_id: str) -> Issue:
+        """Fetch an issue from Jira."""
+        url = f"{self.jira_url}/rest/api/3/issue/{issue_id}"
+
         try:
-            response = httpx.get(url, auth=auth, headers={"Accept": "application/json"})
+            response = httpx.get(
+                url,
+                auth=(self.email, self.token),
+                headers={"Accept": "application/json"},
+            )
             response.raise_for_status()
             data = response.json()
-            
+
             fields = data.get("fields", {})
             return Issue(
                 id=data.get("key", issue_id),
                 title=fields.get("summary", ""),
-                description=fields.get("description", "") or "", # Handle None description
-                status=fields.get("status", {}).get("name", "open")
+                description=fields.get("description", "") or "",
+                status=fields.get("status", {}).get("name", "open"),
             )
-        except Exception as e:
-             # If we are running tests without mocks, this might fail.
-             # But with mocks it should pass.
-             # If it fails in production, we re-raise or handle.
-             raise ValueError(f"Failed to fetch issue {issue_id} from Jira: {e}") from e
+        except httpx.HTTPError as e:
+            raise ValueError(f"Failed to fetch issue {issue_id} from Jira: {e}") from e
