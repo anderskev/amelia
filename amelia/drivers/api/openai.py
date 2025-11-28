@@ -16,6 +16,9 @@ class ApiDriver(DriverInterface):
     Real OpenAI API-based driver using pydantic-ai.
     """
     def __init__(self, model: str = 'openai:gpt-4o'):
+        # Validate that model is OpenAI
+        if not model.startswith("openai:"):
+            raise ValueError(f"Unsupported provider in model '{model}'. ApiDriver only supports 'openai:' models.")
         self.model_name = model
 
     async def generate(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None) -> Any:
