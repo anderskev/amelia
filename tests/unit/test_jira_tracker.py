@@ -3,7 +3,12 @@ from unittest.mock import patch
 from amelia.trackers.jira import JiraTracker
 
 
-def test_jira_get_issue():
+def test_jira_get_issue(monkeypatch):
+    # Set required env vars for JiraTracker initialization
+    monkeypatch.setenv("JIRA_URL", "https://example.atlassian.net")
+    monkeypatch.setenv("JIRA_EMAIL", "test@example.com")
+    monkeypatch.setenv("JIRA_API_TOKEN", "token123")
+
     tracker = JiraTracker()
     with patch("httpx.get") as mock_get:
         mock_get.return_value.status_code = 200

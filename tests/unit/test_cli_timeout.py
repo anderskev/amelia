@@ -5,6 +5,7 @@ import pytest
 
 from amelia.core.state import AgentMessage
 from amelia.drivers.cli.claude import ClaudeCliDriver
+from amelia.tools.safe_shell import SafeShellExecutor
 
 
 @pytest.mark.asyncio
@@ -15,20 +16,16 @@ async def test_cli_driver_timeout_configuration():
 
 @pytest.mark.asyncio
 async def test_cli_driver_execute_tool_timeout_retry():
-    # Mock run_shell_command to fail with TimeoutError (simulated via RuntimeError from shell_executor) first, then succeed
-    # We need to mock amelia.drivers.cli.claude.run_shell_command because that's where it's imported
-    
-    # NOTE: shell_executor.run_shell_command raises RuntimeError("...timed out...") on timeout.
-    
-    with patch('amelia.drivers.cli.claude.run_shell_command', new_callable=AsyncMock) as mock_run:
+    # Mock SafeShellExecutor.execute to fail with RuntimeError (timeout) first, then succeed
+    with patch.object(SafeShellExecutor, "execute", new_callable=AsyncMock) as mock_run:
         # Side effect: First call raises RuntimeError (timeout), second call succeeds
         mock_run.side_effect = [
             RuntimeError("Command timed out after 1 seconds."),
             "Success Output"
         ]
-        
+
         driver = ClaudeCliDriver(timeout=1, max_retries=1)
-        
+
         await driver.execute_tool("run_shell_command", command="echo test")
 
         # Verify retry happened (2 calls = initial + 1 retry)
@@ -36,14 +33,14 @@ async def test_cli_driver_execute_tool_timeout_retry():
 
 @pytest.mark.asyncio
 async def test_cli_driver_execute_tool_fails_after_max_retries():
-    with patch('amelia.drivers.cli.claude.run_shell_command', new_callable=AsyncMock) as mock_run:
+    with patch.object(SafeShellExecutor, "execute", new_callable=AsyncMock) as mock_run:
         mock_run.side_effect = RuntimeError("Command timed out after 1 seconds.")
-        
+
         driver = ClaudeCliDriver(timeout=1, max_retries=1)
-        
+
         with pytest.raises(RuntimeError, match="timed out"):
             await driver.execute_tool("run_shell_command", command="echo test")
-        
+
         # Should call initial + 1 retry = 2 calls
         assert mock_run.call_count == 2
 
