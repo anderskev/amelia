@@ -208,10 +208,10 @@ class TestSafeShellExecutorStrictMode:
     @pytest.mark.asyncio
     async def test_custom_allowlist_in_strict_mode(self):
         """Custom allowlist should work in strict mode."""
-        # 'date' is in default strict allowlist
+        # Use echo which works cross-platform (macOS/Linux)
         result = await SafeShellExecutor.execute(
-            "date --help",
+            "echo custom_allowed",
             strict_mode=True,
-            allowed_commands=frozenset({"date"})
+            allowed_commands=frozenset({"echo"})
         )
-        assert "date" in result.lower() or "usage" in result.lower()
+        assert "custom_allowed" in result
