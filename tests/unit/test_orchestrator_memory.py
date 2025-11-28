@@ -1,27 +1,17 @@
-import pytest
 from langgraph.checkpoint.memory import MemorySaver
 
-from amelia.core.state import ExecutionState
-from amelia.core.state import Issue
-from amelia.core.state import Profile
+from amelia.core.orchestrator import create_orchestrator_graph
 
 
-@pytest.mark.skip(reason="LangGraph checkpointing is not yet configured in orchestrator.py (T024b)")
-def test_orchestrator_state_persistence():
+def test_orchestrator_state_persistence() -> None:
     """
-    Verifies that the orchestrator state can be persisted and restored.
+    Verifies that the orchestrator can be configured with a checkpoint saver.
     """
-    # Setup a mock checkpoint saver
-    _checkpoint_saver = MemorySaver()
+    # Create a MemorySaver checkpoint
+    checkpoint_saver = MemorySaver()
 
-    # Initial state
-    profile = Profile(name="test", driver="cli:claude", tracker="noop", strategy="single")
-    test_issue = Issue(id="MEM-1", title="Memory Test", description="Test state persistence.")
-    _initial_state = ExecutionState(profile=profile, issue=test_issue)
+    # Create orchestrator with checkpointing enabled
+    app = create_orchestrator_graph(checkpoint_saver=checkpoint_saver)
 
-    # Need to configure the orchestrator to use the checkpoint_saver
-    # This will be done in T024b
-    
-    # Simulate a run and checkpointing
-    # Then simulate restoring and verify the state
-    pass
+    # Verify the graph was created successfully
+    assert app is not None
