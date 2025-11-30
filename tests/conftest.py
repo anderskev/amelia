@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from amelia.agents.reviewer import ReviewResponse
 from amelia.core.state import ExecutionState, Task, TaskDAG
 from amelia.core.types import Issue
 from amelia.core.types import Profile
@@ -155,6 +156,22 @@ def mock_async_driver_factory():
         mock.generate = AsyncMock(return_value=generate_return)
         mock.execute_tool = AsyncMock(return_value=execute_tool_return)
         return mock
+    return _create
+
+
+@pytest.fixture
+def mock_review_response_factory():
+    """Factory fixture for creating ReviewResponse instances."""
+    def _create(
+        approved: bool = True,
+        comments: list[str] | None = None,
+        severity: str = "low",
+    ) -> ReviewResponse:
+        return ReviewResponse(
+            approved=approved,
+            comments=comments or (["Looks good"] if approved else ["Needs changes"]),
+            severity=severity
+        )
     return _create
 
 

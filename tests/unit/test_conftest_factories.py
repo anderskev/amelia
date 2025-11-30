@@ -99,3 +99,17 @@ def test_async_driver_factory_custom_return(mock_async_driver_factory):
     driver = mock_async_driver_factory(generate_return="custom response")
     # The return_value should be set
     assert driver.generate.return_value == "custom response"
+
+
+def test_review_response_factory_approved(mock_review_response_factory):
+    """Test that review_response_factory creates approved review."""
+    response = mock_review_response_factory(approved=True)
+    assert response.approved is True
+    assert response.severity == "low"
+
+
+def test_review_response_factory_rejected(mock_review_response_factory):
+    """Test that review_response_factory creates rejected review."""
+    response = mock_review_response_factory(approved=False, severity="high")
+    assert response.approved is False
+    assert response.severity == "high"
