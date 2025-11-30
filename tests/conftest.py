@@ -10,8 +10,21 @@ from amelia.trackers.noop import NoopTracker
 
 
 @pytest.fixture
-def mock_issue_proj_123():
-    return Issue(
+def mock_issue_factory():
+    """Factory fixture for creating test Issue instances with sensible defaults."""
+    def _create(
+        id: str = "TEST-123",
+        title: str = "Test Issue",
+        description: str = "Test issue description for unit testing",
+        status: str = "open"
+    ) -> Issue:
+        return Issue(id=id, title=title, description=description, status=status)
+    return _create
+
+
+@pytest.fixture
+def mock_issue_proj_123(mock_issue_factory):
+    return mock_issue_factory(
         id="PROJ-123",
         title="Implement user authentication feature",
         description="As a user, I want to log in and out securely. This involves creating a login endpoint, a user model, and integrating with an authentication system. Requires email/password fields.",
