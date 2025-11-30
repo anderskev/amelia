@@ -14,31 +14,33 @@ from amelia.trackers.jira import JiraTracker
 class TestJiraTrackerConfigValidation:
     """Test JiraTracker configuration validation."""
 
-    def test_missing_jira_url_raises_config_error(self, monkeypatch):
-        """Missing JIRA_URL should raise ConfigurationError."""
-        monkeypatch.delenv("JIRA_URL", raising=False)
-        monkeypatch.setenv("JIRA_EMAIL", "test@example.com")
-        monkeypatch.setenv("JIRA_API_TOKEN", "token123")
+    @pytest.mark.parametrize(
+        "missing_var,present_vars",
+        [
+            (
+                "JIRA_URL",
+                {"JIRA_EMAIL": "test@example.com", "JIRA_API_TOKEN": "token123"},
+            ),
+            (
+                "JIRA_EMAIL",
+                {"JIRA_URL": "https://example.atlassian.net", "JIRA_API_TOKEN": "token123"},
+            ),
+            (
+                "JIRA_API_TOKEN",
+                {"JIRA_URL": "https://example.atlassian.net", "JIRA_EMAIL": "test@example.com"},
+            ),
+        ],
+        ids=["missing_url", "missing_email", "missing_token"]
+    )
+    def test_missing_jira_env_var_raises_config_error(
+        self, monkeypatch, missing_var, present_vars
+    ):
+        """Missing JIRA environment variables should raise ConfigurationError."""
+        monkeypatch.delenv(missing_var, raising=False)
+        for key, value in present_vars.items():
+            monkeypatch.setenv(key, value)
 
-        with pytest.raises(ConfigurationError, match="JIRA_URL"):
-            JiraTracker()
-
-    def test_missing_jira_email_raises_config_error(self, monkeypatch):
-        """Missing JIRA_EMAIL should raise ConfigurationError."""
-        monkeypatch.setenv("JIRA_URL", "https://example.atlassian.net")
-        monkeypatch.delenv("JIRA_EMAIL", raising=False)
-        monkeypatch.setenv("JIRA_API_TOKEN", "token123")
-
-        with pytest.raises(ConfigurationError, match="JIRA_EMAIL"):
-            JiraTracker()
-
-    def test_missing_jira_token_raises_config_error(self, monkeypatch):
-        """Missing JIRA_API_TOKEN should raise ConfigurationError."""
-        monkeypatch.setenv("JIRA_URL", "https://example.atlassian.net")
-        monkeypatch.setenv("JIRA_EMAIL", "test@example.com")
-        monkeypatch.delenv("JIRA_API_TOKEN", raising=False)
-
-        with pytest.raises(ConfigurationError, match="JIRA_API_TOKEN"):
+        with pytest.raises(ConfigurationError, match=missing_var):
             JiraTracker()
 
     def test_all_jira_vars_present_succeeds(self, monkeypatch):
