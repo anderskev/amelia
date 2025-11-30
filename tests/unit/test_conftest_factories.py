@@ -39,3 +39,19 @@ def test_profile_factory_presets(mock_profile_factory):
 
     comp = mock_profile_factory(preset="api_competitive")
     assert comp.strategy == "competitive"
+
+
+def test_task_factory_defaults(mock_task_factory):
+    """Test that task_factory creates Task with sensible defaults."""
+    task = mock_task_factory(id="1")
+    assert task.id == "1"
+    assert task.description == "Task 1"
+    assert task.status == "pending"
+    assert task.dependencies == []
+
+
+def test_task_factory_custom(mock_task_factory):
+    """Test that task_factory accepts custom values."""
+    task = mock_task_factory(id="2", description="Custom task", dependencies=["1"])
+    assert task.description == "Custom task"
+    assert task.dependencies == ["1"]

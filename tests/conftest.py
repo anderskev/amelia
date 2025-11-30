@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from amelia.core.state import Task
 from amelia.core.types import Issue
 from amelia.core.types import Profile
 from amelia.drivers.base import DriverInterface
@@ -60,6 +61,31 @@ def mock_profile_work(mock_profile_factory):
 @pytest.fixture
 def mock_profile_home(mock_profile_factory):
     return mock_profile_factory(name="home", driver="api:openai", tracker="github", strategy="competitive")
+
+
+@pytest.fixture
+def mock_task_factory():
+    """Factory fixture for creating test Task instances with sensible defaults."""
+    def _create(
+        id: str,
+        description: str | None = None,
+        status: str = "pending",
+        dependencies: list[str] | None = None,
+        files: list | None = None,
+        steps: list | None = None,
+        commit_message: str | None = None
+    ) -> Task:
+        return Task(
+            id=id,
+            description=description or f"Task {id}",
+            status=status,
+            dependencies=dependencies or [],
+            files=files or [],
+            steps=steps or [],
+            commit_message=commit_message
+        )
+    return _create
+
 
 @pytest.fixture
 def mock_noop_tracker():
