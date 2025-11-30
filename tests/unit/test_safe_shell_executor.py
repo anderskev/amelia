@@ -42,29 +42,20 @@ class TestSafeShellExecutorBlocklistMode:
 class TestSafeShellExecutorBlockedCommands:
     """Test that dangerous commands are blocked."""
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            pytest.param("sudo ls", id="sudo"),
+            pytest.param("su root", id="su"),
+            pytest.param("shutdown -h now", id="shutdown"),
+            pytest.param("mkfs.ext4 /dev/sda1", id="mkfs"),
+        ],
+    )
     @pytest.mark.asyncio
-    async def test_sudo_blocked(self):
-        """sudo should always be blocked."""
+    async def test_blocked_commands(self, command):
+        """Dangerous system commands should always be blocked."""
         with pytest.raises(BlockedCommandError, match="[Bb]locked"):
-            await SafeShellExecutor.execute("sudo ls")
-
-    @pytest.mark.asyncio
-    async def test_su_blocked(self):
-        """su should always be blocked."""
-        with pytest.raises(BlockedCommandError, match="[Bb]locked"):
-            await SafeShellExecutor.execute("su root")
-
-    @pytest.mark.asyncio
-    async def test_shutdown_blocked(self):
-        """shutdown should always be blocked."""
-        with pytest.raises(BlockedCommandError, match="[Bb]locked"):
-            await SafeShellExecutor.execute("shutdown -h now")
-
-    @pytest.mark.asyncio
-    async def test_mkfs_blocked(self):
-        """mkfs should always be blocked."""
-        with pytest.raises(BlockedCommandError, match="[Bb]locked"):
-            await SafeShellExecutor.execute("mkfs.ext4 /dev/sda1")
+            await SafeShellExecutor.execute(command)
 
 
 class TestSafeShellExecutorDangerousPatterns:
