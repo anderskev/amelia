@@ -32,12 +32,34 @@ def mock_issue_proj_123(mock_issue_factory):
     )
 
 @pytest.fixture
-def mock_profile_work():
-    return Profile(name="work", driver="cli:claude", tracker="jira", strategy="single")
+def mock_profile_factory():
+    """Factory fixture for creating test Profile instances with presets."""
+    def _create(
+        preset: str | None = None,
+        name: str = "test",
+        driver: str = "cli:claude",
+        tracker: str = "noop",
+        strategy: str = "single",
+        **kwargs
+    ) -> Profile:
+        if preset == "cli_single":
+            return Profile(name="test_cli", driver="cli:claude", tracker="noop", strategy="single", **kwargs)
+        elif preset == "api_single":
+            return Profile(name="test_api", driver="api:openai", tracker="noop", strategy="single", **kwargs)
+        elif preset == "api_competitive":
+            return Profile(name="test_comp", driver="api:openai", tracker="noop", strategy="competitive", **kwargs)
+        return Profile(name=name, driver=driver, tracker=tracker, strategy=strategy, **kwargs)
+    return _create
+
 
 @pytest.fixture
-def mock_profile_home():
-    return Profile(name="home", driver="api:openai", tracker="github", strategy="competitive")
+def mock_profile_work(mock_profile_factory):
+    return mock_profile_factory(name="work", driver="cli:claude", tracker="jira", strategy="single")
+
+
+@pytest.fixture
+def mock_profile_home(mock_profile_factory):
+    return mock_profile_factory(name="home", driver="api:openai", tracker="github", strategy="competitive")
 
 @pytest.fixture
 def mock_noop_tracker():
