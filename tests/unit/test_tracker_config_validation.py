@@ -9,6 +9,7 @@ import pytest
 from amelia.core.exceptions import ConfigurationError
 from amelia.trackers.github import GithubTracker
 from amelia.trackers.jira import JiraTracker
+from amelia.trackers.noop import NoopTracker
 
 
 class TestJiraTrackerConfigValidation:
@@ -85,3 +86,15 @@ class TestGithubTrackerConfigValidation:
 
             tracker = GithubTracker()
             assert tracker is not None
+
+
+class TestNoopTracker:
+    """Test NoopTracker behavior."""
+
+    def test_get_issue_returns_placeholder(self):
+        """NoopTracker should return placeholder issue for any ID."""
+        tracker = NoopTracker()
+        issue = tracker.get_issue("ANY-123")
+        assert issue.id == "ANY-123"
+        assert issue.title == "Placeholder Issue"
+        assert issue.description == "Tracker not configured"
