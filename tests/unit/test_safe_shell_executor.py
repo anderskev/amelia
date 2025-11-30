@@ -61,29 +61,23 @@ class TestSafeShellExecutorBlockedCommands:
 class TestSafeShellExecutorDangerousPatterns:
     """Test that dangerous patterns are detected and blocked."""
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            pytest.param("rm -rf /", id="rm_root"),
+            pytest.param("rm -rf ~", id="rm_home"),
+            pytest.param("rm -rf /etc", id="rm_etc"),
+        ],
+    )
     @pytest.mark.asyncio
-    async def test_rm_rf_root_blocked(self):
-        """rm -rf / should be blocked."""
+    async def test_dangerous_rm_patterns_blocked(self, command):
+        """Dangerous rm patterns should be blocked."""
         with pytest.raises(DangerousCommandError, match="[Dd]angerous"):
-            await SafeShellExecutor.execute("rm -rf /")
-
-    @pytest.mark.asyncio
-    async def test_rm_rf_home_blocked(self):
-        """rm -rf ~ should be blocked."""
-        with pytest.raises(DangerousCommandError, match="[Dd]angerous"):
-            await SafeShellExecutor.execute("rm -rf ~")
-
-    @pytest.mark.asyncio
-    async def test_rm_rf_etc_blocked(self):
-        """rm -rf /etc should be blocked."""
-        with pytest.raises(DangerousCommandError, match="[Dd]angerous"):
-            await SafeShellExecutor.execute("rm -rf /etc")
+            await SafeShellExecutor.execute(command)
 
     @pytest.mark.asyncio
     async def test_safe_rm_allowed(self):
         """Normal rm commands should be allowed."""
-        # This should not raise (command itself will fail but parsing should pass)
-        # We test by checking it doesn't raise DangerousCommandError
         try:
             await SafeShellExecutor.execute("rm nonexistent_file_12345.txt")
         except RuntimeError:
