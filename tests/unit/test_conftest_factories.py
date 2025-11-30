@@ -1,8 +1,6 @@
 """Tests for conftest.py factory fixtures."""
 
-import pytest
 
-from amelia.core.types import Issue
 
 
 def test_issue_factory_defaults(mock_issue_factory):
