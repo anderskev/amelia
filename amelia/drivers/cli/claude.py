@@ -30,6 +30,59 @@ class ClaudeStreamEvent(BaseModel):
     tool_input: dict[str, Any] | None = None
     session_id: str | None = None
 
+    @classmethod
+    def from_stream_json(cls, line: str) -> "ClaudeStreamEvent | None":
+        """Parse a line from Claude CLI stream-json output.
+
+        Args:
+            line: Raw JSON line from stream output.
+
+        Returns:
+            Parsed event or None for empty lines, error event for malformed JSON.
+        """
+        stripped = line.strip()
+        if not stripped:
+            return None
+
+        try:
+            data = json.loads(stripped)
+        except json.JSONDecodeError as e:
+            return cls(type="error", content=f"Failed to parse stream JSON: {e}")
+
+        msg_type = data.get("type", "")
+
+        # Handle result events (contain session_id)
+        if msg_type == "result":
+            return cls(
+                type="result",
+                session_id=data.get("session_id")
+            )
+
+        # Handle assistant messages (contain content blocks)
+        if msg_type == "assistant":
+            message = data.get("message", {})
+            content_blocks = message.get("content", [])
+
+            for block in content_blocks:
+                block_type = block.get("type", "")
+
+                if block_type == "text":
+                    return cls(type="assistant", content=block.get("text", ""))
+
+                if block_type == "tool_use":
+                    return cls(
+                        type="tool_use",
+                        tool_name=block.get("name"),
+                        tool_input=block.get("input")
+                    )
+
+        # Handle system messages
+        if msg_type == "system":
+            return cls(type="system", content=data.get("message", ""))
+
+        # Unknown type - return as system event
+        return cls(type="system", content=f"Unknown event type: {msg_type}")
+
 
 class ClaudeCliDriver(CliDriver):
     """

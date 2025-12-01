@@ -179,3 +179,39 @@ class TestClaudeStreamEvent:
         event = ClaudeStreamEvent(type="error", content="Something went wrong")
         assert event.type == "error"
         assert event.content == "Something went wrong"
+
+    def test_parse_assistant_message(self):
+        """Test parsing assistant message from stream-json."""
+        raw = '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}'
+        event = ClaudeStreamEvent.from_stream_json(raw)
+        assert event.type == "assistant"
+        assert event.content == "Hello"
+
+    def test_parse_tool_use(self):
+        """Test parsing tool_use from stream-json."""
+        raw = '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/x.py"}}]}}'
+        event = ClaudeStreamEvent.from_stream_json(raw)
+        assert event.type == "tool_use"
+        assert event.tool_name == "Read"
+        assert event.tool_input == {"file_path": "/x.py"}
+
+    def test_parse_result_with_session(self):
+        """Test parsing result event with session_id."""
+        raw = '{"type":"result","session_id":"sess_123","subtype":"success"}'
+        event = ClaudeStreamEvent.from_stream_json(raw)
+        assert event.type == "result"
+        assert event.session_id == "sess_123"
+
+    def test_parse_malformed_json_returns_error(self):
+        """Test that malformed JSON returns error event."""
+        raw = 'not valid json'
+        event = ClaudeStreamEvent.from_stream_json(raw)
+        assert event.type == "error"
+        assert "parse" in event.content.lower()
+
+    def test_parse_empty_line_returns_none(self):
+        """Test that empty lines return None."""
+        event = ClaudeStreamEvent.from_stream_json("")
+        assert event is None
+        event = ClaudeStreamEvent.from_stream_json("   ")
+        assert event is None
