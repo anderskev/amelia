@@ -140,20 +140,23 @@ class ClaudeCliDriver(CliDriver):
         self,
         messages: list[AgentMessage],
         schema: type[BaseModel] | None = None,
-        session_id: str | None = None,
-        cwd: str | None = None
+        **kwargs: Any
     ) -> Any:
         """Generates a response using the 'claude' CLI.
 
         Args:
             messages: Conversation history.
             schema: Optional Pydantic model for structured output.
-            session_id: Optional session ID to resume a previous conversation.
-            cwd: Optional working directory for Claude CLI context.
+            **kwargs: Driver-specific parameters:
+                - session_id: Optional session ID to resume a previous conversation.
+                - cwd: Optional working directory for Claude CLI context.
 
         Returns:
             Either a string (if no schema) or an instance of the schema.
         """
+        session_id = kwargs.get("session_id")
+        cwd = kwargs.get("cwd")
+
         # Extract system messages for separate handling
         system_messages = [m for m in messages if m.role == "system"]
 

@@ -29,7 +29,7 @@ class ApiDriver(DriverInterface):
             raise ValueError(f"Unsupported provider in model '{model}'. ApiDriver only supports 'openai:' models.")
         self.model_name = model
 
-    async def generate(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None) -> Any:
+    async def generate(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None, **kwargs: Any) -> Any:
         if not os.environ.get("OPENAI_API_KEY"):
              # Fail fast if no key, or maybe fallback? For now, fail.
              # But for tests, we might need to mock this. 

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import yaml
@@ -8,10 +9,15 @@ from amelia.core.types import Profile, Settings
 def load_settings(config_path: Path | None = None) -> Settings:
     """
     Load settings from a YAML file.
-    If config_path is not provided, looks for 'settings.amelia.yaml' in the current directory.
+
+    Resolution order:
+    1. Explicit config_path parameter (if provided)
+    2. AMELIA_SETTINGS environment variable (if set)
+    3. Default: 'settings.amelia.yaml' in the current directory
     """
     if config_path is None:
-        config_path = Path("settings.amelia.yaml")
+        env_path = os.environ.get("AMELIA_SETTINGS")
+        config_path = Path(env_path) if env_path else Path("settings.amelia.yaml")
         
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
