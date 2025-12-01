@@ -11,6 +11,14 @@ Amelia automates development workflows (issue analysis, planning, coding, review
 - **Reviewer** evaluates changes and provides feedback
 - **Project Manager** fetches and manages issues
 
+## Inspiration
+
+Amelia's workflows and methodology draw from several excellent projects:
+
+- **[BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)** — Structured AI-driven development framework with specialized agents and phased workflows (Analysis → Planning → Solutioning → Implementation)
+- **[GitHub Spec-Kit](https://github.com/github/spec-kit)** — Spec-driven development where specifications are executable and generate implementations; emphasizes defining "what" and "why" before coding
+- **[Claude Superpowers](https://github.com/obra/superpowers)** — Composable "skills" for coding agents that enable autonomous development with TDD and systematic reviews
+
 ## Key Concepts
 
 ```mermaid
