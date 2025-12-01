@@ -51,11 +51,11 @@ Tasks are executed based on their descriptions. The Developer can work in parall
 | `comments` | Detailed feedback on the changes |
 | `severity` | Issue severity (info, warning, error) |
 
-### Project Manager (`amelia/agents/project_manager.py`)
+### Tracker Factory (`amelia/trackers/factory.py`)
 
-**Role**: Fetches issues from trackers.
+**Role**: Creates the appropriate tracker based on profile configuration.
 
-Selects the appropriate tracker based on profile configuration and retrieves issue details for the orchestrator to process.
+The `create_tracker()` factory function returns a `BaseTracker` implementation (Jira, GitHub, or Noop) based on the profile's `tracker` setting.
 
 ## What is "Orchestration"?
 

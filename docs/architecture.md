@@ -67,7 +67,6 @@ flowchart TB
 | `architect.py` | Generates TaskDAG from Issue using structured LLM output |
 | `developer.py` | Executes tasks (shell commands, file writes, LLM generation) |
 | `reviewer.py` | Reviews code with single or competitive strategy |
-| `project_manager.py` | Creates appropriate tracker, fetches issues |
 
 ### Drivers Layer (`amelia/drivers/`)
 
@@ -86,6 +85,7 @@ flowchart TB
 | `jira.py` | Jira integration via HTTPX |
 | `github.py` | GitHub integration |
 | `noop.py` | No-op for testing |
+| `factory.py` | `create_tracker()` factory |
 
 ### Tools Layer (`amelia/tools/`)
 
@@ -115,10 +115,10 @@ validate_profile(profile)
 
 ```python
 # Create tracker based on profile
-project_manager = create_project_manager(profile)
+tracker = create_tracker(profile)
 
 # Fetch issue details
-issue = await project_manager.get_issue("PROJ-123")
+issue = tracker.get_issue("PROJ-123")
 # Returns: Issue(id="PROJ-123", title="...", description="...")
 ```
 
@@ -382,7 +382,6 @@ amelia/
 ├── agents/
 │   ├── architect.py      # Architect agent
 │   ├── developer.py      # Developer agent
-│   ├── project_manager.py # PM agent (tracker selection)
 │   └── reviewer.py       # Reviewer agent
 ├── core/
 │   ├── orchestrator.py   # LangGraph state machine
@@ -397,6 +396,7 @@ amelia/
 │   └── factory.py        # DriverFactory
 ├── trackers/
 │   ├── base.py           # BaseTracker protocol
+│   ├── factory.py        # create_tracker()
 │   ├── github.py
 │   ├── jira.py
 │   └── noop.py
