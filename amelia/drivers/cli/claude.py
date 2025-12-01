@@ -135,12 +135,20 @@ class ClaudeCliDriver(CliDriver):
 
         return "\n\n".join(prompt_parts)
 
-    async def _generate_impl(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None) -> Any:
+    async def _generate_impl(
+        self,
+        messages: list[AgentMessage],
+        schema: type[BaseModel] | None = None,
+        session_id: str | None = None,
+        cwd: str | None = None
+    ) -> Any:
         """Generates a response using the 'claude' CLI.
 
         Args:
             messages: Conversation history.
             schema: Optional Pydantic model for structured output.
+            session_id: Optional session ID to resume a previous conversation.
+            cwd: Optional working directory for Claude CLI context.
 
         Returns:
             Either a string (if no schema) or an instance of the schema.
@@ -166,6 +174,11 @@ class ClaudeCliDriver(CliDriver):
             system_prompt = "\n\n".join(m.content for m in system_messages if m.content)
             cmd_args.extend(["--append-system-prompt", system_prompt])
 
+        # Add resume support
+        if session_id:
+            cmd_args.extend(["--resume", session_id])
+            logger.info(f"Resuming Claude session: {session_id}")
+
         if schema:
             # Generate JSON schema
             json_schema = json.dumps(schema.model_json_schema())
@@ -182,6 +195,7 @@ class ClaudeCliDriver(CliDriver):
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                cwd=cwd
             )
 
             # Write prompt to stdin

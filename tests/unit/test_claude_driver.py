@@ -150,6 +150,42 @@ class TestClaudeCliDriver:
             await driver._execute_tool_impl("unknown_tool")
 
 
+class TestClaudeCliDriverResumeAndCwd:
+    """Tests for --resume and cwd support in ClaudeCliDriver."""
+
+    @pytest.mark.asyncio
+    async def test_generate_with_session_resume(self, driver, messages, mock_subprocess_process_factory):
+        """Test that generate passes --resume when session_id provided."""
+        mock_process = mock_subprocess_process_factory(
+            stdout_lines=[b"Resumed response", b""],
+            return_code=0
+        )
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
+            response = await driver._generate_impl(messages, session_id="sess_resume123")
+
+            assert response == "Resumed response"
+            mock_exec.assert_called_once()
+            args = mock_exec.call_args[0]
+            assert "--resume" in args
+            assert "sess_resume123" in args
+
+    @pytest.mark.asyncio
+    async def test_generate_with_working_directory(self, driver, messages, mock_subprocess_process_factory):
+        """Test that generate passes cwd to subprocess."""
+        mock_process = mock_subprocess_process_factory(
+            stdout_lines=[b"Response from cwd", b""],
+            return_code=0
+        )
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
+            response = await driver._generate_impl(messages, cwd="/workspace/project")
+
+            assert response == "Response from cwd"
+            kwargs = mock_exec.call_args[1]
+            assert kwargs.get("cwd") == "/workspace/project"
+
+
 class TestClaudeCliDriverPermissions:
     """Tests for permission management in ClaudeCliDriver."""
 
