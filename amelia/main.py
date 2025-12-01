@@ -7,7 +7,6 @@ from langgraph.checkpoint.memory import MemorySaver
 from loguru import logger
 
 from amelia.agents.architect import Architect
-from amelia.agents.project_manager import create_tracker
 from amelia.config import load_settings
 from amelia.config import validate_profile
 from amelia.core.orchestrator import call_reviewer_node
@@ -18,6 +17,7 @@ from amelia.core.types import Profile
 from amelia.core.types import Settings
 from amelia.drivers.factory import DriverFactory
 from amelia.tools.git import get_git_diff
+from amelia.trackers.factory import create_tracker
 from amelia.utils.design_parser import parse_design
 
 
