@@ -2,7 +2,6 @@ from typing import Any
 
 from amelia.drivers.api.openai import ApiDriver
 from amelia.drivers.base import DriverInterface
-from amelia.drivers.cli.agentic import ClaudeAgenticCliDriver
 from amelia.drivers.cli.claude import ClaudeCliDriver
 
 
@@ -25,8 +24,6 @@ class DriverFactory:
         """
         if driver_key == "cli:claude" or driver_key == "cli":
             return ClaudeCliDriver(**kwargs)
-        elif driver_key == "cli:claude:agentic":
-            return ClaudeAgenticCliDriver(**kwargs)
         elif driver_key == "api:openai" or driver_key == "api":
             return ApiDriver(**kwargs)
         else:

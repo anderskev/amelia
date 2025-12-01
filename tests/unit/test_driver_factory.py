@@ -3,7 +3,6 @@
 import pytest
 
 from amelia.drivers.api.openai import ApiDriver
-from amelia.drivers.cli.agentic import ClaudeAgenticCliDriver
 from amelia.drivers.cli.claude import ClaudeCliDriver
 from amelia.drivers.factory import DriverFactory
 
@@ -14,10 +13,6 @@ class TestDriverFactory:
     def test_get_cli_claude_driver(self):
         driver = DriverFactory.get_driver("cli:claude")
         assert isinstance(driver, ClaudeCliDriver)
-
-    def test_get_cli_claude_agentic_driver(self):
-        driver = DriverFactory.get_driver("cli:claude:agentic")
-        assert isinstance(driver, ClaudeAgenticCliDriver)
 
     def test_get_api_openai_driver(self):
         driver = DriverFactory.get_driver("api:openai")

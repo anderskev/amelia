@@ -67,7 +67,7 @@ async def test_orchestrator_parallel_execution(
     profile = Profile(name=profile_name, driver=driver_type, tracker="noop", strategy="single")
     test_issue = Issue(id=issue_id, title=issue_title, description="Execute tasks in parallel.")
 
-    async def delayed_execute_task(_self: Any, task: Task) -> dict[str, str]:
+    async def delayed_execute_task(_self: Any, task: Task, cwd: str | None = None) -> dict[str, str]:
         await asyncio.sleep(0.05)
         return {"status": "completed", "output": f"Task {task.id} finished"}
 

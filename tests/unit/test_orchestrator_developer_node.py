@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from amelia.core.orchestrator import call_developer_node
-from amelia.core.state import ExecutionState, Task, TaskDAG
+from amelia.core.state import ExecutionState, TaskDAG
 from amelia.core.types import Profile
 
 
