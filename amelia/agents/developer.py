@@ -1,14 +1,18 @@
+import os
 from typing import Any, Literal
 
+import typer
 from loguru import logger
 from pydantic import BaseModel
 
 from amelia.core.constants import ToolName
+from amelia.core.exceptions import AgenticExecutionError
 from amelia.core.state import AgentMessage, Task
 from amelia.drivers.base import DriverInterface
 
 
 DeveloperStatus = Literal["completed", "failed", "in_progress"]
+ExecutionMode = Literal["structured", "agentic"]
 
 
 class DeveloperResponse(BaseModel):
@@ -23,55 +27,146 @@ class Developer:
 
     Attributes:
         driver: LLM driver interface for task execution and tool access.
+        execution_mode: Execution mode (structured or agentic).
     """
 
-    def __init__(self, driver: DriverInterface):
+    def __init__(self, driver: DriverInterface, execution_mode: ExecutionMode = "structured"):
         """Initialize the Developer agent.
 
         Args:
             driver: LLM driver interface for task execution and tool access.
+            execution_mode: Execution mode. Defaults to "structured".
         """
         self.driver = driver
+        self.execution_mode = execution_mode
 
-    async def execute_task(self, task: Task) -> dict[str, Any]:
+    async def execute_task(self, task: Task, cwd: str | None = None) -> dict[str, Any]:
+        """Execute a single development task.
+
+        Args:
+            task: The task to execute.
+            cwd: Working directory for agentic execution.
+
+        Returns:
+            Dict with status and output.
+
+        Raises:
+            AgenticExecutionError: If agentic execution fails.
         """
-        Executes a single development task with error handling.
+        if self.execution_mode == "agentic":
+            return await self._execute_agentic(task, cwd or os.getcwd())
+        else:
+            return await self._execute_structured(task)
+
+    async def _execute_agentic(self, task: Task, cwd: str) -> dict[str, Any]:
+        """Execute task autonomously with full Claude tool access.
+
+        Args:
+            task: The task to execute.
+            cwd: Working directory for execution.
+
+        Returns:
+            Dict with status and output.
+
+        Raises:
+            AgenticExecutionError: If execution fails.
+        """
+        prompt = self._build_task_prompt(task)
+        logger.info(f"Starting agentic execution for task {task.id}")
+
+        async for event in self.driver.execute_agentic(prompt, cwd):
+            self._handle_stream_event(event)
+
+            if event.type == "error":
+                raise AgenticExecutionError(event.content or "Unknown error")
+
+        return {"status": "completed", "task_id": task.id, "output": "Agentic execution completed"}
+
+    def _build_task_prompt(self, task: Task) -> str:
+        """Convert task to a prompt for agentic execution.
+
+        Args:
+            task: The task to convert.
+
+        Returns:
+            Formatted prompt string.
+        """
+        sections = [f"# Task: {task.description}", "", "## Files"]
+
+        for file_op in task.files:
+            sections.append(f"- {file_op.operation}: `{file_op.path}`")
+
+        if task.steps:
+            sections.append("")
+            sections.append("## Steps")
+            for i, step in enumerate(task.steps, 1):
+                sections.append(f"### Step {i}: {step.description}")
+                if step.code:
+                    sections.append(f"```\n{step.code}\n```")
+                if step.command:
+                    sections.append(f"Run: `{step.command}`")
+                if step.expected_output:
+                    sections.append(f"Expected: {step.expected_output}")
+
+        sections.append("")
+        sections.append("Execute this task following TDD principles. Run tests after each change.")
+
+        return "\n".join(sections)
+
+    def _handle_stream_event(self, event: Any) -> None:
+        """Display streaming event to terminal.
+
+        Args:
+            event: ClaudeStreamEvent to display.
+        """
+        if event.type == "tool_use":
+            typer.secho(f"  -> {event.tool_name}", fg=typer.colors.CYAN)
+            if event.tool_input:
+                preview = str(event.tool_input)[:100]
+                suffix = "..." if len(str(event.tool_input)) > 100 else ""
+                typer.echo(f"    {preview}{suffix}")
+
+        elif event.type == "tool_result":
+            typer.secho("  Done", fg=typer.colors.GREEN)
+
+        elif event.type == "assistant" and event.content:
+            typer.echo(f"  {event.content[:200]}")
+
+        elif event.type == "error":
+            typer.secho(f"  Error: {event.content}", fg=typer.colors.RED)
+
+    async def _execute_structured(self, task: Task) -> dict[str, Any]:
+        """Execute task using structured step-by-step approach.
+
+        Args:
+            task: The task to execute.
+
+        Returns:
+            Dict with status and output.
         """
         try:
-            # If the task has defined steps (TDD pattern), execute them sequentially
             if task.steps:
                 logger.info(f"Developer executing {len(task.steps)} steps for task {task.id}")
                 results = []
                 for i, step in enumerate(task.steps, 1):
                     logger.info(f"Executing step {i}: {step.description}")
                     step_output = ""
-                    
-                    # 1. Write code if provided
+
                     if step.code:
-                        # Identify file path from task.files or infer? 
-                        # For now, we look for a matching file operation in task.files
-                        # This is a simplification; ideally the step knows which file it touches.
-                        # If task has files, use the first one for now or try to find context.
-                        # But task.files has 'path'.
-                        
-                        # Heuristic: if we have code, we need a file to write to.
-                        # If the task has explicit file operations, use the first one that matches 'create' or 'modify'.
                         target_file = None
                         if task.files:
                             for f in task.files:
                                 if f.operation in ("create", "modify"):
                                     target_file = f.path
                                     break
-                        
+
                         if target_file:
                             logger.info(f"Writing code to {target_file}")
                             await self.driver.execute_tool(ToolName.WRITE_FILE, file_path=target_file, content=step.code)
                             step_output += f"Wrote to {target_file}. "
                         else:
-                            # If no file specified, maybe it's a test file?
                             logger.warning("Step has code but no target file could be determined from task.files.")
 
-                    # 2. Run command if provided
                     if step.command:
                         logger.info(f"Running command: {step.command}")
                         cmd_result = await self.driver.execute_tool(ToolName.RUN_SHELL_COMMAND, command=step.command)
@@ -81,22 +176,15 @@ class Developer:
 
                 return {"status": "completed", "output": "\n".join(results)}
 
-            # Fallback: Existing logic for simple tasks
-            # Example: if task description implies a shell command
             if task.description.lower().startswith("run shell command:"):
                 command = task.description[len("run shell command:"):].strip()
                 logger.info(f"Developer executing shell command: {command}")
-                # The driver's execute_tool needs to map to actual shell execution
                 result = await self.driver.execute_tool(ToolName.RUN_SHELL_COMMAND, command=command)
                 return {"status": "completed", "output": result}
 
-            # Example: if task description implies writing a file
             elif task.description.lower().startswith("write file:"):
-                # This would need more structure in the task for file_path and content
                 logger.info(f"Developer executing write file task: {task.description}")
 
-                # Basic parsing for the test: "write file: <path> with <content>"
-                # This is fragile but sufficient for the current string-based protocol without LLM function calling
                 if " with " in task.description:
                     parts = task.description.split(" with ", 1)
                     path_part = parts[0]
@@ -110,7 +198,6 @@ class Developer:
                 result = await self.driver.execute_tool(ToolName.WRITE_FILE, file_path=file_path, content=content)
                 return {"status": "completed", "output": result}
 
-            # Fallback: if no specific tool is identified, use LLM to generate response
             else:
                 logger.info(f"Developer generating response for task: {task.description}")
                 messages = [

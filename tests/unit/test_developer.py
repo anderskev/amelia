@@ -2,8 +2,12 @@
 
 from unittest.mock import AsyncMock
 
+import pytest
+
 from amelia.agents.developer import Developer
+from amelia.core.exceptions import AgenticExecutionError
 from amelia.drivers.base import DriverInterface
+from amelia.drivers.cli.claude import ClaudeStreamEvent
 
 
 class TestDeveloperExecution:
@@ -75,6 +79,57 @@ class TestDeveloperExecution:
             id="1", description="Implement the foo feature", status="pending"
         )
         developer = Developer(driver=mock_driver)
+
+        result = await developer.execute_task(task)
+
+        assert result["status"] == "completed"
+        mock_driver.generate.assert_called_once()
+
+
+class TestDeveloperAgenticExecution:
+    """Tests for Developer agentic execution mode."""
+
+    async def test_execute_task_agentic_calls_execute_agentic(self, mock_task_factory):
+        """Developer in agentic mode should call driver.execute_agentic."""
+        mock_driver = AsyncMock(spec=DriverInterface)
+
+        async def mock_execute_agentic(prompt, cwd, session_id=None):
+            yield ClaudeStreamEvent(type="assistant", content="Working...")
+            yield ClaudeStreamEvent(type="result", session_id="sess_001")
+
+        mock_driver.execute_agentic = mock_execute_agentic
+
+        task = mock_task_factory(id="1", description="Implement feature")
+        developer = Developer(driver=mock_driver, execution_mode="agentic")
+
+        result = await developer.execute_task(task, cwd="/tmp")
+
+        assert result["status"] == "completed"
+
+    async def test_execute_task_agentic_raises_on_error(self, mock_task_factory):
+        """Developer in agentic mode should raise AgenticExecutionError on error event."""
+        mock_driver = AsyncMock(spec=DriverInterface)
+
+        async def mock_execute_agentic(prompt, cwd, session_id=None):
+            yield ClaudeStreamEvent(type="error", content="Something went wrong")
+
+        mock_driver.execute_agentic = mock_execute_agentic
+
+        task = mock_task_factory(id="1", description="Implement feature")
+        developer = Developer(driver=mock_driver, execution_mode="agentic")
+
+        with pytest.raises(AgenticExecutionError) as exc_info:
+            await developer.execute_task(task, cwd="/tmp")
+
+        assert "Something went wrong" in str(exc_info.value)
+
+    async def test_execute_task_structured_ignores_cwd(self, mock_task_factory):
+        """Developer in structured mode should work without cwd."""
+        mock_driver = AsyncMock(spec=DriverInterface)
+        mock_driver.generate.return_value = "Generated response"
+
+        task = mock_task_factory(id="1", description="Implement feature")
+        developer = Developer(driver=mock_driver, execution_mode="structured")
 
         result = await developer.execute_task(task)
 
