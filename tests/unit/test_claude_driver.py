@@ -435,3 +435,43 @@ class TestClaudeStreamEvent:
         assert event is None
         event = ClaudeStreamEvent.from_stream_json("   ")
         assert event is None
+
+
+class TestClaudeCliDriverAgentic:
+    """Tests for execute_agentic method."""
+
+    @pytest.mark.asyncio
+    async def test_execute_agentic_uses_skip_permissions(self, driver, mock_subprocess_process_factory):
+        """execute_agentic should use --dangerously-skip-permissions."""
+        stream_lines = [
+            b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}\n',
+            b'{"type":"result","session_id":"sess_001","subtype":"success"}\n',
+            b""
+        ]
+        mock_process = mock_subprocess_process_factory(stdout_lines=stream_lines, return_code=0)
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
+            events = []
+            async for event in driver.execute_agentic("test prompt", "/tmp"):
+                events.append(event)
+
+            mock_exec.assert_called_once()
+            args = mock_exec.call_args[0]
+            assert "--dangerously-skip-permissions" in args
+
+    @pytest.mark.asyncio
+    async def test_execute_agentic_tracks_tool_calls(self, driver, mock_subprocess_process_factory):
+        """execute_agentic should track tool calls in tool_call_history."""
+        stream_lines = [
+            b'{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"path":"test.py"}}]}}\n',
+            b'{"type":"result","session_id":"sess_001","subtype":"success"}\n',
+            b""
+        ]
+        mock_process = mock_subprocess_process_factory(stdout_lines=stream_lines, return_code=0)
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process):
+            async for _ in driver.execute_agentic("test prompt", "/tmp"):
+                pass
+
+            assert len(driver.tool_call_history) == 1
+            assert driver.tool_call_history[0].tool_name == "Read"

@@ -120,6 +120,7 @@ class ClaudeCliDriver(CliDriver):
         self.skip_permissions = skip_permissions
         self.allowed_tools = allowed_tools
         self.disallowed_tools = disallowed_tools
+        self.tool_call_history: list[ClaudeStreamEvent] = []
 
     def _convert_messages_to_prompt(self, messages: list[AgentMessage]) -> str:
         """Converts a list of AgentMessages into a single string prompt.
@@ -372,3 +373,74 @@ class ClaudeCliDriver(CliDriver):
         except Exception as e:
             logger.error(f"Error in Claude CLI streaming: {e}")
             yield ClaudeStreamEvent(type="error", content=str(e))
+
+    async def execute_agentic(
+        self,
+        prompt: str,
+        cwd: str,
+        session_id: str | None = None
+    ) -> AsyncIterator[ClaudeStreamEvent]:
+        """Execute prompt with full autonomous tool access (YOLO mode).
+
+        Args:
+            prompt: The task or instruction for Claude.
+            cwd: Working directory for Claude Code context.
+            session_id: Optional session ID to resume.
+
+        Yields:
+            ClaudeStreamEvent objects including tool executions.
+        """
+        cmd_args = [
+            "claude", "-p",
+            "--model", self.model,
+            "--output-format", "stream-json",
+            "--verbose",
+            "--dangerously-skip-permissions"
+        ]
+
+        if session_id:
+            cmd_args.extend(["--resume", session_id])
+            logger.info(f"Resuming agentic session: {session_id}")
+
+        logger.info(f"Starting agentic execution in {cwd}")
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd_args,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd
+            )
+
+            if process.stdin:
+                process.stdin.write(prompt.encode())
+                await process.stdin.drain()
+                process.stdin.close()
+
+            if process.stdout:
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+
+                    event = ClaudeStreamEvent.from_stream_json(line.decode())
+                    if event:
+                        if event.type == "tool_use":
+                            self.tool_call_history.append(event)
+                            logger.info(f"Tool call: {event.tool_name}")
+                        yield event
+
+            await process.wait()
+
+            if process.returncode != 0:
+                stderr_data = await process.stderr.read() if process.stderr else b""
+                logger.error(f"Agentic execution failed: {stderr_data.decode()}")
+
+        except Exception as e:
+            logger.error(f"Error in agentic execution: {e}")
+            yield ClaudeStreamEvent(type="error", content=str(e))
+
+    def clear_tool_history(self) -> None:
+        """Clear the tool call history."""
+        self.tool_call_history = []
