@@ -12,15 +12,19 @@ flowchart LR
         plan[plan-only]
     end
 
-    subgraph Core["Core"]
-        orch[Orchestrator]
+    subgraph Trackers["Trackers"]
+        jira[Jira]
+        github[GitHub]
+    end
+
+    subgraph Core["Orchestrator"]
+        orch[LangGraph]
     end
 
     subgraph Agents["Agents"]
         arch[Architect]
         dev[Developer]
         rev[Reviewer]
-        pm[Project Manager]
     end
 
     subgraph Drivers["Drivers"]
@@ -28,22 +32,16 @@ flowchart LR
         claude[Claude CLI]
     end
 
-    subgraph Trackers["Trackers"]
-        jira[Jira]
-        github[GitHub]
-    end
-
     subgraph Tools["Tools"]
-        git[Git]
         shell[Shell]
+        file[File I/O]
     end
 
+    CLI --> Trackers
     CLI --> orch
     orch --> arch & dev & rev
-    orch --> pm
-    pm --> Trackers
     arch & dev & rev --> Drivers
-    dev --> Tools
+    Drivers --> Tools
 
     classDef cliStyle fill:#e3f2fd,stroke:#1976d2
     classDef coreStyle fill:#f3e5f5,stroke:#7b1fa2
@@ -54,10 +52,10 @@ flowchart LR
 
     class start,review,plan cliStyle
     class orch coreStyle
-    class arch,dev,rev,pm agentStyle
+    class arch,dev,rev agentStyle
     class api,claude driverStyle
     class jira,github trackerStyle
-    class git,shell toolStyle
+    class shell,file toolStyle
 ```
 
 ## Component Breakdown
