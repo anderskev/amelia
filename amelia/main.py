@@ -18,6 +18,7 @@ from amelia.core.types import Profile
 from amelia.core.types import Settings
 from amelia.drivers.factory import DriverFactory
 from amelia.tools.git import get_git_diff
+from amelia.utils.design_parser import parse_design
 
 
 app = typer.Typer(help="Amelia Agentic Orchestrator CLI")
@@ -147,7 +148,6 @@ def plan_only_command(
         # Parse design if provided
         design = None
         if design_path:
-            from amelia.utils.design_parser import parse_design
             try:
                 driver = DriverFactory.get_driver(active_profile.driver)
                 design = await parse_design(design_path, driver)

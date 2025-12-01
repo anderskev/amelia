@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 from typing import Any
 
 import typer
@@ -74,8 +75,7 @@ async def get_code_changes_for_review(state: ExecutionState) -> str:
     """
     if state.code_changes_for_review:
         return state.code_changes_for_review
-    
-    import subprocess
+
     try:
         result = subprocess.run(
             ["git", "diff", "HEAD"],

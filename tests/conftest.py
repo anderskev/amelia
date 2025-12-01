@@ -1,4 +1,5 @@
 import subprocess
+from typing import Any
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 
@@ -153,7 +154,6 @@ def mock_driver():
 @pytest.fixture
 def mock_async_driver_factory():
     """Factory fixture for creating mock DriverInterface instances."""
-    from typing import Any
     def _create(
         generate_return: Any = "mocked AI response",
         execute_tool_return: Any = "mocked tool output",

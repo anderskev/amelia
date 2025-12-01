@@ -6,6 +6,7 @@ import yaml
 from typer.testing import CliRunner
 
 from amelia.agents.architect import TaskListResponse
+from amelia.agents.reviewer import ReviewResponse
 from amelia.core.state import Task
 from amelia.main import app
 
@@ -47,8 +48,6 @@ def test_cli_review_local_output(settings_file_factory):
         # Write settings.amelia.yaml to CWD
         with open("settings.amelia.yaml", "w") as f:
             yaml.dump(settings_data, f)
-
-        from amelia.agents.reviewer import ReviewResponse
 
         with patch("amelia.drivers.factory.DriverFactory.get_driver") as mock_get_driver:
             mock_driver = AsyncMock()
