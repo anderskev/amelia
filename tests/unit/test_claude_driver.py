@@ -150,6 +150,34 @@ class TestClaudeCliDriver:
             await driver._execute_tool_impl("unknown_tool")
 
 
+class TestClaudeCliDriverModelSelection:
+    """Tests for model selection in ClaudeCliDriver."""
+
+    def test_default_model_is_sonnet(self):
+        driver = ClaudeCliDriver()
+        assert driver.model == "sonnet"
+
+    def test_custom_model_parameter(self):
+        driver = ClaudeCliDriver(model="opus")
+        assert driver.model == "opus"
+
+    @pytest.mark.asyncio
+    async def test_model_flag_in_command(self, messages, mock_subprocess_process_factory):
+        driver = ClaudeCliDriver(model="opus")
+        mock_process = mock_subprocess_process_factory(
+            stdout_lines=[b"response", b""],
+            return_code=0
+        )
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
+            await driver._generate_impl(messages)
+
+            args = mock_exec.call_args[0]
+            assert "--model" in args
+            model_idx = args.index("--model")
+            assert args[model_idx + 1] == "opus"
+
+
 class TestClaudeStreamEvent:
     """Tests for ClaudeStreamEvent model."""
 

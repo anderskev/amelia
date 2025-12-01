@@ -85,9 +85,27 @@ class ClaudeStreamEvent(BaseModel):
 
 
 class ClaudeCliDriver(CliDriver):
+    """Claude CLI Driver interacts with the Claude model via the local 'claude' CLI tool.
+
+    Attributes:
+        model: Claude model to use (sonnet, opus, haiku).
     """
-    Claude CLI Driver interacts with the Claude model via the local 'claude' CLI tool.
-    """
+
+    def __init__(
+        self,
+        model: str = "sonnet",
+        timeout: int = 30,
+        max_retries: int = 0,
+    ):
+        """Initialize the Claude CLI driver.
+
+        Args:
+            model: Claude model to use. Defaults to "sonnet".
+            timeout: Maximum execution time in seconds. Defaults to 30.
+            max_retries: Number of retry attempts. Defaults to 0.
+        """
+        super().__init__(timeout, max_retries)
+        self.model = model
 
     def _convert_messages_to_prompt(self, messages: list[AgentMessage]) -> str:
         """
@@ -110,7 +128,7 @@ class ClaudeCliDriver(CliDriver):
         
         # Build the command
         # We use -p for print mode (non-interactive)
-        cmd_args = ["claude", "-p"]
+        cmd_args = ["claude", "-p", "--model", self.model]
         
         if schema:
             # Generate JSON schema
