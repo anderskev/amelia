@@ -85,3 +85,22 @@ class TestTaskDAG:
 
         with pytest.raises(ValidationError, match=expected_error):
             TaskDAG(tasks=tasks, original_issue="TEST-1")
+
+
+class TestExecutionStateSession:
+    """Tests for session_id in ExecutionState."""
+
+    def test_execution_state_has_session_id(self, mock_profile_factory, mock_issue_factory):
+        state = ExecutionState(
+            profile=mock_profile_factory(),
+            issue=mock_issue_factory(),
+            claude_session_id="sess_abc123"
+        )
+        assert state.claude_session_id == "sess_abc123"
+
+    def test_execution_state_session_id_defaults_none(self, mock_profile_factory, mock_issue_factory):
+        state = ExecutionState(
+            profile=mock_profile_factory(),
+            issue=mock_issue_factory()
+        )
+        assert state.claude_session_id is None

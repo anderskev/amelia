@@ -169,6 +169,7 @@ class ExecutionState(BaseModel):
         review_results: List of review results from code reviews.
         messages: Conversation history between agents.
         code_changes_for_review: Staged code changes for review.
+        claude_session_id: Session ID for Claude CLI session continuity.
     """
     profile: Profile
     issue: Issue | None = None
@@ -178,3 +179,4 @@ class ExecutionState(BaseModel):
     review_results: list[ReviewResult] = Field(default_factory=list)
     messages: list[AgentMessage] = Field(default_factory=list)
     code_changes_for_review: str | None = None # For local review or specific review contexts
+    claude_session_id: str | None = None
