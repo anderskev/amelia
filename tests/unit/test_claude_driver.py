@@ -150,6 +150,56 @@ class TestClaudeCliDriver:
             await driver._execute_tool_impl("unknown_tool")
 
 
+class TestClaudeCliDriverSystemPrompt:
+    """Tests for system prompt handling in ClaudeCliDriver."""
+
+    @pytest.fixture
+    def messages_with_system(self):
+        return [
+            AgentMessage(role="system", content="You are a helpful assistant."),
+            AgentMessage(role="user", content="Hello"),
+            AgentMessage(role="assistant", content="Hi there"),
+            AgentMessage(role="user", content="How are you?")
+        ]
+
+    def test_convert_messages_excludes_system(self, driver, messages_with_system):
+        """System messages should not appear in the user prompt."""
+        prompt = driver._convert_messages_to_prompt(messages_with_system)
+        assert "SYSTEM:" not in prompt
+        assert "You are a helpful assistant" not in prompt
+        assert "USER: Hello" in prompt
+
+    @pytest.mark.asyncio
+    async def test_system_prompt_passed_via_flag(self, messages_with_system, mock_subprocess_process_factory):
+        driver = ClaudeCliDriver()
+        mock_process = mock_subprocess_process_factory(
+            stdout_lines=[b"response", b""],
+            return_code=0
+        )
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
+            await driver._generate_impl(messages_with_system)
+
+            args = mock_exec.call_args[0]
+            assert "--append-system-prompt" in args
+            sys_idx = args.index("--append-system-prompt")
+            assert args[sys_idx + 1] == "You are a helpful assistant."
+
+    @pytest.mark.asyncio
+    async def test_no_system_prompt_flag_when_no_system_messages(self, messages, mock_subprocess_process_factory):
+        driver = ClaudeCliDriver()
+        mock_process = mock_subprocess_process_factory(
+            stdout_lines=[b"response", b""],
+            return_code=0
+        )
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
+            await driver._generate_impl(messages)
+
+            args = mock_exec.call_args[0]
+            assert "--append-system-prompt" not in args
+
+
 class TestClaudeCliDriverModelSelection:
     """Tests for model selection in ClaudeCliDriver."""
 

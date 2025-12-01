@@ -108,28 +108,43 @@ class ClaudeCliDriver(CliDriver):
         self.model = model
 
     def _convert_messages_to_prompt(self, messages: list[AgentMessage]) -> str:
-        """
-        Converts a list of AgentMessages into a single string prompt.
+        """Converts a list of AgentMessages into a single string prompt.
+
+        System messages are excluded as they are handled separately via CLI flags.
         """
         prompt_parts = []
         for msg in messages:
+            if msg.role == "system":
+                continue  # System messages handled separately
             role_str = msg.role.upper() if msg.role else "USER"
             content = msg.content or ""
             prompt_parts.append(f"{role_str}: {content}")
-        
-        # Join with newlines to create a transcript-like format
+
         return "\n\n".join(prompt_parts)
 
     async def _generate_impl(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None) -> Any:
+        """Generates a response using the 'claude' CLI.
+
+        Args:
+            messages: Conversation history.
+            schema: Optional Pydantic model for structured output.
+
+        Returns:
+            Either a string (if no schema) or an instance of the schema.
         """
-        Generates a response using the 'claude' CLI.
-        """
+        # Extract system messages for separate handling
+        system_messages = [m for m in messages if m.role == "system"]
+
         full_prompt = self._convert_messages_to_prompt(messages)
-        
-        # Build the command
-        # We use -p for print mode (non-interactive)
+
+        # Build the command - we use -p for print mode (non-interactive)
         cmd_args = ["claude", "-p", "--model", self.model]
-        
+
+        # Add system prompt if present
+        if system_messages:
+            system_prompt = "\n\n".join(m.content for m in system_messages if m.content)
+            cmd_args.extend(["--append-system-prompt", system_prompt])
+
         if schema:
             # Generate JSON schema
             json_schema = json.dumps(schema.model_json_schema())
