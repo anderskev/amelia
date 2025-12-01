@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Any
+from typing import Any, Literal
 
 from loguru import logger
 from pydantic import BaseModel, ValidationError
@@ -10,6 +10,25 @@ from amelia.core.state import AgentMessage
 from amelia.drivers.cli.base import CliDriver
 from amelia.tools.safe_file import SafeFileWriter
 from amelia.tools.safe_shell import SafeShellExecutor
+
+ClaudeStreamEventType = Literal["assistant", "tool_use", "result", "error", "system"]
+
+
+class ClaudeStreamEvent(BaseModel):
+    """Event from Claude CLI stream-json output.
+
+    Attributes:
+        type: Event type (assistant, tool_use, result, error, system).
+        content: Text content for assistant/error/system events.
+        tool_name: Tool name for tool_use events.
+        tool_input: Tool input parameters for tool_use events.
+        session_id: Session ID from result events for session continuity.
+    """
+    type: ClaudeStreamEventType
+    content: str | None = None
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
+    session_id: str | None = None
 
 
 class ClaudeCliDriver(CliDriver):

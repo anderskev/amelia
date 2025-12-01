@@ -5,7 +5,7 @@ import pytest
 from pydantic import BaseModel
 
 from amelia.core.state import AgentMessage
-from amelia.drivers.cli.claude import ClaudeCliDriver
+from amelia.drivers.cli.claude import ClaudeCliDriver, ClaudeStreamEvent, ClaudeStreamEventType
 from amelia.tools.safe_file import SafeFileWriter
 from amelia.tools.safe_shell import SafeShellExecutor
 
@@ -148,3 +148,34 @@ class TestClaudeCliDriver:
     async def test_execute_tool_unknown(self, driver):
         with pytest.raises(NotImplementedError):
             await driver._execute_tool_impl("unknown_tool")
+
+
+class TestClaudeStreamEvent:
+    """Tests for ClaudeStreamEvent model."""
+
+    def test_assistant_event(self):
+        event = ClaudeStreamEvent(type="assistant", content="Hello world")
+        assert event.type == "assistant"
+        assert event.content == "Hello world"
+        assert event.tool_name is None
+        assert event.session_id is None
+
+    def test_tool_use_event(self):
+        event = ClaudeStreamEvent(
+            type="tool_use",
+            tool_name="Read",
+            tool_input={"file_path": "/test.py"}
+        )
+        assert event.type == "tool_use"
+        assert event.tool_name == "Read"
+        assert event.tool_input == {"file_path": "/test.py"}
+
+    def test_result_event_with_session(self):
+        event = ClaudeStreamEvent(type="result", session_id="sess_abc123")
+        assert event.type == "result"
+        assert event.session_id == "sess_abc123"
+
+    def test_error_event(self):
+        event = ClaudeStreamEvent(type="error", content="Something went wrong")
+        assert event.type == "error"
+        assert event.content == "Something went wrong"
