@@ -1,7 +1,8 @@
 """Tests for review loop logic in orchestrator."""
 
+import pytest
 
-from amelia.core.orchestrator import should_continue_review_loop
+from amelia.core.orchestrator import should_continue_developer, should_continue_review_loop
 
 
 class TestReviewLoopLogic:
@@ -236,3 +237,64 @@ class TestReviewLoopLogic:
         assert result == "re_evaluate", (
             "should_continue_review_loop should use latest review result"
         )
+
+
+class TestShouldContinueDeveloper:
+    """Tests for should_continue_developer() blocking logic."""
+
+    @pytest.mark.parametrize(
+        "task_statuses,expected",
+        [
+            # All completed -> end
+            (["completed", "completed"], "end"),
+            # Has pending with no blockers -> continue
+            (["completed", "pending"], "continue"),
+            # Failed task blocks dependent -> end
+            (["failed", "pending"], "end"),
+            # No tasks -> end
+            ([], "end"),
+            # Single pending task with no deps -> continue
+            (["pending"], "continue"),
+            # Multiple tasks blocked by single failure -> end
+            (["failed", "pending", "pending"], "end"),
+        ],
+        ids=[
+            "all_completed_ends",
+            "pending_with_completed_dep_continues",
+            "failed_blocks_dependent_ends",
+            "no_tasks_ends",
+            "single_pending_continues",
+            "multiple_blocked_by_failure_ends",
+        ],
+    )
+    def test_should_continue_developer(
+        self,
+        task_statuses: list[str],
+        expected: str,
+        mock_execution_state_factory,
+        mock_task_factory,
+        mock_task_dag_factory,
+    ):
+        """Parametrized test for developer continuation logic."""
+        tasks = []
+        for i, status in enumerate(task_statuses):
+            task = mock_task_factory(
+                id=f"TASK-{i}",
+                status=status,
+                dependencies=[f"TASK-{i-1}"] if i > 0 else [],
+            )
+            tasks.append(task)
+
+        plan = mock_task_dag_factory(tasks=tasks) if tasks else None
+        state = mock_execution_state_factory(plan=plan)
+
+        result = should_continue_developer(state)
+        assert result == expected
+
+    def test_should_end_when_no_plan(self, mock_execution_state_factory):
+        """Should return 'end' when there's no plan."""
+        state = mock_execution_state_factory(plan=None)
+
+        result = should_continue_developer(state)
+
+        assert result == "end"
