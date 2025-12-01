@@ -1,8 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from amelia.core.state import ExecutionState
-from amelia.core.state import TaskDAG
+from amelia.core.state import ExecutionState, TaskDAG
 from amelia.core.types import Profile
 
 

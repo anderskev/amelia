@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from amelia.agents.reviewer import Reviewer
-from amelia.agents.reviewer import ReviewResponse
+from amelia.agents.reviewer import Reviewer, ReviewResponse
 
 
 class TestCompetitiveReviewPersonaAttribution:

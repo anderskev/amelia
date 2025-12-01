@@ -1,6 +1,5 @@
 import asyncio
-from collections.abc import Awaitable
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from loguru import logger

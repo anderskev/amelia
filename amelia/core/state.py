@@ -1,12 +1,8 @@
-from typing import Any
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel
-from pydantic import Field
-from pydantic import field_validator
+from pydantic import BaseModel, Field, field_validator
 
-from amelia.core.types import Issue
-from amelia.core.types import Profile
+from amelia.core.types import Issue, Profile
 
 
 TaskStatus = Literal["pending", "in_progress", "completed", "failed"]

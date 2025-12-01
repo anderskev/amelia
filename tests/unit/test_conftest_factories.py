@@ -4,12 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from amelia.core.state import ExecutionState
-from amelia.core.state import Task
-from amelia.core.state import TaskDAG
-from amelia.core.types import Design
-from amelia.core.types import Issue
-from amelia.core.types import Profile
+from amelia.core.state import ExecutionState, Task, TaskDAG
+from amelia.core.types import Design, Issue, Profile
 
 
 class TestFactoryDefaults:

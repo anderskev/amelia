@@ -3,8 +3,7 @@ import json
 from typing import Any
 
 from loguru import logger
-from pydantic import BaseModel
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from amelia.core.constants import ToolName
 from amelia.core.state import AgentMessage

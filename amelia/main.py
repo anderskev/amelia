@@ -6,14 +6,10 @@ from langgraph.checkpoint.memory import MemorySaver
 from loguru import logger
 
 from amelia.agents.architect import Architect
-from amelia.config import load_settings
-from amelia.config import validate_profile
-from amelia.core.orchestrator import call_reviewer_node
-from amelia.core.orchestrator import create_orchestrator_graph
+from amelia.config import load_settings, validate_profile
+from amelia.core.orchestrator import call_reviewer_node, create_orchestrator_graph
 from amelia.core.state import ExecutionState
-from amelia.core.types import Issue
-from amelia.core.types import Profile
-from amelia.core.types import Settings
+from amelia.core.types import Issue, Profile, Settings
 from amelia.drivers.factory import DriverFactory
 from amelia.tools.shell_executor import run_shell_command
 from amelia.trackers.factory import create_tracker

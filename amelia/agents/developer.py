@@ -1,12 +1,10 @@
-from typing import Any
-from typing import Literal
+from typing import Any, Literal
 
 from loguru import logger
 from pydantic import BaseModel
 
 from amelia.core.constants import ToolName
-from amelia.core.state import AgentMessage
-from amelia.core.state import Task
+from amelia.core.state import AgentMessage, Task
 from amelia.drivers.base import DriverInterface
 
 

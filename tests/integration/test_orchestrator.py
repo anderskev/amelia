@@ -2,20 +2,15 @@ import asyncio
 import time
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from amelia.agents.architect import PlanOutput
 from amelia.agents.reviewer import ReviewResponse
-from amelia.core.orchestrator import call_reviewer_node
-from amelia.core.orchestrator import create_orchestrator_graph
-from amelia.core.state import ExecutionState
-from amelia.core.state import Task
-from amelia.core.state import TaskDAG
-from amelia.core.types import Issue
-from amelia.core.types import Profile
+from amelia.core.orchestrator import call_reviewer_node, create_orchestrator_graph
+from amelia.core.state import ExecutionState, Task, TaskDAG
+from amelia.core.types import Issue, Profile
 
 
 async def test_orchestrator_parallel_review_api() -> None:

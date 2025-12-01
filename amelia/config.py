@@ -2,8 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from amelia.core.types import Profile
-from amelia.core.types import Settings
+from amelia.core.types import Profile, Settings
 
 
 def load_settings(config_path: Path | None = None) -> Settings:

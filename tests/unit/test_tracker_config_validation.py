@@ -1,8 +1,7 @@
 # tests/unit/test_tracker_config_validation.py
 """Tests for tracker configuration validation."""
 
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

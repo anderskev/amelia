@@ -1,19 +1,13 @@
 import subprocess
 from typing import Any
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import yaml
 
 from amelia.agents.reviewer import ReviewResponse
-from amelia.core.state import ExecutionState
-from amelia.core.state import ReviewResult
-from amelia.core.state import Task
-from amelia.core.state import TaskDAG
-from amelia.core.types import Design
-from amelia.core.types import Issue
-from amelia.core.types import Profile
+from amelia.core.state import ExecutionState, ReviewResult, Task, TaskDAG
+from amelia.core.types import Design, Issue, Profile
 from amelia.drivers.base import DriverInterface
 from amelia.trackers.noop import NoopTracker
 

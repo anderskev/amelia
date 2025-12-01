@@ -3,10 +3,12 @@
 
 import pytest
 
-from amelia.core.exceptions import BlockedCommandError
-from amelia.core.exceptions import CommandNotAllowedError
-from amelia.core.exceptions import DangerousCommandError
-from amelia.core.exceptions import ShellInjectionError
+from amelia.core.exceptions import (
+    BlockedCommandError,
+    CommandNotAllowedError,
+    DangerousCommandError,
+    ShellInjectionError,
+)
 from amelia.tools.safe_shell import SafeShellExecutor
 
 

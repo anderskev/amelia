@@ -1,8 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel
-from pydantic import Field
-from pydantic import model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 DriverType = Literal["cli:claude", "api:openai", "cli", "api"]

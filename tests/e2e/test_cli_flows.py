@@ -1,6 +1,5 @@
 import subprocess
-from unittest.mock import AsyncMock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import yaml
 from typer.testing import CliRunner
