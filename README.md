@@ -126,6 +126,8 @@ See [Configuration Reference](docs/configuration.md) for full details.
 - [Architecture & Data Flow](docs/architecture.md) - Technical deep dive with diagrams
 - [Configuration Reference](docs/configuration.md) - Full settings documentation
 
+> **Note:** `docs/plans/` contains temporary planning documents for in-progress work. These should be deleted once their corresponding plans are executed and merged.
+
 ## Current Status
 
 **What works:**
