@@ -99,8 +99,7 @@ For each task, provide:
   5. Commit (include commit message)
 - commit_message: Conventional commit message (e.g., "feat: add auth middleware")
 
-Each step should be 2-5 minutes of work. Include complete code, not placeholders.
-Output valid JSON conforming to the TaskListResponse schema."""
+Each step should be 2-5 minutes of work. Include complete code, not placeholders."""
 
         user_prompt = f"""Given the following context:
 

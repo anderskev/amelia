@@ -37,8 +37,7 @@ class Reviewer:
         system_prompt = (
             f"You are an expert code reviewer with a focus on {persona} aspects. "
             "Analyze the provided code changes in the context of the given issue and "
-            "provide a comprehensive review. "
-            "The output MUST be a JSON object conforming to the ReviewResponse schema."
+            "provide a comprehensive review."
         )
 
         issue_title = state.issue.title if state.issue else "No Issue Title"
@@ -50,7 +49,7 @@ class Reviewer:
             f"Description: {issue_description}\n\n"
             f"And the following code changes to review:\n"
             f"```diff\n{code_changes}\n```\n\n"
-            f"Provide your review in JSON format, indicating approval status, comments, and overall severity."
+            f"Provide your review indicating approval status, comments, and overall severity."
         )
         
         prompt_messages = [
