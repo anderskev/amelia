@@ -170,6 +170,7 @@ class ExecutionState(BaseModel):
         messages: Conversation history between agents.
         code_changes_for_review: Staged code changes for review.
         claude_session_id: Session ID for Claude CLI session continuity.
+        workflow_status: Status of the workflow (running, completed, failed).
     """
     profile: Profile
     issue: Issue | None = None
@@ -180,3 +181,4 @@ class ExecutionState(BaseModel):
     messages: list[AgentMessage] = Field(default_factory=list)
     code_changes_for_review: str | None = None # For local review or specific review contexts
     claude_session_id: str | None = None
+    workflow_status: Literal["running", "completed", "failed"] = "running"
