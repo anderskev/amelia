@@ -9,38 +9,6 @@ Amelia automates development workflows (issue analysis, planning, coding, review
 - **Architect** analyzes issues and creates plans
 - **Developer** writes code and executes commands
 - **Reviewer** evaluates changes and provides feedback
-- **Project Manager** fetches and manages issues
-
-## Key Concepts
-
-```mermaid
-flowchart LR
-    subgraph Input
-        T[Issue Tracker<br/>Jira/GitHub]
-    end
-
-    subgraph Orchestrator
-        A[Architect] --> H[Human Approval]
-        H --> D[Developer]
-        D --> R[Reviewer]
-        R -->|needs fixes| D
-    end
-
-    subgraph LLM
-        DR[Driver<br/>API/CLI]
-    end
-
-    T --> A
-    A & D & R <--> DR
-```
-
-| Concept | Description |
-|---------|-------------|
-| **Agents** | Specialized AI roles - Architect (plans), Developer (writes code), Reviewer (reviews), Project Manager (coordinates). See [Concepts](docs/concepts.md). |
-| **Orchestrator** | LangGraph-based state machine that coordinates agents through workflow using ExecutionState to track progress. |
-| **Drivers** | Abstraction for LLM communication - `api:openai` (direct API) or `cli:claude` (wraps CLI tools). |
-| **Trackers** | Abstraction for issue sources - `jira`, `github`, or `noop`. |
-| **Profiles** | Bundled configurations in `settings.amelia.yaml`. |
 
 ## Quick Start
 
@@ -93,15 +61,17 @@ Reviews uncommitted changes:
 amelia review --local
 ```
 
-### `amelia plan-only <ISSUE_ID> [--profile <NAME>]`
+### `amelia plan-only <ISSUE_ID> [--profile <NAME>] [--design <PATH>]`
 
 Generates plan without execution:
 1. Fetches issue and runs Architect
-2. Saves TaskDAG to markdown file
-3. Useful for reviewing plans before execution
+2. Optionally uses a design document from brainstorming
+3. Saves TaskDAG to markdown file
+4. Useful for reviewing plans before execution
 
 ```bash
 amelia plan-only GH-789 --profile home
+amelia plan-only GH-789 --design docs/designs/feature.md
 ```
 
 ## Configuration
@@ -133,12 +103,12 @@ See [Configuration Reference](docs/configuration.md) for full details.
 **What works:**
 - Full orchestrator loop with human approval gates
 - API driver (OpenAI via pydantic-ai) with structured outputs
+- CLI driver (Claude CLI wrapper) with structured outputs
 - Local code review with competitive strategy
 - Jira and GitHub tracker integrations
 - Real tool execution in Developer agent
 
 **Limitations/Coming Soon:**
-- CLI driver (`cli:claude`) is currently a stub for LLM interactions (tool execution works)
 - TaskDAG doesn't validate cyclic dependencies
 
 ## Roadmap
