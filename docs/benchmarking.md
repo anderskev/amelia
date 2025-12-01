@@ -221,18 +221,12 @@ Layer them: pattern matching for fast feedback, LLM-as-judge for quality metrics
 
 Benchmarks enable a structured improvement loop:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                                                         │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐         │
-│   │ Baseline │ ─▶ │  Change  │ ─▶ │ Measure  │ ──┐     │
-│   └──────────┘    └──────────┘    └──────────┘   │     │
-│        ▲                                         │     │
-│        │          ┌──────────┐                   │     │
-│        └───────── │ Compare  │ ◀─────────────────┘     │
-│                   └──────────┘                         │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A[Baseline] --> B[Change]
+    B --> C[Measure]
+    C --> D[Compare]
+    D --> A
 ```
 
 ### 1. Establish Baseline
