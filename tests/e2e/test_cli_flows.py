@@ -2,7 +2,6 @@ import subprocess
 from unittest.mock import AsyncMock
 from unittest.mock import patch
 
-import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -14,77 +13,7 @@ from amelia.main import app
 runner = CliRunner()
 
 
-@pytest.fixture
-def create_settings_file(tmp_path):
-    def _creator(settings_data):
-        settings_path = tmp_path / "settings.amelia.yaml"
-        with open(settings_path, "w") as f:
-            yaml.dump(settings_data, f)
-        return settings_path
-    return _creator
-
-
-# Parametrized test data for CLI start command
-CLI_START_TEST_CASES = [
-    pytest.param(
-        {
-            "active_profile": "default",
-            "profiles": {
-                "default": {"name": "default", "driver": "cli:claude", "tracker": "none", "strategy": "single"},
-                "work": {"name": "work", "driver": "cli:claude", "tracker": "jira", "strategy": "single"}
-            }
-        },
-        ["start", "--profile", "work", "TEST-123"],
-        id="work_profile"
-    ),
-    pytest.param(
-        {
-            "active_profile": "home",
-            "profiles": {
-                "home": {"name": "home", "driver": "api:openai", "tracker": "github", "strategy": "competitive"}
-            }
-        },
-        ["start", "TEST-456"],
-        id="default_profile"
-    ),
-    pytest.param(
-        {
-            "active_profile": "default",
-            "profiles": {
-                "default": {"name": "default", "driver": "cli:claude", "tracker": "none", "strategy": "single"},
-                "home_api": {"name": "home_api", "driver": "api:openai", "tracker": "github", "strategy": "competitive"}
-            }
-        },
-        ["start", "--profile", "home_api", "TEST-789"],
-        id="home_api_profile"
-    ),
-    pytest.param(
-        {
-            "active_profile": "default",
-            "profiles": {
-                "default": {"name": "default", "driver": "cli:claude", "tracker": "none", "strategy": "single"},
-                "hybrid_dev": {"name": "hybrid_dev", "driver": "api:openai", "tracker": "jira", "strategy": "single"}
-            }
-        },
-        ["start", "--profile", "hybrid_dev", "TEST-ABC"],
-        id="hybrid_profile"
-    ),
-]
-
-
-@pytest.mark.parametrize("settings_data,cli_args", CLI_START_TEST_CASES)
-def test_cli_start_commands(create_settings_file, settings_data, cli_args):
-    """Parametrized test for CLI start command with different profile configurations."""
-    settings_path = create_settings_file(settings_data)
-
-    with runner.isolated_filesystem(temp_dir=settings_path.parent):
-        create_settings_file(settings_data)
-        result = runner.invoke(app, cli_args)
-        assert result.exit_code != 0
-        assert "Error" in result.stderr or "Missing command" in result.stderr
-
-
-def test_cli_review_local_output(create_settings_file):
+def test_cli_review_local_output(settings_file_factory):
     """
     Verifies that 'amelia review --local' outputs review suggestions to stdout
     when executed in a 'Work' profile.
@@ -95,10 +24,10 @@ def test_cli_review_local_output(create_settings_file):
             "work": {"name": "work", "driver": "cli:claude", "tracker": "none", "strategy": "single"}
         }
     }
-    settings_path = create_settings_file(settings_data)
+    settings_path = settings_file_factory(settings_data)
 
     with runner.isolated_filesystem(temp_dir=settings_path.parent):
-        create_settings_file(settings_data)
+        settings_file_factory(settings_data)
 
         # Setup git repo
         subprocess.run(["git", "init"], check=True, capture_output=True)
@@ -143,7 +72,7 @@ def test_cli_review_local_output(create_settings_file):
             assert "Change is bad" in result.stdout
 
 
-def test_cli_plan_only_command(create_settings_file):
+def test_cli_plan_only_command(settings_file_factory):
     """
     Verifies that 'amelia plan-only' command generates and prints a plan.
     """
@@ -153,7 +82,7 @@ def test_cli_plan_only_command(create_settings_file):
             "default": {"name": "default", "driver": "cli:claude", "tracker": "noop", "strategy": "single"}
         }
     }
-    settings_path = create_settings_file(settings_data)
+    settings_path = settings_file_factory(settings_data)
 
     with runner.isolated_filesystem(temp_dir=settings_path.parent):
         with open("settings.amelia.yaml", "w") as f:

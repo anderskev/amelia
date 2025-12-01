@@ -1,7 +1,9 @@
+import subprocess
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 
 from amelia.agents.reviewer import ReviewResponse
 from amelia.core.state import ExecutionState
@@ -260,3 +262,33 @@ def mock_subprocess_process_factory():
         return mock_process
 
     return _create_mock_process
+
+
+@pytest.fixture
+def settings_file_factory(tmp_path):
+    """Factory for creating settings.amelia.yaml files."""
+    def _create(settings_data):
+        path = tmp_path / "settings.amelia.yaml"
+        with open(path, "w") as f:
+            yaml.dump(settings_data, f)
+        return path
+    return _create
+
+
+@pytest.fixture
+def git_repo_with_changes(tmp_path):
+    """Create a git repo with initial commit and unstaged changes."""
+    # Initialize git repo
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
+
+    # Create initial file and commit
+    (tmp_path / "file.txt").write_text("initial")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True)
+
+    # Create unstaged changes
+    (tmp_path / "file.txt").write_text("modified")
+
+    return tmp_path
