@@ -11,12 +11,14 @@ from amelia.core.orchestrator import call_reviewer_node, create_orchestrator_gra
 from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile, Settings
 from amelia.drivers.factory import DriverFactory
+from amelia.server.cli import server_app
 from amelia.tools.shell_executor import run_shell_command
 from amelia.trackers.factory import create_tracker
 from amelia.utils.design_parser import parse_design
 
 
 app = typer.Typer(help="Amelia Agentic Orchestrator CLI")
+app.add_typer(server_app, name="server")
 
 def configure_logging() -> None:
     """Configure loguru logging to output to stderr at INFO level."""
