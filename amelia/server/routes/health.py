@@ -1,9 +1,11 @@
 """Health check endpoints for liveness and readiness probes."""
 from datetime import UTC, datetime
 from typing import Literal
+from uuid import uuid4
 
 import psutil
 from fastapi import APIRouter, Request
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from amelia import __version__
@@ -29,6 +31,7 @@ class DatabaseStatus(BaseModel):
 
     status: Literal["healthy", "degraded", "unhealthy"]
     mode: str = Field(description="Database mode (e.g., 'wal')")
+    error: str | None = Field(default=None, description="Error message if degraded")
 
 
 class HealthResponse(BaseModel):
@@ -42,6 +45,37 @@ class HealthResponse(BaseModel):
     memory_mb: float
     cpu_percent: float
     database: DatabaseStatus
+
+
+async def check_database_health() -> DatabaseStatus:
+    """Verify database read and write capability.
+
+    Performs a lightweight write/read cycle to ensure the database
+    is fully operational, not just connected.
+
+    Returns:
+        DatabaseStatus with health check results.
+    """
+    try:
+        from amelia.server.main import get_database
+
+        db = get_database()
+
+        # Test write capability
+        test_id = str(uuid4())
+        await db.execute(
+            "INSERT INTO health_check (id, checked_at) VALUES (?, ?)",
+            (test_id, datetime.now(UTC)),
+        )
+        # Cleanup test row
+        await db.execute("DELETE FROM health_check WHERE id = ?", (test_id,))
+        # Test read capability
+        await db.fetch_one("SELECT 1")
+
+        return DatabaseStatus(status="healthy", mode="wal")
+    except Exception as e:
+        logger.warning(f"Database health check failed: {e}")
+        return DatabaseStatus(status="degraded", mode="wal", error=str(e))
 
 
 @router.get("/live", response_model=LivenessResponse)
@@ -87,8 +121,8 @@ async def health(request: Request) -> HealthResponse:
     active_workflows = 0
     websocket_connections = 0
 
-    # TODO: Implement actual database health check
-    db_status = DatabaseStatus(status="healthy", mode="wal")
+    # Real database health check
+    db_status = await check_database_health()
 
     overall_status: Literal["healthy", "degraded"] = (
         "healthy" if db_status.status == "healthy" else "degraded"
