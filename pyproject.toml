@@ -66,3 +66,7 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+[[tool.mypy.overrides]]
+module = "structlog.*"
+ignore_missing_imports = true
