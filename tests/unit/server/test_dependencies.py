@@ -3,29 +3,34 @@
 
 def test_fastapi_importable():
     """FastAPI should be importable."""
-    import fastapi
+    import fastapi  # noqa: PLC0415
+
     assert fastapi.__version__
 
 
 def test_pydantic_settings_importable():
     """Pydantic-settings should be importable."""
-    import pydantic_settings
+    import pydantic_settings  # noqa: PLC0415
+
     assert pydantic_settings.__version__
 
 
 def test_uvicorn_importable():
     """Uvicorn should be importable."""
-    import uvicorn
+    import uvicorn  # noqa: PLC0415
+
     assert uvicorn
 
 
 def test_structlog_importable():
     """Structlog should be importable."""
-    import structlog
+    import structlog  # noqa: PLC0415
+
     assert structlog
 
 
 def test_psutil_importable():
     """Psutil should be importable."""
-    import psutil
+    import psutil  # noqa: PLC0415
+
     assert psutil

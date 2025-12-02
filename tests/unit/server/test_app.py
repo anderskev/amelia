@@ -2,33 +2,27 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from amelia import __version__
+from amelia.server.main import app
+
 
 class TestAppSetup:
     """Tests for FastAPI app configuration."""
 
     def test_app_title(self):
         """App has correct title."""
-        from amelia.server.main import app
-
         assert app.title == "Amelia API"
 
     def test_app_version(self):
         """App has version set."""
-        from amelia import __version__
-        from amelia.server.main import app
-
         assert app.version == __version__
 
     def test_docs_url(self):
         """Swagger docs available at /api/docs."""
-        from amelia.server.main import app
-
         assert app.docs_url == "/api/docs"
 
     def test_openapi_url(self):
         """OpenAPI schema at /api/openapi.json."""
-        from amelia.server.main import app
-
         assert app.openapi_url == "/api/openapi.json"
 
 
@@ -38,7 +32,6 @@ class TestHealthEndpoints:
     @pytest.fixture
     def client(self):
         """FastAPI test client."""
-        from amelia.server.main import app
         # Use context manager to ensure lifespan events are triggered
         with TestClient(app) as test_client:
             yield test_client
