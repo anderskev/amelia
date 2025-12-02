@@ -353,8 +353,8 @@
                         }}>
                           <MapPinIcon
                             size={32}
-                            fill={isCompleted ? '#5B8A72' : isActive ? '#FFC857' : isBlocked ? '#C94A3A' : '#4A5C54'}
-                            color={isCompleted ? '#3D5E4B' : isActive ? '#D4A53D' : isBlocked ? '#922A1E' : '#2D3B35'}
+                            fill={isCompleted ? '#5B8A72' : isActive ? '#FFC857' : isBlocked ? '#A33D2E' : '#4A5C54'}
+                            color={isCompleted ? '#3D5E4B' : isActive ? '#D4A53D' : isBlocked ? '#6B1F14' : '#2D3B35'}
                             className={isActive ? 'beacon-pulse' : ''}
                           />
                         </div>
@@ -455,9 +455,9 @@
     const StatusBadge = ({ status }) => {
       const colors = {
         'in-progress': { bg: '#FFC857', text: '#1F332E' },
-        'completed': { bg: '#5B8A72', text: '#EFF8E2' },
+        'completed': { bg: '#5B8A72', text: '#0D1A12' },
         'queued': { bg: '#4A5C54', text: '#EFF8E2' },
-        'blocked': { bg: '#C94A3A', text: '#EFF8E2' },
+        'blocked': { bg: '#A33D2E', text: '#EFF8E2' },
       };
       const labels = {
         'in-progress': 'RUNNING',
@@ -583,7 +583,7 @@
         fontSize: '12px',
         fontWeight: 600,
         letterSpacing: '0.15em',
-        color: '#5B8A72',
+        color: '#88A896',
         padding: '0 20px 8px',
       },
       navItem: {
@@ -627,7 +627,7 @@
       footerText: {
         fontFamily: "'IBM Plex Mono', monospace",
         fontSize: '9px',
-        color: '#5B8A72',
+        color: '#88A896',
         letterSpacing: '0.05em',
       },
       main: {
@@ -839,7 +839,7 @@
         borderBottom: '1px solid rgba(239, 248, 226, 0.04)',
       },
       logTime: {
-        color: '#5B8A72',
+        color: '#88A896',
       },
       logAgent: {
         color: '#5B9BD5',
