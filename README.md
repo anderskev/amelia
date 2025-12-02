@@ -9,46 +9,6 @@ Amelia automates development workflows (issue analysis, planning, coding, review
 - **Architect** analyzes issues and creates plans
 - **Developer** writes code and executes commands
 - **Reviewer** evaluates changes and provides feedback
-- **Project Manager** fetches and manages issues
-
-## Inspiration
-
-Amelia's workflows and methodology draw from several excellent projects:
-
-- **[BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)** — Structured AI-driven development framework with specialized agents and phased workflows (Analysis → Planning → Solutioning → Implementation)
-- **[GitHub Spec-Kit](https://github.com/github/spec-kit)** — Spec-driven development where specifications are executable and generate implementations; emphasizes defining "what" and "why" before coding
-- **[Claude Superpowers](https://github.com/obra/superpowers)** — Composable "skills" for coding agents that enable autonomous development with TDD and systematic reviews
-
-## Key Concepts
-
-```mermaid
-flowchart LR
-    subgraph Input
-        T[Issue Tracker<br/>Jira/GitHub]
-    end
-
-    subgraph Orchestrator
-        A[Architect] --> H[Human Approval]
-        H --> D[Developer]
-        D --> R[Reviewer]
-        R -->|needs fixes| D
-    end
-
-    subgraph LLM
-        DR[Driver<br/>API/CLI]
-    end
-
-    T --> A
-    A & D & R <--> DR
-```
-
-| Concept | Description |
-|---------|-------------|
-| **Agents** | Specialized AI roles - Architect (plans), Developer (writes code), Reviewer (reviews), Project Manager (coordinates). See [Concepts](docs/concepts.md). |
-| **Orchestrator** | LangGraph-based state machine that coordinates agents through workflow using ExecutionState to track progress. |
-| **Drivers** | Abstraction for LLM communication - `api:openai` (direct API) or `cli:claude` (wraps CLI tools). |
-| **Trackers** | Abstraction for issue sources - `jira`, `github`, or `noop`. |
-| **Profiles** | Bundled configurations in `settings.amelia.yaml`. |
 
 ## Quick Start
 
@@ -101,15 +61,17 @@ Reviews uncommitted changes:
 amelia review --local
 ```
 
-### `amelia plan-only <ISSUE_ID> [--profile <NAME>]`
+### `amelia plan-only <ISSUE_ID> [--profile <NAME>] [--design <PATH>]`
 
 Generates plan without execution:
 1. Fetches issue and runs Architect
-2. Saves TaskDAG to markdown file
-3. Useful for reviewing plans before execution
+2. Optionally uses a design document from brainstorming
+3. Saves TaskDAG to markdown file
+4. Useful for reviewing plans before execution
 
 ```bash
 amelia plan-only GH-789 --profile home
+amelia plan-only GH-789 --design docs/designs/feature.md
 ```
 
 ## Configuration
@@ -134,17 +96,19 @@ See [Configuration Reference](docs/configuration.md) for full details.
 - [Architecture & Data Flow](docs/architecture.md) - Technical deep dive with diagrams
 - [Configuration Reference](docs/configuration.md) - Full settings documentation
 
+> **Note:** `docs/plans/` contains temporary planning documents for in-progress work. These should be deleted once their corresponding plans are executed and merged.
+
 ## Current Status
 
 **What works:**
 - Full orchestrator loop with human approval gates
 - API driver (OpenAI via pydantic-ai) with structured outputs
+- CLI driver (Claude CLI wrapper) with structured outputs
 - Local code review with competitive strategy
 - Jira and GitHub tracker integrations
 - Real tool execution in Developer agent
 
 **Limitations/Coming Soon:**
-- CLI driver (`cli:claude`) is currently a stub for LLM interactions (tool execution works)
 - TaskDAG doesn't validate cyclic dependencies
 
 ## Roadmap
@@ -157,8 +121,6 @@ See [Configuration Reference](docs/configuration.md) for full details.
 ### Phase 2: Web UI
 - **Observability dashboard** using [AI Elements](https://github.com/ai-elements) library for real-time agent activity monitoring, task progress, and execution logs
 - **Full control interface** to approve/reject plans, intervene in agent workflows, and manage configurations through the browser
-
-![Amelia Dashboard Design Mock](docs/plans/design_mock.jpg)
 
 ### Phase 3: Local RAG Integration
 - Spin up local RAG infrastructure for agents to query codebase context
