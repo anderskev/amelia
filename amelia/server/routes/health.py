@@ -1,10 +1,10 @@
 """Health check endpoints for liveness and readiness probes."""
 from datetime import UTC, datetime
-from typing import Any
+from typing import Literal
 
 import psutil
-from fastapi import APIRouter, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field
 
 from amelia import __version__
 
@@ -12,29 +12,61 @@ from amelia import __version__
 router = APIRouter(prefix="/health", tags=["health"])
 
 
-@router.get("/live")
-async def liveness() -> dict[str, str]:
+class LivenessResponse(BaseModel):
+    """Response model for liveness probe."""
+
+    status: Literal["alive"] = "alive"
+
+
+class ReadinessResponse(BaseModel):
+    """Response model for readiness probe."""
+
+    status: Literal["ready", "not_ready"]
+
+
+class DatabaseStatus(BaseModel):
+    """Database health status."""
+
+    status: Literal["healthy", "degraded", "unhealthy"]
+    mode: str = Field(description="Database mode (e.g., 'wal')")
+
+
+class HealthResponse(BaseModel):
+    """Response model for detailed health check."""
+
+    status: Literal["healthy", "degraded"]
+    version: str
+    uptime_seconds: float
+    active_workflows: int
+    websocket_connections: int
+    memory_mb: float
+    cpu_percent: float
+    database: DatabaseStatus
+
+
+@router.get("/live", response_model=LivenessResponse)
+async def liveness() -> LivenessResponse:
     """Minimal liveness check - is the server responding?
 
     Returns:
         Simple alive status.
     """
-    return {"status": "alive"}
+    return LivenessResponse()
 
 
-@router.get("/ready")
-async def readiness() -> Response:
+@router.get("/ready", response_model=ReadinessResponse)
+async def readiness() -> ReadinessResponse:
     """Readiness check - is the server ready to accept requests?
 
     Returns:
         Ready status or 503 if shutting down.
     """
     # TODO: Check lifecycle.is_shutting_down when implemented
-    return JSONResponse(content={"status": "ready"})
+    return ReadinessResponse(status="ready")
 
 
-@router.get("")
-async def health(request: Request) -> dict[str, Any]:
+@router.get("", response_model=HealthResponse)
+async def health(request: Request) -> HealthResponse:
     """Detailed health check with server metrics.
 
     Returns:
@@ -56,17 +88,19 @@ async def health(request: Request) -> dict[str, Any]:
     websocket_connections = 0
 
     # TODO: Implement actual database health check
-    db_status = {"status": "healthy", "mode": "wal"}
+    db_status = DatabaseStatus(status="healthy", mode="wal")
 
-    overall_status = "healthy" if db_status["status"] == "healthy" else "degraded"
+    overall_status: Literal["healthy", "degraded"] = (
+        "healthy" if db_status.status == "healthy" else "degraded"
+    )
 
-    return {
-        "status": overall_status,
-        "version": __version__,
-        "uptime_seconds": uptime,
-        "active_workflows": active_workflows,
-        "websocket_connections": websocket_connections,
-        "memory_mb": round(process.memory_info().rss / 1024 / 1024, 2),
-        "cpu_percent": process.cpu_percent(),
-        "database": db_status,
-    }
+    return HealthResponse(
+        status=overall_status,
+        version=__version__,
+        uptime_seconds=uptime,
+        active_workflows=active_workflows,
+        websocket_connections=websocket_connections,
+        memory_mb=round(process.memory_info().rss / 1024 / 1024, 2),
+        cpu_percent=process.cpu_percent(),
+        database=db_status,
+    )

@@ -75,6 +75,8 @@ def server(
         console.print("\nServer stopped.")
 
 
+# NOTE: Cleanup command will be implemented in Phase 2.1-02 (Database Foundation)
+# when LogRetentionService is added. See docs/plans/phase-2.1-02-database-foundation.md
 @server_app.command("cleanup", hidden=True)
 def cleanup(
     retention_days: Annotated[
@@ -89,9 +91,11 @@ def cleanup(
     """Run log retention cleanup manually.
 
     Useful if server was killed without graceful shutdown.
+
+    Note: This command requires the database foundation (Phase 2.1-02).
     """
-    console.print(f"Running cleanup (retention: {retention_days} days, dry_run: {dry_run})")
-    raise NotImplementedError(
-        "Cleanup command not yet implemented. "
-        "Will be available when LogRetentionService is added."
+    # Placeholder until LogRetentionService is implemented in Phase 2.1-02
+    console.print(
+        "[yellow]Cleanup not yet available.[/yellow] "
+        "Requires database foundation (see docs/plans/phase-2.1-02-database-foundation.md)"
     )

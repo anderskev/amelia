@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Log effective configuration
     logger.info(
         f"Server starting: host={_config.host}, port={_config.port}, "
-        f"debug=False, database={_config.database_path}"
+        f"database={_config.database_path}"
     )
 
     app.state.start_time = datetime.now(UTC)

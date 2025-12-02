@@ -1,50 +1,21 @@
-"""Tests for structured logging configuration."""
-from amelia.server.logging import configure_logging
-
-from .conftest import capture_logs, configure_test_logging
+"""Tests for server logging module."""
+from amelia.server.logging import logger
 
 
-class TestStructuredLogging:
-    """Tests for structlog configuration."""
+class TestServerLogging:
+    """Tests for server logging exports."""
 
-    def test_configure_logging_returns_logger(self):
-        """configure_logging returns a bound logger."""
-        logger = configure_logging()
-        assert logger is not None
+    def test_logger_is_loguru(self):
+        """Server exports loguru logger."""
+        # Verify it's a loguru logger by checking for loguru-specific attributes
+        assert hasattr(logger, "opt")
+        assert hasattr(logger, "bind")
+        assert hasattr(logger, "catch")
+
+    def test_logger_has_standard_methods(self):
+        """Logger has standard logging methods."""
+        assert hasattr(logger, "debug")
         assert hasattr(logger, "info")
+        assert hasattr(logger, "warning")
         assert hasattr(logger, "error")
-
-    def test_log_output_is_json(self):
-        """Log output is JSON formatted."""
-        logger = configure_test_logging()
-
-        with capture_logs() as logs:
-            logger.info("test message", key="value")
-
-        # Verify we captured the log
-        assert len(logs) >= 1
-        log_entry = logs[0]
-        assert log_entry.get("event") == "test message"
-        assert log_entry.get("key") == "value"
-
-    def test_log_includes_timestamp(self):
-        """Log entries include ISO timestamp."""
-        logger = configure_test_logging()
-
-        with capture_logs() as logs:
-            logger.info("test")
-
-        assert len(logs) >= 1
-        log_entry = logs[0]
-        assert "timestamp" in log_entry
-
-    def test_log_includes_level(self):
-        """Log entries include log level."""
-        logger = configure_test_logging()
-
-        with capture_logs() as logs:
-            logger.warning("test warning")
-
-        assert len(logs) >= 1
-        log_entry = logs[0]
-        assert log_entry.get("level") == "warning"
+        assert hasattr(logger, "critical")
