@@ -158,6 +158,8 @@ See [Configuration Reference](docs/configuration.md) for full details.
 - **Observability dashboard** using [AI Elements](https://github.com/ai-elements) library for real-time agent activity monitoring, task progress, and execution logs
 - **Full control interface** to approve/reject plans, intervene in agent workflows, and manage configurations through the browser
 
+![Amelia Dashboard Design Mock](docs/plans/design_mock.jpg)
+
 ### Phase 3: Local RAG Integration
 - Spin up local RAG infrastructure for agents to query codebase context
 - Enable agents to use extended thinking (ultrathink) for complex reasoning
