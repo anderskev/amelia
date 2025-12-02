@@ -39,5 +39,17 @@ def configure_logging(json_output: bool = True) -> Any:
     return structlog.get_logger()
 
 
-# Default logger instance
-logger = configure_logging()
+# Lazy-initialized logger instance (avoids import-time side effects)
+_logger: Any = None
+
+
+def get_logger() -> Any:
+    """Get the configured logger, initializing on first call.
+
+    Returns:
+        Configured structlog logger.
+    """
+    global _logger
+    if _logger is None:
+        _logger = configure_logging()
+    return _logger

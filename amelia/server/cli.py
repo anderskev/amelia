@@ -91,5 +91,7 @@ def cleanup(
     Useful if server was killed without graceful shutdown.
     """
     console.print(f"Running cleanup (retention: {retention_days} days, dry_run: {dry_run})")
-    # TODO: Implement when LogRetentionService is available
-    console.print("[yellow]Cleanup not yet implemented[/yellow]")
+    raise NotImplementedError(
+        "Cleanup command not yet implemented. "
+        "Will be available when LogRetentionService is added."
+    )
