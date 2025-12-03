@@ -135,11 +135,20 @@ class MigrationRunner:
             conn: Database connection.
             version: Migration version number.
             sql: SQL to execute.
+
+        Note:
+            Uses individual execute() calls instead of executescript() because
+            executescript() commits pending transactions before executing,
+            which would break our transaction guarantees.
         """
+        # Split SQL into individual statements
+        statements = self._split_sql_statements(sql)
+
         # Execute migration in transaction
         await conn.execute("BEGIN IMMEDIATE")
         try:
-            await conn.executescript(sql)
+            for stmt in statements:
+                await conn.execute(stmt)
             await conn.execute(
                 f"INSERT INTO {self.VERSION_TABLE} (version) VALUES (?)",
                 (version,),
@@ -148,3 +157,32 @@ class MigrationRunner:
         except Exception:
             await conn.execute("ROLLBACK")
             raise
+
+    def _split_sql_statements(self, sql: str) -> list[str]:
+        """Split SQL script into individual statements.
+
+        Args:
+            sql: SQL script with multiple statements.
+
+        Returns:
+            List of individual SQL statements.
+
+        Note:
+            Splits on semicolons. Strips leading comments from each statement
+            before execution. Handles most migration SQL but may not handle
+            all edge cases (e.g., semicolons in string literals).
+        """
+        statements = []
+        for stmt in sql.split(";"):
+            # Strip leading comment lines, keep actual SQL
+            lines = stmt.strip().splitlines()
+            sql_lines: list[str] = []
+            for line in lines:
+                stripped = line.strip()
+                # Skip empty lines and comment-only lines at the start
+                if not sql_lines and (not stripped or stripped.startswith("--")):
+                    continue
+                sql_lines.append(line)
+            if sql_lines:
+                statements.append("\n".join(sql_lines))
+        return statements
