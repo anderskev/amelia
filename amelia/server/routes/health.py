@@ -1,11 +1,9 @@
 """Health check endpoints for liveness and readiness probes."""
 from datetime import UTC, datetime
 from typing import Literal
-from uuid import uuid4
 
 import psutil
 from fastapi import APIRouter, Request
-from loguru import logger
 from pydantic import BaseModel, Field
 
 from amelia import __version__
@@ -47,36 +45,16 @@ class HealthResponse(BaseModel):
     database: DatabaseStatus
 
 
-async def check_database_health() -> DatabaseStatus:
-    """Verify database read and write capability.
+def get_database_status() -> DatabaseStatus:
+    """Return database status.
 
-    Performs a lightweight write/read cycle to ensure the database
-    is fully operational, not just connected.
+    For a local orchestrator, if the app started successfully,
+    the database is operational. No active probing needed.
 
     Returns:
-        DatabaseStatus with health check results.
+        DatabaseStatus indicating healthy state.
     """
-    try:
-        # Import here to avoid circular import (main.py imports routes)
-        from amelia.server.main import get_database  # noqa: PLC0415
-
-        db = get_database()
-
-        # Test write capability
-        test_id = str(uuid4())
-        await db.execute(
-            "INSERT INTO health_check (id, checked_at) VALUES (?, ?)",
-            (test_id, datetime.now(UTC)),
-        )
-        # Cleanup test row
-        await db.execute("DELETE FROM health_check WHERE id = ?", (test_id,))
-        # Test read capability
-        await db.fetch_one("SELECT 1")
-
-        return DatabaseStatus(status="healthy", mode="wal")
-    except Exception as e:
-        logger.warning(f"Database health check failed: {e}")
-        return DatabaseStatus(status="degraded", mode="wal", error=str(e))
+    return DatabaseStatus(status="healthy", mode="wal")
 
 
 @router.get("/live", response_model=LivenessResponse)
@@ -122,8 +100,7 @@ async def health(request: Request) -> HealthResponse:
     active_workflows = 0
     websocket_connections = 0
 
-    # Real database health check
-    db_status = await check_database_health()
+    db_status = get_database_status()
 
     overall_status: Literal["healthy", "degraded"] = (
         "healthy" if db_status.status == "healthy" else "degraded"

@@ -59,9 +59,3 @@ CREATE TABLE token_usage (
 
 CREATE INDEX idx_tokens_workflow ON token_usage(workflow_id);
 CREATE INDEX idx_tokens_agent ON token_usage(agent);
-
--- Health check table (for write capability verification)
-CREATE TABLE health_check (
-    id TEXT PRIMARY KEY,
-    checked_at TIMESTAMP NOT NULL
-);

@@ -6,7 +6,7 @@ import pytest
 class TestInitialSchema:
     """Tests for 001_initial_schema.sql migration."""
 
-    @pytest.mark.parametrize("table_name", ["workflows", "events", "token_usage", "health_check"])
+    @pytest.mark.parametrize("table_name", ["workflows", "events", "token_usage"])
     @pytest.mark.asyncio
     async def test_table_exists(self, migrated_db, table_name):
         """Initial schema creates required tables."""
