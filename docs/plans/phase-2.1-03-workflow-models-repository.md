@@ -553,6 +553,7 @@ Expected: FAIL with ModuleNotFoundError
 # amelia/server/models/tokens.py
 """Token usage tracking and cost calculation."""
 from datetime import datetime
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -590,6 +591,7 @@ class TokenUsage(BaseModel):
     - cost_usd: Calculated as input_cost + output_cost - cache_discount
 
     Attributes:
+        id: Unique identifier.
         workflow_id: Workflow this usage belongs to.
         agent: Agent that consumed tokens.
         model: Model used for cost calculation.
@@ -601,6 +603,10 @@ class TokenUsage(BaseModel):
         timestamp: When tokens were consumed.
     """
 
+    id: str = Field(
+        default_factory=lambda: str(uuid4()),
+        description="Unique identifier",
+    )
     workflow_id: str = Field(..., description="Workflow ID")
     agent: str = Field(..., description="Agent that consumed tokens")
     model: str = Field(
