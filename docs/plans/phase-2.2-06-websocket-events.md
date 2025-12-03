@@ -868,27 +868,21 @@ Add to `amelia/server/database/repository.py`:
 async def event_exists(self, event_id: str) -> bool:
     """Check if an event exists by ID.
 
-    Used to validate backfill requests - events may be cleaned up by retention.
-
     Args:
         event_id: The event ID to check.
 
     Returns:
         True if event exists, False otherwise.
     """
-    async with self._get_connection() as conn:
-        cursor = await conn.execute(
-            "SELECT 1 FROM events WHERE id = ? LIMIT 1",
-            (event_id,),
-        )
-        row = await cursor.fetchone()
-        return row is not None
+    result = await self._db.fetch_scalar(
+        "SELECT 1 FROM events WHERE id = ? LIMIT 1",
+        (event_id,),
+    )
+    return result is not None
 
 
 async def get_events_after(self, since_event_id: str) -> list[WorkflowEvent]:
     """Get all events after a specific event (for backfill on reconnect).
-
-    Returns events from the same workflow, ordered by sequence.
 
     Args:
         since_event_id: The event ID to start after.
@@ -899,41 +893,38 @@ async def get_events_after(self, since_event_id: str) -> list[WorkflowEvent]:
     Raises:
         ValueError: If the since_event_id doesn't exist.
     """
-    async with self._get_connection() as conn:
-        # First, get the workflow_id and sequence of the since event
-        cursor = await conn.execute(
-            "SELECT workflow_id, sequence FROM events WHERE id = ?",
-            (since_event_id,),
-        )
-        row = await cursor.fetchone()
+    # First, get the workflow_id and sequence of the since event
+    row = await self._db.fetch_one(
+        "SELECT workflow_id, sequence FROM events WHERE id = ?",
+        (since_event_id,),
+    )
 
-        if row is None:
-            raise ValueError(f"Event {since_event_id} not found")
+    if row is None:
+        raise ValueError(f"Event {since_event_id} not found")
 
-        workflow_id, since_sequence = row
+    workflow_id, since_sequence = row["workflow_id"], row["sequence"]
 
-        # Get all events from same workflow with higher sequence
-        cursor = await conn.execute(
-            """
-            SELECT id, workflow_id, sequence, timestamp, agent, event_type,
-                   message, data, correlation_id
-            FROM events
-            WHERE workflow_id = ? AND sequence > ?
-            ORDER BY sequence ASC
-            """,
-            (workflow_id, since_sequence),
-        )
-        rows = await cursor.fetchall()
+    # Get all events from same workflow with higher sequence
+    rows = await self._db.fetch_all(
+        """
+        SELECT id, workflow_id, sequence, timestamp, agent, event_type,
+               message, data, correlation_id
+        FROM events
+        WHERE workflow_id = ? AND sequence > ?
+        ORDER BY sequence ASC
+        """,
+        (workflow_id, since_sequence),
+    )
 
-        events = []
-        for row in rows:
-            event_data = dict(row)
-            # Parse JSON data field if present
-            if event_data.get("data"):
-                event_data["data"] = json.loads(event_data["data"])
-            events.append(WorkflowEvent(**event_data))
+    events = []
+    for row in rows:
+        event_data = dict(row)
+        # Parse JSON data field if present
+        if event_data.get("data"):
+            event_data["data"] = json.loads(event_data["data"])
+        events.append(WorkflowEvent(**event_data))
 
-        return events
+    return events
 ```
 
 **Step 4: Run test to verify it passes**

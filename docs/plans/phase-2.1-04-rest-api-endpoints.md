@@ -1767,6 +1767,8 @@ Expected: FAIL (endpoints not implemented)
 
 from datetime import datetime
 
+from amelia.server.database.connection import SqliteValue
+
     async def list_workflows(
         self,
         status: WorkflowStatus | None = None,
@@ -1788,7 +1790,7 @@ from datetime import datetime
             List of workflows ordered by started_at DESC, id DESC.
         """
         conditions = []
-        params: list = []
+        params: list[SqliteValue] = []
 
         if status:
             conditions.append("status = ?")
@@ -1833,7 +1835,7 @@ from datetime import datetime
             Count of matching workflows.
         """
         conditions = []
-        params: list = []
+        params: list[SqliteValue] = []
 
         if status:
             conditions.append("status = ?")
@@ -1846,8 +1848,8 @@ from datetime import datetime
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
         query = f"SELECT COUNT(*) FROM workflows WHERE {where_clause}"
-        row = await self._db.fetch_one(query, params)
-        return row[0] if row else 0
+        count = await self._db.fetch_scalar(query, params)
+        return count if count is not None else 0
 ```
 
 **Step 4: Implement GET /workflows endpoints**

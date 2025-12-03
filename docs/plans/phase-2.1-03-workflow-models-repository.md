@@ -1393,7 +1393,7 @@ class WorkflowRepository:
         Args:
             state: Initial workflow state.
         """
-        await self._db.execute(
+        await self._db.execute_insert(
             """
             INSERT INTO workflows (
                 id, issue_id, worktree_path, worktree_name,
@@ -1553,13 +1553,13 @@ class WorkflowRepository:
         Returns:
             Number of active workflows.
         """
-        row = await self._db.fetch_one(
+        count = await self._db.fetch_scalar(
             """
             SELECT COUNT(*) FROM workflows
             WHERE status IN ('pending', 'in_progress', 'blocked')
             """
         )
-        return row[0] if row else 0
+        return count if count is not None else 0
 
     async def find_by_status(
         self,
