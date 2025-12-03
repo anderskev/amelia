@@ -1,10 +1,16 @@
 """Database connection management with SQLite."""
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import aiosqlite
+from loguru import logger
+
+
+# Type alias for SQLite-compatible values
+SqliteValue = None | int | float | str | bytes | datetime
 
 
 class Database:
@@ -27,7 +33,11 @@ class Database:
         self._connection: aiosqlite.Connection | None = None
 
     async def connect(self) -> None:
-        """Open database connection with optimized settings."""
+        """Open database connection with optimized settings.
+
+        Raises:
+            RuntimeError: If PRAGMA verification fails.
+        """
         # Ensure parent directory exists
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -40,7 +50,14 @@ class Database:
         self._connection.row_factory = aiosqlite.Row
 
         # Configure SQLite for optimal performance
-        await self._connection.execute("PRAGMA journal_mode = WAL")
+        # Verify WAL mode was applied
+        cursor = await self._connection.execute("PRAGMA journal_mode = WAL")
+        result = await cursor.fetchone()
+        if result is None or result[0].lower() != "wal":
+            raise RuntimeError(
+                f"Failed to set WAL journal mode. Got: {result[0] if result else None}"
+            )
+
         await self._connection.execute("PRAGMA foreign_keys = ON")
         await self._connection.execute("PRAGMA busy_timeout = 5000")
         await self._connection.execute("PRAGMA journal_size_limit = 67108864")
@@ -48,8 +65,12 @@ class Database:
     async def close(self) -> None:
         """Close database connection."""
         if self._connection:
-            await self._connection.close()
-            self._connection = None
+            try:
+                await self._connection.close()
+            except Exception as e:
+                logger.warning(f"Error closing database connection: {e}")
+            finally:
+                self._connection = None
 
     async def __aenter__(self) -> "Database":
         """Async context manager entry."""
@@ -71,10 +92,24 @@ class Database:
             raise RuntimeError("Database not connected. Call connect() first.")
         return self._connection
 
+    async def is_healthy(self) -> bool:
+        """Check if connection is valid and database is accessible.
+
+        Returns:
+            True if the connection is healthy, False otherwise.
+        """
+        if self._connection is None:
+            return False
+        try:
+            await self._connection.execute("SELECT 1")
+            return True
+        except Exception:
+            return False
+
     async def execute(
         self,
         sql: str,
-        parameters: Sequence[Any] = (),
+        parameters: Sequence[SqliteValue] = (),
     ) -> int:
         """Execute SQL statement.
 
@@ -84,6 +119,7 @@ class Database:
 
         Returns:
             Number of rows affected (for INSERT/UPDATE/DELETE).
+            Note: May return -1 for SELECT statements.
 
         Note:
             With isolation_level=None (autocommit mode), statements are
@@ -93,10 +129,32 @@ class Database:
         cursor = await self.connection.execute(sql, parameters)
         return cursor.rowcount
 
+    async def execute_insert(
+        self,
+        sql: str,
+        parameters: Sequence[SqliteValue] = (),
+    ) -> int:
+        """Execute INSERT statement and return the last inserted row ID.
+
+        Args:
+            sql: INSERT SQL statement to execute.
+            parameters: Optional parameters for the statement.
+
+        Returns:
+            The rowid of the last inserted row.
+
+        Note:
+            With isolation_level=None (autocommit mode), statements are
+            automatically committed. Do not add explicit commit() here
+            as it would break explicit transactions started with transaction().
+        """
+        cursor = await self.connection.execute(sql, parameters)
+        return cursor.lastrowid if cursor.lastrowid is not None else 0
+
     async def execute_many(
         self,
         sql: str,
-        parameters: Sequence[Sequence[Any]],
+        parameters: Sequence[Sequence[SqliteValue]],
     ) -> int:
         """Execute SQL statement with multiple parameter sets.
 
@@ -118,7 +176,7 @@ class Database:
     async def fetch_one(
         self,
         sql: str,
-        parameters: Sequence[Any] = (),
+        parameters: Sequence[SqliteValue] = (),
     ) -> aiosqlite.Row | None:
         """Fetch a single row.
 
@@ -135,7 +193,7 @@ class Database:
     async def fetch_all(
         self,
         sql: str,
-        parameters: Sequence[Any] = (),
+        parameters: Sequence[SqliteValue] = (),
     ) -> list[aiosqlite.Row]:
         """Fetch all matching rows.
 
@@ -150,13 +208,39 @@ class Database:
         result = await cursor.fetchall()
         return list(result)
 
+    async def fetch_scalar(
+        self,
+        sql: str,
+        parameters: Sequence[SqliteValue] = (),
+    ) -> SqliteValue:
+        """Fetch a single scalar value.
+
+        Args:
+            sql: SQL query expected to return one row with one column.
+            parameters: Optional parameters.
+
+        Returns:
+            The scalar value, or None if no rows found.
+        """
+        row = await self.fetch_one(sql, parameters)
+        return row[0] if row else None
+
     @asynccontextmanager
-    async def transaction(self) -> AsyncGenerator[None, None]:
+    async def transaction(self, read_only: bool = False) -> AsyncGenerator[None, None]:
         """Context manager for database transactions.
+
+        Args:
+            read_only: If True, use a read-only transaction (BEGIN DEFERRED).
+                      If False, use a write transaction (BEGIN IMMEDIATE).
+                      Default is False.
+
+        Yields:
+            None
 
         Commits on success, rolls back on exception.
         """
-        await self.connection.execute("BEGIN IMMEDIATE")
+        transaction_type = "BEGIN DEFERRED" if read_only else "BEGIN IMMEDIATE"
+        await self.connection.execute(transaction_type)
         try:
             yield
             await self.connection.execute("COMMIT")
