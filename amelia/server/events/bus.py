@@ -64,9 +64,12 @@ class EventBus:
             try:
                 callback(event)
             except Exception as exc:
+                # Use getattr to safely get callback name - functools.partial,
+                # callable instances, etc. may not have __name__
+                callback_name = getattr(callback, "__name__", repr(callback))
                 logger.exception(
                     "Subscriber raised exception",
-                    callback=callback.__name__,
+                    callback=callback_name,
                     event_type=event.event_type,
                     error=str(exc),
                 )

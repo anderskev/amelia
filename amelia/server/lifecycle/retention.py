@@ -53,7 +53,7 @@ class LogRetentionService:
         Deletes:
         1. Events from workflows completed/failed/cancelled more than
            retention_days ago
-        2. Workflows with no remaining events
+        2. Workflows that are past retention and have no remaining events
 
         Returns:
             CleanupResult with counts of deleted records.
@@ -81,13 +81,17 @@ class LogRetentionService:
             (cutoff_date.isoformat(),),
         )
 
-        # Delete workflows with no remaining events
+        # Delete workflows past retention with no remaining events
+        # Only delete workflows that are also past the retention cutoff
+        # to avoid purging recent workflows that haven't emitted events yet
         workflows_deleted = await self._db.execute(
             """
             DELETE FROM workflows
             WHERE id NOT IN (SELECT DISTINCT workflow_id FROM events)
             AND status IN ('completed', 'failed', 'cancelled')
-            """
+            AND completed_at < ?
+            """,
+            (cutoff_date.isoformat(),),
         )
 
         logger.info(
