@@ -1,13 +1,13 @@
 """Tests for workflow state models."""
 
+from datetime import datetime
+
 import pytest
-from datetime import datetime, UTC
 
 from amelia.server.models.state import (
-    WorkflowStatus,
-    validate_transition,
     InvalidStateTransitionError,
     ServerExecutionState,
+    validate_transition,
 )
 
 

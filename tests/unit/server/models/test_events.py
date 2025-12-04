@@ -1,7 +1,6 @@
 """Tests for event models."""
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from amelia.server.models.events import EventType, WorkflowEvent
 

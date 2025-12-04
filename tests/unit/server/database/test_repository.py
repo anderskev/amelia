@@ -1,11 +1,12 @@
 """Tests for WorkflowRepository."""
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
+
 from amelia.server.database.repository import WorkflowRepository
-from amelia.server.models.state import ServerExecutionState, InvalidStateTransitionError
+from amelia.server.models.state import InvalidStateTransitionError, ServerExecutionState
 
 
 class TestWorkflowRepository:

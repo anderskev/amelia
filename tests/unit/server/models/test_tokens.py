@@ -1,9 +1,8 @@
 """Tests for token usage models."""
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
-from amelia.server.models.tokens import TokenUsage, MODEL_PRICING, calculate_token_cost
+from amelia.server.models.tokens import MODEL_PRICING, TokenUsage, calculate_token_cost
 
 
 class TestTokenUsage:
