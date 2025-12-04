@@ -17,7 +17,7 @@ class TestAppDatabaseIntegration:
     def test_health_returns_database_status(self, temp_db_path):
         """Health endpoint returns database status."""
         with patch.dict(os.environ, {"AMELIA_DATABASE_PATH": str(temp_db_path)}):
-            from amelia.server.main import create_app
+            from amelia.server.main import create_app  # noqa: PLC0415
 
             app = create_app()
             client = TestClient(app)

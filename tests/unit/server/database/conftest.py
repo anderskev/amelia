@@ -2,13 +2,10 @@
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
 
-
-if TYPE_CHECKING:
-    from amelia.server.database.connection import Database
+from amelia.server.database.connection import Database
 
 
 @pytest.fixture
@@ -25,7 +22,7 @@ def temp_db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-async def connected_db(temp_db_path: Path) -> AsyncGenerator["Database", None]:
+async def connected_db(temp_db_path: Path) -> AsyncGenerator[Database, None]:
     """Create a connected Database instance for testing.
 
     The database is automatically connected before yielding and closed after.
@@ -36,13 +33,12 @@ async def connected_db(temp_db_path: Path) -> AsyncGenerator["Database", None]:
     Yields:
         Database: Connected database instance.
     """
-    from amelia.server.database.connection import Database
     async with Database(temp_db_path) as db:
         yield db
 
 
 @pytest.fixture
-async def db_with_schema(temp_db_path: Path) -> AsyncGenerator["Database", None]:
+async def db_with_schema(temp_db_path: Path) -> AsyncGenerator[Database, None]:
     """Create a database with schema initialized.
 
     Connects to database and runs ensure_schema() to create all tables.
@@ -54,8 +50,6 @@ async def db_with_schema(temp_db_path: Path) -> AsyncGenerator["Database", None]
     Yields:
         Database: Connected database instance with schema initialized.
     """
-    from amelia.server.database.connection import Database
-
     async with Database(temp_db_path) as db:
         await db.ensure_schema()
         yield db
