@@ -395,9 +395,14 @@ class OrchestratorService:
     async def _wait_for_approval(self, workflow_id: str) -> None:
         """Block until workflow is approved or rejected.
 
+        Sets the workflow status to "blocked" and waits for approval/rejection.
+
         Args:
             workflow_id: The workflow awaiting approval.
         """
+        # Set status to blocked before waiting - required for approve/reject validation
+        await self._repository.set_status(workflow_id, "blocked")
+
         event = asyncio.Event()
         self._approval_events[workflow_id] = event
         await self._emit(
