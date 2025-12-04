@@ -345,8 +345,9 @@ class TestApproveWorkflow:
     @pytest.mark.asyncio
     async def test_approve_blocked_workflow(self, client, mock_repository):
         """Approve a blocked workflow."""
-        from amelia.server.models.state import ServerExecutionState
         from unittest.mock import AsyncMock
+
+        from amelia.server.models.state import ServerExecutionState
 
         workflow = ServerExecutionState(
             id="wf-123",
@@ -380,8 +381,9 @@ class TestApproveWorkflow:
     @pytest.mark.asyncio
     async def test_approve_workflow_wrong_state(self, client, mock_repository):
         """Approve workflow not in blocked state returns 422."""
-        from amelia.server.models.state import ServerExecutionState
         from unittest.mock import AsyncMock
+
+        from amelia.server.models.state import ServerExecutionState
 
         workflow = ServerExecutionState(
             id="wf-123",
@@ -406,8 +408,9 @@ class TestRejectWorkflow:
     @pytest.mark.asyncio
     async def test_reject_blocked_workflow(self, client, mock_repository):
         """Reject a blocked workflow."""
-        from amelia.server.models.state import ServerExecutionState
         from unittest.mock import AsyncMock
+
+        from amelia.server.models.state import ServerExecutionState
 
         workflow = ServerExecutionState(
             id="wf-123",

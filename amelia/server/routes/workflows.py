@@ -299,6 +299,78 @@ async def cancel_workflow(
     return {"status": "cancelled", "workflow_id": workflow_id}
 
 
+@router.post("/{workflow_id}/approve")
+async def approve_workflow(
+    workflow_id: str,
+    repository: WorkflowRepository = Depends(get_repository),
+) -> dict:
+    """Approve a blocked workflow's plan.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+        repository: Workflow repository dependency.
+
+    Returns:
+        Dict with status and workflow_id.
+
+    Raises:
+        WorkflowNotFoundError: If workflow doesn't exist.
+        InvalidStateError: If workflow is not in blocked state.
+    """
+    workflow = await repository.get(workflow_id)
+    if workflow is None:
+        raise WorkflowNotFoundError(workflow_id=workflow_id)
+
+    if workflow.workflow_status != "blocked":
+        raise InvalidStateError(
+            message=f"Cannot approve: workflow is {workflow.workflow_status}, not blocked",
+            workflow_id=workflow_id,
+            current_status=workflow.workflow_status,
+        )
+
+    await repository.set_status(workflow_id, "in_progress")
+    logger.info(f"Approved workflow {workflow_id}")
+
+    return {"status": "approved", "workflow_id": workflow_id}
+
+
+@router.post("/{workflow_id}/reject")
+async def reject_workflow(
+    workflow_id: str,
+    request: RejectRequest,
+    repository: WorkflowRepository = Depends(get_repository),
+) -> dict:
+    """Reject a blocked workflow's plan.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+        request: Rejection request with feedback.
+        repository: Workflow repository dependency.
+
+    Returns:
+        Dict with status and workflow_id.
+
+    Raises:
+        WorkflowNotFoundError: If workflow doesn't exist.
+        InvalidStateError: If workflow is not in blocked state.
+    """
+    workflow = await repository.get(workflow_id)
+    if workflow is None:
+        raise WorkflowNotFoundError(workflow_id=workflow_id)
+
+    if workflow.workflow_status != "blocked":
+        raise InvalidStateError(
+            message=f"Cannot reject: workflow is {workflow.workflow_status}, not blocked",
+            workflow_id=workflow_id,
+            current_status=workflow.workflow_status,
+        )
+
+    await repository.set_status(workflow_id, "failed", failure_reason=request.feedback)
+    logger.info(f"Rejected workflow {workflow_id}: {request.feedback}")
+
+    return {"status": "rejected", "workflow_id": workflow_id}
+
+
 def configure_exception_handlers(app: FastAPI) -> None:
     """Configure exception handlers for the FastAPI application.
 
