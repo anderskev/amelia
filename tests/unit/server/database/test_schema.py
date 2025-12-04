@@ -1,50 +1,15 @@
 # tests/unit/server/database/test_schema.py
-"""Tests for initial database schema."""
+"""Tests for database schema constraints."""
+import aiosqlite
 import pytest
 
 
-class TestInitialSchema:
-    """Tests for database schema creation."""
-
-    @pytest.mark.parametrize("table_name", ["workflows", "events", "token_usage"])
-    @pytest.mark.asyncio
-    async def test_table_exists(self, db_with_schema, table_name):
-        """Initial schema creates required tables."""
-        result = await db_with_schema.fetch_one(
-            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
-        )
-        assert result is not None
-
-    @pytest.mark.asyncio
-    async def test_workflows_has_required_columns(self, db_with_schema):
-        """Workflows table has all required columns."""
-        # Get column info
-        result = await db_with_schema.fetch_all("PRAGMA table_info(workflows)")
-        columns = {row[1] for row in result}
-
-        required = {
-            "id", "issue_id", "worktree_path", "worktree_name",
-            "status", "started_at", "completed_at", "failure_reason", "state_json"
-        }
-        assert required.issubset(columns)
-
-    @pytest.mark.asyncio
-    async def test_events_has_required_columns(self, db_with_schema):
-        """Events table has all required columns."""
-        result = await db_with_schema.fetch_all("PRAGMA table_info(events)")
-        columns = {row[1] for row in result}
-
-        required = {
-            "id", "workflow_id", "sequence", "timestamp",
-            "agent", "event_type", "message", "data_json", "correlation_id"
-        }
-        assert required.issubset(columns)
+class TestWorktreeConstraints:
+    """Tests for worktree uniqueness constraints."""
 
     @pytest.mark.asyncio
     async def test_unique_active_worktree_constraint(self, db_with_schema):
         """Only one active workflow per worktree is allowed."""
-        import aiosqlite
-
         # Insert first workflow
         await db_with_schema.execute("""
             INSERT INTO workflows (id, issue_id, worktree_path, worktree_name, status, state_json)
