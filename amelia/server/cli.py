@@ -5,6 +5,7 @@ import typer
 import uvicorn
 from rich.console import Console
 
+from amelia.logging import configure_logging
 from amelia.server.banner import print_banner
 from amelia.server.config import ServerConfig
 
@@ -46,6 +47,9 @@ def server(
     # Skip if subcommand is invoked
     if ctx.invoked_subcommand is not None:
         return
+
+    # Configure logging with dashboard colors
+    configure_logging()
 
     # Load config (respects environment variables)
     config = ServerConfig()

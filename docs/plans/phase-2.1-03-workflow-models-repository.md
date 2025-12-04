@@ -553,6 +553,7 @@ Expected: FAIL with ModuleNotFoundError
 # amelia/server/models/tokens.py
 """Token usage tracking and cost calculation."""
 from datetime import datetime
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -590,6 +591,7 @@ class TokenUsage(BaseModel):
     - cost_usd: Calculated as input_cost + output_cost - cache_discount
 
     Attributes:
+        id: Unique identifier.
         workflow_id: Workflow this usage belongs to.
         agent: Agent that consumed tokens.
         model: Model used for cost calculation.
@@ -601,6 +603,10 @@ class TokenUsage(BaseModel):
         timestamp: When tokens were consumed.
     """
 
+    id: str = Field(
+        default_factory=lambda: str(uuid4()),
+        description="Unique identifier",
+    )
     workflow_id: str = Field(..., description="Workflow ID")
     agent: str = Field(..., description="Agent that consumed tokens")
     model: str = Field(
@@ -1387,7 +1393,7 @@ class WorkflowRepository:
         Args:
             state: Initial workflow state.
         """
-        await self._db.execute(
+        await self._db.execute_insert(
             """
             INSERT INTO workflows (
                 id, issue_id, worktree_path, worktree_name,
@@ -1547,13 +1553,13 @@ class WorkflowRepository:
         Returns:
             Number of active workflows.
         """
-        row = await self._db.fetch_one(
+        count = await self._db.fetch_scalar(
             """
             SELECT COUNT(*) FROM workflows
             WHERE status IN ('pending', 'in_progress', 'blocked')
             """
         )
-        return row[0] if row else 0
+        return count if count is not None else 0
 
     async def find_by_status(
         self,

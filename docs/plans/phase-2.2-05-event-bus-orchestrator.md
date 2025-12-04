@@ -1081,11 +1081,10 @@ Add to `amelia/server/database/repository.py`:
         Returns:
             Maximum sequence number, or None if no events exist.
         """
-        row = await self._db.fetch_one(
-            "SELECT MAX(sequence) as max_seq FROM events WHERE workflow_id = ?",
+        return await self._db.fetch_scalar(
+            "SELECT MAX(sequence) FROM events WHERE workflow_id = ?",
             (workflow_id,),
         )
-        return row["max_seq"] if row and row["max_seq"] is not None else None
 ```
 
 **Step 4: Implement _emit method**
