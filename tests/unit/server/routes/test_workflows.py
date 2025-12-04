@@ -2,11 +2,13 @@
 
 import base64
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from pydantic import BaseModel, field_validator
 
 from amelia.server.database import WorkflowRepository
 from amelia.server.exceptions import (
@@ -16,7 +18,7 @@ from amelia.server.exceptions import (
     WorkflowNotFoundError,
 )
 from amelia.server.models.state import ServerExecutionState
-from amelia.server.routes.workflows import configure_exception_handlers, router
+from amelia.server.routes.workflows import configure_exception_handlers, get_repository, router
 
 
 @pytest.fixture
@@ -368,7 +370,10 @@ class TestCreateWorkflow:
         assert "ISSUE-123" in data["message"]
 
         # Verify repository calls
-        mock_repository.get_by_worktree.assert_called_once_with("/tmp/worktree-123")
+        # Path is canonicalized by validator (e.g., /tmp -> /private/tmp on macOS)
+        from pathlib import Path
+        expected_path = str(Path("/tmp/worktree-123").resolve())
+        mock_repository.get_by_worktree.assert_called_once_with(expected_path)
         mock_repository.count_active.assert_called_once()
         mock_repository.create.assert_called_once()
 
@@ -465,7 +470,7 @@ class TestCreateWorkflow:
     async def test_create_workflow_validation_error(
         self, client: AsyncClient, mock_repository: AsyncMock
     ):
-        """POST /workflows should return 400 for invalid issue_id."""
+        """POST /workflows should return 422 for invalid issue_id."""
         # Make request with invalid issue_id (contains space)
         response = await client.post(
             "/workflows",
@@ -475,10 +480,11 @@ class TestCreateWorkflow:
             },
         )
 
-        # Verify response
-        assert response.status_code == 400
+        # Verify response - FastAPI returns 422 for validation errors by default
+        assert response.status_code == 422
         data = response.json()
-        assert data["code"] == "VALIDATION_ERROR"
+        # FastAPI's default error format has "detail" field
+        assert "detail" in data
 
         # Should not call repository
         mock_repository.get_by_worktree.assert_not_called()

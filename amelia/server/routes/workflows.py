@@ -1,9 +1,12 @@
 """Workflow management routes and exception handlers."""
 
 import base64
+import os
 from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic_core import ValidationError
@@ -15,17 +18,22 @@ from amelia.server.exceptions import (
     WorkflowConflictError,
     WorkflowNotFoundError,
 )
+from amelia.server.models.requests import CreateWorkflowRequest
 from amelia.server.models.responses import (
+    CreateWorkflowResponse,
     ErrorResponse,
     WorkflowDetailResponse,
     WorkflowListResponse,
     WorkflowSummary,
 )
-from amelia.server.models.state import WorkflowStatus
+from amelia.server.models.state import ServerExecutionState, WorkflowStatus
 
 
 # Create the workflows router
 router = APIRouter(prefix="/workflows", tags=["workflows"])
+
+# Max concurrent workflows
+MAX_CONCURRENT_WORKFLOWS = int(os.environ.get("AMELIA_MAX_CONCURRENT", "5"))
 
 
 def get_repository() -> WorkflowRepository:
@@ -41,6 +49,64 @@ def get_repository() -> WorkflowRepository:
         NotImplementedError: Always (not yet implemented).
     """
     raise NotImplementedError("Repository dependency not yet implemented")
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_workflow(
+    request: CreateWorkflowRequest,
+    repository: WorkflowRepository = Depends(get_repository),
+) -> CreateWorkflowResponse:
+    """Create a new workflow.
+
+    Args:
+        request: Workflow creation request.
+        repository: Workflow repository dependency.
+
+    Returns:
+        CreateWorkflowResponse with workflow ID and initial status.
+
+    Raises:
+        WorkflowConflictError: If worktree is already in use.
+        ConcurrencyLimitError: If concurrent workflow limit is reached.
+    """
+    # Check for worktree conflict
+    existing = await repository.get_by_worktree(request.worktree_path)
+    if existing is not None:
+        raise WorkflowConflictError(
+            worktree_path=request.worktree_path,
+            workflow_id=existing.id,
+        )
+
+    # Check concurrency limit
+    active_count = await repository.count_active()
+    if active_count >= MAX_CONCURRENT_WORKFLOWS:
+        raise ConcurrencyLimitError(
+            max_concurrent=MAX_CONCURRENT_WORKFLOWS,
+            current_count=active_count,
+        )
+
+    # Derive worktree name from path if not provided
+    worktree_name = request.worktree_name or Path(request.worktree_path).name
+
+    # Create workflow record
+    workflow_id = str(uuid4())
+    state = ServerExecutionState(
+        id=workflow_id,
+        issue_id=request.issue_id,
+        worktree_path=request.worktree_path,
+        worktree_name=worktree_name,
+        workflow_status="pending",
+    )
+
+    await repository.create(state)
+
+    logger.info(f"Created workflow {workflow_id} for issue {request.issue_id}")
+
+    return CreateWorkflowResponse(
+        id=workflow_id,
+        status="pending",
+        message=f"Workflow created for issue {request.issue_id}",
+    )
 
 
 @router.get("")
@@ -152,6 +218,47 @@ async def list_active_workflows(
         ],
         total=len(workflows),
         has_more=False,
+    )
+
+
+@router.get("/{workflow_id}")
+async def get_workflow(
+    workflow_id: str,
+    repository: WorkflowRepository = Depends(get_repository),
+) -> WorkflowDetailResponse:
+    """Get workflow by ID.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+        repository: Workflow repository dependency.
+
+    Returns:
+        WorkflowDetailResponse with full workflow details.
+
+    Raises:
+        WorkflowNotFoundError: If workflow doesn't exist.
+    """
+    workflow = await repository.get(workflow_id)
+    if workflow is None:
+        raise WorkflowNotFoundError(workflow_id=workflow_id)
+
+    # TODO: Fetch token usage and recent events
+    token_usage = None
+    recent_events: list[dict[str, object]] = []
+
+    return WorkflowDetailResponse(
+        id=workflow.id,
+        issue_id=workflow.issue_id,
+        worktree_path=workflow.worktree_path,
+        worktree_name=workflow.worktree_name,
+        status=workflow.workflow_status,
+        started_at=workflow.started_at,
+        completed_at=workflow.completed_at,
+        failure_reason=workflow.failure_reason,
+        current_stage=workflow.current_stage,
+        plan=None,
+        token_usage=token_usage,
+        recent_events=recent_events,
     )
 
 
