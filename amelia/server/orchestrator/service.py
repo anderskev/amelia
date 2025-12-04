@@ -133,16 +133,37 @@ class OrchestratorService:
         Args:
             workflow_id: The workflow to cancel.
             reason: Optional cancellation reason.
+
+        Raises:
+            WorkflowNotFoundError: If workflow doesn't exist.
+            InvalidStateError: If workflow is not in a cancellable state.
         """
         workflow = await self._repository.get(workflow_id)
-        if workflow and workflow.worktree_path in self._active_tasks:
+        if not workflow:
+            raise WorkflowNotFoundError(workflow_id)
+
+        # Check if workflow is in a cancellable state (not terminal)
+        cancellable_states = {"pending", "in_progress", "blocked"}
+        if workflow.workflow_status not in cancellable_states:
+            raise InvalidStateError(
+                f"Cannot cancel workflow in '{workflow.workflow_status}' state",
+                workflow_id=workflow_id,
+                current_status=workflow.workflow_status,
+            )
+
+        # Cancel the in-memory task if running
+        if workflow.worktree_path in self._active_tasks:
             task = self._active_tasks[workflow.worktree_path]
             task.cancel()
-            logger.info(
-                "Workflow cancelled",
-                workflow_id=workflow_id,
-                reason=reason,
-            )
+
+        # Persist the cancelled status to database
+        await self._repository.set_status(workflow_id, "cancelled")
+
+        logger.info(
+            "Workflow cancelled",
+            workflow_id=workflow_id,
+            reason=reason,
+        )
 
     async def cancel_all_workflows(self, timeout: float = 5.0) -> None:
         """Cancel all active workflows gracefully.

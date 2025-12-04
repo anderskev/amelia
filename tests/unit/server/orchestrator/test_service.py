@@ -151,7 +151,7 @@ async def test_cancel_workflow(
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
 ) -> None:
-    """Should cancel running workflow task."""
+    """Should cancel running workflow task and persist status."""
     # Create mock workflow state
     mock_state = ServerExecutionState(
         id="wf-1",
@@ -176,17 +176,40 @@ async def test_cancel_workflow(
     # Task should be cancelled
     assert task.cancelled()
 
+    # Status should be persisted to database
+    mock_repository.set_status.assert_called_once_with("wf-1", "cancelled")
+
 
 @pytest.mark.asyncio
-async def test_cancel_workflow_not_running(
+async def test_cancel_workflow_not_found(
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
 ) -> None:
-    """Cancel non-running workflow should be no-op."""
+    """Cancel nonexistent workflow should raise WorkflowNotFoundError."""
     mock_repository.get.return_value = None
 
-    # Should not raise
-    await orchestrator.cancel_workflow("nonexistent")
+    with pytest.raises(WorkflowNotFoundError):
+        await orchestrator.cancel_workflow("nonexistent")
+
+
+@pytest.mark.asyncio
+async def test_cancel_workflow_invalid_state(
+    orchestrator: OrchestratorService,
+    mock_repository: AsyncMock,
+) -> None:
+    """Cancel completed workflow should raise InvalidStateError."""
+    mock_state = ServerExecutionState(
+        id="wf-1",
+        issue_id="ISSUE-123",
+        worktree_path="/path/to/worktree",
+        worktree_name="feat-123",
+        workflow_status="completed",
+        started_at=datetime.now(UTC),
+    )
+    mock_repository.get.return_value = mock_state
+
+    with pytest.raises(InvalidStateError):
+        await orchestrator.cancel_workflow("wf-1")
 
 
 def test_get_active_workflows(orchestrator: OrchestratorService) -> None:
