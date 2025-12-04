@@ -1,8 +1,6 @@
 """Tests for response schemas."""
 
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from amelia.server.models.responses import (
     CreateWorkflowResponse,
@@ -49,7 +47,7 @@ class TestWorkflowSummary:
 
     def test_full_summary(self):
         """Test workflow summary with all optional fields."""
-        started = datetime.now(timezone.utc)
+        started = datetime.now(UTC)
         summary = WorkflowSummary(
             id="wf-123",
             issue_id="PROJ-123",
@@ -133,7 +131,7 @@ class TestWorkflowDetailResponse:
 
     def test_full_detail(self):
         """Test workflow detail with all optional fields."""
-        started = datetime.now(timezone.utc)
+        started = datetime.now(UTC)
         token_usage = TokenSummary(
             total_tokens=1000,
             total_cost_usd=0.05,

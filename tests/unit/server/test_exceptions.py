@@ -1,6 +1,5 @@
 """Unit tests for server exception classes."""
 
-import pytest
 
 from amelia.server.exceptions import (
     ConcurrencyLimitError,
