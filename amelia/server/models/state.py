@@ -1,0 +1,117 @@
+"""Workflow state models and state machine validation."""
+
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+# Type alias for workflow status
+WorkflowStatus = Literal[
+    "pending",  # Not yet started
+    "in_progress",  # Currently executing
+    "blocked",  # Awaiting human approval
+    "completed",  # Successfully finished
+    "failed",  # Error occurred
+    "cancelled",  # Explicitly cancelled
+]
+
+
+# State machine validation - prevents invalid transitions
+VALID_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
+    "pending": {"in_progress", "cancelled"},
+    "in_progress": {"blocked", "completed", "failed", "cancelled"},
+    "blocked": {"in_progress", "failed", "cancelled"},
+    "completed": set(),  # Terminal state
+    "failed": set(),  # Terminal state
+    "cancelled": set(),  # Terminal state
+}
+
+
+class InvalidStateTransitionError(ValueError):
+    """Raised when attempting an invalid workflow state transition."""
+
+    def __init__(self, current: WorkflowStatus, target: WorkflowStatus):
+        self.current = current
+        self.target = target
+        super().__init__(f"Cannot transition from '{current}' to '{target}'")
+
+
+def validate_transition(current: WorkflowStatus, target: WorkflowStatus) -> None:
+    """Validate that a state transition is allowed.
+
+    Args:
+        current: The current workflow status.
+        target: The desired new status.
+
+    Raises:
+        InvalidStateTransitionError: If the transition is not allowed.
+    """
+    if target not in VALID_TRANSITIONS[current]:
+        raise InvalidStateTransitionError(current, target)
+
+
+class ServerExecutionState(BaseModel):
+    """Extended ExecutionState for server-side workflow tracking.
+
+    This model extends the core ExecutionState with server-specific fields
+    for persistence and tracking.
+
+    Attributes:
+        id: Unique workflow identifier (UUID).
+        issue_id: Issue being worked on.
+        worktree_path: Absolute path to git worktree root.
+        worktree_name: Human-readable worktree name (branch or directory).
+        workflow_status: Current workflow status.
+        started_at: When workflow started.
+        completed_at: When workflow ended (success or failure).
+        stage_timestamps: When each stage started.
+        current_stage: Currently executing stage.
+        failure_reason: Error message when status is "failed".
+    """
+
+    id: str = Field(..., description="Unique workflow identifier")
+    issue_id: str = Field(..., description="Issue being worked on")
+    worktree_path: str = Field(..., description="Absolute path to worktree")
+    worktree_name: str = Field(..., description="Human-readable worktree name")
+
+    workflow_status: WorkflowStatus = Field(
+        default="pending",
+        description="Current workflow status",
+    )
+    started_at: datetime | None = Field(
+        default=None,
+        description="When workflow started",
+    )
+    completed_at: datetime | None = Field(
+        default=None,
+        description="When workflow ended",
+    )
+    stage_timestamps: dict[str, datetime] = Field(
+        default_factory=dict,
+        description="When each stage started",
+    )
+    current_stage: str | None = Field(
+        default=None,
+        description="Currently executing stage",
+    )
+    failure_reason: str | None = Field(
+        default=None,
+        description="Error message when failed",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "wf-123",
+                    "issue_id": "ISSUE-456",
+                    "worktree_path": "/home/user/project",
+                    "worktree_name": "main",
+                    "workflow_status": "in_progress",
+                    "started_at": "2025-01-01T12:00:00Z",
+                    "current_stage": "development",
+                }
+            ]
+        }
+    }
