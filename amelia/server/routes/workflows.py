@@ -1,6 +1,9 @@
 """Workflow management routes and exception handlers."""
 
-from fastapi import APIRouter, FastAPI, Request
+import base64
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic_core import ValidationError
@@ -12,7 +15,13 @@ from amelia.server.exceptions import (
     WorkflowConflictError,
     WorkflowNotFoundError,
 )
-from amelia.server.models.responses import ErrorResponse
+from amelia.server.models.responses import (
+    ErrorResponse,
+    WorkflowDetailResponse,
+    WorkflowListResponse,
+    WorkflowSummary,
+)
+from amelia.server.models.state import WorkflowStatus
 
 
 # Create the workflows router
@@ -32,6 +41,118 @@ def get_repository() -> WorkflowRepository:
         NotImplementedError: Always (not yet implemented).
     """
     raise NotImplementedError("Repository dependency not yet implemented")
+
+
+@router.get("")
+async def list_workflows(
+    status: WorkflowStatus | None = None,
+    worktree: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    cursor: str | None = None,
+    repository: WorkflowRepository = Depends(get_repository),
+) -> WorkflowListResponse:
+    """List workflows with optional filtering and pagination.
+
+    Args:
+        status: Filter by workflow status.
+        worktree: Filter by worktree path.
+        limit: Maximum number of results (1-100).
+        cursor: Pagination cursor from previous response.
+        repository: Workflow repository dependency.
+
+    Returns:
+        WorkflowListResponse with workflows, total count, and pagination info.
+
+    Raises:
+        HTTPException: 400 if cursor is invalid.
+    """
+    # Decode cursor
+    after_started_at: datetime | None = None
+    after_id: str | None = None
+    if cursor:
+        try:
+            decoded = base64.b64decode(cursor).decode()
+            after_started_at_str, after_id = decoded.split("|", 1)
+            after_started_at = datetime.fromisoformat(after_started_at_str)
+        except (ValueError, UnicodeDecodeError) as e:
+            logger.warning(f"Invalid cursor: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid cursor format",
+            ) from e
+
+    # Fetch limit+1 to detect has_more
+    workflows = await repository.list_workflows(
+        status=status,
+        worktree_path=worktree,
+        limit=limit + 1,
+        after_started_at=after_started_at,
+        after_id=after_id,
+    )
+
+    has_more = len(workflows) > limit
+    if has_more:
+        workflows = workflows[:limit]
+
+    # Build next cursor
+    next_cursor: str | None = None
+    if has_more and workflows:
+        last = workflows[-1]
+        if last.started_at:
+            cursor_data = f"{last.started_at.isoformat()}|{last.id}"
+            next_cursor = base64.b64encode(cursor_data.encode()).decode()
+
+    total = await repository.count_workflows(status=status, worktree_path=worktree)
+
+    return WorkflowListResponse(
+        workflows=[
+            WorkflowSummary(
+                id=w.id,
+                issue_id=w.issue_id,
+                worktree_name=w.worktree_name,
+                status=w.workflow_status,
+                started_at=w.started_at,
+                current_stage=w.current_stage,
+            )
+            for w in workflows
+        ],
+        total=total,
+        cursor=next_cursor,
+        has_more=has_more,
+    )
+
+
+@router.get("/active")
+async def list_active_workflows(
+    repository: WorkflowRepository = Depends(get_repository),
+) -> WorkflowListResponse:
+    """List all active workflows.
+
+    Active workflows are those in pending, in_progress, or blocked status.
+
+    Args:
+        repository: Workflow repository dependency.
+
+    Returns:
+        WorkflowListResponse with active workflows.
+    """
+    workflows = await repository.list_active()
+
+    return WorkflowListResponse(
+        workflows=[
+            WorkflowSummary(
+                id=w.id,
+                issue_id=w.issue_id,
+                worktree_name=w.worktree_name,
+                status=w.workflow_status,
+                started_at=w.started_at,
+                current_stage=w.current_stage,
+            )
+            for w in workflows
+        ],
+        total=len(workflows),
+        has_more=False,
+    )
 
 
 def configure_exception_handlers(app: FastAPI) -> None:
