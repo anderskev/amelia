@@ -1,9 +1,11 @@
 """Repository for workflow persistence operations."""
 
+import json
 from datetime import UTC, datetime
 
 from amelia.server.database.connection import Database, SqliteValue
 from amelia.server.exceptions import WorkflowNotFoundError
+from amelia.server.models.events import WorkflowEvent
 from amelia.server.models.state import (
     ServerExecutionState,
     WorkflowStatus,
@@ -307,3 +309,48 @@ class WorkflowRepository:
         query = f"SELECT COUNT(*) FROM workflows WHERE {where_clause}"
         count = await self._db.fetch_scalar(query, params)
         return count if isinstance(count, int) else 0
+
+    # =========================================================================
+    # Event Persistence
+    # =========================================================================
+
+    async def save_event(self, event: WorkflowEvent) -> None:
+        """Persist workflow event to database.
+
+        Args:
+            event: The event to persist.
+        """
+        await self._db.execute(
+            """
+            INSERT INTO events (
+                id, workflow_id, sequence, timestamp, agent,
+                event_type, message, data_json, correlation_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event.id,
+                event.workflow_id,
+                event.sequence,
+                event.timestamp.isoformat(),
+                event.agent,
+                event.event_type.value,
+                event.message,
+                json.dumps(event.data) if event.data else None,
+                event.correlation_id,
+            ),
+        )
+
+    async def get_max_event_sequence(self, workflow_id: str) -> int:
+        """Get maximum event sequence number for a workflow.
+
+        Args:
+            workflow_id: The workflow ID.
+
+        Returns:
+            Maximum sequence number, or 0 if no events exist.
+        """
+        result = await self._db.fetch_scalar(
+            "SELECT COALESCE(MAX(sequence), 0) FROM events WHERE workflow_id = ?",
+            (workflow_id,),
+        )
+        return result if isinstance(result, int) else 0

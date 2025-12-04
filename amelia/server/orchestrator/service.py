@@ -9,6 +9,7 @@ from loguru import logger
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.models import ServerExecutionState
+from amelia.server.models.events import EventType, WorkflowEvent
 from amelia.server.orchestrator.exceptions import (
     ConcurrencyLimitError,
     WorkflowConflictError,
@@ -153,3 +154,173 @@ class OrchestratorService:
             workflow_id=workflow_id,
         )
         await asyncio.sleep(0)  # Prevent immediate completion in tests
+
+    async def _emit(
+        self,
+        workflow_id: str,
+        event_type: EventType,
+        message: str,
+        agent: str = "system",
+        data: dict[str, object] | None = None,
+        correlation_id: str | None = None,
+    ) -> WorkflowEvent:
+        """Emit a workflow event.
+
+        Creates an event with monotonically increasing sequence number,
+        persists to repository, and broadcasts via event bus.
+
+        Args:
+            workflow_id: The workflow this event belongs to.
+            event_type: Type of event.
+            message: Human-readable message.
+            agent: Source agent (default: "system").
+            data: Optional structured payload.
+            correlation_id: Optional ID for tracing related events.
+
+        Returns:
+            The emitted WorkflowEvent.
+        """
+        # Get or create lock for this workflow
+        if workflow_id not in self._sequence_locks:
+            self._sequence_locks[workflow_id] = asyncio.Lock()
+
+        async with self._sequence_locks[workflow_id]:
+            # Initialize or get sequence counter
+            if workflow_id not in self._sequence_counters:
+                max_seq = await self._repository.get_max_event_sequence(workflow_id)
+                # Repository returns 0 if no events exist, so max_seq + 1 starts at 1
+                self._sequence_counters[workflow_id] = max_seq + 1
+
+            sequence = self._sequence_counters[workflow_id]
+            self._sequence_counters[workflow_id] += 1
+
+        event = WorkflowEvent(
+            id=str(uuid4()),
+            workflow_id=workflow_id,
+            sequence=sequence,
+            timestamp=datetime.now(UTC),
+            agent=agent,
+            event_type=event_type,
+            message=message,
+            data=data,
+            correlation_id=correlation_id,
+        )
+
+        # Persist and broadcast
+        await self._repository.save_event(event)
+        self._event_bus.emit(event)
+
+        logger.debug(
+            "Event emitted",
+            workflow_id=workflow_id,
+            event_type=event_type.value,
+            sequence=sequence,
+        )
+
+        return event
+
+    async def approve_workflow(
+        self,
+        workflow_id: str,
+        correlation_id: str | None = None,
+    ) -> bool:
+        """Approve a blocked workflow.
+
+        Args:
+            workflow_id: The workflow to approve.
+            correlation_id: Optional ID for tracing this action.
+
+        Returns:
+            True if approval was processed, False if already handled or not blocked.
+
+        Thread-safe: Uses atomic pop to prevent race conditions when multiple
+        clients approve simultaneously.
+        """
+        async with self._approval_lock:
+            # Atomic check-and-remove prevents duplicate approvals
+            event = self._approval_events.pop(workflow_id, None)
+            if not event:
+                # Already approved, rejected, or not blocked
+                return False
+
+            await self._repository.set_status(workflow_id, "in_progress")
+            await self._emit(
+                workflow_id,
+                EventType.APPROVAL_GRANTED,
+                "Plan approved",
+                correlation_id=correlation_id,
+            )
+            event.set()
+
+            logger.info(
+                "Workflow approved",
+                workflow_id=workflow_id,
+                correlation_id=correlation_id,
+            )
+            return True
+
+    async def reject_workflow(
+        self,
+        workflow_id: str,
+        feedback: str,
+    ) -> bool:
+        """Reject a blocked workflow.
+
+        Args:
+            workflow_id: The workflow to reject.
+            feedback: Reason for rejection.
+
+        Returns:
+            True if rejection was processed, False if already handled or not blocked.
+
+        Thread-safe: Uses atomic pop to prevent race conditions.
+        """
+        async with self._approval_lock:
+            # Atomic check-and-remove prevents duplicate rejections
+            event = self._approval_events.pop(workflow_id, None)
+            if not event:
+                # Already approved, rejected, or not blocked
+                return False
+
+            await self._repository.set_status(
+                workflow_id, "failed", failure_reason=feedback
+            )
+            await self._emit(
+                workflow_id,
+                EventType.APPROVAL_REJECTED,
+                f"Plan rejected: {feedback}",
+            )
+
+            # Cancel the waiting task
+            workflow = await self._repository.get(workflow_id)
+            if workflow and workflow.worktree_path in self._active_tasks:
+                self._active_tasks[workflow.worktree_path].cancel()
+
+            logger.info(
+                "Workflow rejected",
+                workflow_id=workflow_id,
+                feedback=feedback,
+            )
+            return True
+
+    async def _wait_for_approval(self, workflow_id: str) -> None:
+        """Block until workflow is approved or rejected.
+
+        Args:
+            workflow_id: The workflow awaiting approval.
+        """
+        event = asyncio.Event()
+        self._approval_events[workflow_id] = event
+        await self._emit(
+            workflow_id,
+            EventType.APPROVAL_REQUIRED,
+            "Awaiting plan approval",
+        )
+
+        logger.info("Workflow awaiting approval", workflow_id=workflow_id)
+
+        try:
+            await event.wait()
+        finally:
+            # Cleanup - event should already be removed by approve/reject
+            self._approval_events.pop(workflow_id, None)
