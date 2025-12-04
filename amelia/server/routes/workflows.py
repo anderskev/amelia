@@ -18,7 +18,7 @@ from amelia.server.exceptions import (
     WorkflowConflictError,
     WorkflowNotFoundError,
 )
-from amelia.server.models.requests import CreateWorkflowRequest
+from amelia.server.models.requests import CreateWorkflowRequest, RejectRequest
 from amelia.server.models.responses import (
     CreateWorkflowResponse,
     ErrorResponse,
@@ -260,6 +260,43 @@ async def get_workflow(
         token_usage=token_usage,
         recent_events=recent_events,
     )
+
+
+@router.post("/{workflow_id}/cancel")
+async def cancel_workflow(
+    workflow_id: str,
+    repository: WorkflowRepository = Depends(get_repository),
+) -> dict[str, str]:
+    """Cancel an active workflow.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+        repository: Workflow repository dependency.
+
+    Returns:
+        Dict with status and workflow_id.
+
+    Raises:
+        WorkflowNotFoundError: If workflow doesn't exist.
+        InvalidStateError: If workflow is not in a cancellable state.
+    """
+    workflow = await repository.get(workflow_id)
+    if workflow is None:
+        raise WorkflowNotFoundError(workflow_id=workflow_id)
+
+    # Can only cancel active workflows (pending, in_progress, blocked)
+    cancellable_states = {"pending", "in_progress", "blocked"}
+    if workflow.workflow_status not in cancellable_states:
+        raise InvalidStateError(
+            message=f"Cannot cancel: workflow is {workflow.workflow_status}",
+            workflow_id=workflow_id,
+            current_status=workflow.workflow_status,
+        )
+
+    await repository.set_status(workflow_id, "cancelled")
+    logger.info(f"Cancelled workflow {workflow_id}")
+
+    return {"status": "cancelled", "workflow_id": workflow_id}
 
 
 def configure_exception_handlers(app: FastAPI) -> None:

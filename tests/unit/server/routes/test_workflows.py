@@ -338,6 +338,125 @@ class TestGetWorkflow:
         body = response.json()
         assert body["code"] == "NOT_FOUND"
 
+
+class TestApproveWorkflow:
+    """Tests for POST /api/workflows/{id}/approve endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_approve_blocked_workflow(self, client, mock_repository):
+        """Approve a blocked workflow."""
+        from amelia.server.models.state import ServerExecutionState
+        from unittest.mock import AsyncMock
+
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/path",
+            worktree_name="main",
+            workflow_status="blocked",
+        )
+
+        mock_repository.get = AsyncMock(return_value=workflow)
+        mock_repository.set_status = AsyncMock()
+
+        response = await client.post("/workflows/wf-123/approve")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "approved"
+        mock_repository.set_status.assert_called_once_with("wf-123", "in_progress")
+
+    @pytest.mark.asyncio
+    async def test_approve_workflow_not_found(self, client, mock_repository):
+        """Approve nonexistent workflow returns 404."""
+        from unittest.mock import AsyncMock
+
+        mock_repository.get = AsyncMock(return_value=None)
+
+        response = await client.post("/workflows/wf-missing/approve")
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_approve_workflow_wrong_state(self, client, mock_repository):
+        """Approve workflow not in blocked state returns 422."""
+        from amelia.server.models.state import ServerExecutionState
+        from unittest.mock import AsyncMock
+
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/path",
+            worktree_name="main",
+            workflow_status="in_progress",  # Not blocked
+        )
+
+        mock_repository.get = AsyncMock(return_value=workflow)
+
+        response = await client.post("/workflows/wf-123/approve")
+
+        assert response.status_code == 422
+        body = response.json()
+        assert body["code"] == "INVALID_STATE"
+
+
+class TestRejectWorkflow:
+    """Tests for POST /api/workflows/{id}/reject endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_reject_blocked_workflow(self, client, mock_repository):
+        """Reject a blocked workflow."""
+        from amelia.server.models.state import ServerExecutionState
+        from unittest.mock import AsyncMock
+
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/path",
+            worktree_name="main",
+            workflow_status="blocked",
+        )
+
+        mock_repository.get = AsyncMock(return_value=workflow)
+        mock_repository.set_status = AsyncMock()
+
+        response = await client.post(
+            "/workflows/wf-123/reject",
+            json={"feedback": "Plan needs more tests"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "rejected"
+        mock_repository.set_status.assert_called_once_with(
+            "wf-123", "failed", failure_reason="Plan needs more tests"
+        )
+
+    @pytest.mark.asyncio
+    async def test_reject_requires_feedback(self, client, mock_repository):
+        """Reject requires feedback field."""
+        response = await client.post(
+            "/workflows/wf-123/reject",
+            json={},  # Missing feedback
+        )
+
+        assert response.status_code == 422  # Pydantic validation
+
+    @pytest.mark.asyncio
+    async def test_reject_workflow_not_found(self, client, mock_repository):
+        """Reject nonexistent workflow returns 404."""
+        from unittest.mock import AsyncMock
+
+        mock_repository.get = AsyncMock(return_value=None)
+
+        response = await client.post(
+            "/workflows/wf-missing/reject",
+            json={"feedback": "Test"},
+        )
+
+        assert response.status_code == 404
+
+
 class TestCreateWorkflow:
     """Test POST /workflows endpoint."""
 
@@ -512,3 +631,92 @@ class TestCreateWorkflow:
         create_call = mock_repository.create.call_args
         created_state: ServerExecutionState = create_call[0][0]
         assert created_state.worktree_name == "my-custom-worktree"
+
+
+class TestCancelWorkflow:
+    """Tests for POST /api/workflows/{id}/cancel endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_cancel_active_workflow(self, client: AsyncClient, mock_repository: AsyncMock):
+        """Cancel an active workflow."""
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/path",
+            worktree_name="main",
+            workflow_status="in_progress",
+        )
+
+        mock_repository.get = AsyncMock(return_value=workflow)
+        mock_repository.set_status = AsyncMock()
+
+        response = await client.post("/workflows/wf-123/cancel")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "cancelled"
+        mock_repository.set_status.assert_called_once_with("wf-123", "cancelled")
+
+    @pytest.mark.asyncio
+    async def test_cancel_pending_workflow(self, client: AsyncClient, mock_repository: AsyncMock):
+        """Cancel a pending workflow."""
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/path",
+            worktree_name="main",
+            workflow_status="pending",
+        )
+
+        mock_repository.get = AsyncMock(return_value=workflow)
+        mock_repository.set_status = AsyncMock()
+
+        response = await client.post("/workflows/wf-123/cancel")
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_cancel_blocked_workflow(self, client: AsyncClient, mock_repository: AsyncMock):
+        """Cancel a blocked workflow."""
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/path",
+            worktree_name="main",
+            workflow_status="blocked",
+        )
+
+        mock_repository.get = AsyncMock(return_value=workflow)
+        mock_repository.set_status = AsyncMock()
+
+        response = await client.post("/workflows/wf-123/cancel")
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_cancel_completed_workflow_fails(self, client: AsyncClient, mock_repository: AsyncMock):
+        """Cannot cancel completed workflow."""
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/path",
+            worktree_name="main",
+            workflow_status="completed",
+        )
+
+        mock_repository.get = AsyncMock(return_value=workflow)
+
+        response = await client.post("/workflows/wf-123/cancel")
+
+        assert response.status_code == 422
+        body = response.json()
+        assert body["code"] == "INVALID_STATE"
+
+    @pytest.mark.asyncio
+    async def test_cancel_workflow_not_found(self, client: AsyncClient, mock_repository: AsyncMock):
+        """Cancel nonexistent workflow returns 404."""
+        mock_repository.get = AsyncMock(return_value=None)
+
+        response = await client.post("/workflows/wf-missing/cancel")
+
+        assert response.status_code == 404
