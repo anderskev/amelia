@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 
 from amelia.server.database.repository import WorkflowRepository
+from amelia.server.models import EventType, WorkflowEvent
 from amelia.server.models.state import InvalidStateTransitionError, ServerExecutionState
 
 
@@ -195,3 +196,104 @@ class TestWorkflowRepository:
 
         count = await repository.count_active()
         assert count == 3
+
+    # =========================================================================
+    # Event Persistence Tests
+    # =========================================================================
+
+    @pytest.mark.asyncio
+    async def test_save_event(self, repository):
+        """Should persist event to database."""
+        # First create a workflow (required for foreign key)
+        state = ServerExecutionState(
+            id="wf-1",
+            issue_id="ISSUE-123",
+            worktree_path="/path/to/worktree",
+            worktree_name="feat-123",
+            workflow_status="in_progress",
+            started_at=datetime.now(UTC),
+        )
+        await repository.create(state)
+
+        event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="architect",
+            event_type=EventType.STAGE_STARTED,
+            message="Planning started",
+        )
+
+        await repository.save_event(event)
+
+        # Verify in DB via get_max_event_sequence
+        max_seq = await repository.get_max_event_sequence("wf-1")
+        assert max_seq == 1
+
+    @pytest.mark.asyncio
+    async def test_save_event_with_data(self, repository):
+        """Should persist event with structured data."""
+        # First create a workflow
+        state = ServerExecutionState(
+            id="wf-1",
+            issue_id="ISSUE-123",
+            worktree_path="/path/to/worktree",
+            worktree_name="feat-123",
+            workflow_status="in_progress",
+            started_at=datetime.now(UTC),
+        )
+        await repository.create(state)
+
+        event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            event_type=EventType.FILE_CREATED,
+            message="Created file",
+            data={"file_path": "/path/to/file.py", "lines": 42},
+        )
+
+        await repository.save_event(event)
+
+        # Verify event was saved (data_json column)
+        max_seq = await repository.get_max_event_sequence("wf-1")
+        assert max_seq == 1
+
+    @pytest.mark.asyncio
+    async def test_get_max_event_sequence_no_events(self, repository):
+        """Should return 0 when no events exist."""
+        max_seq = await repository.get_max_event_sequence("wf-nonexistent")
+        assert max_seq == 0
+
+    @pytest.mark.asyncio
+    async def test_get_max_event_sequence_with_events(self, repository):
+        """Should return max sequence number."""
+        # First create a workflow
+        state = ServerExecutionState(
+            id="wf-1",
+            issue_id="ISSUE-123",
+            worktree_path="/path/to/worktree",
+            worktree_name="feat-123",
+            workflow_status="in_progress",
+            started_at=datetime.now(UTC),
+        )
+        await repository.create(state)
+
+        # Create events with different sequences
+        for seq in [1, 3, 2, 5, 4]:
+            event = WorkflowEvent(
+                id=f"evt-{seq}",
+                workflow_id="wf-1",
+                sequence=seq,
+                timestamp=datetime.now(UTC),
+                agent="system",
+                event_type=EventType.WORKFLOW_STARTED,
+                message=f"Event {seq}",
+            )
+            await repository.save_event(event)
+
+        max_seq = await repository.get_max_event_sequence("wf-1")
+        assert max_seq == 5
