@@ -2,6 +2,8 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+**Status:** ✅ Complete
+
 **Goal:** Implement workflow domain models (EventType, WorkflowEvent, TokenUsage, ExecutionState) and repository with state machine validation.
 
 **Architecture:** Pydantic models for all data structures, repository pattern for database operations, state machine for workflow transitions, event sourcing lite with projection.

@@ -2,6 +2,8 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+**Status:** ⏳ Not Started
+
 **Goal:** Create the React dashboard frontend with Vite, TypeScript, Tailwind CSS, and React Router v7. This establishes the foundation for the web UI with proper aviation/cockpit aesthetic, routing infrastructure, error boundaries, and FastAPI static file serving.
 
 **Architecture:** Vite + React 18 + TypeScript project in `dashboard/` directory with Tailwind CSS configured for the aviation theme, React Router v7 for client-side routing, development proxy for API calls, and FastAPI static file mounting for production.

@@ -2,6 +2,8 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+**Status:** ⏳ Not Started
+
 **Goal:** Refactor CLI to become a thin client that delegates workflow orchestration to the FastAPI server via REST API calls.
 
 **Architecture:** CLI commands detect the current git worktree context and make httpx-based REST calls to the local server. Commands map to server endpoints: `start` creates workflows, `approve`/`reject` send workflow actions, `status` queries active workflows, `cancel` terminates workflows. The CLI provides rich error messages and auto-detects workflow IDs from the current worktree.

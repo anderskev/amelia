@@ -2,6 +2,8 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+**Status:** ⏳ Not Started
+
 **Goal:** Implement WebSocket endpoint for real-time event streaming with subscription filtering, reconnection backfill, heartbeat ping/pong, and integration with EventBus.
 
 **Architecture:** WebSocket endpoint at /ws/events with ConnectionManager managing subscriptions, backfill for reconnection with ?since= parameter, heartbeat mechanism, and EventBus integration for broadcasting events.
@@ -9,6 +11,22 @@
 **Tech Stack:** FastAPI WebSocket, asyncio, pytest with WebSocket testing
 
 **Depends on:** Plan 5 (EventBus & Orchestrator Service)
+
+---
+
+## ⚠️ Implementation Notes (Added based on current codebase state)
+
+**IMPORTANT:** The following adaptations are required when implementing this plan:
+
+1. **Task 1 Step 4 (models/__init__.py):** The plan shows replacing the entire file. Instead, ADD the WebSocket imports to the existing exports. The file already exports `EventType`, `WorkflowEvent`, `CreateWorkflowRequest`, `RejectRequest`, response models, state models, and token models. Preserve all existing exports.
+
+2. **Task 4 Step 4 (routes/__init__.py):** Same as above - ADD `websocket_router` to existing exports. The file already exports `health_router` and `workflows_router`.
+
+3. **Task 6 (Graceful Shutdown):** The plan uses `app.add_event_handler("shutdown", ...)` but we use the lifespan context manager pattern. WebSocket shutdown should be integrated into the existing `lifespan()` function in `main.py`, not as a separate event handler. Add `await connection_manager.close_all(code=1001, reason="Server shutting down")` in the shutdown section after `await health_checker.stop()`.
+
+4. **Task 4 & 5 (DI Integration):** The plan uses a stub `get_repository()` function. Integrate with our existing DI pattern in `dependencies.py` - add `get_connection_manager()` and wire it through the lifespan, similar to how `get_orchestrator()` works.
+
+5. **Logger imports:** Use `from loguru import logger` (already fixed in this plan).
 
 ---
 
@@ -276,13 +294,13 @@ git commit -m "feat(server): add WebSocket protocol message models"
 ## Task 2: Implement ConnectionManager
 
 **Files:**
-- Create: `amelia/server/services/connection_manager.py`
-- Modify: `amelia/server/services/__init__.py`
+- Create: `amelia/server/events/connection_manager.py`
+- Modify: `amelia/server/events/__init__.py`
 
 **Step 1: Write the failing test**
 
 ```python
-# tests/unit/server/services/test_connection_manager.py
+# tests/unit/server/events/test_connection_manager.py
 """Tests for WebSocket connection manager."""
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -295,7 +313,7 @@ class TestConnectionManager:
     @pytest.fixture
     def manager(self):
         """Create ConnectionManager instance."""
-        from amelia.server.services.connection_manager import ConnectionManager
+        from amelia.server.events.connection_manager import ConnectionManager
         return ConnectionManager()
 
     @pytest.fixture
@@ -514,13 +532,13 @@ class TestConnectionManager:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest tests/unit/server/services/test_connection_manager.py -v`
+Run: `uv run pytest tests/unit/server/events/test_connection_manager.py -v`
 Expected: FAIL with ModuleNotFoundError
 
 **Step 3: Implement ConnectionManager**
 
 ```python
-# amelia/server/services/connection_manager.py
+# amelia/server/events/connection_manager.py
 """WebSocket connection manager with subscription filtering."""
 import asyncio
 
@@ -650,26 +668,26 @@ class ConnectionManager:
         return len(self._connections)
 ```
 
-**Step 4: Update services __init__.py**
+**Step 4: Update events __init__.py**
 
 ```python
-# amelia/server/services/__init__.py
-"""Server services."""
-from amelia.server.services.event_bus import EventBus
-from amelia.server.services.connection_manager import ConnectionManager
+# amelia/server/events/__init__.py
+"""Event bus and WebSocket connection manager."""
+from amelia.server.events.bus import EventBus
+from amelia.server.events.connection_manager import ConnectionManager
 
 __all__ = ["EventBus", "ConnectionManager"]
 ```
 
 **Step 5: Run test to verify it passes**
 
-Run: `uv run pytest tests/unit/server/services/test_connection_manager.py -v`
+Run: `uv run pytest tests/unit/server/events/test_connection_manager.py -v`
 Expected: PASS
 
 **Step 6: Commit**
 
 ```bash
-git add amelia/server/services/connection_manager.py amelia/server/services/__init__.py tests/unit/server/services/test_connection_manager.py
+git add amelia/server/events/connection_manager.py amelia/server/events/__init__.py tests/unit/server/events/test_connection_manager.py
 git commit -m "feat(server): implement ConnectionManager with subscription filtering"
 ```
 
@@ -967,7 +985,7 @@ class TestWebSocketEndpoint:
     @pytest.fixture
     def mock_connection_manager(self):
         """Mock ConnectionManager."""
-        from amelia.server.services.connection_manager import ConnectionManager
+        from amelia.server.events.connection_manager import ConnectionManager
 
         manager = AsyncMock(spec=ConnectionManager)
         manager.connect = AsyncMock()
@@ -1160,9 +1178,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 
-from amelia.server.services.connection_manager import ConnectionManager
+from amelia.server.events.connection_manager import ConnectionManager
 from amelia.server.database.repository import WorkflowRepository
-from amelia.server.logging import logger
+from loguru import logger
 
 
 router = APIRouter(tags=["websocket"])
@@ -1343,12 +1361,12 @@ git commit -m "feat(server): implement WebSocket endpoint with backfill and subs
 ## Task 5: Integrate EventBus with ConnectionManager
 
 **Files:**
-- Modify: `amelia/server/services/event_bus.py`
+- Modify: `amelia/server/events/bus.py`
 
 **Step 1: Write the failing test**
 
 ```python
-# tests/unit/server/services/test_event_bus_websocket.py
+# tests/unit/server/events/test_event_bus_websocket.py
 """Tests for EventBus WebSocket integration."""
 import pytest
 from datetime import datetime
@@ -1362,14 +1380,16 @@ class TestEventBusWebSocketIntegration:
     @pytest.fixture
     def mock_connection_manager(self):
         """Mock ConnectionManager."""
-        manager = AsyncMock()
+        from amelia.server.events.connection_manager import ConnectionManager
+
+        manager = AsyncMock(spec=ConnectionManager)
         manager.broadcast = AsyncMock()
         return manager
 
     @pytest.fixture
     def event_bus(self, mock_connection_manager):
         """EventBus with mocked ConnectionManager."""
-        from amelia.server.services.event_bus import EventBus
+        from amelia.server.events.bus import EventBus
 
         bus = EventBus()
         bus.set_connection_manager(mock_connection_manager)
@@ -1398,7 +1418,7 @@ class TestEventBusWebSocketIntegration:
 
     async def test_emit_without_connection_manager_does_not_crash(self):
         """emit() works even without ConnectionManager set."""
-        from amelia.server.services.event_bus import EventBus
+        from amelia.server.events.bus import EventBus
         from amelia.server.models.events import WorkflowEvent, EventType
 
         bus = EventBus()
@@ -1455,12 +1475,12 @@ class TestEventBusWebSocketIntegration:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest tests/unit/server/services/test_event_bus_websocket.py -v`
+Run: `uv run pytest tests/unit/server/events/test_event_bus_websocket.py -v`
 Expected: FAIL (set_connection_manager method not implemented)
 
 **Step 3: Update EventBus to broadcast to ConnectionManager**
 
-Modify `amelia/server/services/event_bus.py`:
+Modify `amelia/server/events/bus.py`:
 
 ```python
 # Add to EventBus class
@@ -1507,18 +1527,18 @@ def emit(self, event: WorkflowEvent) -> None:
 Add import at top:
 
 ```python
-from amelia.server.services.connection_manager import ConnectionManager
+from amelia.server.events.connection_manager import ConnectionManager
 ```
 
 **Step 4: Run test to verify it passes**
 
-Run: `uv run pytest tests/unit/server/services/test_event_bus_websocket.py -v`
+Run: `uv run pytest tests/unit/server/events/test_event_bus_websocket.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add amelia/server/services/event_bus.py tests/unit/server/services/test_event_bus_websocket.py
+git add amelia/server/events/bus.py tests/unit/server/events/test_event_bus_websocket.py
 git commit -m "feat(event-bus): integrate with ConnectionManager for WebSocket broadcast"
 ```
 
@@ -1581,7 +1601,7 @@ Add to `amelia/server/main.py`:
 
 ```python
 from amelia.server.routes.websocket import connection_manager
-from amelia.server.logging import logger
+from loguru import logger
 
 
 async def shutdown_handler() -> None:
@@ -1710,7 +1730,7 @@ class TestWebSocketIntegration:
 
     async def test_websocket_receives_events(self, app):
         """Client receives events broadcast via EventBus."""
-        from amelia.server.services.event_bus import EventBus
+        from amelia.server.events.bus import EventBus
         from amelia.server.routes.websocket import connection_manager
         from amelia.server.models.events import WorkflowEvent, EventType
 
@@ -1844,10 +1864,10 @@ git commit -m "test(server): add WebSocket end-to-end integration tests"
 After completing all tasks, verify:
 
 - [ ] `uv run pytest tests/unit/server/models/test_websocket.py -v` - WebSocket message models pass
-- [ ] `uv run pytest tests/unit/server/services/test_connection_manager.py -v` - ConnectionManager tests pass
+- [ ] `uv run pytest tests/unit/server/events/test_connection_manager.py -v` - ConnectionManager tests pass
 - [ ] `uv run pytest tests/unit/server/database/test_repository_backfill.py -v` - Backfill repository methods pass
 - [ ] `uv run pytest tests/unit/server/routes/test_websocket.py -v` - WebSocket endpoint tests pass
-- [ ] `uv run pytest tests/unit/server/services/test_event_bus_websocket.py -v` - EventBus WebSocket integration passes
+- [ ] `uv run pytest tests/unit/server/events/test_event_bus_websocket.py -v` - EventBus WebSocket integration passes
 - [ ] `uv run pytest tests/unit/server/test_shutdown.py -v` - Graceful shutdown tests pass
 - [ ] `uv run pytest tests/integration/test_websocket_e2e.py -v` - End-to-end integration tests pass
 - [ ] `uv run ruff check amelia/server` - No linting errors
@@ -1866,10 +1886,10 @@ This plan implements WebSocket real-time event streaming:
 | Component | File | Purpose |
 |-----------|------|---------|
 | Protocol Models | `amelia/server/models/websocket.py` | Client/server message types |
-| ConnectionManager | `amelia/server/services/connection_manager.py` | Subscription management & broadcasting |
+| ConnectionManager | `amelia/server/events/connection_manager.py` | Subscription management & broadcasting |
 | Repository Backfill | `amelia/server/database/repository.py` | Event backfill queries |
 | WebSocket Endpoint | `amelia/server/routes/websocket.py` | /ws/events handler with backfill |
-| EventBus Integration | `amelia/server/services/event_bus.py` | Broadcast events to WebSocket |
+| EventBus Integration | `amelia/server/events/bus.py` | Broadcast events to WebSocket |
 | Graceful Shutdown | `amelia/server/main.py` | Close WebSocket connections on shutdown |
 
 **Key Features:**
