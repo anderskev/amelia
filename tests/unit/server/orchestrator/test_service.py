@@ -20,6 +20,24 @@ from amelia.server.models.events import EventType
 from amelia.server.orchestrator.service import OrchestratorService
 
 
+class AsyncIteratorMock:
+    """Mock async iterator."""
+
+    def __init__(self, items):
+        self.items = items
+        self.index = 0
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.index >= len(self.items):
+            raise StopAsyncIteration
+        item = self.items[self.index]
+        self.index += 1
+        return item
+
+
 @pytest.fixture
 def mock_event_bus() -> EventBus:
     """Create mock event bus."""
@@ -251,7 +269,11 @@ async def test_wait_for_approval(
 
 
 @pytest.mark.asyncio
+@patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
+@patch("amelia.server.orchestrator.service.create_orchestrator_graph")
 async def test_approve_workflow_success(
+    mock_create_graph,
+    mock_saver_class,
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
     mock_event_bus: EventBus,
@@ -271,6 +293,19 @@ async def test_approve_workflow_success(
     )
     mock_repository.get.return_value = mock_state
 
+    # Setup mock graph
+    mock_graph = MagicMock()
+    mock_graph.aupdate_state = AsyncMock()
+    # astream_events should return the iterator directly
+    mock_graph.astream_events = MagicMock(return_value=AsyncIteratorMock([]))
+    mock_create_graph.return_value = mock_graph
+
+    mock_saver = AsyncMock()
+    mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
+        return_value=mock_saver
+    )
+    mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
+
     # Simulate workflow waiting for approval
     orchestrator._approval_events["wf-1"] = asyncio.Event()
 
@@ -280,8 +315,12 @@ async def test_approve_workflow_success(
     # Should remove the approval event after setting it
     assert "wf-1" not in orchestrator._approval_events
 
-    # Should update status
-    mock_repository.set_status.assert_called_once_with("wf-1", "in_progress")
+    # Should update status - now called twice: once for in_progress, once for completed
+    assert mock_repository.set_status.call_count == 2
+    # First call is in_progress, second is completed
+    calls = mock_repository.set_status.call_args_list
+    assert calls[0][0] == ("wf-1", "in_progress")
+    assert calls[1][0] == ("wf-1", "completed")
 
     # Should emit APPROVAL_GRANTED
     approval_granted = [e for e in received_events if e.event_type == EventType.APPROVAL_GRANTED]
@@ -447,24 +486,6 @@ class TestRejectWorkflowGraphState:
         assert call_args[0][1] == {"human_approved": False}
 
 
-class AsyncIteratorMock:
-    """Mock async iterator."""
-
-    def __init__(self, items):
-        self.items = items
-        self.index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self.index >= len(self.items):
-            raise StopAsyncIteration
-        item = self.items[self.index]
-        self.index += 1
-        return item
-
-
 class TestApproveWorkflowResume:
     """Test approve_workflow resumes LangGraph execution."""
 
@@ -486,9 +507,10 @@ class TestApproveWorkflowResume:
         orchestrator._active_tasks["/tmp/test"] = ("wf-123", AsyncMock())
 
         # Setup mock graph
-        mock_graph = AsyncMock()
+        mock_graph = MagicMock()
         mock_graph.aupdate_state = AsyncMock()
-        mock_graph.astream_events = AsyncMock(return_value=AsyncIteratorMock([]))
+        # astream_events should return the iterator directly
+        mock_graph.astream_events = MagicMock(return_value=AsyncIteratorMock([]))
         mock_create_graph.return_value = mock_graph
 
         mock_saver = AsyncMock()

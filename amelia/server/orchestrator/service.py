@@ -383,7 +383,7 @@ class OrchestratorService:
         return event
 
     async def approve_workflow(self, workflow_id: str) -> None:
-        """Approve a blocked workflow.
+        """Approve a blocked workflow and resume LangGraph execution.
 
         Args:
             workflow_id: The workflow to approve.
@@ -392,12 +392,10 @@ class OrchestratorService:
             WorkflowNotFoundError: If workflow doesn't exist.
             InvalidStateError: If workflow is not in "blocked" state.
         """
-        # Validate workflow exists and get current state
         workflow = await self._repository.get(workflow_id)
         if not workflow:
             raise WorkflowNotFoundError(workflow_id)
 
-        # Validate workflow is in blocked state
         if workflow.workflow_status != "blocked":
             raise InvalidStateError(
                 f"Cannot approve workflow in '{workflow.workflow_status}' state",
@@ -406,24 +404,63 @@ class OrchestratorService:
             )
 
         async with self._approval_lock:
-            # Signal the approval event if it exists
+            # Signal the approval event if it exists (for legacy flow)
             event = self._approval_events.get(workflow_id)
             if event:
                 event.set()
                 self._approval_events.pop(workflow_id, None)
 
-            # Update workflow status
-            await self._repository.set_status(workflow_id, "in_progress")
             await self._emit(
                 workflow_id,
                 EventType.APPROVAL_GRANTED,
                 "Plan approved",
             )
 
-            logger.info(
-                "Workflow approved",
-                workflow_id=workflow_id,
-            )
+            logger.info("Workflow approved", workflow_id=workflow_id)
+
+        # Resume LangGraph execution with updated state
+        async with AsyncSqliteSaver.from_conn_string(
+            str(self._checkpoint_path)
+        ) as checkpointer:
+            graph = create_orchestrator_graph(checkpoint_saver=checkpointer)
+
+            config = {
+                "configurable": {
+                    "thread_id": workflow_id,
+                    "execution_mode": "server",
+                }
+            }
+
+            # Update state with approval decision
+            await graph.aupdate_state(config, {"human_approved": True})
+
+            # Update status to in_progress before resuming
+            await self._repository.set_status(workflow_id, "in_progress")
+
+            # Resume execution
+            try:
+                async for event in graph.astream_events(None, config=config):
+                    await self._handle_graph_event(workflow_id, event)
+
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_COMPLETED,
+                    "Workflow completed successfully",
+                )
+                await self._repository.set_status(workflow_id, "completed")
+
+            except Exception as e:
+                logger.exception("Workflow failed after approval", workflow_id=workflow_id)
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_FAILED,
+                    f"Workflow failed: {e!s}",
+                    data={"error": str(e)},
+                )
+                await self._repository.set_status(
+                    workflow_id, "failed", failure_reason=str(e)
+                )
+                raise
 
     async def reject_workflow(
         self,
