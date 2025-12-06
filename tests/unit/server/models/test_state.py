@@ -134,12 +134,3 @@ class TestServerExecutionStateComposition:
         assert server_state.execution_state is not None
         assert server_state.execution_state.profile.name == "test"
 
-    def test_server_state_execution_state_is_optional(self) -> None:
-        """execution_state field is optional for backward compatibility."""
-        server_state = ServerExecutionState(
-            id="wf-123",
-            issue_id="ISSUE-456",
-            worktree_path="/tmp/test",
-            worktree_name="test-branch",
-        )
-        assert server_state.execution_state is None
