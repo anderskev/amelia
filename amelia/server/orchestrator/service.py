@@ -3,8 +3,10 @@
 import asyncio
 import contextlib
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import uuid4
 
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.errors import GraphInterrupt
 from loguru import logger
@@ -261,7 +263,7 @@ class OrchestratorService:
                 interrupt_before=["human_approval_node"],
             )
 
-            config = {
+            config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
@@ -280,9 +282,9 @@ class OrchestratorService:
 
                 async for event in graph.astream_events(
                     state.execution_state,
-                    config=config,  # type: ignore[arg-type]
+                    config=config,
                 ):
-                    await self._handle_graph_event(workflow_id, event)  # type: ignore[arg-type]
+                    await self._handle_graph_event(workflow_id, cast(dict[str, Any], event))
 
                 await self._emit(
                     workflow_id,
@@ -424,7 +426,7 @@ class OrchestratorService:
         ) as checkpointer:
             graph = create_orchestrator_graph(checkpoint_saver=checkpointer)
 
-            config = {
+            config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
@@ -439,8 +441,8 @@ class OrchestratorService:
 
             # Resume execution
             try:
-                async for event in graph.astream_events(None, config=config):
-                    await self._handle_graph_event(workflow_id, event)
+                async for event in graph.astream_events(None, config=config):  # type: ignore[assignment]
+                    await self._handle_graph_event(workflow_id, cast(dict[str, Any], event))
 
                 await self._emit(
                     workflow_id,
@@ -521,7 +523,7 @@ class OrchestratorService:
         ) as checkpointer:
             graph = create_orchestrator_graph(checkpoint_saver=checkpointer)
 
-            config = {
+            config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",

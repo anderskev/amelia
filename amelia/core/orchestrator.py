@@ -1,5 +1,6 @@
 import os
 import subprocess
+from typing import Any
 
 import typer
 from langchain_core.runnables.config import RunnableConfig
@@ -297,9 +298,9 @@ def should_continue_review_loop(state: ExecutionState) -> str:
     return "end"
 
 def create_orchestrator_graph(
-    checkpoint_saver: BaseCheckpointSaver | None = None,
+    checkpoint_saver: BaseCheckpointSaver[Any] | None = None,
     interrupt_before: list[str] | None = None,
-) -> CompiledStateGraph:
+) -> CompiledStateGraph[Any]:
     """Creates and compiles the LangGraph state machine for the orchestrator.
 
     Args:
