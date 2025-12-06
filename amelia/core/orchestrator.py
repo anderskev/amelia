@@ -1,10 +1,9 @@
 import os
 import subprocess
-from typing import Any
 
 import typer
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
@@ -50,28 +49,46 @@ async def call_architect_node(state: ExecutionState) -> ExecutionState:
         messages=messages
     )
 
-async def human_approval_node(state: ExecutionState) -> ExecutionState:
+async def human_approval_node(
+    state: ExecutionState,
+    config: RunnableConfig | None = None,
+) -> ExecutionState:
     """Node to prompt for human approval before proceeding.
+
+    Behavior depends on execution mode:
+    - CLI mode: Blocking prompt via typer.confirm
+    - Server mode: Returns state unchanged (interrupt mechanism handles pause)
 
     Args:
         state: Current execution state containing the plan to be reviewed.
+        config: Optional RunnableConfig with execution_mode in configurable.
 
     Returns:
         Updated execution state with approval status and messages.
     """
+    config = config or {}
+    execution_mode = config.get("configurable", {}).get("execution_mode", "cli")
+
+    if execution_mode == "server":
+        # Server mode: approval comes from resumed state after interrupt
+        # If human_approved is already set (from resume), use it
+        # Otherwise, just return - the interrupt mechanism will pause here
+        return state
+
+    # CLI mode: blocking prompt
     typer.secho("\n--- HUMAN APPROVAL REQUIRED ---", fg=typer.colors.BRIGHT_YELLOW)
     typer.echo("Review the proposed plan before proceeding. State snapshot (for debug):")
     typer.echo(f"Plan for issue {state.issue.id if state.issue else 'N/A'}:")
     if state.plan:
         for task in state.plan.tasks:
             typer.echo(f"  - [{task.id}] {task.description} (Dependencies: {', '.join(task.dependencies)})")
-    
+
     approved = typer.confirm("Do you approve this plan to proceed with development?", default=True)
     comment = typer.prompt("Add an optional comment for the audit log (press Enter to skip)", default="")
 
     approval_message = f"Human approval: {'Approved' if approved else 'Rejected'}. Comment: {comment}"
     messages = state.messages + [AgentMessage(role="system", content=approval_message)]
-    
+
     return ExecutionState(
         profile=state.profile,
         issue=state.issue,
