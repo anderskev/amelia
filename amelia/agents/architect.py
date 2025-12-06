@@ -33,7 +33,14 @@ class PlanOutput(BaseModel):
 
 
 def _slugify(text: str) -> str:
-    """Convert text to URL-friendly slug."""
+    """Convert text to URL-friendly slug.
+
+    Args:
+        text: Input text to convert.
+
+    Returns:
+        Lowercase, hyphenated string truncated to 50 characters.
+    """
     return text.lower().replace(" ", "-").replace("_", "-")[:50]
 
 
@@ -77,7 +84,15 @@ class Architect:
         return PlanOutput(task_dag=task_dag, markdown_path=markdown_path)
 
     def _build_context(self, issue: Issue, design: Design | None) -> str:
-        """Build context string from issue and optional design."""
+        """Build context string from issue and optional design.
+
+        Args:
+            issue: The issue to include in context.
+            design: Optional design context to incorporate.
+
+        Returns:
+            Formatted context string combining issue and design information.
+        """
         context = f"Issue: {issue.title}\nDescription: {issue.description}\n"
 
         if design:
