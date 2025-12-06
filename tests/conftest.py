@@ -1,3 +1,4 @@
+import os
 import subprocess
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -272,16 +273,34 @@ def settings_file_factory(tmp_path):
 
 @pytest.fixture
 def git_repo_with_changes(tmp_path):
-    """Create a git repo with initial commit and unstaged changes."""
-    # Initialize git repo
-    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
+    """Create a git repo with initial commit and unstaged changes.
+
+    Uses environment variables for git identity and clears git hook
+    environment variables to ensure isolation from any parent git context
+    (e.g., when running inside a pre-push hook).
+    """
+    # Start with current environment and set identity
+    git_env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "Test",
+        "GIT_AUTHOR_EMAIL": "test@test.com",
+        "GIT_COMMITTER_NAME": "Test",
+        "GIT_COMMITTER_EMAIL": "test@test.com",
+    }
+
+    # Remove git environment variables that might be set by hooks and would
+    # cause git to use the wrong repository (e.g., GIT_DIR from pre-push hook)
+    for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_QUARANTINE_PATH"]:
+        git_env.pop(var, None)
+
+    # Initialize git repo (also needs clean env to avoid using parent repo)
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True, env=git_env)
 
     # Create initial file and commit
     (tmp_path / "file.txt").write_text("initial")
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, env=git_env)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, env=git_env)
 
     # Create unstaged changes
     (tmp_path / "file.txt").write_text("modified")
