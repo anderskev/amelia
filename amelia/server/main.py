@@ -2,8 +2,11 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from amelia import __version__
 from amelia.config import load_settings
@@ -143,6 +146,46 @@ def create_app() -> FastAPI:
     application.include_router(health_router, prefix="/api")
     application.include_router(workflows_router, prefix="/api")
     application.include_router(websocket_router)  # No prefix - route is /ws/events
+
+    # Serve dashboard static files (after build)
+    dashboard_dir = Path(__file__).parent.parent.parent / "dashboard" / "dist"
+
+    if dashboard_dir.exists():
+        # Serve static assets (JS, CSS, images)
+        assets_dir = dashboard_dir / "assets"
+        if assets_dir.exists():
+            application.mount(
+                "/assets", StaticFiles(directory=assets_dir), name="assets"
+            )
+
+        # SPA fallback: serve index.html for all non-API routes
+        @application.get("/{full_path:path}")
+        async def serve_dashboard(full_path: str) -> FileResponse:
+            """Serve dashboard index.html for client-side routing."""
+            # Skip API and WebSocket routes
+            if full_path.startswith("api/") or full_path.startswith("ws/"):
+                # Let the 404 handler deal with unknown API routes
+                from fastapi import HTTPException
+
+                raise HTTPException(status_code=404, detail="Not found")
+
+            index_file = dashboard_dir / "index.html"
+            if index_file.exists():
+                return FileResponse(index_file)
+
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Dashboard not built")
+
+    else:
+
+        @application.get("/")
+        async def dashboard_not_built() -> dict[str, str]:
+            """Inform user that dashboard needs to be built."""
+            return {
+                "message": "Dashboard not built",
+                "instructions": "Run 'cd dashboard && pnpm run build' to build the dashboard",
+            }
 
     return application
 
