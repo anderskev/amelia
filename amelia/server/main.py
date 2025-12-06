@@ -21,7 +21,8 @@ from amelia.server.lifecycle.health_checker import WorktreeHealthChecker
 from amelia.server.lifecycle.retention import LogRetentionService
 from amelia.server.lifecycle.server import ServerLifecycle
 from amelia.server.orchestrator.service import OrchestratorService
-from amelia.server.routes import health_router, workflows_router
+from amelia.server.routes import health_router, websocket_router, workflows_router
+from amelia.server.routes.websocket import connection_manager
 from amelia.server.routes.workflows import configure_exception_handlers
 
 
@@ -68,6 +69,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Create event bus
     event_bus = EventBus()
+    # Wire WebSocket broadcasting
+    event_bus.set_connection_manager(connection_manager)
 
     # Create and register orchestrator
     orchestrator = OrchestratorService(
@@ -101,6 +104,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     # Shutdown - stop components in reverse order
+    # Close WebSocket connections first
+    await connection_manager.close_all(code=1001, reason="Server shutting down")
+
     await health_checker.stop()
     await lifecycle.shutdown()
     clear_orchestrator()
@@ -131,6 +137,7 @@ def create_app() -> FastAPI:
     # Mount routes
     application.include_router(health_router, prefix="/api")
     application.include_router(workflows_router, prefix="/api")
+    application.include_router(websocket_router)  # No prefix - route is /ws/events
 
     return application
 

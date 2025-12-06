@@ -94,3 +94,12 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`.
 
 **Test Principles:**
 - **Don't Repeat Yourself (DRY)** - Extract common setup, assertions, and utilities into fixtures and helper functions. Avoid duplicating test logic across test files.
+
+## Manual Test Plans
+
+For PRs with significant changes, create a manual test plan that the `amelia-qa` GitHub Action will post as a PR comment.
+
+**Convention:**
+- Place test plan at `docs/testing/pr-test-plan.md` (preferred) or `docs/testing/manual-test-plan-*.md`
+- The file is auto-detected when the PR is opened and posted as a comment
+- After the PR is merged, delete the test plan file (it's preserved in the PR comment)

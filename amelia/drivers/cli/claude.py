@@ -162,9 +162,15 @@ class ClaudeCliDriver(CliDriver):
         self.tool_call_history: list[ClaudeStreamEvent] = []
 
     def _convert_messages_to_prompt(self, messages: list[AgentMessage]) -> str:
-        """Converts a list of AgentMessages into a single string prompt.
+        """Convert a list of AgentMessages into a single string prompt.
 
         System messages are excluded as they are handled separately via CLI flags.
+
+        Args:
+            messages: List of AgentMessage objects to convert.
+
+        Returns:
+            A formatted string with each message prefixed by its role.
         """
         prompt_parts = []
         for msg in messages:

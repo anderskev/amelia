@@ -1,0 +1,75 @@
+name: Amelia QA
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  post-test-plan:
+    runs-on: ubuntu-latest
+    # Skip for draft PRs unless they become ready
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Find test plan file
+        id: find-plan
+        run: |
+          # Look for test plan files in docs/testing/
+          # Convention: manual-test-plan-*.md or pr-test-plan.md
+          PLAN_FILE=""
+
+          # First, check for a PR-specific test plan
+          if [ -f "docs/testing/pr-test-plan.md" ]; then
+            PLAN_FILE="docs/testing/pr-test-plan.md"
+          else
+            # Look for any manual-test-plan-*.md file
+            PLAN_FILE=$(find docs/testing -name "manual-test-plan-*.md" -type f 2>/dev/null | head -1)
+          fi
+
+          if [ -n "$PLAN_FILE" ] && [ -f "$PLAN_FILE" ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "file=$PLAN_FILE" >> $GITHUB_OUTPUT
+            echo "Found test plan: $PLAN_FILE"
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "No test plan file found"
+          fi
+
+      - name: Read test plan content
+        if: steps.find-plan.outputs.found == 'true'
+        id: read-plan
+        run: |
+          # Read the file and escape for GitHub Actions
+          CONTENT=$(cat "${{ steps.find-plan.outputs.file }}")
+
+          # Use a delimiter for multiline content
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post test plan as comment
+        if: steps.find-plan.outputs.found == 'true'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## 🧪 Manual Test Plan
+
+            > Auto-posted by `amelia-qa` workflow from `${{ steps.find-plan.outputs.file }}`
+
+            ---
+
+            ${{ steps.read-plan.outputs.content }}
+          reactions: eyes
+
+      - name: No test plan found
+        if: steps.find-plan.outputs.found == 'false'
+        run: |
+          echo "::notice::No test plan file found. To add one, create docs/testing/pr-test-plan.md or docs/testing/manual-test-plan-*.md"
