@@ -5,8 +5,11 @@ import contextlib
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.errors import GraphInterrupt
 from loguru import logger
 
+from amelia.core.orchestrator import create_orchestrator_graph
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.exceptions import (
@@ -41,6 +44,7 @@ class OrchestratorService:
         event_bus: EventBus,
         repository: WorkflowRepository,
         max_concurrent: int = 5,
+        checkpoint_path: str = "~/.amelia/checkpoints.db",
     ) -> None:
         """Initialize orchestrator service.
 
@@ -48,10 +52,12 @@ class OrchestratorService:
             event_bus: Event bus for broadcasting workflow events.
             repository: Repository for workflow persistence.
             max_concurrent: Maximum number of concurrent workflows (default: 5).
+            checkpoint_path: Path to checkpoint database file.
         """
         self._event_bus = event_bus
         self._repository = repository
         self._max_concurrent = max_concurrent
+        self._checkpoint_path = checkpoint_path
         self._active_tasks: dict[str, tuple[str, asyncio.Task[None]]] = {}  # worktree_path -> (workflow_id, task)
         self._approval_events: dict[str, asyncio.Event] = {}  # workflow_id -> event
         self._approval_lock = asyncio.Lock()  # Prevents race conditions on approvals
@@ -120,7 +126,7 @@ class OrchestratorService:
             )
 
             # Start async task
-            task = asyncio.create_task(self._run_workflow(workflow_id, state, profile))
+            task = asyncio.create_task(self._run_workflow(workflow_id, state))
             self._active_tasks[worktree_path] = (workflow_id, task)
 
         # Remove from active tasks on completion
@@ -225,25 +231,93 @@ class OrchestratorService:
     async def _run_workflow(
         self,
         workflow_id: str,
-        initial_state: ServerExecutionState,
-        profile: str | None,
+        state: ServerExecutionState,
     ) -> None:
-        """Execute workflow with event emission.
-
-        This is a placeholder for the actual LangGraph execution.
-        Will be implemented in a future task.
+        """Execute workflow via LangGraph with interrupt support.
 
         Args:
             workflow_id: The workflow ID.
-            initial_state: Initial execution state.
-            profile: Optional profile name.
+            state: Server execution state with embedded core state.
+
+        Note:
+            When GraphInterrupt is raised, the workflow is paused at the
+            human_approval_node. Status is set to "blocked" and an
+            APPROVAL_REQUIRED event is emitted. The workflow resumes when
+            approve_workflow() is called.
         """
-        # Placeholder - will be implemented with LangGraph integration
-        logger.warning(
-            "Workflow execution not yet implemented",
-            workflow_id=workflow_id,
-        )
-        await asyncio.sleep(0)  # Prevent immediate completion in tests
+        if state.execution_state is None:
+            logger.error("No execution_state in ServerExecutionState", workflow_id=workflow_id)
+            await self._repository.set_status(
+                workflow_id, "failed", failure_reason="Missing execution state"
+            )
+            return
+
+        async with AsyncSqliteSaver.from_conn_string(
+            str(self._checkpoint_path)
+        ) as checkpointer:
+            # CRITICAL: Pass interrupt_before to enable server-mode approval
+            graph = create_orchestrator_graph(
+                checkpoint_saver=checkpointer,
+                interrupt_before=["human_approval_node"],
+            )
+
+            config = {
+                "configurable": {
+                    "thread_id": workflow_id,
+                    "execution_mode": "server",
+                }
+            }
+
+            await self._emit(
+                workflow_id,
+                EventType.WORKFLOW_STARTED,
+                "Workflow execution started",
+                data={"issue_id": state.issue_id},
+            )
+
+            try:
+                await self._repository.set_status(workflow_id, "in_progress")
+
+                async for event in graph.astream_events(
+                    state.execution_state,
+                    config=config,  # type: ignore[arg-type]
+                ):
+                    await self._handle_graph_event(workflow_id, event)  # type: ignore[arg-type]
+
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_COMPLETED,
+                    "Workflow completed successfully",
+                    data={"final_stage": state.current_stage},
+                )
+                await self._repository.set_status(workflow_id, "completed")
+
+            except GraphInterrupt:
+                # Normal pause at human_approval_node - NOT an error
+                logger.info(
+                    "Workflow paused for human approval",
+                    workflow_id=workflow_id,
+                )
+                await self._emit(
+                    workflow_id,
+                    EventType.APPROVAL_REQUIRED,
+                    "Plan ready for review - awaiting human approval",
+                    data={"paused_at": "human_approval_node"},
+                )
+                await self._repository.set_status(workflow_id, "blocked")
+
+            except Exception as e:
+                logger.exception("Workflow execution failed", workflow_id=workflow_id)
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_FAILED,
+                    f"Workflow failed: {e!s}",
+                    data={"error": str(e), "stage": state.current_stage},
+                )
+                await self._repository.set_status(
+                    workflow_id, "failed", failure_reason=str(e)
+                )
+                raise
 
     async def _emit(
         self,
