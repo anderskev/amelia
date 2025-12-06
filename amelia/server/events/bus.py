@@ -1,10 +1,16 @@
 """Event bus implementation for pub/sub workflow events."""
+import asyncio
 import contextlib
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from amelia.server.models import WorkflowEvent
+
+
+if TYPE_CHECKING:
+    from amelia.server.events.connection_manager import ConnectionManager
 
 
 class EventBus:
@@ -26,6 +32,7 @@ class EventBus:
     def __init__(self) -> None:
         """Initialize event bus with no subscribers."""
         self._subscribers: list[Callable[[WorkflowEvent], None]] = []
+        self._connection_manager: ConnectionManager | None = None
 
     def subscribe(self, callback: Callable[[WorkflowEvent], None]) -> None:
         """Subscribe to workflow events.
@@ -43,6 +50,14 @@ class EventBus:
         """
         with contextlib.suppress(ValueError):
             self._subscribers.remove(callback)
+
+    def set_connection_manager(self, manager: "ConnectionManager") -> None:
+        """Set the ConnectionManager for WebSocket broadcasting.
+
+        Args:
+            manager: The ConnectionManager instance.
+        """
+        self._connection_manager = manager
 
     def emit(self, event: WorkflowEvent) -> None:
         """Emit event to all subscribers synchronously.
@@ -73,3 +88,7 @@ class EventBus:
                     event_type=event.event_type,
                     error=str(exc),
                 )
+
+        # Broadcast to WebSocket clients
+        if self._connection_manager:
+            asyncio.create_task(self._connection_manager.broadcast(event))
