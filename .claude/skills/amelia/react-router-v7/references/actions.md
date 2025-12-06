@@ -1,5 +1,18 @@
 # Actions and Mutations
 
+## Contents
+
+- [Basic Action Pattern](#basic-action-pattern)
+- [Form Submission](#form-submission)
+- [Redirect After Action](#redirect-after-action)
+- [Form Validation](#form-validation)
+- [Fetchers (Non-Navigation Mutations)](#fetchers-non-navigation-mutations)
+- [Optimistic UI with Fetchers](#optimistic-ui-with-fetchers)
+- [Fetcher for Data Loading (Combobox)](#fetcher-for-data-loading-combobox)
+- [Optimistic List Updates](#optimistic-list-updates)
+
+---
+
 ## Basic Action Pattern
 
 ```tsx

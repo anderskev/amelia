@@ -86,10 +86,10 @@ function Dashboard() {
 
 ## Additional Documentation
 
-- **Data Loading**: See [LOADERS.md](LOADERS.md) for loader patterns, parallel loading, search params
-- **Mutations**: See [ACTIONS.md](ACTIONS.md) for actions, Form, fetchers, validation
-- **Navigation**: See [NAVIGATION.md](NAVIGATION.md) for Link, NavLink, programmatic nav
-- **Advanced**: See [ADVANCED.md](ADVANCED.md) for error boundaries, protected routes, lazy loading
+- **Data Loading**: See [references/loaders.md](references/loaders.md) for loader patterns, parallel loading, search params
+- **Mutations**: See [references/actions.md](references/actions.md) for actions, Form, fetchers, validation
+- **Navigation**: See [references/navigation.md](references/navigation.md) for Link, NavLink, programmatic nav
+- **Advanced**: See [references/advanced.md](references/advanced.md) for error boundaries, protected routes, lazy loading
 
 ## Mode Comparison
 

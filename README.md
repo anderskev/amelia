@@ -135,6 +135,35 @@ When working on this project with [Claude Code](https://claude.ai/code), the fol
 | `/amelia:eval-feedback <feedback>` | Evaluate code review feedback from another session |
 | `/amelia:respond-review` | Respond to greptile review comments after evaluation |
 
+## Claude Code Skills
+
+The following skills are available in `.claude/skills/amelia/` to help Claude Code understand project-specific patterns and libraries:
+
+### Frontend Skills
+
+| Skill | Triggers | Description |
+|-------|----------|-------------|
+| **tailwind-v4** | `@theme`, `oklch`, `--color-` | Tailwind CSS v4 with CSS-first configuration, OKLCH colors, dark mode |
+| **shadcn-ui** | `shadcn`, `cva`, `cn()`, `data-slot` | shadcn/ui component patterns, CVA variants, Radix primitives |
+| **react-router-v7** | `loader`, `action`, `NavLink` | React Router v7 data loading, actions, navigation patterns |
+| **zustand-state** | `zustand`, `create`, `persist` | Zustand state management, middleware, TypeScript patterns |
+| **react-flow** | `ReactFlow`, `Handle`, `NodeProps` | React Flow workflow visualization, custom nodes/edges |
+| **ai-elements** | `Queue`, `Tool`, `Confirmation` | Vercel AI Elements for chat UI, tool execution, workflows |
+
+### Backend Skills
+
+| Skill | Triggers | Description |
+|-------|----------|-------------|
+| **vercel-ai-sdk** | `useChat`, `streamText`, `UIMessage` | Vercel AI SDK for streaming chat, tool calls, message handling |
+| **docling** | `DocumentConverter`, `HierarchicalChunker` | Document parsing (PDF, DOCX), chunking for RAG pipelines |
+| **sqlite-vec** | `vec0`, `MATCH`, `vec_distance` | Vector similarity search in SQLite, KNN queries, embeddings |
+
+### Testing Skills
+
+| Skill | Triggers | Description |
+|-------|----------|-------------|
+| **vitest-testing** | `vitest`, `vi.mock`, `describe` | Vitest patterns, mocking, configuration, test utilities |
+
 ## Configuration
 
 Basic `settings.amelia.yaml`:

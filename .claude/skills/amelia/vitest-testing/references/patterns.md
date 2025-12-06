@@ -1,5 +1,17 @@
 # Common Patterns
 
+## Contents
+
+- [Fake Timers](#fake-timers)
+- [Waiting Utilities](#waiting-utilities)
+- [Snapshots](#snapshots)
+- [Testing Errors](#testing-errors)
+- [Anti-Patterns to Avoid](#anti-patterns-to-avoid)
+- [Best Practices](#best-practices)
+- [Environment Methods](#environment-methods)
+
+---
+
 ## Fake Timers
 
 ```ts

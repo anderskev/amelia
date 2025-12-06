@@ -1,5 +1,16 @@
 # Mocking Patterns
 
+## Contents
+
+- [Module Mocking](#module-mocking)
+- [Function Mocking](#function-mocking)
+- [Mock Assertions](#mock-assertions)
+- [Spying](#spying)
+- [Mock Cleanup](#mock-cleanup)
+- [Mock Methods Quick Reference](#mock-methods-quick-reference)
+
+---
+
 ## Module Mocking
 
 ```ts

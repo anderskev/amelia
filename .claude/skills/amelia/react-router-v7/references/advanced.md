@@ -1,5 +1,25 @@
 # Advanced Patterns
 
+## Contents
+
+- [Error Boundaries](#error-boundaries)
+  - [Root Error Boundary (Required)](#root-error-boundary-required)
+  - [Throwing Errors in Loaders](#throwing-errors-in-loaders)
+  - [Nested Error Boundaries](#nested-error-boundaries)
+- [Protected Routes](#protected-routes)
+  - [Component-Based Protection](#component-based-protection)
+  - [Middleware (Framework Mode)](#middleware-framework-mode)
+- [Lazy Loading / Code Splitting](#lazy-loading--code-splitting)
+  - [Data Mode Lazy Loading](#data-mode-lazy-loading)
+  - [Declarative Mode Lazy Loading](#declarative-mode-lazy-loading)
+- [Common Route Patterns](#common-route-patterns)
+  - [Optional Segments](#optional-segments)
+  - [Catch-All / Splat Routes](#catch-all--splat-routes)
+  - [Multiple Params](#multiple-params)
+- [Index vs Path Routes](#index-vs-path-routes)
+
+---
+
 ## Error Boundaries
 
 ### Root Error Boundary (Required)

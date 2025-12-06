@@ -1,5 +1,18 @@
 # Configuration
 
+## Contents
+
+- [Basic Config](#basic-config)
+- [Global Setup](#global-setup)
+- [DOM Testing](#dom-testing)
+- [Concurrent Tests](#concurrent-tests)
+- [Test Isolation](#test-isolation)
+- [Type Testing](#type-testing)
+- [Environment Variables](#environment-variables)
+- [Coverage Configuration](#coverage-configuration)
+
+---
+
 ## Basic Config
 
 ```ts

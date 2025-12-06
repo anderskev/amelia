@@ -1,5 +1,19 @@
 # Navigation Patterns
 
+## Contents
+
+- [NavLink (Active Styling)](#navlink-active-styling)
+- [Link (No Active Styling)](#link-no-active-styling)
+- [Programmatic Navigation](#programmatic-navigation)
+- [Redirect in Loaders](#redirect-in-loaders)
+- [Pending UI (Navigation State)](#pending-ui-navigation-state)
+- [Form Submission State](#form-submission-state)
+- [Index Routes](#index-routes)
+- [Layout Routes (No Path)](#layout-routes-no-path)
+- [Navigate Component](#navigate-component)
+
+---
+
 ## NavLink (Active Styling)
 
 ```tsx

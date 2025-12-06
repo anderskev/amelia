@@ -1,5 +1,17 @@
 # Middleware
 
+## Contents
+
+- [Persist (localStorage)](#persist-localstorage)
+- [DevTools](#devtools)
+- [Immer (Mutable Updates)](#immer-mutable-updates)
+- [Combine Middleware](#combine-middleware)
+- [SubscribeWithSelector](#subscribewithselector)
+- [Next.js / SSR Hydration](#nextjs--ssr-hydration)
+- [Async Persistence](#async-persistence)
+
+---
+
 ## Persist (localStorage)
 
 ```typescript

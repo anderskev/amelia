@@ -1,5 +1,26 @@
 # Patterns & Best Practices
 
+## Contents
+
+- [Slices Pattern (Store Composition)](#slices-pattern-store-composition)
+- [TypeScript Slices](#typescript-slices)
+- [Testing](#testing)
+  - [Mock Store Setup (Vitest)](#mock-store-setup-vitest)
+  - [Component Tests](#component-tests)
+- [Reset Store](#reset-store)
+- [Computed Values (Derived State)](#computed-values-derived-state)
+- [Transient Updates (No Rerender)](#transient-updates-no-rerender)
+- [Best Practices](#best-practices)
+  - [Single Store Per Domain](#single-store-per-domain)
+  - [Colocate Actions](#colocate-actions)
+  - [Selector Stability](#selector-stability)
+- [Pitfalls to Avoid](#pitfalls-to-avoid)
+  - [Don't Mutate State](#dont-mutate-state)
+  - [Avoid Fetching Entire Store](#avoid-fetching-entire-store)
+  - [React Context (Dependency Injection)](#react-context-dependency-injection)
+
+---
+
 ## Slices Pattern (Store Composition)
 
 ```typescript

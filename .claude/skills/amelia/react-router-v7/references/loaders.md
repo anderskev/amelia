@@ -1,5 +1,16 @@
 # Data Loading Patterns
 
+## Contents
+
+- [Basic Loader](#basic-loader)
+- [Parallel Data Loading](#parallel-data-loading)
+- [Search Params in Loaders](#search-params-in-loaders)
+- [useSearchParams Hook](#usesearchparams-hook)
+- [Revalidation Control](#revalidation-control)
+- [Framework Mode Loaders](#framework-mode-loaders)
+
+---
+
 ## Basic Loader
 
 ```tsx

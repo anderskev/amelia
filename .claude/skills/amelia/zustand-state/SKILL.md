@@ -91,9 +91,9 @@ store.subscribe((state) => console.log(state))
 
 ## Additional Documentation
 
-- **Middleware**: See [MIDDLEWARE.md](MIDDLEWARE.md) for persist, devtools, immer
-- **Patterns**: See [PATTERNS.md](PATTERNS.md) for slices, testing, best practices
-- **TypeScript**: See [TYPESCRIPT.md](TYPESCRIPT.md) for advanced typing patterns
+- **Middleware**: See [references/middleware.md](references/middleware.md) for persist, devtools, immer
+- **Patterns**: See [references/patterns.md](references/patterns.md) for slices, testing, best practices
+- **TypeScript**: See [references/typescript.md](references/typescript.md) for advanced typing patterns
 
 ## Key Patterns
 

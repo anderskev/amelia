@@ -1,5 +1,19 @@
 # TypeScript Patterns
 
+## Contents
+
+- [Curried Create Syntax](#curried-create-syntax)
+- [Separate State and Actions](#separate-state-and-actions)
+- [Extract Store Type](#extract-store-type)
+- [Async Actions](#async-actions)
+- [Typed Slices with StateCreator](#typed-slices-with-statecreator)
+- [Middleware Type Parameters](#middleware-type-parameters)
+- [Typed Selectors](#typed-selectors)
+- [Custom Equality Functions](#custom-equality-functions)
+- [Vanilla Store with Types](#vanilla-store-with-types)
+
+---
+
 ## Curried Create Syntax
 
 ```typescript
