@@ -50,6 +50,8 @@ EOF
 uv run amelia plan-only TEST-001
 ```
 
+> **Note:** The `tracker: noop` configuration above uses a mock issue tracker for testing. If you configure `tracker: github` or `tracker: jira`, you must have an issue matching the ID (e.g., `TEST-001`) in your configured tracker.
+
 ## How It Works
 
 ### Agent Roles
