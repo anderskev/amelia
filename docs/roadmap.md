@@ -337,6 +337,59 @@ See [Spec Builder Design](plans/2025-12-05-spec-builder-design.md) for full spec
 
 ---
 
+## Phase 12: Debate Mode 🆕
+
+*Multi-agent deliberation for design decisions and exploratory research*
+
+When facing complex decisions without clear answers, a single agent often picks one path without exploring alternatives. Debate Mode spawns multiple agents with assigned perspectives to argue different viewpoints, moderated by a Judge agent that synthesizes arguments into a reasoned recommendation.
+
+### Core Flow
+
+```
+User Prompt → Moderator (analyze & assign roles) → Debaters argue Round 1
+    ↓
+[Human checkpoint: Continue / Guide / End]
+    ↓
+Debaters argue Round N... → Moderator detects convergence or hits max rounds
+    ↓
+Moderator synthesizes → Full synthesis document
+    ↓
+[Optional: "Create workflow from this decision?"]
+```
+
+### Moderator Agent
+- [ ] **Prompt analysis** - Identify decision domain, detect constraints, determine debater count (2-4)
+- [ ] **Dynamic perspective assignment** - Select relevant viewpoints from perspective catalog
+- [ ] **Round management** - Assess convergence, decide continuation, enforce max rounds
+- [ ] **Synthesis generation** - Aggregate arguments, identify agreements/tensions, write recommendation
+
+### Debate Rounds
+- [ ] **Parallel initial arguments** - Debaters submit arguments simultaneously
+- [ ] **Sequential rebuttals** - Each debater responds to others' points
+- [ ] **Convergence detection** - Agreement, stagnation, clear winner, or max rounds
+- [ ] **Human checkpoints** - Optional guidance injection between rounds
+
+### Output
+- [ ] **Synthesis document** - Structured markdown in `docs/decisions/`
+  - Perspectives considered with key arguments
+  - Points of agreement and key tensions
+  - Recommendation with confidence level and caveats
+- [ ] **Action items follow-up** - Optional workflow creation from decision
+
+### Interfaces
+- [ ] **CLI** - `amelia debate "prompt"` with options for perspectives, max rounds, checkpoints
+- [ ] **Dashboard** - New "Debates" tab with live streaming, perspective cards, checkpoint buttons
+
+### Configuration
+- [ ] **Perspective catalog** - Built-in perspectives (Performance, Simplicity, Security, etc.)
+- [ ] **Custom perspectives** - User-defined via `settings.amelia.yaml`
+- [ ] **Token budgets** - Per-round limits (configurable, or unlimited)
+- [ ] **Timeouts** - Round, checkpoint, and total debate timeouts
+
+See [Debate Mode Design](plans/2025-12-05-debate-mode-design.md) for full specification.
+
+---
+
 ## Implementation Notes
 
 ### Feature List Format

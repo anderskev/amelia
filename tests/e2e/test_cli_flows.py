@@ -31,14 +31,17 @@ def test_cli_review_local_output(settings_file_factory):
 
         # Setup git repo
         subprocess.run(["git", "init"], check=True, capture_output=True)
-        subprocess.run(["git", "config", "user.email", "you@example.com"], check=True, capture_output=True)
-        subprocess.run(["git", "config", "user.name", "Your Name"], check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "Test User"], check=True, capture_output=True)
 
-        # Create file and commit
+        # Create file and commit (use -c flags to ensure config is applied)
         with open("test.txt", "w") as f:
             f.write("initial content")
         subprocess.run(["git", "add", "test.txt"], check=True, capture_output=True)
-        subprocess.run(["git", "commit", "-m", "initial"], check=True, capture_output=True)
+        subprocess.run([
+            "git", "-c", "user.email=test@example.com", "-c", "user.name=Test User",
+            "commit", "-m", "initial"
+        ], check=True, capture_output=True)
 
         # Make change (unstaged)
         with open("test.txt", "w") as f:

@@ -196,3 +196,4 @@ See [**docs/roadmap.md**](docs/roadmap.md) for the full roadmap with implementat
 | 9 | Chat Integration | Planned |
 | 10 | Continuous Improvement | Planned |
 | 11 | Spec Builder | Planned |
+| 12 | Debate Mode | Planned |
