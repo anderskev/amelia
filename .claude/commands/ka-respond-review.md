@@ -31,13 +31,14 @@ You have just evaluated the greptile code review feedback using `/ka-greptile-re
    Use this API call to reply:
    ```bash
    gh api repos/{owner}/{repo}/pulls/{number}/comments/{comment_id}/replies \
-     -X POST -f body="Your response here"
+     -X POST -f body="@greptile-apps Your response here"
    ```
 
 4. **Summary**: List which comments were addressed and how.
 
 ## Response Guidelines
 
+- **Always tag @greptile-apps at the start of each reply**
 - Keep responses concise and technical
 - No performative agreement ("Great point!", "You're right!")
 - Reference specific code/design when explaining decisions
