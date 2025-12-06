@@ -6,7 +6,7 @@ This folder contains manual testing procedures and test plans for features that 
 
 | Document | Description |
 |----------|-------------|
-| [WebSocket Manual Testing Plan](websocket-manual-testing-plan.md) | Manual testing procedures for WebSocket real-time functionality |
+
 
 ## Purpose
 
