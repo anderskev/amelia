@@ -77,12 +77,13 @@ class ConnectionManager:
                 self._connections[websocket] = set()
 
     async def broadcast(self, event: WorkflowEvent) -> None:
-        """Broadcast event to subscribed connections only.
+        """Broadcast event to subscribed connections concurrently.
 
         Connections with empty subscription set receive all events.
         Connections with specific workflow IDs only receive matching events.
 
-        Automatically removes disconnected clients.
+        Sends to all clients concurrently with a timeout. Slow or hung clients
+        are disconnected after timeout to prevent blocking other subscribers.
 
         Args:
             event: The workflow event to broadcast.
@@ -94,19 +95,29 @@ class ConnectionManager:
                 if not subscribed_ids or event.workflow_id in subscribed_ids:
                     targets.append(ws)
 
-        for ws in targets:
+        if not targets:
+            return
+
+        payload = {
+            "type": "event",
+            "payload": event.model_dump(mode="json"),
+        }
+
+        async def send_to_client(ws: WebSocket) -> tuple[WebSocket, bool]:
+            """Send to single client with timeout. Returns (ws, success)."""
             try:
-                await ws.send_json({
-                    "type": "event",
-                    "payload": event.model_dump(mode="json"),
-                })
-            except WebSocketDisconnect:
-                # Remove disconnected client
-                async with self._lock:
-                    self._connections.pop(ws, None)
-            except Exception:
-                # Remove on any error
-                async with self._lock:
+                await asyncio.wait_for(ws.send_json(payload), timeout=5.0)
+                return (ws, True)
+            except (WebSocketDisconnect, TimeoutError, Exception):
+                return (ws, False)
+
+        results = await asyncio.gather(*(send_to_client(ws) for ws in targets))
+
+        # Remove failed connections
+        failed = [ws for ws, success in results if not success]
+        if failed:
+            async with self._lock:
+                for ws in failed:
                     self._connections.pop(ws, None)
 
     async def close_all(self, code: int = 1000, reason: str = "") -> None:

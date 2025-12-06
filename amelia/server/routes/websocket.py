@@ -47,16 +47,7 @@ async def websocket_endpoint(
     try:
         # Handle backfill if reconnecting
         if since:
-            event_exists = await repository.event_exists(since)
-
-            if not event_exists:
-                # Event was cleaned up by retention - client needs full refresh
-                await websocket.send_json({
-                    "type": "backfill_expired",
-                    "message": "Requested event no longer exists. Full refresh required.",
-                })
-                logger.warning("backfill_expired", since_event_id=since)
-            else:
+            try:
                 # Replay missed events from database
                 events = await repository.get_events_after(since)
 
@@ -71,6 +62,13 @@ async def websocket_endpoint(
                     "count": len(events),
                 })
                 logger.info("backfill_complete", count=len(events))
+            except ValueError:
+                # Event was cleaned up by retention - client needs full refresh
+                await websocket.send_json({
+                    "type": "backfill_expired",
+                    "message": "Requested event no longer exists. Full refresh required.",
+                })
+                logger.warning("backfill_expired", since_event_id=since)
 
         # Start heartbeat task
         heartbeat_task = asyncio.create_task(_heartbeat_loop(websocket))

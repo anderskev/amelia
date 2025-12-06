@@ -1,7 +1,7 @@
 """Shared fixtures for database tests."""
 
 from collections.abc import AsyncGenerator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -87,7 +87,7 @@ async def workflow(repository: WorkflowRepository) -> ServerExecutionState:
         worktree_path="/tmp/test",
         worktree_name="test",
         workflow_status="pending",
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(UTC),
     )
     await repository.create(wf)
     return wf
