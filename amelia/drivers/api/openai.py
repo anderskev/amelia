@@ -13,9 +13,14 @@ from amelia.tools.safe_shell import SafeShellExecutor
 
 
 class ApiDriver(DriverInterface):
+    """Real OpenAI API-based driver using pydantic-ai.
+
+    Provides LLM generation capabilities through OpenAI's API.
+
+    Attributes:
+        model_name: The OpenAI model identifier in format 'openai:model-name'.
     """
-    Real OpenAI API-based driver using pydantic-ai.
-    """
+
     def __init__(self, model: str = 'openai:gpt-4o'):
         """Initialize the API driver with an OpenAI model.
 
@@ -31,6 +36,19 @@ class ApiDriver(DriverInterface):
         self.model_name = model
 
     async def generate(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None, **kwargs: Any) -> Any:
+        """Generate a response from the OpenAI model.
+
+        Args:
+            messages: List of conversation messages to send.
+            schema: Optional Pydantic model for structured output parsing.
+            **kwargs: Additional arguments (unused).
+
+        Returns:
+            Model output, either as string or parsed schema instance.
+
+        Raises:
+            RuntimeError: If API call fails.
+        """
         if not os.environ.get("OPENAI_API_KEY"):
              # Fail fast if no key, or maybe fallback? For now, fail.
              # But for tests, we might need to mock this. 

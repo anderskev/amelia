@@ -3,21 +3,25 @@
 import asyncio
 import contextlib
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from amelia.core.types import Settings
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.exceptions import (
     ConcurrencyLimitError,
     InvalidStateError,
+    InvalidWorktreeError,
     WorkflowConflictError,
     WorkflowNotFoundError,
 )
 from amelia.server.models import ServerExecutionState
 from amelia.server.models.events import EventType
 from amelia.server.orchestrator.service import OrchestratorService
+from tests.conftest import AsyncIteratorMock
 
 
 @pytest.fixture
@@ -43,30 +47,108 @@ def mock_repository() -> AsyncMock:
 def orchestrator(
     mock_event_bus: EventBus,
     mock_repository: AsyncMock,
+    mock_settings: Settings,
 ) -> OrchestratorService:
     """Create orchestrator service."""
     return OrchestratorService(
         event_bus=mock_event_bus,
         repository=mock_repository,
+        settings=mock_settings,
         max_concurrent=5,
     )
+
+
+@pytest.fixture
+def valid_worktree(tmp_path: Path) -> str:
+    """Create a valid git worktree directory.
+
+    Args:
+        tmp_path: Pytest tmp_path fixture.
+
+    Returns:
+        Absolute path to the valid worktree.
+    """
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    (worktree / ".git").touch()  # Git worktrees have a .git file
+    return str(worktree)
+
+
+# =============================================================================
+# Worktree Validation Tests
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_start_workflow_rejects_nonexistent_path(
+    orchestrator: OrchestratorService,
+) -> None:
+    """Should raise InvalidWorktreeError when path doesn't exist."""
+    with pytest.raises(InvalidWorktreeError) as exc_info:
+        await orchestrator.start_workflow(
+            issue_id="ISSUE-123",
+            worktree_path="/nonexistent/path",
+            worktree_name="test",
+        )
+
+    assert exc_info.value.worktree_path == "/nonexistent/path"
+    assert "does not exist" in exc_info.value.reason
+
+
+@pytest.mark.asyncio
+async def test_start_workflow_rejects_file_path(
+    orchestrator: OrchestratorService,
+    tmp_path: Path,
+) -> None:
+    """Should raise InvalidWorktreeError when path is a file, not directory."""
+    file_path = tmp_path / "not-a-dir"
+    file_path.touch()
+
+    with pytest.raises(InvalidWorktreeError) as exc_info:
+        await orchestrator.start_workflow(
+            issue_id="ISSUE-123",
+            worktree_path=str(file_path),
+            worktree_name="test",
+        )
+
+    assert "not a directory" in exc_info.value.reason
+
+
+@pytest.mark.asyncio
+async def test_start_workflow_rejects_non_git_directory(
+    orchestrator: OrchestratorService,
+    tmp_path: Path,
+) -> None:
+    """Should raise InvalidWorktreeError when directory lacks .git."""
+    plain_dir = tmp_path / "plain-dir"
+    plain_dir.mkdir()
+
+    with pytest.raises(InvalidWorktreeError) as exc_info:
+        await orchestrator.start_workflow(
+            issue_id="ISSUE-123",
+            worktree_path=str(plain_dir),
+            worktree_name="test",
+        )
+
+    assert ".git missing" in exc_info.value.reason
 
 
 @pytest.mark.asyncio
 async def test_start_workflow_success(
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
+    valid_worktree: str,
 ) -> None:
     """Should start workflow and return workflow ID."""
     with patch.object(orchestrator, "_run_workflow", new=AsyncMock()):
         workflow_id = await orchestrator.start_workflow(
             issue_id="ISSUE-123",
-            worktree_path="/path/to/worktree",
+            worktree_path=valid_worktree,
             worktree_name="feat-123",
         )
 
         assert workflow_id  # Should return a UUID
-        assert "/path/to/worktree" in orchestrator._active_tasks
+        assert valid_worktree in orchestrator._active_tasks
         mock_repository.create.assert_called_once()
 
         # Verify state creation
@@ -74,18 +156,22 @@ async def test_start_workflow_success(
         state = call_args[0][0]
         assert state.id == workflow_id
         assert state.issue_id == "ISSUE-123"
-        assert state.worktree_path == "/path/to/worktree"
+        assert state.worktree_path == valid_worktree
         assert state.worktree_name == "feat-123"
         assert state.workflow_status == "pending"
+        # Verify execution_state is initialized with profile
+        assert state.execution_state is not None
+        assert state.execution_state.profile.name == "test"
 
 
 @pytest.mark.asyncio
 async def test_start_workflow_conflict(
     orchestrator: OrchestratorService,
+    valid_worktree: str,
 ) -> None:
     """Should raise WorkflowConflictError when worktree already active."""
     # Create a fake task to simulate active workflow
-    orchestrator._active_tasks["/path/to/worktree"] = (
+    orchestrator._active_tasks[valid_worktree] = (
         "existing-wf",
         asyncio.create_task(asyncio.sleep(1)),
     )
@@ -93,14 +179,14 @@ async def test_start_workflow_conflict(
     with pytest.raises(WorkflowConflictError) as exc_info:
         await orchestrator.start_workflow(
             issue_id="ISSUE-123",
-            worktree_path="/path/to/worktree",
+            worktree_path=valid_worktree,
             worktree_name="feat-123",
         )
 
-    assert "/path/to/worktree" in str(exc_info.value)
+    assert valid_worktree in str(exc_info.value)
 
     # Cleanup
-    _, task = orchestrator._active_tasks["/path/to/worktree"]
+    _, task = orchestrator._active_tasks[valid_worktree]
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await task
@@ -109,19 +195,22 @@ async def test_start_workflow_conflict(
 @pytest.mark.asyncio
 async def test_start_workflow_concurrency_limit(
     orchestrator: OrchestratorService,
+    valid_worktree: str,
 ) -> None:
     """Should raise ConcurrencyLimitError when at max concurrent."""
-    # Fill up to max concurrent
+    # Fill up to max concurrent (use fake paths for active_tasks - validation
+    # happens before conflict check, so these don't need to be real paths)
     tasks = []
     for i in range(5):
         task = asyncio.create_task(asyncio.sleep(1))
-        orchestrator._active_tasks[f"/path/to/worktree{i}"] = (f"wf-{i}", task)
+        orchestrator._active_tasks[f"/fake/worktree{i}"] = (f"wf-{i}", task)
         tasks.append(task)
 
+    # Now try to start a workflow with a valid worktree path
     with pytest.raises(ConcurrencyLimitError) as exc_info:
         await orchestrator.start_workflow(
             issue_id="ISSUE-123",
-            worktree_path="/path/to/new",
+            worktree_path=valid_worktree,
             worktree_name="feat-new",
         )
 
@@ -251,7 +340,11 @@ async def test_wait_for_approval(
 
 
 @pytest.mark.asyncio
+@patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
+@patch("amelia.server.orchestrator.service.create_orchestrator_graph")
 async def test_approve_workflow_success(
+    mock_create_graph,
+    mock_saver_class,
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
     mock_event_bus: EventBus,
@@ -271,6 +364,19 @@ async def test_approve_workflow_success(
     )
     mock_repository.get.return_value = mock_state
 
+    # Setup mock graph
+    mock_graph = MagicMock()
+    mock_graph.aupdate_state = AsyncMock()
+    # astream_events should return the iterator directly
+    mock_graph.astream_events = MagicMock(return_value=AsyncIteratorMock([]))
+    mock_create_graph.return_value = mock_graph
+
+    mock_saver = AsyncMock()
+    mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
+        return_value=mock_saver
+    )
+    mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
+
     # Simulate workflow waiting for approval
     orchestrator._approval_events["wf-1"] = asyncio.Event()
 
@@ -280,8 +386,12 @@ async def test_approve_workflow_success(
     # Should remove the approval event after setting it
     assert "wf-1" not in orchestrator._approval_events
 
-    # Should update status
-    mock_repository.set_status.assert_called_once_with("wf-1", "in_progress")
+    # Should update status - now called twice: once for in_progress, once for completed
+    assert mock_repository.set_status.call_count == 2
+    # First call is in_progress, second is completed
+    calls = mock_repository.set_status.call_args_list
+    assert calls[0][0] == ("wf-1", "in_progress")
+    assert calls[1][0] == ("wf-1", "completed")
 
     # Should emit APPROVAL_GRANTED
     approval_granted = [e for e in received_events if e.event_type == EventType.APPROVAL_GRANTED]
@@ -321,7 +431,11 @@ async def test_approve_workflow_not_blocked(
 
 
 @pytest.mark.asyncio
+@patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
+@patch("amelia.server.orchestrator.service.create_orchestrator_graph")
 async def test_reject_workflow_success(
+    mock_create_graph,
+    mock_saver_class,
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
     mock_event_bus: EventBus,
@@ -340,6 +454,17 @@ async def test_reject_workflow_success(
         started_at=datetime.now(UTC),
     )
     mock_repository.get.return_value = mock_state
+
+    # Setup mock graph
+    mock_graph = AsyncMock()
+    mock_graph.aupdate_state = AsyncMock()
+    mock_create_graph.return_value = mock_graph
+
+    mock_saver = AsyncMock()
+    mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
+        return_value=mock_saver
+    )
+    mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
 
     # Create fake task
     task = asyncio.create_task(asyncio.sleep(100))
@@ -395,6 +520,82 @@ async def test_reject_workflow_not_blocked(
 
     with pytest.raises(InvalidStateError):
         await orchestrator.reject_workflow("wf-1", feedback="Nope")
+
+
+class TestRejectWorkflowGraphState:
+    """Test reject_workflow updates LangGraph state."""
+
+    @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
+    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    async def test_reject_updates_graph_state(
+        self, mock_create_graph, mock_saver_class, orchestrator, mock_repository
+    ):
+        """reject_workflow updates graph state with human_approved=False."""
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/tmp/test",
+            worktree_name="test",
+            workflow_status="blocked",
+        )
+        mock_repository.get.return_value = workflow
+
+        mock_graph = AsyncMock()
+        mock_graph.aupdate_state = AsyncMock()
+        mock_create_graph.return_value = mock_graph
+
+        mock_saver = AsyncMock()
+        mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
+            return_value=mock_saver
+        )
+        mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
+
+        await orchestrator.reject_workflow("wf-123", "Not ready")
+
+        mock_graph.aupdate_state.assert_called_once()
+        call_args = mock_graph.aupdate_state.call_args
+        assert call_args[0][1] == {"human_approved": False}
+
+
+class TestApproveWorkflowResume:
+    """Test approve_workflow resumes LangGraph execution."""
+
+    @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
+    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    async def test_approve_updates_state_and_resumes(
+        self, mock_create_graph, mock_saver_class, orchestrator, mock_repository
+    ):
+        """approve_workflow updates graph state and resumes execution."""
+        # Setup blocked workflow
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/tmp/test",
+            worktree_name="test",
+            workflow_status="blocked",
+        )
+        mock_repository.get.return_value = workflow
+        orchestrator._active_tasks["/tmp/test"] = ("wf-123", AsyncMock())
+
+        # Setup mock graph
+        mock_graph = MagicMock()
+        mock_graph.aupdate_state = AsyncMock()
+        # astream_events should return the iterator directly
+        mock_graph.astream_events = MagicMock(return_value=AsyncIteratorMock([]))
+        mock_create_graph.return_value = mock_graph
+
+        mock_saver = AsyncMock()
+        mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
+            return_value=mock_saver
+        )
+        mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
+
+        await orchestrator.approve_workflow("wf-123")
+
+        # Verify state was updated with approval
+        mock_graph.aupdate_state.assert_called_once()
+        call_args = mock_graph.aupdate_state.call_args
+        assert call_args[0][1] == {"human_approved": True}
 
 
 # =============================================================================

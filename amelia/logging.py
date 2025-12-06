@@ -41,7 +41,15 @@ RESET = "\033[0m"
 
 
 def _make_gradient_text(text: str, colors: list[str]) -> str:
-    """Apply a gradient effect across text characters."""
+    """Apply a gradient effect across text characters.
+
+    Args:
+        text: Input text to colorize.
+        colors: List of ANSI escape codes for gradient colors.
+
+    Returns:
+        Text string with ANSI gradient coloring applied.
+    """
     if not text:
         return ""
 
@@ -57,7 +65,11 @@ def _make_gradient_text(text: str, colors: list[str]) -> str:
 
 
 def _amelia_banner() -> str:
-    """Generate the Amelia startup banner with gradient."""
+    """Generate the Amelia startup banner with gradient.
+
+    Returns:
+        Multi-line string containing the styled ASCII art banner.
+    """
     # Generate random number between 14-1000
     days_until_agi = random.randint(14, 1000)
     days_until_agi_text = f"{days_until_agi}"

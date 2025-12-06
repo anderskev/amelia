@@ -3,8 +3,10 @@ import subprocess
 from typing import Any
 
 import typer
-from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.runnables.config import RunnableConfig
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
 from amelia.agents.architect import Architect
@@ -48,28 +50,46 @@ async def call_architect_node(state: ExecutionState) -> ExecutionState:
         messages=messages
     )
 
-async def human_approval_node(state: ExecutionState) -> ExecutionState:
+async def human_approval_node(
+    state: ExecutionState,
+    config: RunnableConfig | None = None,
+) -> ExecutionState:
     """Node to prompt for human approval before proceeding.
+
+    Behavior depends on execution mode:
+    - CLI mode: Blocking prompt via typer.confirm
+    - Server mode: Returns state unchanged (interrupt mechanism handles pause)
 
     Args:
         state: Current execution state containing the plan to be reviewed.
+        config: Optional RunnableConfig with execution_mode in configurable.
 
     Returns:
         Updated execution state with approval status and messages.
     """
+    config = config or {}
+    execution_mode = config.get("configurable", {}).get("execution_mode", "cli")
+
+    if execution_mode == "server":
+        # Server mode: approval comes from resumed state after interrupt
+        # If human_approved is already set (from resume), use it
+        # Otherwise, just return - the interrupt mechanism will pause here
+        return state
+
+    # CLI mode: blocking prompt
     typer.secho("\n--- HUMAN APPROVAL REQUIRED ---", fg=typer.colors.BRIGHT_YELLOW)
     typer.echo("Review the proposed plan before proceeding. State snapshot (for debug):")
     typer.echo(f"Plan for issue {state.issue.id if state.issue else 'N/A'}:")
     if state.plan:
         for task in state.plan.tasks:
             typer.echo(f"  - [{task.id}] {task.description} (Dependencies: {', '.join(task.dependencies)})")
-    
+
     approved = typer.confirm("Do you approve this plan to proceed with development?", default=True)
     comment = typer.prompt("Add an optional comment for the audit log (press Enter to skip)", default="")
 
     approval_message = f"Human approval: {'Approved' if approved else 'Rejected'}. Comment: {comment}"
     messages = state.messages + [AgentMessage(role="system", content=approval_message)]
-    
+
     return ExecutionState(
         profile=state.profile,
         issue=state.issue,
@@ -277,31 +297,34 @@ def should_continue_review_loop(state: ExecutionState) -> str:
         return "end"
     return "end"
 
-def create_orchestrator_graph(checkpoint_saver: MemorySaver | None = None) -> Any:
+def create_orchestrator_graph(
+    checkpoint_saver: BaseCheckpointSaver[Any] | None = None,
+    interrupt_before: list[str] | None = None,
+) -> CompiledStateGraph[Any]:
     """Creates and compiles the LangGraph state machine for the orchestrator.
 
-    Configures checkpointing if a saver is provided.
-
     Args:
-        checkpoint_saver: Optional memory saver for checkpointing graph state.
+        checkpoint_saver: Optional checkpoint saver for state persistence.
+        interrupt_before: List of node names to interrupt before executing.
+            Use ["human_approval_node"] for server-mode human-in-the-loop.
 
     Returns:
-        Compiled LangGraph application ready for execution.
+        Compiled StateGraph ready for execution.
     """
     workflow = StateGraph(ExecutionState)
-    
+
     # Add nodes
     workflow.add_node("architect_node", call_architect_node)
     workflow.add_node("human_approval_node", human_approval_node)
     workflow.add_node("developer_node", call_developer_node)
     workflow.add_node("reviewer_node", call_reviewer_node)
-    
+
     # Set entry point
     workflow.set_entry_point("architect_node")
-    
+
     # Define edges
     workflow.add_edge("architect_node", "human_approval_node")
-    
+
     # Conditional edge from human_approval_node: if approved, go to developer_node, else END
     workflow.add_conditional_edges(
         "human_approval_node",
@@ -311,7 +334,7 @@ def create_orchestrator_graph(checkpoint_saver: MemorySaver | None = None) -> An
             "reject": END
         }
     )
-    
+
     # Developer -> Reviewer (after all development tasks are done)
     workflow.add_conditional_edges(
         "developer_node",
@@ -321,7 +344,7 @@ def create_orchestrator_graph(checkpoint_saver: MemorySaver | None = None) -> An
             "end": "reviewer_node"
         }
     )
-    
+
     # Reviewer -> Developer (if not approved) or END (if approved)
     workflow.add_conditional_edges(
         "reviewer_node",
@@ -331,10 +354,8 @@ def create_orchestrator_graph(checkpoint_saver: MemorySaver | None = None) -> An
             "end": END
         }
     )
-    
-    app = workflow.compile()
-    
-    if checkpoint_saver:
-        app = app.with_config({"configurable": {"checkpoint_saver": checkpoint_saver}})
-        
-    return app
+
+    return workflow.compile(
+        checkpointer=checkpoint_saver,
+        interrupt_before=interrupt_before,
+    )
