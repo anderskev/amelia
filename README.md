@@ -4,7 +4,9 @@
 
 ## What is Amelia?
 
-Amelia automates development workflows (issue analysis, planning, coding, review) while respecting enterprise constraints. It uses **agentic orchestration** - multiple AI agents coordinate to accomplish complex tasks:
+Amelia automates development workflows (issue analysis, planning, coding, review) while respecting enterprise constraints. It uses **agentic orchestration** - multiple AI agents coordinate to accomplish complex tasks.
+
+**Core Philosophy:** Amelia is built with the assumption that LLMs will continually improve. We prefer prompts over code, delegation over hardcoding, and flexible architectures—so as models get smarter, Amelia automatically gets better without requiring changes.
 
 ```
 Issue → Architect (plan) → Human Approval → Developer (execute) ↔ Reviewer (review) → Done
