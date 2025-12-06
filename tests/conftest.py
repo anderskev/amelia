@@ -14,6 +14,38 @@ from amelia.drivers.base import DriverInterface
 from amelia.trackers.noop import NoopTracker
 
 
+class AsyncIteratorMock:
+    """Mock async iterator for testing async generators.
+
+    Usage:
+        mock_stream = AsyncIteratorMock([{"event": "a"}, {"event": "b"}])
+        async for item in mock_stream:
+            print(item)
+    """
+
+    def __init__(self, items: list[Any]) -> None:
+        self.items = items
+        self.index = 0
+
+    def __aiter__(self) -> "AsyncIteratorMock":
+        return self
+
+    async def __anext__(self) -> Any:
+        if self.index >= len(self.items):
+            raise StopAsyncIteration
+        item = self.items[self.index]
+        self.index += 1
+        return item
+
+
+@pytest.fixture
+def async_iterator_mock_factory():
+    """Factory fixture for creating AsyncIteratorMock instances."""
+    def _create(items: list[Any]) -> AsyncIteratorMock:
+        return AsyncIteratorMock(items)
+    return _create
+
+
 @pytest.fixture
 def mock_issue_factory():
     """Factory fixture for creating test Issue instances with sensible defaults."""

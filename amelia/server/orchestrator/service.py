@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
@@ -59,7 +60,10 @@ class OrchestratorService:
         self._event_bus = event_bus
         self._repository = repository
         self._max_concurrent = max_concurrent
-        self._checkpoint_path = checkpoint_path
+        # Expand ~ and resolve path, ensure parent directory exists
+        expanded_path = Path(checkpoint_path).expanduser().resolve()
+        expanded_path.parent.mkdir(parents=True, exist_ok=True)
+        self._checkpoint_path = str(expanded_path)
         self._active_tasks: dict[str, tuple[str, asyncio.Task[None]]] = {}  # worktree_path -> (workflow_id, task)
         self._approval_events: dict[str, asyncio.Event] = {}  # workflow_id -> event
         self._approval_lock = asyncio.Lock()  # Prevents race conditions on approvals

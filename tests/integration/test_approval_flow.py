@@ -21,6 +21,7 @@ from amelia.server.database.repository import WorkflowRepository
 from amelia.server.models.events import EventType, WorkflowEvent
 from amelia.server.models.state import ServerExecutionState
 from amelia.server.orchestrator.service import OrchestratorService
+from tests.conftest import AsyncIteratorMock
 
 
 @pytest.fixture
@@ -238,21 +239,3 @@ class TestGraphInterruptHandling:
         # Verify APPROVAL_REQUIRED was emitted
         approval_events = event_tracker.get_by_type(EventType.APPROVAL_REQUIRED)
         assert len(approval_events) >= 1
-
-
-class AsyncIteratorMock:
-    """Mock async iterator for astream_events."""
-
-    def __init__(self, items: list):
-        self.items = items
-        self.index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self.index >= len(self.items):
-            raise StopAsyncIteration
-        item = self.items[self.index]
-        self.index += 1
-        return item

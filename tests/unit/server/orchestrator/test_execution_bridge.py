@@ -10,6 +10,7 @@ from amelia.core.types import Profile
 from amelia.server.models.events import EventType
 from amelia.server.models.state import ServerExecutionState
 from amelia.server.orchestrator.service import OrchestratorService
+from tests.conftest import AsyncIteratorMock
 
 
 @pytest.fixture
@@ -190,19 +191,3 @@ class TestRunWorkflowInterruptHandling:
         assert call_kwargs.get("interrupt_before") == ["human_approval_node"]
 
 
-class AsyncIteratorMock:
-    """Mock async iterator for astream_events."""
-
-    def __init__(self, items):
-        self.items = items
-        self.index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self.index >= len(self.items):
-            raise StopAsyncIteration
-        item = self.items[self.index]
-        self.index += 1
-        return item
