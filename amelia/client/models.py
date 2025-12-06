@@ -16,7 +16,7 @@ class CreateWorkflowRequest(BaseModel):
 class RejectWorkflowRequest(BaseModel):
     """Request to reject a workflow plan."""
 
-    reason: str = Field(..., min_length=1, max_length=1000)
+    feedback: str = Field(..., min_length=1, max_length=1000)
 
 
 class WorkflowResponse(BaseModel):
@@ -42,6 +42,7 @@ class WorkflowSummary(BaseModel):
     worktree_path: str
     worktree_name: str | None = None
     started_at: datetime
+    current_stage: str | None = None
 
 
 class WorkflowListResponse(BaseModel):
@@ -49,4 +50,4 @@ class WorkflowListResponse(BaseModel):
 
     workflows: list[WorkflowSummary]
     total: int
-    next_cursor: str | None = None
+    cursor: str | None = None

@@ -1,4 +1,5 @@
 """REST API client for Amelia server."""
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -116,7 +117,7 @@ class AmeliaClient:
                     json=request.model_dump(exclude_none=True),
                 )
 
-                if response.status_code == 200:
+                if response.status_code in (200, 201):
                     return WorkflowResponse.model_validate(response.json())
                 elif response.status_code == 409:
                     data = response.json()
@@ -189,7 +190,7 @@ class AmeliaClient:
             InvalidRequestError: If workflow is not in a state that can be rejected
             ServerUnreachableError: If server is not running
         """
-        request = RejectWorkflowRequest(reason=reason)
+        request = RejectWorkflowRequest(feedback=reason)
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -254,19 +255,27 @@ class AmeliaClient:
         Raises:
             ServerUnreachableError: If server is not running
         """
-        params: dict[str, str] = {"status": "active"}
-        if worktree_path:
-            params["worktree"] = worktree_path
-
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.get(
-                    f"{self.base_url}/api/workflows",
-                    params=params,
+                    f"{self.base_url}/api/workflows/active",
                 )
 
                 if response.status_code == 200:
-                    return WorkflowListResponse.model_validate(response.json())
+                    result = WorkflowListResponse.model_validate(response.json())
+
+                    # Filter by worktree if specified
+                    if worktree_path:
+                        resolved = Path(worktree_path).resolve()
+                        filtered = [
+                            w for w in result.workflows
+                            if Path(w.worktree_path).resolve() == resolved
+                        ]
+                        return WorkflowListResponse(
+                            workflows=filtered,
+                            total=len(filtered),
+                        )
+                    return result
                 else:
                     response.raise_for_status()
 
@@ -275,7 +284,6 @@ class AmeliaClient:
                 f"Cannot connect to Amelia server at {self.base_url}"
             ) from e
 
-        # This should never be reached, but mypy needs it
         raise RuntimeError("Unexpected code path in get_active_workflows")
 
     async def get_workflow(self, workflow_id: str) -> WorkflowResponse:

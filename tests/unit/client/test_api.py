@@ -101,7 +101,7 @@ class TestAmeliaClient:
 
     @pytest.mark.asyncio
     async def test_reject_workflow(self, client):
-        """reject_workflow sends POST with reason."""
+        """reject_workflow sends POST with feedback."""
         with patch("httpx.AsyncClient.post") as mock_post:
             mock_post.return_value = httpx.Response(200, json={"status": "rejected"})
 
@@ -109,7 +109,7 @@ class TestAmeliaClient:
 
             mock_post.assert_called_once()
             call_kwargs = mock_post.call_args.kwargs
-            assert call_kwargs["json"]["reason"] == "Not ready"
+            assert call_kwargs["json"]["feedback"] == "Not ready"
 
     @pytest.mark.asyncio
     async def test_cancel_workflow(self, client):
@@ -138,7 +138,7 @@ class TestAmeliaClient:
                 }
             ],
             "total": 1,
-            "next_cursor": None,
+            "cursor": None,
         }
 
         with patch("httpx.AsyncClient.get") as mock_get:
@@ -152,17 +152,43 @@ class TestAmeliaClient:
 
     @pytest.mark.asyncio
     async def test_get_active_workflows_filter_by_worktree(self, client):
-        """get_active_workflows can filter by worktree path."""
+        """get_active_workflows filters by worktree path client-side."""
+        mock_response = {
+            "workflows": [
+                {
+                    "id": "wf-123",
+                    "issue_id": "ISSUE-123",
+                    "status": "in_progress",
+                    "worktree_path": "/home/user/repo",
+                    "worktree_name": "main",
+                    "started_at": "2025-12-01T10:00:00Z",
+                },
+                {
+                    "id": "wf-456",
+                    "issue_id": "ISSUE-456",
+                    "status": "in_progress",
+                    "worktree_path": "/home/user/other",
+                    "worktree_name": "feature",
+                    "started_at": "2025-12-01T11:00:00Z",
+                },
+            ],
+            "total": 2,
+            "cursor": None,
+        }
+
         with patch("httpx.AsyncClient.get") as mock_get:
-            mock_get.return_value = httpx.Response(
-                200, json={"workflows": [], "total": 0, "next_cursor": None}
-            )
+            mock_get.return_value = httpx.Response(200, json=mock_response)
 
-            await client.get_active_workflows(worktree_path="/home/user/repo")
+            result = await client.get_active_workflows(worktree_path="/home/user/repo")
 
-            call_kwargs = mock_get.call_args.kwargs
-            assert "worktree" in call_kwargs["params"]
-            assert call_kwargs["params"]["worktree"] == "/home/user/repo"
+            # Verify endpoint is /api/workflows/active
+            call_args = mock_get.call_args
+            assert "/api/workflows/active" in str(call_args)
+
+            # Verify client-side filtering worked
+            assert len(result.workflows) == 1
+            assert result.workflows[0].id == "wf-123"
+            assert result.total == 1
 
     @pytest.mark.asyncio
     async def test_get_workflow(self, client):
