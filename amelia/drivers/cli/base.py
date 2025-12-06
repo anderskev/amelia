@@ -27,8 +27,19 @@ class CliDriver(DriverInterface):
         self.max_retries = max_retries
 
     async def _execute_with_retry(self, func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
-        """
-        Executes an async function with retry logic for timeouts.
+        """Execute an async function with retry logic for timeouts.
+
+        Args:
+            func: The async function to execute.
+            *args: Positional arguments to pass to the function.
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            The result of the function execution.
+
+        Raises:
+            TimeoutError: If all retry attempts are exhausted.
+            RuntimeError: If a non-timeout runtime error occurs.
         """
         attempts = 0
         while True:
@@ -53,6 +64,21 @@ class CliDriver(DriverInterface):
             return await self._execute_with_retry(self._generate_impl, messages, schema, **kwargs)
 
     async def _generate_impl(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None, **kwargs: Any) -> Any:
+        """Generate a response from the LLM.
+
+        Abstract method that subclasses must implement to provide LLM generation.
+
+        Args:
+            messages: List of conversation messages to send to the LLM.
+            schema: Optional Pydantic model for structured output validation.
+            **kwargs: Additional driver-specific parameters.
+
+        Returns:
+            The LLM response, optionally validated against the schema.
+
+        Raises:
+            NotImplementedError: Always raised as this is an abstract method.
+        """
         raise NotImplementedError("Subclasses must implement _generate_impl")
     
     async def execute_tool(self, tool_name: str, **kwargs: Any) -> Any:
@@ -60,4 +86,18 @@ class CliDriver(DriverInterface):
             return await self._execute_with_retry(self._execute_tool_impl, tool_name, **kwargs)
 
     async def _execute_tool_impl(self, tool_name: str, **kwargs: Any) -> Any:
+        """Execute a tool by name with the given arguments.
+
+        Abstract method that subclasses must implement to provide tool execution.
+
+        Args:
+            tool_name: Name of the tool to execute.
+            **kwargs: Tool-specific arguments.
+
+        Returns:
+            The result of the tool execution.
+
+        Raises:
+            NotImplementedError: Always raised as this is an abstract method.
+        """
         raise NotImplementedError("Subclasses must implement _execute_tool_impl")

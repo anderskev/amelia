@@ -47,10 +47,17 @@ class Architect:
         design: Design | None = None,
         output_dir: str = "docs/plans"
     ) -> PlanOutput:
-        """
-        Generates a development plan from an issue and optional design.
+        """Generate a development plan from an issue and optional design.
 
-        Returns both structured TaskDAG and saves markdown for human review.
+        Creates a structured TaskDAG and saves a markdown version for human review.
+
+        Args:
+            issue: The issue to generate a plan for.
+            design: Optional design context to incorporate into the plan.
+            output_dir: Directory path where the markdown plan will be saved.
+
+        Returns:
+            PlanOutput containing the task DAG and path to the saved markdown file.
         """
         context = self._build_context(issue, design)
         task_dag = await self._generate_task_dag(context, issue)
