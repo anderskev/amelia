@@ -132,7 +132,7 @@ describe('API Type Definitions', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd dashboard && npm test -- src/types/__tests__/api.test.ts`
+Run: `cd dashboard && pnpm test -- src/types/__tests__/api.test.ts`
 Expected: FAIL with module not found or type errors
 
 **Step 3: Implement TypeScript type definitions**
@@ -297,7 +297,7 @@ export * from './api';
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd dashboard && npm test -- src/types/__tests__/api.test.ts`
+Run: `cd dashboard && pnpm test -- src/types/__tests__/api.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
@@ -451,7 +451,7 @@ describe('API Client', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd dashboard && npm test -- src/api/__tests__/client.test.ts`
+Run: `cd dashboard && pnpm test -- src/api/__tests__/client.test.ts`
 Expected: FAIL with module not found
 
 **Step 3: Implement API client**
@@ -561,7 +561,7 @@ export { ApiError };
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd dashboard && npm test -- src/api/__tests__/client.test.ts`
+Run: `cd dashboard && pnpm test -- src/api/__tests__/client.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
@@ -688,7 +688,7 @@ describe('Workflow Loaders', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd dashboard && npm test -- src/loaders/__tests__/workflows.test.ts`
+Run: `cd dashboard && pnpm test -- src/loaders/__tests__/workflows.test.ts`
 Expected: FAIL with module not found
 
 **Step 3: Add getWorkflowHistory to API client**
@@ -755,7 +755,7 @@ export { workflowsLoader, workflowDetailLoader, historyLoader } from './workflow
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd dashboard && npm test -- src/loaders/__tests__/workflows.test.ts`
+Run: `cd dashboard && pnpm test -- src/loaders/__tests__/workflows.test.ts`
 Expected: PASS
 
 **Step 6: Commit**
@@ -1048,12 +1048,12 @@ describe('workflowStore', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd dashboard && npm test -- src/store/__tests__/workflowStore.test.ts`
+Run: `cd dashboard && pnpm test -- src/store/__tests__/workflowStore.test.ts`
 Expected: FAIL with module not found
 
 **Step 3: Install Zustand**
 
-Run: `cd dashboard && npm install zustand`
+Run: `cd dashboard && pnpm add zustand`
 
 **Step 4: Implement Zustand store**
 
@@ -1178,7 +1178,7 @@ export const useWorkflowStore = create<WorkflowState>()(
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd dashboard && npm test -- src/store/__tests__/workflowStore.test.ts`
+Run: `cd dashboard && pnpm test -- src/store/__tests__/workflowStore.test.ts`
 Expected: PASS
 
 **Step 6: Commit**
@@ -1501,7 +1501,7 @@ describe('useWebSocket', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd dashboard && npm test -- src/hooks/__tests__/useWebSocket.test.tsx`
+Run: `cd dashboard && pnpm test -- src/hooks/__tests__/useWebSocket.test.tsx`
 Expected: FAIL with module not found
 
 **Step 3: Implement WebSocket hook**
@@ -1646,7 +1646,7 @@ export function useWebSocket() {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd dashboard && npm test -- src/hooks/__tests__/useWebSocket.test.tsx`
+Run: `cd dashboard && pnpm test -- src/hooks/__tests__/useWebSocket.test.tsx`
 Expected: PASS
 
 **Step 5: Commit**
@@ -1809,7 +1809,7 @@ describe('useWorkflows', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd dashboard && npm test -- src/hooks/__tests__/useWorkflows.test.tsx`
+Run: `cd dashboard && pnpm test -- src/hooks/__tests__/useWorkflows.test.tsx`
 Expected: FAIL with module not found
 
 **Step 3: Implement useWorkflows hook**
@@ -1862,7 +1862,7 @@ export function useWorkflows() {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd dashboard && npm test -- src/hooks/__tests__/useWorkflows.test.tsx`
+Run: `cd dashboard && pnpm test -- src/hooks/__tests__/useWorkflows.test.tsx`
 Expected: PASS
 
 **Step 5: Commit**
@@ -2005,7 +2005,7 @@ describe('Workflow Actions', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd dashboard && npm test -- src/actions/__tests__/workflows.test.ts`
+Run: `cd dashboard && pnpm test -- src/actions/__tests__/workflows.test.ts`
 Expected: FAIL with module not found
 
 **Step 3: Implement route actions**
@@ -2066,7 +2066,7 @@ export { approveAction, rejectAction, cancelAction } from './workflows';
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd dashboard && npm test -- src/actions/__tests__/workflows.test.ts`
+Run: `cd dashboard && pnpm test -- src/actions/__tests__/workflows.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
@@ -2317,7 +2317,7 @@ describe('useWorkflowActions', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd dashboard && npm test -- src/hooks/__tests__/useWorkflowActions.test.tsx`
+Run: `cd dashboard && pnpm test -- src/hooks/__tests__/useWorkflowActions.test.tsx`
 Expected: FAIL with module not found
 
 **Step 3: Implement Toast component**
@@ -2476,7 +2476,7 @@ export function useWorkflowActions(): UseWorkflowActionsResult {
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd dashboard && npm test -- src/hooks/__tests__/useWorkflowActions.test.tsx`
+Run: `cd dashboard && pnpm test -- src/hooks/__tests__/useWorkflowActions.test.tsx`
 Expected: PASS
 
 **Step 6: Commit**
@@ -2576,8 +2576,8 @@ Run: `git add dashboard/src/hooks/index.ts dashboard/src/components/index.ts && 
 
 After completing all tasks, verify:
 
-- [ ] All TypeScript types compile without errors (`npm run type-check`)
-- [ ] All tests pass (`npm test`)
+- [ ] All TypeScript types compile without errors (`pnpm run type-check`)
+- [ ] All tests pass (`pnpm test`)
 - [ ] API client handles errors gracefully with proper error messages
 - [ ] React Router loaders fetch data before render
 - [ ] useLoaderData returns typed data in components

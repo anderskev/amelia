@@ -327,10 +327,10 @@ Create `dashboard/.gitignore`:
 # Logs
 logs
 *.log
-npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
+ppnpm-debug.log*
 lerna-debug.log*
 
 node_modules
@@ -364,7 +364,7 @@ Run in `dashboard/` directory:
 
 ```bash
 cd /Users/ka/github/amelia-docs/dashboard
-npm install
+pnpm install
 ```
 
 Expected: Dependencies installed successfully
@@ -478,7 +478,7 @@ React Flow provides the foundation for building custom node-based visualizations
 
 ```bash
 cd /Users/ka/github/amelia-docs/dashboard
-npm install @xyflow/react
+pnpm install @xyflow/react
 ```
 
 React Flow will be used in Plan 10 to build:
@@ -789,7 +789,7 @@ Create `dashboard/src/styles/globals.css`:
 Run:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Expected: Dashboard renders with dark background and gold accent text
@@ -1458,7 +1458,7 @@ export default function LogsPage() {
 Run:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Open browser devtools Network tab and navigate between routes. Expected:
@@ -1873,7 +1873,7 @@ The Layout is already configured as the root route element in `router.tsx` (Task
 Run:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Expected:
@@ -2190,7 +2190,7 @@ else:
         """Inform user that dashboard needs to be built."""
         return {
             "message": "Dashboard not built",
-            "instructions": "Run 'cd dashboard && npm run build' to build the dashboard"
+            "instructions": "Run 'cd dashboard && pnpm run build' to build the dashboard"
         }
 ```
 
@@ -2213,8 +2213,8 @@ git commit -m "feat(server): add static file serving for dashboard
 
 After completing all tasks, verify:
 
-- [ ] `cd dashboard && npm install` succeeds without errors
-- [ ] `npm run dev` starts dev server at localhost:3000
+- [ ] `cd dashboard && pnpm install` succeeds without errors
+- [ ] `pnpm run dev` starts dev server at localhost:3000
 - [ ] Three tsconfig files exist: `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`
 - [ ] `@tailwindcss/vite` in devDependencies (NOT postcss plugin)
 - [ ] `@types/node` in devDependencies (for path aliases)
@@ -2234,10 +2234,10 @@ After completing all tasks, verify:
 - [ ] Dark aviation theme applied via CSS variables (`@theme inline` directive)
 - [ ] Custom fonts loaded (Bebas Neue, Barlow Condensed, etc.)
 - [ ] Browser check works (test in Firefox/Safari shows warning)
-- [ ] `npm run build` creates `dashboard/dist/` successfully
+- [ ] `pnpm run build` creates `dashboard/dist/` successfully
 - [ ] FastAPI serves dashboard at localhost:8420 after build
 - [ ] API proxy works in dev mode
-- [ ] TypeScript compilation passes: `npm run type-check`
+- [ ] TypeScript compilation passes: `pnpm run type-check`
 - [ ] No console errors in browser devtools
 - [ ] Responsive layout: sidebar + main content area
 - [ ] Status indicator pulses in sidebar footer
