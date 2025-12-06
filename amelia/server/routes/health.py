@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from amelia import __version__
+from amelia.server.routes.websocket import connection_manager
 
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -96,9 +97,9 @@ async def health(request: Request) -> HealthResponse:
     start_time: datetime = request.app.state.start_time
     uptime = (datetime.now(UTC) - start_time).total_seconds()
 
-    # TODO: Get actual counts when services are implemented
+    # TODO: Get actual workflow count when service is implemented
     active_workflows = 0
-    websocket_connections = 0
+    websocket_connections = connection_manager.active_connections
 
     db_status = get_database_status()
 
