@@ -3,8 +3,10 @@ import subprocess
 from typing import Any
 
 import typer
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
 from amelia.agents.architect import Architect
@@ -277,31 +279,34 @@ def should_continue_review_loop(state: ExecutionState) -> str:
         return "end"
     return "end"
 
-def create_orchestrator_graph(checkpoint_saver: MemorySaver | None = None) -> Any:
+def create_orchestrator_graph(
+    checkpoint_saver: BaseCheckpointSaver | None = None,
+    interrupt_before: list[str] | None = None,
+) -> CompiledStateGraph:
     """Creates and compiles the LangGraph state machine for the orchestrator.
 
-    Configures checkpointing if a saver is provided.
-
     Args:
-        checkpoint_saver: Optional memory saver for checkpointing graph state.
+        checkpoint_saver: Optional checkpoint saver for state persistence.
+        interrupt_before: List of node names to interrupt before executing.
+            Use ["human_approval_node"] for server-mode human-in-the-loop.
 
     Returns:
-        Compiled LangGraph application ready for execution.
+        Compiled StateGraph ready for execution.
     """
     workflow = StateGraph(ExecutionState)
-    
+
     # Add nodes
     workflow.add_node("architect_node", call_architect_node)
     workflow.add_node("human_approval_node", human_approval_node)
     workflow.add_node("developer_node", call_developer_node)
     workflow.add_node("reviewer_node", call_reviewer_node)
-    
+
     # Set entry point
     workflow.set_entry_point("architect_node")
-    
+
     # Define edges
     workflow.add_edge("architect_node", "human_approval_node")
-    
+
     # Conditional edge from human_approval_node: if approved, go to developer_node, else END
     workflow.add_conditional_edges(
         "human_approval_node",
@@ -311,7 +316,7 @@ def create_orchestrator_graph(checkpoint_saver: MemorySaver | None = None) -> An
             "reject": END
         }
     )
-    
+
     # Developer -> Reviewer (after all development tasks are done)
     workflow.add_conditional_edges(
         "developer_node",
@@ -321,7 +326,7 @@ def create_orchestrator_graph(checkpoint_saver: MemorySaver | None = None) -> An
             "end": "reviewer_node"
         }
     )
-    
+
     # Reviewer -> Developer (if not approved) or END (if approved)
     workflow.add_conditional_edges(
         "reviewer_node",
@@ -331,10 +336,8 @@ def create_orchestrator_graph(checkpoint_saver: MemorySaver | None = None) -> An
             "end": END
         }
     )
-    
-    app = workflow.compile()
-    
-    if checkpoint_saver:
-        app = app.with_config({"configurable": {"checkpoint_saver": checkpoint_saver}})
-        
-    return app
+
+    return workflow.compile(
+        checkpointer=checkpoint_saver,
+        interrupt_before=interrupt_before,
+    )
