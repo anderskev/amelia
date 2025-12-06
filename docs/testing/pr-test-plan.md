@@ -63,7 +63,7 @@ uv run python -c "from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver; 
 **Verification Commands:**
 ```bash
 # Start server (terminal 1)
-uv run amelia-server start --reload
+uv run amelia server --reload
 
 # Start workflow (terminal 2)
 curl -X POST http://localhost:8000/api/v1/workflows \
@@ -169,7 +169,7 @@ sqlite3 ~/.amelia/checkpoints.db "SELECT thread_id FROM checkpoints;"
 # Expected: workflow_id from blocked workflow
 
 # Restart server and check workflow state
-uv run amelia-server start --reload
+uv run amelia server --reload
 curl http://localhost:8000/api/v1/workflows/{workflow_id}
 ```
 
