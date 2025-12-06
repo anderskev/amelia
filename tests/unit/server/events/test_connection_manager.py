@@ -1,8 +1,13 @@
 # tests/unit/server/events/test_connection_manager.py
 """Tests for WebSocket connection manager."""
-import pytest
-from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime
+from unittest.mock import AsyncMock
+
+import pytest
+from fastapi import WebSocketDisconnect
+
+from amelia.server.events.connection_manager import ConnectionManager
+from amelia.server.models.events import EventType, WorkflowEvent
 
 
 class TestConnectionManager:
@@ -11,7 +16,6 @@ class TestConnectionManager:
     @pytest.fixture
     def manager(self):
         """Create ConnectionManager instance."""
-        from amelia.server.events.connection_manager import ConnectionManager
         return ConnectionManager()
 
     @pytest.fixture
@@ -88,8 +92,6 @@ class TestConnectionManager:
     @pytest.mark.asyncio
     async def test_broadcast_sends_to_subscribed_all(self, manager, mock_websocket):
         """broadcast() sends event to connections subscribed to all."""
-        from amelia.server.models.events import WorkflowEvent, EventType
-
         await manager.connect(mock_websocket)
 
         event = WorkflowEvent(
@@ -112,8 +114,6 @@ class TestConnectionManager:
     @pytest.mark.asyncio
     async def test_broadcast_sends_to_specific_subscriber(self, manager, mock_websocket):
         """broadcast() sends event to connections subscribed to that workflow."""
-        from amelia.server.models.events import WorkflowEvent, EventType
-
         await manager.connect(mock_websocket)
         await manager.subscribe(mock_websocket, "wf-456")
 
@@ -134,8 +134,6 @@ class TestConnectionManager:
     @pytest.mark.asyncio
     async def test_broadcast_skips_unsubscribed_connection(self, manager, mock_websocket):
         """broadcast() skips connections not subscribed to that workflow."""
-        from amelia.server.models.events import WorkflowEvent, EventType
-
         await manager.connect(mock_websocket)
         await manager.subscribe(mock_websocket, "wf-999")  # Different workflow
 
@@ -157,9 +155,6 @@ class TestConnectionManager:
     @pytest.mark.asyncio
     async def test_broadcast_handles_disconnected_socket(self, manager, mock_websocket):
         """broadcast() removes disconnected sockets gracefully."""
-        from amelia.server.models.events import WorkflowEvent, EventType
-        from fastapi import WebSocketDisconnect
-
         await manager.connect(mock_websocket)
         mock_websocket.send_json.side_effect = WebSocketDisconnect()
 

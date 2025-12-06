@@ -1,9 +1,14 @@
 # tests/unit/server/events/test_event_bus_websocket.py
 """Tests for EventBus WebSocket integration."""
 import asyncio
-import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock
+
+import pytest
+
+from amelia.server.events.bus import EventBus
+from amelia.server.events.connection_manager import ConnectionManager
+from amelia.server.models.events import EventType, WorkflowEvent
 
 
 @pytest.mark.asyncio
@@ -13,8 +18,6 @@ class TestEventBusWebSocketIntegration:
     @pytest.fixture
     def mock_connection_manager(self):
         """Mock ConnectionManager."""
-        from amelia.server.events.connection_manager import ConnectionManager
-
         manager = AsyncMock(spec=ConnectionManager)
         manager.broadcast = AsyncMock()
         return manager
@@ -22,16 +25,12 @@ class TestEventBusWebSocketIntegration:
     @pytest.fixture
     def event_bus(self, mock_connection_manager):
         """EventBus with mocked ConnectionManager."""
-        from amelia.server.events.bus import EventBus
-
         bus = EventBus()
         bus.set_connection_manager(mock_connection_manager)
         return bus
 
     async def test_emit_broadcasts_to_websocket(self, event_bus, mock_connection_manager):
         """emit() broadcasts event to ConnectionManager."""
-        from amelia.server.models.events import WorkflowEvent, EventType
-
         event = WorkflowEvent(
             id="evt-123",
             workflow_id="wf-456",
@@ -51,9 +50,6 @@ class TestEventBusWebSocketIntegration:
 
     async def test_emit_without_connection_manager_does_not_crash(self):
         """emit() works even without ConnectionManager set."""
-        from amelia.server.events.bus import EventBus
-        from amelia.server.models.events import WorkflowEvent, EventType
-
         bus = EventBus()
         # Don't set connection manager
 
@@ -77,8 +73,6 @@ class TestEventBusWebSocketIntegration:
         Note: Subscribers MUST be non-blocking. If you need to perform I/O
         or slow operations, dispatch them as background tasks.
         """
-        from amelia.server.models.events import WorkflowEvent, EventType
-
         received_events = []
 
         def handler(event: WorkflowEvent):

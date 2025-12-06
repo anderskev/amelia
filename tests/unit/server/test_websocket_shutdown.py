@@ -1,6 +1,9 @@
 """Tests for WebSocket graceful shutdown in lifespan."""
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
+
+from amelia.server.events.connection_manager import ConnectionManager
 
 
 @pytest.mark.asyncio
@@ -9,8 +12,6 @@ class TestWebSocketShutdown:
 
     async def test_lifespan_closes_websocket_connections_on_shutdown(self):
         """Lifespan shutdown closes all WebSocket connections."""
-        from amelia.server.events.connection_manager import ConnectionManager
-
         # Create a connection manager instance for testing
         connection_manager = ConnectionManager()
 
