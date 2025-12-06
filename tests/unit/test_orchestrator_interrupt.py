@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from amelia.core.orchestrator import create_orchestrator_graph
 
 
