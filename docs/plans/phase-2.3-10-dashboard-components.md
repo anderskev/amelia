@@ -2,6 +2,8 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+**Status:** ⏳ Not Started
+
 **Goal:** Build the complete React UI for Amelia's web dashboard with aviation-themed components, React Flow integration for pipeline visualization, full accessibility (WCAG AA), and end-to-end tests for multi-workflow selection and approval flow.
 
 **Architecture:** React component library with TypeScript, Tailwind CSS for styling, React Flow for pipeline visualization, Vitest for component tests, Playwright for E2E tests. Components follow atomic design principles (atoms → molecules → organisms → pages).

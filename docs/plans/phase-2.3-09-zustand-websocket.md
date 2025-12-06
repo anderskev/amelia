@@ -2,6 +2,8 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+**Status:** ⏳ Not Started
+
 **Goal:** Implement Zustand store for workflow state management, WebSocket connection hook with reconnection logic, API client module, and optimistic UI update pattern for workflow actions.
 
 **Architecture:** Zustand store with sessionStorage persistence for UI state, WebSocket hook with exponential backoff reconnection and sequence gap detection, REST API client using fetch, custom hooks for workflows and actions with optimistic updates and rollback on failure.
