@@ -321,7 +321,11 @@ async def test_approve_workflow_not_blocked(
 
 
 @pytest.mark.asyncio
+@patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
+@patch("amelia.server.orchestrator.service.create_orchestrator_graph")
 async def test_reject_workflow_success(
+    mock_create_graph,
+    mock_saver_class,
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
     mock_event_bus: EventBus,
@@ -340,6 +344,17 @@ async def test_reject_workflow_success(
         started_at=datetime.now(UTC),
     )
     mock_repository.get.return_value = mock_state
+
+    # Setup mock graph
+    mock_graph = AsyncMock()
+    mock_graph.aupdate_state = AsyncMock()
+    mock_create_graph.return_value = mock_graph
+
+    mock_saver = AsyncMock()
+    mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
+        return_value=mock_saver
+    )
+    mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
 
     # Create fake task
     task = asyncio.create_task(asyncio.sleep(100))
@@ -395,6 +410,99 @@ async def test_reject_workflow_not_blocked(
 
     with pytest.raises(InvalidStateError):
         await orchestrator.reject_workflow("wf-1", feedback="Nope")
+
+
+class TestRejectWorkflowGraphState:
+    """Test reject_workflow updates LangGraph state."""
+
+    @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
+    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    async def test_reject_updates_graph_state(
+        self, mock_create_graph, mock_saver_class, orchestrator, mock_repository
+    ):
+        """reject_workflow updates graph state with human_approved=False."""
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/tmp/test",
+            worktree_name="test",
+            workflow_status="blocked",
+        )
+        mock_repository.get.return_value = workflow
+
+        mock_graph = AsyncMock()
+        mock_graph.aupdate_state = AsyncMock()
+        mock_create_graph.return_value = mock_graph
+
+        mock_saver = AsyncMock()
+        mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
+            return_value=mock_saver
+        )
+        mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
+
+        await orchestrator.reject_workflow("wf-123", "Not ready")
+
+        mock_graph.aupdate_state.assert_called_once()
+        call_args = mock_graph.aupdate_state.call_args
+        assert call_args[0][1] == {"human_approved": False}
+
+
+class AsyncIteratorMock:
+    """Mock async iterator."""
+
+    def __init__(self, items):
+        self.items = items
+        self.index = 0
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.index >= len(self.items):
+            raise StopAsyncIteration
+        item = self.items[self.index]
+        self.index += 1
+        return item
+
+
+class TestApproveWorkflowResume:
+    """Test approve_workflow resumes LangGraph execution."""
+
+    @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
+    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    async def test_approve_updates_state_and_resumes(
+        self, mock_create_graph, mock_saver_class, orchestrator, mock_repository
+    ):
+        """approve_workflow updates graph state and resumes execution."""
+        # Setup blocked workflow
+        workflow = ServerExecutionState(
+            id="wf-123",
+            issue_id="ISSUE-456",
+            worktree_path="/tmp/test",
+            worktree_name="test",
+            workflow_status="blocked",
+        )
+        mock_repository.get.return_value = workflow
+        orchestrator._active_tasks["/tmp/test"] = ("wf-123", AsyncMock())
+
+        # Setup mock graph
+        mock_graph = AsyncMock()
+        mock_graph.aupdate_state = AsyncMock()
+        mock_graph.astream_events = AsyncMock(return_value=AsyncIteratorMock([]))
+        mock_create_graph.return_value = mock_graph
+
+        mock_saver = AsyncMock()
+        mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
+            return_value=mock_saver
+        )
+        mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
+
+        await orchestrator.approve_workflow("wf-123")
+
+        # Verify state was updated with approval
+        mock_graph.aupdate_state.assert_called_once()
+        call_args = mock_graph.aupdate_state.call_args
+        assert call_args[0][1] == {"human_approved": True}
 
 
 # =============================================================================

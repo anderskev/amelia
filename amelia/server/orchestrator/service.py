@@ -478,6 +478,21 @@ class OrchestratorService:
                 feedback=feedback,
             )
 
+        # Update LangGraph state to record rejection
+        async with AsyncSqliteSaver.from_conn_string(
+            str(self._checkpoint_path)
+        ) as checkpointer:
+            graph = create_orchestrator_graph(checkpoint_saver=checkpointer)
+
+            config = {
+                "configurable": {
+                    "thread_id": workflow_id,
+                    "execution_mode": "server",
+                }
+            }
+
+            await graph.aupdate_state(config, {"human_approved": False})
+
     async def _wait_for_approval(self, workflow_id: str) -> None:
         """Block until workflow is approved or rejected.
 
