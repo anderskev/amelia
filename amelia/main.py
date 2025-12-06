@@ -4,6 +4,13 @@ import typer
 from langgraph.checkpoint.memory import MemorySaver
 
 from amelia.agents.architect import Architect
+from amelia.client.cli import (
+    approve_command,
+    cancel_command,
+    reject_command,
+    start_command,
+    status_command,
+)
 from amelia.config import load_settings, validate_profile
 from amelia.core.orchestrator import call_reviewer_node, create_orchestrator_graph
 from amelia.core.state import ExecutionState
@@ -18,6 +25,11 @@ from amelia.utils.design_parser import parse_design
 
 app = typer.Typer(help="Amelia Agentic Orchestrator CLI")
 app.add_typer(server_app, name="server")
+app.command(name="start", help="Start a workflow for an issue.")(start_command)
+app.command(name="approve", help="Approve the workflow plan in the current worktree.")(approve_command)
+app.command(name="reject", help="Reject the workflow plan in the current worktree.")(reject_command)
+app.command(name="status", help="Show status of active workflows.")(status_command)
+app.command(name="cancel", help="Cancel the active workflow in the current worktree.")(cancel_command)
 
 @app.callback()
 def main_callback() -> None:
@@ -65,8 +77,8 @@ def _safe_load_settings() -> Settings:
         typer.echo(f"Error loading settings: {e}", err=True)
         raise typer.Exit(code=1) from None
 
-@app.command()
-def start(
+@app.command(name="start-local")
+def start_local(
     ctx: typer.Context,
     issue_id: str = typer.Argument(..., help="The ID of the issue to work on (e.g., PROJ-123)."),
     profile_name: str | None = typer.Option(
@@ -77,11 +89,13 @@ def start(
     ),
 ) -> None:
     """
-    Starts the Amelia orchestrator with the specified or default profile.
+    Starts the Amelia orchestrator locally (without server) with the specified or default profile.
+
+    DEPRECATED: Use 'amelia server' and 'amelia start' instead.
     """
     settings = _safe_load_settings()
     active_profile = _get_active_profile(settings, profile_name)
-    
+
     try:
         validate_profile(active_profile)
     except ValueError as e:
@@ -90,10 +104,10 @@ def start(
 
     typer.echo(f"Starting Amelia with profile: {active_profile.name} (Driver: {active_profile.driver}, Tracker: {active_profile.tracker})")
 
-    checkpoint_saver = MemorySaver() 
-    
+    checkpoint_saver = MemorySaver()
+
     app_graph = create_orchestrator_graph(checkpoint_saver=checkpoint_saver)
-    
+
     tracker = create_tracker(active_profile)
     try:
         issue = tracker.get_issue(issue_id)
@@ -103,7 +117,7 @@ def start(
 
     # Prepare initial state
     initial_state = ExecutionState(profile=active_profile, issue=issue)
-    
+
     # Run the orchestrator
     try:
         # check if there is a running event loop
@@ -116,12 +130,12 @@ def start(
             # If we are already in an async environment (e.g. tests), use the existing loop
             # This technically shouldn't happen with standard Typer usage but good for safety
              typer.echo("Warning: event loop already running, using existing loop", err=True)
-             # We can't await here easily because start() is sync. 
+             # We can't await here easily because start() is sync.
              # But Typer/Click commands are usually sync entry points.
              # If we really are in a loop, we might need a different approach or just fail.
              # For now, let's assume standard CLI usage where no loop exists yet.
              raise RuntimeError("Async event loop already running. Cannot use asyncio.run()")
-        
+
         asyncio.run(app_graph.ainvoke(initial_state))
 
     except Exception as e:
