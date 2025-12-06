@@ -87,21 +87,27 @@ class ConnectionManager:
         Args:
             event: The workflow event to broadcast.
         """
+        targets: list[WebSocket] = []
         async with self._lock:
-            for ws, subscribed_ids in list(self._connections.items()):
+            for ws, subscribed_ids in self._connections.items():
                 # Empty set = subscribed to all workflows
                 if not subscribed_ids or event.workflow_id in subscribed_ids:
-                    try:
-                        await ws.send_json({
-                            "type": "event",
-                            "payload": event.model_dump(mode="json"),
-                        })
-                    except WebSocketDisconnect:
-                        # Remove disconnected client
-                        self._connections.pop(ws, None)
-                    except Exception:
-                        # Remove on any error
-                        self._connections.pop(ws, None)
+                    targets.append(ws)
+
+        for ws in targets:
+            try:
+                await ws.send_json({
+                    "type": "event",
+                    "payload": event.model_dump(mode="json"),
+                })
+            except WebSocketDisconnect:
+                # Remove disconnected client
+                async with self._lock:
+                    self._connections.pop(ws, None)
+            except Exception:
+                # Remove on any error
+                async with self._lock:
+                    self._connections.pop(ws, None)
 
     async def close_all(self, code: int = 1000, reason: str = "") -> None:
         """Close all connections gracefully.

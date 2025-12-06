@@ -3,6 +3,8 @@
 import json
 from datetime import UTC, datetime
 
+import aiosqlite
+
 from amelia.server.database.connection import Database, SqliteValue
 from amelia.server.exceptions import WorkflowNotFoundError
 from amelia.server.models.events import WorkflowEvent
@@ -370,6 +372,23 @@ class WorkflowRepository:
         )
         return result is not None
 
+    def _row_to_event(self, row: aiosqlite.Row) -> WorkflowEvent:
+        """Convert database row to WorkflowEvent.
+
+        Args:
+            row: Database row.
+
+        Returns:
+            WorkflowEvent model.
+        """
+        event_data = dict(row)
+        # Parse JSON data field if present (column is data_json, model field is data)
+        if event_data.get("data_json"):
+            event_data["data"] = json.loads(event_data.pop("data_json"))
+        else:
+            event_data.pop("data_json", None)  # Remove None value
+        return WorkflowEvent(**event_data)
+
     async def get_events_after(self, since_event_id: str) -> list[WorkflowEvent]:
         """Get all events after a specific event (for backfill on reconnect).
 
@@ -405,14 +424,4 @@ class WorkflowRepository:
             (workflow_id, since_sequence),
         )
 
-        events = []
-        for row in rows:
-            event_data = dict(row)
-            # Parse JSON data field if present (column is data_json, model field is data)
-            if event_data.get("data_json"):
-                event_data["data"] = json.loads(event_data.pop("data_json"))
-            else:
-                event_data.pop("data_json", None)  # Remove None value
-            events.append(WorkflowEvent(**event_data))
-
-        return events
+        return [self._row_to_event(row) for row in rows]
