@@ -88,6 +88,29 @@ describe('Workflow Actions', () => {
         expect((error as Response).status).toBe(400);
       }
     });
+
+    it('should throw 400 if feedback is missing', async () => {
+      const formData = new FormData();
+      // No feedback field
+
+      const request = new Request('http://localhost/workflows/wf-1/reject', {
+        method: 'POST',
+        body: formData,
+      });
+
+      try {
+        await rejectAction({
+          params: { id: 'wf-1' },
+          request,
+        } as unknown as Parameters<typeof rejectAction>[0]);
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Response);
+        expect((error as Response).status).toBe(400);
+        const text = await (error as Response).text();
+        expect(text).toBe('Feedback required');
+      }
+    });
   });
 
   describe('cancelAction', () => {

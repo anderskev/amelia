@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { useWorkflowActions } from '../useWorkflowActions';
 import { useWorkflowStore } from '../../store/workflowStore';
 import { api } from '../../api/client';
@@ -32,7 +32,10 @@ describe('useWorkflowActions', () => {
       );
 
       const { result } = renderHook(() => useWorkflowActions());
-      result.current.approveWorkflow('wf-1', 'blocked');
+
+      act(() => {
+        result.current.approveWorkflow('wf-1', 'blocked');
+      });
 
       await waitFor(() => {
         expect(useWorkflowStore.getState().pendingActions.includes('approve-wf-1')).toBe(true);
@@ -47,7 +50,10 @@ describe('useWorkflowActions', () => {
       vi.mocked(api.approveWorkflow).mockResolvedValueOnce(undefined);
 
       const { result } = renderHook(() => useWorkflowActions());
-      await result.current.approveWorkflow('wf-1', 'blocked');
+
+      await act(async () => {
+        await result.current.approveWorkflow('wf-1', 'blocked');
+      });
 
       await waitFor(() => {
         expect(toast.success).toHaveBeenCalledWith('Plan approved');
@@ -58,7 +64,10 @@ describe('useWorkflowActions', () => {
       vi.mocked(api.approveWorkflow).mockRejectedValueOnce(new Error('Server error'));
 
       const { result } = renderHook(() => useWorkflowActions());
-      await result.current.approveWorkflow('wf-1', 'blocked');
+
+      await act(async () => {
+        await result.current.approveWorkflow('wf-1', 'blocked');
+      });
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Approval failed: Server error');
@@ -71,7 +80,10 @@ describe('useWorkflowActions', () => {
       vi.mocked(api.rejectWorkflow).mockResolvedValueOnce(undefined);
 
       const { result } = renderHook(() => useWorkflowActions());
-      await result.current.rejectWorkflow('wf-1', 'Needs revision', 'blocked');
+
+      await act(async () => {
+        await result.current.rejectWorkflow('wf-1', 'Needs revision', 'blocked');
+      });
 
       await waitFor(() => {
         expect(toast.success).toHaveBeenCalledWith('Plan rejected');
@@ -82,7 +94,10 @@ describe('useWorkflowActions', () => {
       vi.mocked(api.rejectWorkflow).mockRejectedValueOnce(new Error('Server error'));
 
       const { result } = renderHook(() => useWorkflowActions());
-      await result.current.rejectWorkflow('wf-1', 'Needs revision', 'blocked');
+
+      await act(async () => {
+        await result.current.rejectWorkflow('wf-1', 'Needs revision', 'blocked');
+      });
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Rejection failed: Server error');
@@ -95,7 +110,10 @@ describe('useWorkflowActions', () => {
       vi.mocked(api.cancelWorkflow).mockResolvedValueOnce(undefined);
 
       const { result } = renderHook(() => useWorkflowActions());
-      await result.current.cancelWorkflow('wf-1', 'in_progress');
+
+      await act(async () => {
+        await result.current.cancelWorkflow('wf-1', 'in_progress');
+      });
 
       await waitFor(() => {
         expect(toast.success).toHaveBeenCalledWith('Workflow cancelled');
@@ -106,7 +124,10 @@ describe('useWorkflowActions', () => {
       vi.mocked(api.cancelWorkflow).mockRejectedValueOnce(new Error('Server error'));
 
       const { result } = renderHook(() => useWorkflowActions());
-      await result.current.cancelWorkflow('wf-1', 'in_progress');
+
+      await act(async () => {
+        await result.current.cancelWorkflow('wf-1', 'in_progress');
+      });
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Cancellation failed: Server error');
@@ -137,6 +158,16 @@ describe('useWorkflowActions', () => {
       const { result } = renderHook(() => useWorkflowActions());
 
       expect(result.current.isActionPending('wf-1')).toBe(true);
+    });
+
+    it('should not match workflow IDs that share a suffix', () => {
+      useWorkflowStore.setState({ pendingActions: ['approve-wf-11'] });
+
+      const { result } = renderHook(() => useWorkflowActions());
+
+      // wf-1 should NOT match approve-wf-11 even though "wf-11" ends with "1"
+      expect(result.current.isActionPending('wf-1')).toBe(false);
+      expect(result.current.isActionPending('wf-11')).toBe(true);
     });
   });
 });

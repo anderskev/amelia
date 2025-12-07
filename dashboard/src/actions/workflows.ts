@@ -17,7 +17,11 @@ export async function rejectAction({ params, request }: ActionFunctionArgs): Pro
   }
 
   const formData = await request.formData();
-  const feedback = formData.get('feedback') as string;
+  const feedback = formData.get('feedback');
+
+  if (!feedback || typeof feedback !== 'string') {
+    throw new Response('Feedback required', { status: 400 });
+  }
 
   await api.rejectWorkflow(params.id, feedback);
   return { success: true, action: 'rejected' };

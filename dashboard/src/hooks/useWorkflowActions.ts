@@ -67,7 +67,12 @@ export function useWorkflowActions(): UseWorkflowActionsResult {
 
   const isActionPending = useCallback(
     (workflowId: string) => {
-      return pendingActions.some((id) => id.endsWith(workflowId));
+      return pendingActions.some(
+        (id) =>
+          id === `approve-${workflowId}` ||
+          id === `reject-${workflowId}` ||
+          id === `cancel-${workflowId}`
+      );
     },
     [pendingActions]
   );
