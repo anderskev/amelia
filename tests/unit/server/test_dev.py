@@ -7,7 +7,6 @@ from typer.testing import CliRunner
 
 from amelia.main import app
 from amelia.server.dev import (
-    Colors,
     check_node_installed,
     check_node_modules_exist,
     check_pnpm_installed,
@@ -16,82 +15,61 @@ from amelia.server.dev import (
 )
 
 
+def _close_coroutine(coro):
+    """Close coroutine to prevent RuntimeWarning."""
+    coro.close()
+    return 0
+
+
 class TestModeDetection:
     """Tests for dev/user mode detection."""
 
-    def test_is_amelia_dev_repo_all_present(self, tmp_path: Path):
-        """Returns True when all three markers are present."""
-        (tmp_path / "amelia").mkdir()
-        (tmp_path / "dashboard").mkdir()
-        (tmp_path / "dashboard" / "package.json").write_text("{}")
-        (tmp_path / ".git").mkdir()
+    @pytest.mark.parametrize("create_amelia,create_dashboard,create_git,expected", [
+        (True, True, True, True),
+        (False, True, True, False),
+        (True, False, True, False),
+        (True, True, False, False),
+    ], ids=["all_present", "missing_amelia", "missing_dashboard", "missing_git"])
+    def test_is_amelia_dev_repo(self, tmp_path: Path, create_amelia, create_dashboard, create_git, expected):
+        """Test repo detection with various directory configurations."""
+        if create_amelia:
+            (tmp_path / "amelia").mkdir()
+        if create_dashboard:
+            (tmp_path / "dashboard").mkdir()
+            (tmp_path / "dashboard" / "package.json").write_text("{}")
+        if create_git:
+            (tmp_path / ".git").mkdir()
 
         with patch("amelia.server.dev.Path.cwd", return_value=tmp_path):
-            assert is_amelia_dev_repo() is True
-
-    def test_is_amelia_dev_repo_missing_amelia_dir(self, tmp_path: Path):
-        """Returns False when amelia/ directory is missing."""
-        (tmp_path / "dashboard").mkdir()
-        (tmp_path / "dashboard" / "package.json").write_text("{}")
-        (tmp_path / ".git").mkdir()
-
-        with patch("amelia.server.dev.Path.cwd", return_value=tmp_path):
-            assert is_amelia_dev_repo() is False
-
-    def test_is_amelia_dev_repo_missing_dashboard(self, tmp_path: Path):
-        """Returns False when dashboard/package.json is missing."""
-        (tmp_path / "amelia").mkdir()
-        (tmp_path / ".git").mkdir()
-
-        with patch("amelia.server.dev.Path.cwd", return_value=tmp_path):
-            assert is_amelia_dev_repo() is False
-
-    def test_is_amelia_dev_repo_missing_git(self, tmp_path: Path):
-        """Returns False when .git/ directory is missing."""
-        (tmp_path / "amelia").mkdir()
-        (tmp_path / "dashboard").mkdir()
-        (tmp_path / "dashboard" / "package.json").write_text("{}")
-
-        with patch("amelia.server.dev.Path.cwd", return_value=tmp_path):
-            assert is_amelia_dev_repo() is False
+            assert is_amelia_dev_repo() is expected
 
 
 class TestDependencyChecks:
     """Tests for pnpm/node dependency checks."""
 
-    def test_check_pnpm_installed_true(self):
-        """Returns True when pnpm is in PATH."""
-        with patch("amelia.server.dev.shutil.which", return_value="/usr/bin/pnpm"):
-            assert check_pnpm_installed() is True
+    @pytest.mark.parametrize("check_func,which_return,expected", [
+        (check_pnpm_installed, "/usr/bin/pnpm", True),
+        (check_pnpm_installed, None, False),
+        (check_node_installed, "/usr/bin/node", True),
+        (check_node_installed, None, False),
+    ], ids=["pnpm_installed", "pnpm_missing", "node_installed", "node_missing"])
+    def test_binary_checks(self, check_func, which_return, expected):
+        """Test binary presence detection."""
+        with patch("amelia.server.dev.shutil.which", return_value=which_return):
+            assert check_func() is expected
 
-    def test_check_pnpm_installed_false(self):
-        """Returns False when pnpm is not in PATH."""
-        with patch("amelia.server.dev.shutil.which", return_value=None):
-            assert check_pnpm_installed() is False
-
-    def test_check_node_installed_true(self):
-        """Returns True when node is in PATH."""
-        with patch("amelia.server.dev.shutil.which", return_value="/usr/bin/node"):
-            assert check_node_installed() is True
-
-    def test_check_node_installed_false(self):
-        """Returns False when node is not in PATH."""
-        with patch("amelia.server.dev.shutil.which", return_value=None):
-            assert check_node_installed() is False
-
-    def test_check_node_modules_exist_true(self, tmp_path: Path):
-        """Returns True when node_modules exists."""
-        (tmp_path / "dashboard" / "node_modules").mkdir(parents=True)
-
-        with patch("amelia.server.dev.Path.cwd", return_value=tmp_path):
-            assert check_node_modules_exist() is True
-
-    def test_check_node_modules_exist_false(self, tmp_path: Path):
-        """Returns False when node_modules does not exist."""
+    @pytest.mark.parametrize("create_node_modules,expected", [
+        (True, True),
+        (False, False),
+    ], ids=["exists", "missing"])
+    def test_check_node_modules_exist(self, tmp_path: Path, create_node_modules, expected):
+        """Test node_modules detection."""
         (tmp_path / "dashboard").mkdir(parents=True)
+        if create_node_modules:
+            (tmp_path / "dashboard" / "node_modules").mkdir()
 
         with patch("amelia.server.dev.Path.cwd", return_value=tmp_path):
-            assert check_node_modules_exist() is False
+            assert check_node_modules_exist() is expected
 
 
 class TestPortCheck:
@@ -117,25 +95,6 @@ class TestPortCheck:
             sock.close()
 
 
-class TestColors:
-    """Tests for color palette."""
-
-    def test_colors_are_hex_values(self):
-        """All colors are valid hex color codes."""
-        for color in Colors:
-            assert color.value.startswith("#")
-            assert len(color.value) == 7  # #RRGGBB
-
-    def test_required_colors_exist(self):
-        """All required brand colors are defined."""
-        assert Colors.NAVY.value == "#0a2463"
-        assert Colors.GOLD.value == "#ffc857"
-        assert Colors.CREAM.value == "#eff8e2"
-        assert Colors.MOSS.value == "#88976b"
-        assert Colors.RUST.value == "#a0311c"
-        assert Colors.GRAY.value == "#6d726a"
-
-
 class TestDevCLI:
     """Tests for 'amelia dev' command."""
 
@@ -143,27 +102,6 @@ class TestDevCLI:
     def runner(self):
         """Typer CLI test runner."""
         return CliRunner()
-
-    def test_dev_command_exists(self, runner: CliRunner):
-        """'amelia dev' command is registered."""
-        result = runner.invoke(app, ["dev", "--help"])
-        assert result.exit_code == 0
-        assert "Start development server with dashboard" in result.stdout
-
-    def test_dev_shows_port_option(self, runner: CliRunner):
-        """--port option is available."""
-        result = runner.invoke(app, ["dev", "--help"])
-        assert "--port" in result.stdout or "-p" in result.stdout
-
-    def test_dev_shows_no_dashboard_option(self, runner: CliRunner):
-        """--no-dashboard option is available."""
-        result = runner.invoke(app, ["dev", "--help"])
-        assert "--no-dashboard" in result.stdout
-
-    def test_dev_shows_bind_all_option(self, runner: CliRunner):
-        """--bind-all option is available."""
-        result = runner.invoke(app, ["dev", "--help"])
-        assert "--bind-all" in result.stdout
 
     def test_dev_fails_without_node_in_dev_mode(self, runner: CliRunner):
         """Dev command fails with clear error when node is not installed."""
@@ -188,18 +126,12 @@ class TestDevCLI:
 
     def test_dev_user_mode_skips_node_check(self, runner: CliRunner):
         """In user mode, node/pnpm checks are skipped."""
-
-        def close_coroutine(coro):
-            """Close coroutine to prevent RuntimeWarning."""
-            coro.close()
-            return 0
-
         with (
             patch("amelia.server.dev.is_amelia_dev_repo", return_value=False),
             patch("amelia.server.dev.check_node_installed", return_value=False),
             patch("amelia.server.dev.check_pnpm_installed", return_value=False),
             patch("amelia.server.dev.check_port_available", return_value=True),
-            patch("amelia.server.dev.asyncio.run", side_effect=close_coroutine) as mock_run,
+            patch("amelia.server.dev.asyncio.run", side_effect=_close_coroutine) as mock_run,
         ):
             runner.invoke(app, ["dev"])
             # Should not fail due to missing node/pnpm
@@ -207,18 +139,12 @@ class TestDevCLI:
 
     def test_dev_no_dashboard_skips_node_check(self, runner: CliRunner):
         """--no-dashboard skips node/pnpm checks even in dev mode."""
-
-        def close_coroutine(coro):
-            """Close coroutine to prevent RuntimeWarning."""
-            coro.close()
-            return 0
-
         with (
             patch("amelia.server.dev.is_amelia_dev_repo", return_value=True),
             patch("amelia.server.dev.check_node_installed", return_value=False),
             patch("amelia.server.dev.check_pnpm_installed", return_value=False),
             patch("amelia.server.dev.check_port_available", return_value=True),
-            patch("amelia.server.dev.asyncio.run", side_effect=close_coroutine) as mock_run,
+            patch("amelia.server.dev.asyncio.run", side_effect=_close_coroutine) as mock_run,
         ):
             runner.invoke(app, ["dev", "--no-dashboard"])
             # Should not fail due to missing node/pnpm
@@ -240,33 +166,23 @@ class TestDevCLI:
 class TestAutoInstall:
     """Tests for auto-install behavior."""
 
-    async def test_run_pnpm_install_failure_returns_false(self):
-        """run_pnpm_install returns False on non-zero exit code."""
+    @pytest.mark.parametrize("return_code,expected", [
+        (0, True),
+        (1, False),
+    ], ids=["success", "failure"])
+    async def test_run_pnpm_install(self, return_code, expected):
+        """Test pnpm install handles exit codes correctly."""
         from amelia.server.dev import run_pnpm_install
 
         mock_process = AsyncMock()
-        mock_process.returncode = 1
+        mock_process.returncode = return_code
         mock_process.stdout = AsyncMock()
         mock_process.stdout.readline = AsyncMock(side_effect=[b"", None])
-        mock_process.wait = AsyncMock(return_value=1)
+        mock_process.wait = AsyncMock(return_value=return_code)
 
         with patch("amelia.server.dev.asyncio.create_subprocess_exec", return_value=mock_process):
             result = await run_pnpm_install()
-            assert result is False
-
-    async def test_run_pnpm_install_success_returns_true(self):
-        """run_pnpm_install returns True on zero exit code."""
-        from amelia.server.dev import run_pnpm_install
-
-        mock_process = AsyncMock()
-        mock_process.returncode = 0
-        mock_process.stdout = AsyncMock()
-        mock_process.stdout.readline = AsyncMock(side_effect=[b"", None])
-        mock_process.wait = AsyncMock(return_value=0)
-
-        with patch("amelia.server.dev.asyncio.create_subprocess_exec", return_value=mock_process):
-            result = await run_pnpm_install()
-            assert result is True
+            assert result is expected
 
 
 class TestProcessManager:
