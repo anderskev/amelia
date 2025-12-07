@@ -307,15 +307,6 @@ pnpm build         # Ensure production build succeeds
 
 If you're using Claude Code, leverage these commands to streamline the PR process:
 
-| Command | When to Use |
-|---------|-------------|
-| `/amelia:create-pr` | Create a PR with a standardized description template |
-| `/amelia:review` | Run a code review agent before requesting human review |
-| `/amelia:review-tests` | Review test code for quality and conciseness |
-| `/amelia:ensure-doc` | Verify all code is properly documented |
-| `/amelia:gen-test-plan` | Generate a manual test plan for significant changes |
-| `/amelia:eval-feedback <feedback>` | Evaluate code review feedback from another LLM session |
-
 **Recommended workflow:**
 
 ```bash
