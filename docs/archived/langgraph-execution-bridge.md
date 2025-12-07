@@ -1,15 +1,25 @@
-# LangGraph Execution Bridge Design
+# LangGraph Execution Bridge (Archived)
 
-> **Status:** Approved (Revised)
+> **Status:** Completed (PR 1 merged)
 > **Date:** 2025-12-06
-> **Author:** Claude + Human collaboration
-> **Revision:** Simplified checkpointing, retry config, added execution mode handling
+> **Branch:** `feat/langgraph-execution-bridge`
+> **Commit:** a65b5c3
+>
+> **Note:** This is archived documentation from a completed feature. The implementation is now part of the main codebase.
 
-## Overview
+## Summary
+
+This document describes the implementation of the LangGraph Execution Bridge, which connects the server layer (FastAPI, SQLite, REST endpoints) to the existing core LangGraph orchestrator. The implementation provides checkpoint persistence via `langgraph-checkpoint-sqlite`, interrupt-based human approval for server mode, event streaming from LangGraph to WorkflowEvents, and retry logic for transient failures. The final implementation uses `astream(stream_mode='updates')` for robust interrupt detection.
+
+---
+
+## Design
+
+### Overview
 
 This design connects the server layer (FastAPI, SQLite, REST endpoints) to the existing core LangGraph orchestrator, implementing the missing `_run_workflow()` method in `OrchestratorService`.
 
-## Architecture
+### Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -44,7 +54,7 @@ This design connects the server layer (FastAPI, SQLite, REST endpoints) to the e
 - `langgraph-checkpoint-sqlite` - Official LangGraph package for checkpoint persistence
 - State composition - `ServerExecutionState.execution_state: ExecutionState`
 
-## Key Decisions
+### Key Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
@@ -56,7 +66,7 @@ This design connects the server layer (FastAPI, SQLite, REST endpoints) to the e
 | Retry config | Simplified (max_retries + base_delay) | Error classification is implementation concern, not config |
 | CLI vs Server | Execution mode in graph config | Same graph code, different approval behavior |
 
-## Serialization Convention
+### Serialization Convention
 
 **Enum Value Serialization:**
 
@@ -95,7 +105,7 @@ class WorkflowEvent(BaseModel):
     data: dict | None = None
 ```
 
-## State Model
+### State Model
 
 `ServerExecutionState` wraps `ExecutionState` via composition:
 
@@ -153,7 +163,7 @@ class ServerExecutionState(BaseModel):
 
 **Initialization:** All fields populated at workflow creation. Issue fetched immediately, `worktree_name` derived from path. No nullable fields except `completed_at` and `failure_reason`.
 
-## Checkpoint Persistence
+### Checkpoint Persistence
 
 Use the official `langgraph-checkpoint-sqlite` package instead of custom implementation.
 
@@ -183,7 +193,7 @@ async with aiosqlite.connect("~/.amelia/amelia.db") as conn:
 
 **Thread ID:** Maps to `workflow_id` for checkpoint isolation.
 
-## CLI vs Server Execution Mode
+### CLI vs Server Execution Mode
 
 The same graph must work for both CLI (blocking `typer.confirm`) and server (interrupt-based) contexts.
 
@@ -237,7 +247,7 @@ async for event in graph.astream_events(
     await self._handle_graph_event(workflow_id, event)
 ```
 
-## Execution Bridge
+### Execution Bridge
 
 The `_run_workflow()` implementation:
 
@@ -315,7 +325,7 @@ async def _run_workflow(
             raise
 ```
 
-## Human Approval Flow
+### Human Approval Flow
 
 ```
 1. Graph reaches human_approval_node
@@ -363,7 +373,7 @@ async def approve_workflow(self, workflow_id: str) -> None:
             await self._handle_graph_event(workflow_id, event)
 ```
 
-## Event Streaming
+### Event Streaming
 
 Map LangGraph events to existing WorkflowEvents:
 
@@ -447,7 +457,7 @@ class EventType(str, Enum):
     SYSTEM_INFO = "system_info"
 ```
 
-## Error Handling & Retry
+### Error Handling & Retry
 
 Simplified retry with typed exception handling:
 
@@ -509,7 +519,7 @@ async def _run_workflow_with_retry(
 | Transient | `TimeoutError`, `ConnectionError`, rate limits | Retry with exponential backoff |
 | Permanent | `ValueError`, `KeyError`, auth failures | Fail immediately |
 
-## Configuration Schema
+### Configuration Schema
 
 Simplified retry configuration:
 
@@ -549,7 +559,7 @@ class Profile(BaseModel):
     retry: RetryConfig = Field(default_factory=RetryConfig)
 ```
 
-## Testing Strategy
+### Testing Strategy
 
 **Test structure:**
 
@@ -581,7 +591,7 @@ tests/
 | Approval flow | Mock interrupt, verify resume with state | Full cycle |
 | Error handling | Transient vs permanent classification | Retry wrapper |
 
-## Implementation Order
+### Implementation Order
 
 1. **Add dependency** - `uv add langgraph-checkpoint-sqlite`
 2. **RetryConfig model** - Add to `amelia/core/types.py`
@@ -593,7 +603,7 @@ tests/
 8. **Approval flow** - Update `approve_workflow()` / `reject_workflow()` to resume graph
 9. **Integration tests** - Full workflow cycles
 
-## Checkpoint Cleanup
+### Checkpoint Cleanup
 
 The `langgraph-checkpoint-sqlite` package supports TTL-based cleanup:
 
@@ -609,7 +619,7 @@ For manual cleanup of completed workflows:
 await checkpointer.adelete(config)
 ```
 
-## Future: PostgreSQL Migration
+### Future: PostgreSQL Migration
 
 Migration path when scaling:
 
@@ -623,3 +633,421 @@ Migration path when scaling:
        return AsyncSqliteSaver.from_conn_string(config.checkpoint_path)
    ```
 4. No changes to `OrchestratorService` - same interface
+
+---
+
+## Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Connect the server layer to the existing LangGraph orchestrator by implementing `_run_workflow()` with checkpoint persistence, interrupt-based human approval, and event streaming.
+
+**Architecture:** The ExecutionBridge pattern wraps the core LangGraph orchestrator with server-specific concerns: SQLite checkpointing via `langgraph-checkpoint-sqlite`, execution mode detection (CLI vs server), event mapping from LangGraph events to WorkflowEvents, and retry logic for transient failures.
+
+**Tech Stack:** LangGraph, langgraph-checkpoint-sqlite, Pydantic, asyncio, aiosqlite
+
+### Implementation Note: Stream API Change
+
+**IMPORTANT:** The final implementation uses `astream(stream_mode='updates')` instead of the originally planned `astream_events()` approach. This change was necessary for proper interrupt detection in LangGraph.
+
+**Key Differences:**
+- **Original Plan:** Use `astream_events()` and catch `GraphInterrupt` exception
+- **Final Implementation:** Use `astream(stream_mode='updates')` and detect `__interrupt__` in stream chunks
+- **Method Name:** `_handle_stream_chunk()` instead of `_handle_graph_event()`
+- **Interrupt Detection:** Check for `chunk.get("__interrupt__")` instead of catching exception
+
+**Rationale:** The `astream_events()` API did not reliably expose interrupt signals in all scenarios. Switching to `astream(stream_mode='updates')` provides direct access to the `__interrupt__` marker in the stream, enabling more robust interrupt detection.
+
+**Additional Enhancements (commit a65b5c3):**
+- Worktree validation with `InvalidWorktreeError` before workflow start
+- JSON serialization of Pydantic models via `model_dump(mode='json')` for SQLite persistence
+- Custom `_pydantic_encoder` for nested Pydantic objects in event data
+
+### PR Strategy
+
+This implementation is split into **two PRs** for easier review and faster iteration:
+
+#### PR 1: Core Execution Bridge (Tasks 1, 1.5, 4, 5, 6, 7, 10, 11, 12, 13, 14)
+
+**Branch:** `feat/langgraph-execution-bridge`
+**Status:** ✅ COMPLETED
+
+The core interrupt/resume mechanism. Self-contained and functional without retry logic.
+
+| Task | Description | Priority | Status |
+|------|-------------|----------|--------|
+| 1 | Add langgraph-checkpoint-sqlite dependency | Required | ✅ Done |
+| 1.5 | Update create_orchestrator_graph with interrupt_before | **CRITICAL** | ✅ Done |
+| 4 | Update human_approval_node for execution mode | Required | ✅ Done |
+| 5 | Add execution_state to ServerExecutionState | Required | ✅ Done |
+| 6 | Add STAGE_NODES and event mapping | Required | ✅ Done |
+| 7 | Implement _run_workflow with interrupt detection | **CRITICAL** | ✅ Done |
+| 10 | Update approve_workflow for graph resume | Required | ✅ Done |
+| 11 | Update reject_workflow for graph state | Required | ✅ Done |
+| 12 | Run full test suite and linting | Required | ✅ Done |
+| 13 | Create integration test for approval flow | Required | ✅ Done |
+| 14 | Final verification | Required | ✅ Done |
+
+**Actual scope:** ~616 lines changed across 11 files (commit a65b5c3)
+
+**Key Implementation Details:**
+- Uses `astream(stream_mode='updates')` instead of `astream_events()` for better interrupt detection
+- Includes worktree validation and JSON serialization for Pydantic models
+- All 465 tests passing
+
+#### PR 2: Retry Enhancement (Tasks 2, 3, 8, 9)
+
+**Branch:** `feat/workflow-retry-logic`
+**Depends on:** PR 1 merged
+
+Optional but recommended enhancement for production resilience.
+
+| Task | Description | Priority |
+|------|-------------|----------|
+| 2 | Add RetryConfig model | Optional |
+| 3 | Add retry field to Profile | Optional |
+| 8 | Implement retry wrapper | Optional |
+| 9 | Integrate retry in start_workflow | Optional |
+
+**Estimated scope:** ~200 lines + tests
+
+> **Implementation order:** Complete all PR 1 tasks first, create PR, then start PR 2 tasks on a new branch after PR 1 is merged.
+
+### Task Breakdown
+
+#### Task 1: Add langgraph-checkpoint-sqlite Dependency
+
+**Files:**
+- Modify: `pyproject.toml:7-22`
+
+**Step 1: Add the dependency**
+
+```bash
+uv add langgraph-checkpoint-sqlite
+```
+
+**Step 2: Verify installation**
+
+Run: `uv run python -c "from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver; print('OK')"`
+Expected: `OK`
+
+**Step 3: Commit**
+
+```bash
+git add pyproject.toml uv.lock
+git commit -m "chore: add langgraph-checkpoint-sqlite dependency"
+```
+
+#### Task 1.5: Update create_orchestrator_graph with interrupt_before Parameter
+
+**Files:**
+- Create: `tests/unit/test_orchestrator_interrupt.py`
+- Modify: `amelia/core/orchestrator.py:280-340`
+
+> **CRITICAL:** This task enables the interrupt mechanism. Without `interrupt_before`, the graph runs straight through `human_approval_node` without pausing in server mode.
+
+**Step 1: Write the failing test**
+
+Create `tests/unit/test_orchestrator_interrupt.py`:
+
+```python
+"""Tests for create_orchestrator_graph interrupt configuration."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from amelia.core.orchestrator import create_orchestrator_graph
+
+
+class TestCreateOrchestratorGraphInterrupt:
+    """Test interrupt_before parameter handling."""
+
+    def test_graph_accepts_interrupt_before_parameter(self):
+        """create_orchestrator_graph accepts interrupt_before parameter."""
+        # Should not raise
+        graph = create_orchestrator_graph(interrupt_before=["human_approval_node"])
+        assert graph is not None
+
+    def test_graph_without_interrupt_before_defaults_to_none(self):
+        """Graph created without interrupt_before has no interrupts configured."""
+        graph = create_orchestrator_graph()
+        # Graph should still be valid
+        assert graph is not None
+
+    @patch("amelia.core.orchestrator.StateGraph")
+    def test_interrupt_before_passed_to_compile(self, mock_state_graph_class):
+        """interrupt_before is passed through to graph.compile()."""
+        mock_workflow = MagicMock()
+        mock_state_graph_class.return_value = mock_workflow
+        mock_workflow.compile = MagicMock(return_value=MagicMock())
+
+        create_orchestrator_graph(
+            checkpoint_saver=MagicMock(),
+            interrupt_before=["human_approval_node"],
+        )
+
+        mock_workflow.compile.assert_called_once()
+        call_kwargs = mock_workflow.compile.call_args[1]
+        assert call_kwargs.get("interrupt_before") == ["human_approval_node"]
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/test_orchestrator_interrupt.py -v`
+Expected: FAIL with "TypeError: create_orchestrator_graph() got an unexpected keyword argument 'interrupt_before'"
+
+**Step 3: Update create_orchestrator_graph signature**
+
+Modify `amelia/core/orchestrator.py`:
+
+```python
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.graph.state import CompiledGraph
+
+def create_orchestrator_graph(
+    checkpoint_saver: BaseCheckpointSaver | None = None,
+    interrupt_before: list[str] | None = None,
+) -> CompiledGraph:
+    """Creates and compiles the LangGraph state machine for the orchestrator.
+
+    Args:
+        checkpoint_saver: Optional checkpoint saver for state persistence.
+        interrupt_before: List of node names to interrupt before executing.
+            Use ["human_approval_node"] for server-mode human-in-the-loop.
+
+    Returns:
+        Compiled StateGraph ready for execution.
+    """
+    workflow = StateGraph(ExecutionState)
+
+    # Add nodes
+    workflow.add_node("architect_node", call_architect_node)
+    workflow.add_node("human_approval_node", human_approval_node)
+    workflow.add_node("developer_node", call_developer_node)
+    workflow.add_node("reviewer_node", call_reviewer_node)
+
+    # ... existing edge definitions ...
+
+    return workflow.compile(
+        checkpointer=checkpoint_saver,
+        interrupt_before=interrupt_before,
+    )
+```
+
+**Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/test_orchestrator_interrupt.py -v`
+Expected: PASS (3 tests)
+
+**Step 5: Commit**
+
+```bash
+git add tests/unit/test_orchestrator_interrupt.py amelia/core/orchestrator.py
+git commit -m "feat(core): add interrupt_before parameter to create_orchestrator_graph"
+```
+
+#### Task 2: Add RetryConfig Model (PR 2)
+
+**Files:**
+- Create: `tests/unit/test_retry_config.py`
+- Modify: `amelia/core/types.py:10-28`
+
+**Step 1: Write the failing test**
+
+Create `tests/unit/test_retry_config.py`:
+
+```python
+"""Tests for RetryConfig model."""
+
+import pytest
+from pydantic import ValidationError
+
+from amelia.core.types import RetryConfig
+
+
+class TestRetryConfigDefaults:
+    """Test default values for RetryConfig."""
+
+    def test_default_values(self):
+        """RetryConfig has sensible defaults."""
+        config = RetryConfig()
+        assert config.max_retries == 3
+        assert config.base_delay == 1.0
+
+
+class TestRetryConfigValidation:
+    """Test validation constraints for RetryConfig."""
+
+    def test_max_retries_minimum(self):
+        """max_retries cannot be negative."""
+        with pytest.raises(ValidationError):
+            RetryConfig(max_retries=-1)
+
+    def test_max_retries_maximum(self):
+        """max_retries cannot exceed 10."""
+        with pytest.raises(ValidationError):
+            RetryConfig(max_retries=11)
+
+    def test_base_delay_minimum(self):
+        """base_delay must be at least 0.1."""
+        with pytest.raises(ValidationError):
+            RetryConfig(base_delay=0.05)
+
+    def test_base_delay_maximum(self):
+        """base_delay cannot exceed 30.0."""
+        with pytest.raises(ValidationError):
+            RetryConfig(base_delay=31.0)
+
+    def test_valid_custom_values(self):
+        """Valid custom values are accepted."""
+        config = RetryConfig(max_retries=5, base_delay=2.0)
+        assert config.max_retries == 5
+        assert config.base_delay == 2.0
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/test_retry_config.py -v`
+Expected: FAIL with "ImportError: cannot import name 'RetryConfig'"
+
+**Step 3: Write minimal implementation**
+
+Add to `amelia/core/types.py` after the existing imports:
+
+```python
+class RetryConfig(BaseModel):
+    """Retry configuration for transient failures.
+
+    Attributes:
+        max_retries: Maximum number of retry attempts (0-10).
+        base_delay: Base delay in seconds for exponential backoff (0.1-30.0).
+    """
+
+    max_retries: int = Field(default=3, ge=0, le=10)
+    base_delay: float = Field(default=1.0, ge=0.1, le=30.0)
+```
+
+**Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/test_retry_config.py -v`
+Expected: PASS (6 tests)
+
+**Step 5: Commit**
+
+```bash
+git add tests/unit/test_retry_config.py amelia/core/types.py
+git commit -m "feat(core): add RetryConfig model with validation"
+```
+
+#### Task 3: Add RetryConfig to Profile Model (PR 2)
+
+**Files:**
+- Modify: `tests/unit/test_types.py` (add test)
+- Modify: `amelia/core/types.py:10-28`
+
+**Step 1: Write the failing test**
+
+Add to `tests/unit/test_types.py`:
+
+```python
+class TestProfileRetryConfig:
+    """Test Profile.retry field."""
+
+    def test_profile_has_default_retry_config(self):
+        """Profile has default RetryConfig."""
+        profile = Profile(name="test", driver="cli:claude")
+        assert profile.retry.max_retries == 3
+        assert profile.retry.base_delay == 1.0
+
+    def test_profile_accepts_custom_retry_config(self):
+        """Profile accepts custom RetryConfig."""
+        from amelia.core.types import RetryConfig
+
+        custom_retry = RetryConfig(max_retries=5, base_delay=2.0)
+        profile = Profile(name="test", driver="cli:claude", retry=custom_retry)
+        assert profile.retry.max_retries == 5
+        assert profile.retry.base_delay == 2.0
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/test_types.py::TestProfileRetryConfig -v`
+Expected: FAIL with "unexpected keyword argument 'retry'"
+
+**Step 3: Update Profile model**
+
+Modify `Profile` class in `amelia/core/types.py`:
+
+```python
+class Profile(BaseModel):
+    """Configuration profile for Amelia execution.
+
+    Attributes:
+        name: Profile name (e.g., 'work', 'personal').
+        driver: LLM driver type (e.g., 'api:openai', 'cli:claude').
+        tracker: Issue tracker type (jira, github, none, noop).
+        strategy: Review strategy (single or competitive).
+        execution_mode: Execution mode (structured or agentic).
+        plan_output_dir: Directory for storing generated plans.
+        working_dir: Working directory for agentic execution.
+        retry: Retry configuration for transient failures.
+    """
+
+    name: str
+    driver: DriverType
+    tracker: TrackerType = "none"
+    strategy: StrategyType = "single"
+    execution_mode: ExecutionMode = "structured"
+    plan_output_dir: str = "docs/plans"
+    working_dir: str | None = None
+    retry: RetryConfig = Field(default_factory=RetryConfig)
+```
+
+**Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/test_types.py::TestProfileRetryConfig -v`
+Expected: PASS (2 tests)
+
+**Step 5: Commit**
+
+```bash
+git add tests/unit/test_types.py amelia/core/types.py
+git commit -m "feat(core): add retry config to Profile model"
+```
+
+#### Task 4: Update human_approval_node for Execution Mode
+
+**Files:**
+- Create: `tests/unit/test_human_approval_node.py`
+- Modify: `amelia/core/orchestrator.py:50-78`
+
+> **How interrupt_before Works:**
+> With `interrupt_before=["human_approval_node"]` configured in server mode:
+> 1. Graph executes `architect_node` and creates a plan
+> 2. Graph pauses BEFORE entering `human_approval_node` (checkpoint saved)
+> 3. `GraphInterrupt` exception is raised, caught by `_run_workflow`
+> 4. User approves via REST API → `approve_workflow` calls `aupdate_state({"human_approved": True})`
+> 5. Graph resumes → `human_approval_node` runs and reads `state.human_approved`
+> 6. Conditional edge routes based on approval status
+>
+> In **CLI mode**, no interrupt occurs - the node prompts interactively via `typer.confirm`.
+
+*[Detailed test and implementation steps included in original document]*
+
+#### Task 5-14: [Additional Tasks]
+
+*[All remaining tasks follow the same TDD pattern with tests, implementation, verification, and commits as detailed in the original implementation plan]*
+
+### Final Status
+
+**PR 1:** ✅ COMPLETED (commit a65b5c3)
+- All 465 tests passing
+- ~616 lines changed across 11 files
+- Core interrupt/resume mechanism fully implemented
+- Worktree validation and JSON serialization enhancements included
+
+**PR 2:** Not yet started (requires PR 1 merge)
+- Retry logic for transient failures
+- RetryConfig model and Profile integration
+- Estimated ~200 lines + tests
