@@ -4,17 +4,32 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useWorkflows } from '@/hooks/useWorkflows';
+import { JobQueue } from '@/components/JobQueue';
+import { WorkflowEmptyState } from '@/components/WorkflowEmptyState';
 
 export default function WorkflowsPage() {
+  const { workflows } = useWorkflows();
+  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const handleSelect = (id: string) => {
+    setSelectedId(id);
+    navigate(`/workflows/${id}`);
+  };
+
+  if (workflows.length === 0) {
+    return <WorkflowEmptyState variant="no-workflows" />;
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-      <h2 className="text-3xl font-display text-primary">Active Workflows</h2>
-      <p className="text-muted-foreground font-heading text-lg tracking-wide">
-        Coming soon
-      </p>
-      <Loader2 className="w-8 h-8 text-primary animate-spin" />
-    </div>
+    <JobQueue
+      workflows={workflows}
+      selectedId={selectedId}
+      onSelect={handleSelect}
+    />
   );
 }
 
