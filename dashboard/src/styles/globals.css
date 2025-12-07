@@ -227,6 +227,11 @@
   50% { opacity: 0; }
 }
 
+@keyframes progress-pulse {
+  0%, 100% { width: 30%; }
+  50% { width: 60%; }
+}
+
 @layer utilities {
   .animate-pulse-glow {
     animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;

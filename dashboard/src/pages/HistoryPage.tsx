@@ -7,7 +7,7 @@
 /**
  * @fileoverview Workflow history page showing past workflows.
  */
-import { useLoaderData, useNavigate } from 'react-router-dom';
+import { Link, useLoaderData } from 'react-router-dom';
 import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowEmptyState } from '@/components/WorkflowEmptyState';
 import { cn } from '@/lib/utils';
@@ -31,31 +31,10 @@ interface HistoryLoaderData {
  */
 export default function HistoryPage() {
   const { workflows } = useLoaderData() as HistoryLoaderData;
-  const navigate = useNavigate();
 
   if (workflows.length === 0) {
     return <WorkflowEmptyState variant="no-activity" />;
   }
-
-  /**
-   * Handles click navigation to workflow detail.
-   * @param workflowId - ID of workflow to navigate to
-   */
-  const handleWorkflowClick = (workflowId: string) => {
-    navigate(`/workflows/${workflowId}`);
-  };
-
-  /**
-   * Handles keyboard navigation (Enter/Space).
-   * @param e - Keyboard event
-   * @param workflowId - ID of workflow to navigate to
-   */
-  const handleKeyDown = (e: React.KeyboardEvent, workflowId: string) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      navigate(`/workflows/${workflowId}`);
-    }
-  };
 
   /**
    * Formats an ISO date string for display.
@@ -84,12 +63,9 @@ export default function HistoryPage() {
 
       <div className="flex flex-col gap-2">
         {workflows.map((workflow) => (
-          <div
+          <Link
             key={workflow.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => handleWorkflowClick(workflow.id)}
-            onKeyDown={(e) => handleKeyDown(e, workflow.id)}
+            to={`/workflows/${workflow.id}`}
             className={cn(
               'flex items-center gap-4 p-4 rounded-lg border transition-all duration-200 cursor-pointer',
               'hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -111,7 +87,7 @@ export default function HistoryPage() {
                 Started: {formatDate(workflow.started_at)}
               </p>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

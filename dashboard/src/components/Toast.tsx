@@ -7,18 +7,18 @@
 /**
  * @fileoverview Toast notification utilities.
  *
- * Simple toast notification utilities for displaying user feedback.
- * Currently uses console logging; can be integrated with a toast
- * library like react-hot-toast or sonner in the future.
+ * Toast notification utilities using the sonner library for displaying
+ * user feedback with a clean, accessible UI.
  */
+
+import { toast } from 'sonner';
 
 /**
  * Displays a success toast notification.
  * @param message - Success message to display
  */
 export function success(message: string): void {
-  console.log(`✓ ${message}`);
-  // TODO: Integrate with toast UI library
+  toast.success(message);
 }
 
 /**
@@ -26,8 +26,7 @@ export function success(message: string): void {
  * @param message - Error message to display
  */
 export function error(message: string): void {
-  console.error(`✗ ${message}`);
-  // TODO: Integrate with toast UI library
+  toast.error(message);
 }
 
 /**
@@ -35,6 +34,38 @@ export function error(message: string): void {
  * @param message - Info message to display
  */
 export function info(message: string): void {
-  console.info(`ℹ ${message}`);
-  // TODO: Integrate with toast UI library
+  toast.info(message);
+}
+
+/**
+ * Displays a warning toast notification.
+ * @param message - Warning message to display
+ */
+export function warning(message: string): void {
+  toast.warning(message);
+}
+
+/**
+ * Displays a loading toast notification.
+ * @param message - Loading message to display
+ * @returns Toast ID that can be used to dismiss or update the toast
+ */
+export function loading(message: string): string | number {
+  return toast.loading(message);
+}
+
+/**
+ * Displays a promise toast notification that updates based on promise state.
+ * @param promise - Promise to track
+ * @param messages - Messages for loading, success, and error states
+ */
+export function promise<T>(
+  promise: Promise<T>,
+  messages: {
+    loading: string;
+    success: string | ((data: T) => string);
+    error: string | ((error: Error) => string);
+  }
+): Promise<T> {
+  return toast.promise(promise, messages);
 }

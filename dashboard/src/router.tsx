@@ -8,6 +8,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { RootErrorBoundary } from '@/components/ErrorBoundary';
 import { workflowsLoader, workflowDetailLoader, historyLoader } from '@/loaders/workflows';
+import { approveAction, rejectAction } from '@/actions/workflows';
 
 export const router = createBrowserRouter([
   {
@@ -34,6 +35,14 @@ export const router = createBrowserRouter([
           const { default: Component } = await import('@/pages/WorkflowDetailPage');
           return { Component };
         },
+      },
+      {
+        path: 'workflows/:id/approve',
+        action: approveAction,
+      },
+      {
+        path: 'workflows/:id/reject',
+        action: rejectAction,
       },
       {
         path: 'history',

@@ -48,8 +48,9 @@ export function ApprovalControls({
   status = 'pending',
   className,
 }: ApprovalControlsProps) {
-  const fetcher = useFetcher();
-  const isPending = fetcher.state !== 'idle';
+  const approveFetcher = useFetcher();
+  const rejectFetcher = useFetcher();
+  const isPending = approveFetcher.state !== 'idle' || rejectFetcher.state !== 'idle';
 
   return (
     <div
@@ -69,7 +70,7 @@ export function ApprovalControls({
 
       {status === 'pending' && (
         <div className="flex gap-3">
-          <fetcher.Form method="post" action={`/workflows/${workflowId}/approve`}>
+          <approveFetcher.Form method="post" action={`/workflows/${workflowId}/approve`}>
             <Button
               type="submit"
               disabled={isPending}
@@ -82,9 +83,9 @@ export function ApprovalControls({
               )}
               Approve
             </Button>
-          </fetcher.Form>
+          </approveFetcher.Form>
 
-          <fetcher.Form method="post" action={`/workflows/${workflowId}/reject`}>
+          <rejectFetcher.Form method="post" action={`/workflows/${workflowId}/reject`}>
             <input type="hidden" name="feedback" value="Rejected by user" />
             <Button
               type="submit"
@@ -99,7 +100,7 @@ export function ApprovalControls({
               )}
               Reject
             </Button>
-          </fetcher.Form>
+          </rejectFetcher.Form>
         </div>
       )}
 

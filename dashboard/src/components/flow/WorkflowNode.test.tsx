@@ -48,6 +48,7 @@ describe('WorkflowNode', () => {
     { status: 'active' as const, hasAnimation: true },
     { status: 'completed' as const, hasAnimation: false },
     { status: 'pending' as const, hasAnimation: false },
+    { status: 'blocked' as const, hasAnimation: false },
   ])('applies $status status (animated: $hasAnimation)', ({ status, hasAnimation }) => {
     const { container } = renderNode({ label: 'Test', status });
     expect(container.querySelector(`[data-status="${status}"]`)).toBeInTheDocument();

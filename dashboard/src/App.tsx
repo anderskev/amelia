@@ -6,6 +6,7 @@
 
 import { Suspense } from 'react';
 import { RouterProvider } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { router } from '@/router';
 
@@ -23,6 +24,7 @@ export function App() {
       <Suspense fallback={<GlobalLoadingSpinner />}>
         <RouterProvider router={router} />
       </Suspense>
+      <Toaster richColors position="bottom-right" />
     </TooltipProvider>
   );
 }
