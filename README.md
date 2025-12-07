@@ -251,4 +251,5 @@ See [**docs/roadmap.md**](docs/roadmap.md) for the full roadmap with implementat
 | 11 | Spec Builder | Planned |
 | 12 | Debate Mode | Planned |
 | 13 | Knowledge Library | Planned |
-| 14 | AWS AgentCore | Planned |
+| 14 | Capitalization Tracking | Planned |
+| 15 | AWS AgentCore | Planned |

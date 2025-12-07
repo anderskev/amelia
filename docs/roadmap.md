@@ -451,7 +451,7 @@ See [Knowledge Library Design](brainstorming/2025-12-06-knowledge-library-design
 
 *Attribute engineering work to initiatives for financial reporting*
 
-A system that maps PRs and issues to capitalizable initiatives (JIRA Epics or GitHub Projects), estimates engineering hours from PR lifecycle, and produces auditable reports for finance.
+A system that maps PRs and issues to capitalizable initiatives (JIRA Epics or GitHub Projects), estimates engineering hours from workflow execution timestamps, and produces auditable reports for finance.
 
 ### Goals
 - Real-time attribution when Amelia orchestrates work
@@ -464,55 +464,35 @@ A system that maps PRs and issues to capitalizable initiatives (JIRA Epics or Gi
 |----------|--------|-----------|
 | Initiative source | JIRA Epics / GitHub Projects | Tracker-native, follows CONTRIBUTING.md discipline |
 | Mapping strategy | Hierarchical only | Issue's parent epic/project = initiative |
-| Hours estimation | PR lifecycle (open → merge) | Only reliable signal; no JIRA time tracking |
+| Hours estimation | Workflow execution sum, PR lifecycle fallback | Measures actual work time; PR fallback for manual/historical work |
 | Engineer weighting | Flat rate | Finance applies their own labor rates |
 | Output formats | CLI + JSON/CSV, dashboard later | CLI for automation, dashboard for exploration |
-| Retrospective trigger | On-demand CLI | Avoids background job complexity |
 | Audit trail | Full reasoning per attribution | SOX compliance requires traceability |
 
-### Phase 14a: Data Models & Persistence
-- [ ] `Initiative`, `Attribution`, `CapexReport` Pydantic models
-- [ ] SQLite CRUD operations in `amelia/capex/store.py`
-- [ ] Alembic migration for `initiatives` and `attributions` tables
+### Workflow Tracking
+- [ ] Persist `WorkflowExecution` records with start/end timestamps
+- [ ] Track initiative context and agents invoked per workflow
+- [ ] Link workflows to PRs for attribution
 
-### Phase 14b: Initiative Tracker Protocol
+### Initiative Resolution
 - [ ] `InitiativeTracker` protocol in tracker abstraction
 - [ ] JIRA implementation — fetch epics, resolve parent for issue
 - [ ] GitHub implementation — fetch projects, resolve membership
 
-### Phase 14c: Hours Estimation
-- [ ] `business_hours_between()` utility (weekdays, 8-hour days)
-- [ ] `estimate_hours()` from PR lifecycle with audit trail
-- [ ] Edge cases: unmerged PRs, weekend spans
+### Hours Estimation
+- [ ] Primary: sum of workflow execution durations (actual work time)
+- [ ] Fallback: PR lifecycle business hours (manual/historical work)
+- [ ] Partial credit for failed workflows (50%), none for cancelled
 
-### Phase 14d: Attribution Engine
-- [ ] PR → issue → initiative hierarchy resolution
-- [ ] Audit trail reasoning generation
-- [ ] Persistence via store
+### CLI Commands
+- [ ] `amelia capex scan --since --until` — retrospective attribution
+- [ ] `amelia capex report --quarter Q1-2025` — JSON/CSV/table output
+- [ ] `amelia capex initiatives` / `show` / `unattributed`
 
-### Phase 14e: CLI Scan Command
-- [ ] `amelia capex scan --since --until` command
-- [ ] Fetch PRs from GitHub, resolve attributions
-- [ ] `amelia capex unattributed` — list orphan artifacts
-
-### Phase 14f: CLI Report Commands
-- [ ] `amelia capex initiatives` — list from tracker
-- [ ] `amelia capex report` — JSON/CSV/table output
-- [ ] `amelia capex show` — attribution details for artifact
-
-### Phase 14g: Real-time Orchestrator Hook
-- [ ] Capture initiative context at workflow start
-- [ ] Emit attribution when PR merges
-- [ ] Link workflow ID to attributions
-
-### Phase 14h: Dashboard API
-- [ ] `/api/capex/*` REST endpoints
-- [ ] Initiative list, detail, report endpoints
-
-### Phase 14i: Dashboard UI
-- [ ] Initiative list and detail pages
-- [ ] Unattributed artifacts view
-- [ ] Report generation with export
+### Dashboard Integration
+- [ ] REST endpoints for initiative list, detail, reports
+- [ ] UI pages with workflow execution timeline
+- [ ] Export with hours source breakdown (workflow vs fallback)
 
 See [Capitalization Tracking Design](brainstorming/2025-12-07-capex-tracking-design.md) for full specification.
 
