@@ -115,6 +115,10 @@ amelia.db
 checkpoints/
 *.ckpt
 
+# Bundled dashboard (built during release)
+amelia/server/static/*
+!amelia/server/static/.gitkeep
+
 # Tool-specific directories
 .gemini/
 .serena/
