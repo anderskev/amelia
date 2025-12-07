@@ -353,8 +353,21 @@ class ClaudeCliDriver(CliDriver):
             raise RuntimeError(f"Error executing Claude CLI: {e}") from e
 
     async def _execute_tool_impl(self, tool_name: str, **kwargs: Any) -> Any:
-        """
-        Executes a tool locally using safe utilities.
+        """Execute a tool locally using safe utilities.
+
+        Args:
+            tool_name: Name of the tool to execute (e.g., "run_shell_command", "write_file").
+            **kwargs: Tool-specific parameters:
+                - command: Shell command string (for run_shell_command).
+                - file_path: Target file path (for write_file).
+                - content: File content to write (for write_file).
+
+        Returns:
+            Tool execution result (varies by tool type).
+
+        Raises:
+            ValueError: If required arguments are missing.
+            NotImplementedError: If tool_name is not supported.
         """
         if tool_name == ToolName.RUN_SHELL_COMMAND:
             command = kwargs.get("command")
