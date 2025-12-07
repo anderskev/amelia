@@ -8,7 +8,8 @@
  * @fileoverview Workflow detail page with full status display.
  */
 import { useLoaderData } from 'react-router-dom';
-import { WorkflowHeader } from '@/components/WorkflowHeader';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowProgress } from '@/components/WorkflowProgress';
 import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
@@ -52,9 +53,27 @@ export default function WorkflowDetailPage() {
   const pipeline = buildPipeline(workflow);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full">
       {/* Header */}
-      <WorkflowHeader workflow={workflow} />
+      <PageHeader>
+        <PageHeader.Left>
+          <PageHeader.Label>WORKFLOW</PageHeader.Label>
+          <div className="flex items-center gap-3">
+            <PageHeader.Title>{workflow.issue_id}</PageHeader.Title>
+            <PageHeader.Subtitle>{workflow.worktree_name}</PageHeader.Subtitle>
+          </div>
+        </PageHeader.Left>
+        <PageHeader.Center>
+          <PageHeader.Label>ELAPSED</PageHeader.Label>
+          <PageHeader.Value glow>--:--</PageHeader.Value>
+        </PageHeader.Center>
+        <PageHeader.Right>
+          {workflow.status === 'in_progress' && (
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(255,200,87,0.6)]" />
+          )}
+          <StatusBadge status={workflow.status} />
+        </PageHeader.Right>
+      </PageHeader>
 
       {/* Main content area */}
       <div className="flex-1 overflow-hidden grid grid-cols-2 gap-4 p-6">

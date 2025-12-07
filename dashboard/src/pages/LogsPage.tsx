@@ -5,15 +5,25 @@
  */
 
 import { Loader2 } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 
 export default function LogsPage() {
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-      <h2 className="text-3xl font-display text-primary">Logs</h2>
-      <p className="text-muted-foreground font-heading text-lg tracking-wide">
-        Coming soon
-      </p>
-      <Loader2 className="w-8 h-8 text-primary animate-spin" />
+    <div className="flex flex-col h-full w-full">
+      <PageHeader>
+        <PageHeader.Left>
+          <PageHeader.Label>MONITORING</PageHeader.Label>
+          <PageHeader.Title>Logs</PageHeader.Title>
+        </PageHeader.Left>
+      </PageHeader>
+
+      {/* Coming soon placeholder */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
+        <p className="text-muted-foreground font-heading text-lg tracking-wide">
+          Coming soon
+        </p>
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@
  * @fileoverview Workflow history page showing past workflows.
  */
 import { Link, useLoaderData } from 'react-router-dom';
+import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowEmptyState } from '@/components/WorkflowEmptyState';
 import { cn } from '@/lib/utils';
@@ -53,15 +54,19 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-display text-primary">Workflow History</h2>
-        <span className="text-sm text-muted-foreground">
-          {workflows.length} {workflows.length === 1 ? 'workflow' : 'workflows'}
-        </span>
-      </div>
+    <div className="flex flex-col w-full">
+      <PageHeader>
+        <PageHeader.Left>
+          <PageHeader.Label>HISTORY</PageHeader.Label>
+          <PageHeader.Title>Past Runs</PageHeader.Title>
+        </PageHeader.Left>
+        <PageHeader.Center>
+          <PageHeader.Label>TOTAL</PageHeader.Label>
+          <PageHeader.Value>{workflows.length}</PageHeader.Value>
+        </PageHeader.Center>
+      </PageHeader>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 p-6">
         {workflows.map((workflow) => (
           <Link
             key={workflow.id}

@@ -95,8 +95,8 @@ describe('WorkflowsPage', () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
 
     await waitFor(() => {
-      // WorkflowHeader uses data-slot attribute
-      expect(document.querySelector('[data-slot="workflow-header"]')).toBeInTheDocument();
+      // PageHeader uses data-slot attribute
+      expect(document.querySelector('[data-slot="page-header"]')).toBeInTheDocument();
       // Issue ID appears in header (and possibly job queue), so use getAllByText
       expect(screen.getAllByText('PROJ-123').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('proj-123-feature').length).toBeGreaterThanOrEqual(1);

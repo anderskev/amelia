@@ -20,7 +20,7 @@ export function Layout() {
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen bg-background text-foreground">
+      <div className="flex h-screen w-full bg-background text-foreground">
         {/* Sidebar */}
         <DashboardSidebar />
 

@@ -12,11 +12,11 @@
  */
 import { useState } from 'react';
 import { useLoaderData, useFetcher } from 'react-router-dom';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { WorkflowEmptyState } from '@/components/WorkflowEmptyState';
-import { WorkflowHeader } from '@/components/WorkflowHeader';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { ActivityLog } from '@/components/ActivityLog';
 import { ActivityLogSkeleton } from '@/components/ActivityLogSkeleton';
@@ -76,7 +76,7 @@ export default function WorkflowsPage() {
   const pipeline = detail ? buildPipeline(detail) : null;
 
   return (
-    <div className="flex flex-col h-full relative overflow-hidden">
+    <div className="flex flex-col h-full w-full relative overflow-hidden">
       {/* Starfield background */}
       <div
         className="fixed inset-0 pointer-events-none z-0 opacity-40"
@@ -119,18 +119,32 @@ export default function WorkflowsPage() {
         aria-hidden="true"
       />
 
-      {/* Top: Header + Canvas (full width) - Card groups related content semantically */}
-      {detail && (
-        <Card className="rounded-none border-x-0 border-t-0 relative z-10">
-          <CardHeader className="p-0">
-            <WorkflowHeader workflow={detail} />
-          </CardHeader>
-          <Separator />
-          <CardContent className="p-0">
-            {pipeline && <WorkflowCanvas pipeline={pipeline} />}
-          </CardContent>
-        </Card>
-      )}
+      {/* Top: Header + Canvas (full width) */}
+      <PageHeader>
+        <PageHeader.Left>
+          <PageHeader.Label>WORKFLOW</PageHeader.Label>
+          <div className="flex items-center gap-3">
+            <PageHeader.Title>{detail?.issue_id ?? 'SELECT JOB'}</PageHeader.Title>
+            {detail?.worktree_name && (
+              <PageHeader.Subtitle>{detail.worktree_name}</PageHeader.Subtitle>
+            )}
+          </div>
+        </PageHeader.Left>
+        <PageHeader.Center>
+          <PageHeader.Label>ELAPSED</PageHeader.Label>
+          <PageHeader.Value glow>--:--</PageHeader.Value>
+        </PageHeader.Center>
+        {detail && (
+          <PageHeader.Right>
+            {detail.status === 'in_progress' && (
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(255,200,87,0.6)]" />
+            )}
+            <StatusBadge status={detail.status} />
+          </PageHeader.Right>
+        )}
+      </PageHeader>
+      <Separator />
+      {pipeline && <WorkflowCanvas pipeline={pipeline} />}
 
       {/* Bottom: Queue + Activity (split) - ScrollArea provides overflow handling */}
       <div className="flex-1 grid grid-cols-[320px_1fr] gap-4 p-4 overflow-hidden relative z-10">
