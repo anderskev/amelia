@@ -176,56 +176,6 @@ amelia plan-only GH-789 --profile home
 amelia plan-only GH-789 --design docs/designs/feature.md
 ```
 
-## Claude Code Commands
-
-When working on this project with [Claude Code](https://claude.ai/code), the following slash commands are available:
-
-| Command | Description |
-|---------|-------------|
-| `/amelia:commit-push` | Commit and push all local changes to remote |
-| `/amelia:create-pr` | Create a PR with standardized description template |
-| `/amelia:update-pr-desc` | Update existing PR description after additional changes |
-| `/amelia:review` | Launch a code review agent for the current PR |
-| `/amelia:review-tests` | Review test code for quality and conciseness |
-| `/amelia:ensure-doc` | Ensure all code is properly documented |
-| `/amelia:gen-test-plan` | Generate manual test plan for PR |
-| `/amelia:run-test-plan <path>` | Execute a manual test plan in an isolated worktree |
-| `/amelia:greptile-review` | Fetch and evaluate greptile-apps review comments |
-| `/amelia:eval-feedback <feedback>` | Evaluate code review feedback from another session |
-| `/amelia:respond-review` | Respond to greptile review comments after evaluation |
-
-## Claude Code Skills
-
-The following skills are available in `.claude/skills/amelia/` to help Claude Code understand project-specific patterns and libraries:
-
-### Frontend Skills
-
-| Skill | Triggers | Description |
-|-------|----------|-------------|
-| **tailwind-v4** | `@theme`, `oklch`, `--color-` | Tailwind CSS v4 with CSS-first configuration, OKLCH colors, dark mode |
-| **shadcn-ui** | `shadcn`, `cva`, `cn()`, `data-slot` | shadcn/ui component patterns, CVA variants, Radix primitives |
-| **react-router-v7** | `loader`, `action`, `NavLink` | React Router v7 data loading, actions, navigation patterns |
-| **zustand-state** | `zustand`, `create`, `persist` | Zustand state management, middleware, TypeScript patterns |
-| **react-flow** | `ReactFlow`, `Handle`, `NodeProps` | React Flow workflow visualization, custom nodes/edges |
-| **ai-elements** | `Queue`, `Tool`, `Confirmation` | Vercel AI Elements for chat UI, tool execution, workflows |
-
-### Backend Skills
-
-| Skill | Triggers | Description |
-|-------|----------|-------------|
-| **vercel-ai-sdk** | `useChat`, `streamText`, `UIMessage` | Vercel AI SDK for streaming chat, tool calls, message handling |
-| **docling** | `DocumentConverter`, `HierarchicalChunker` | Document parsing (PDF, DOCX), chunking for RAG pipelines |
-| **langgraph-graphs** | `StateGraph`, `add_node`, `add_edge` | LangGraph state machine patterns, nodes, edges, conditional routing |
-| **langgraph-persistence** | `AsyncSqliteSaver`, `interrupt_before`, `GraphInterrupt` | LangGraph checkpointing, human-in-loop, interrupts, streaming |
-| **pydantic-ai-agents** | `pydantic_ai`, `Agent`, `RunContext`, `@agent.tool` | Pydantic AI agent patterns, tools, dependencies, structured outputs |
-| **sqlite-vec** | `vec0`, `MATCH`, `vec_distance` | Vector similarity search in SQLite, KNN queries, embeddings |
-
-### Testing Skills
-
-| Skill | Triggers | Description |
-|-------|----------|-------------|
-| **vitest-testing** | `vitest`, `vi.mock`, `describe` | Vitest patterns, mocking, configuration, test utilities |
-
 ## Configuration
 
 Basic `settings.amelia.yaml`:
@@ -263,6 +213,7 @@ uv run pytest
 
 ## Learn More
 
+- [Contributing](CONTRIBUTING.md) - Development setup, code conventions, and Claude Code commands/skills
 - [Roadmap](docs/roadmap.md) - Detailed development phases and vision
 - [Concepts: Understanding Agentic AI](docs/concepts.md) - How agents, drivers, and orchestration work
 - [Architecture & Data Flow](docs/architecture.md) - Technical deep dive with diagrams
