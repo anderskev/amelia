@@ -9,6 +9,7 @@ This folder contains documentation from completed, superseded, or abandoned work
 | Document | Description |
 |----------|-------------|
 | [gemini_spec.md](gemini_spec.md) | Early Gemini integration specification |
+| [langgraph-execution-bridge.md](langgraph-execution-bridge.md) | LangGraph execution bridge design & implementation (completed Dec 2025) |
 | [phase-2-server-implementation.md](phase-2-server-implementation.md) | Original Phase 2 server implementation plan |
 
 ### Archived Projects
