@@ -5,22 +5,38 @@
  */
 
 import { api } from '@/api/client';
+import { getActiveWorkflow } from '@/utils/workflow';
 import type { LoaderFunctionArgs } from 'react-router-dom';
+import type { WorkflowsLoaderData } from '@/types/api';
 
 /**
  * Loader for the active workflows page.
- * Fetches all in_progress and blocked workflows from the API.
+ * Fetches all in_progress and blocked workflows from the API,
+ * plus pre-loads the active workflow detail for instant display.
  *
- * @returns Object containing the list of active workflows.
+ * @returns Object containing the list of active workflows and optional active detail.
  * @throws {Error} When the API request fails.
  * @example
  * ```typescript
- * const { workflows } = await workflowsLoader();
+ * const { workflows, activeDetail } = await workflowsLoader();
  * ```
  */
-export async function workflowsLoader() {
+export async function workflowsLoader(): Promise<WorkflowsLoaderData> {
   const workflows = await api.getWorkflows();
-  return { workflows };
+  const active = getActiveWorkflow(workflows);
+
+  // Fetch active detail with error handling - don't fail the whole page if detail fails
+  let activeDetail = null;
+  if (active) {
+    try {
+      activeDetail = await api.getWorkflow(active.id);
+    } catch (error) {
+      console.error('Failed to fetch active workflow detail:', error);
+      // Continue with null - page will show list without canvas
+    }
+  }
+
+  return { workflows, activeDetail };
 }
 
 /**

@@ -13,6 +13,7 @@ import { WorkflowProgress } from '@/components/WorkflowProgress';
 import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
+import { buildPipeline } from '@/utils/pipeline';
 import type { WorkflowDetail } from '@/types';
 
 /**
@@ -47,37 +48,8 @@ export default function WorkflowDetailPage() {
     ? `Plan with ${workflow.plan.tasks.length} tasks`
     : 'No plan available';
 
-  // Convert plan to pipeline format for WorkflowCanvas (if plan exists)
-  const pipeline = workflow.plan
-    ? (() => {
-        const taskIds = new Set(workflow.plan!.tasks.map((t) => t.id));
-        const nodes = workflow.plan!.tasks.map((task) => ({
-          id: task.id,
-          label: task.agent,
-          subtitle: task.description,
-          status: task.status === 'completed'
-            ? 'completed' as const
-            : task.status === 'in_progress'
-            ? 'active' as const
-            : task.status === 'failed'
-            ? 'blocked' as const
-            : 'pending' as const,
-        }));
-        // Filter edges to only include those where both source and target exist
-        const edges = workflow.plan!.tasks
-          .flatMap((task) =>
-            task.dependencies
-              .filter((depId) => taskIds.has(depId))
-              .map((depId) => ({
-                from: depId,
-                to: task.id,
-                label: '',
-                status: 'completed' as const,
-              }))
-          );
-        return { nodes, edges };
-      })()
-    : null;
+  // Convert plan to pipeline format for WorkflowCanvas
+  const pipeline = buildPipeline(workflow);
 
   return (
     <div className="flex flex-col h-full">

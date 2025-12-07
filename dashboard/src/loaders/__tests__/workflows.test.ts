@@ -7,7 +7,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { workflowsLoader, workflowDetailLoader, historyLoader } from '../workflows';
 import { api } from '../../api/client';
+import { getActiveWorkflow } from '../../utils/workflow';
 import type { LoaderFunctionArgs } from 'react-router-dom';
+
+vi.mock('../../utils/workflow');
 
 vi.mock('../../api/client');
 
@@ -58,16 +61,57 @@ describe('Workflow Loaders', () => {
   });
 
   describe('workflowsLoader', () => {
-    it('should fetch active workflows', async () => {
+    it('should return workflows list and activeDetail in response', async () => {
       vi.mocked(api.getWorkflows).mockResolvedValueOnce([mockWorkflowSummary]);
+      vi.mocked(getActiveWorkflow).mockReturnValueOnce(mockWorkflowSummary);
+      vi.mocked(api.getWorkflow).mockResolvedValueOnce(mockWorkflowDetail);
 
       const result = await workflowsLoader();
 
       expect(api.getWorkflows).toHaveBeenCalledTimes(1);
-      expect(result).toEqual({ workflows: [mockWorkflowSummary] });
+      expect(result).toHaveProperty('workflows');
+      expect(result).toHaveProperty('activeDetail');
+      expect(result.workflows).toEqual([mockWorkflowSummary]);
+      expect(result.activeDetail).toEqual(mockWorkflowDetail);
     });
 
-    it('should propagate API errors', async () => {
+    it('should return null activeDetail when no workflows exist', async () => {
+      vi.mocked(api.getWorkflows).mockResolvedValueOnce([]);
+      vi.mocked(getActiveWorkflow).mockReturnValueOnce(null);
+
+      const result = await workflowsLoader();
+
+      expect(result.workflows).toEqual([]);
+      expect(result.activeDetail).toBeNull();
+      expect(api.getWorkflow).not.toHaveBeenCalled();
+    });
+
+    it('should return null activeDetail when detail API call fails', async () => {
+      vi.mocked(api.getWorkflows).mockResolvedValueOnce([mockWorkflowSummary]);
+      vi.mocked(getActiveWorkflow).mockReturnValueOnce(mockWorkflowSummary);
+      vi.mocked(api.getWorkflow).mockRejectedValueOnce(new Error('Detail fetch failed'));
+
+      const result = await workflowsLoader();
+
+      expect(result.workflows).toEqual([mockWorkflowSummary]);
+      expect(result.activeDetail).toBeNull();
+    });
+
+    it('should include active workflow detail when running workflow exists', async () => {
+      const runningWorkflow = { ...mockWorkflowSummary, status: 'in_progress' as const };
+      const runningDetail = { ...mockWorkflowDetail, status: 'in_progress' as const };
+      vi.mocked(api.getWorkflows).mockResolvedValueOnce([runningWorkflow]);
+      vi.mocked(getActiveWorkflow).mockReturnValueOnce(runningWorkflow);
+      vi.mocked(api.getWorkflow).mockResolvedValueOnce(runningDetail);
+
+      const result = await workflowsLoader();
+
+      expect(getActiveWorkflow).toHaveBeenCalledWith([runningWorkflow]);
+      expect(api.getWorkflow).toHaveBeenCalledWith(runningWorkflow.id);
+      expect(result.activeDetail).toEqual(runningDetail);
+    });
+
+    it('should propagate API errors from getWorkflows', async () => {
       vi.mocked(api.getWorkflows).mockRejectedValueOnce(new Error('Network error'));
 
       await expect(workflowsLoader()).rejects.toThrow('Network error');
