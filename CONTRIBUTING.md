@@ -8,6 +8,7 @@ Thank you for your interest in contributing to Amelia! This document provides gu
 - [Build & Development Commands](#build--development-commands)
 - [Code Conventions](#code-conventions)
 - [Test Structure](#test-structure)
+- [Commit Messages](#commit-messages)
 - [Pull Request Process](#pull-request-process)
 - [Claude Code Commands](#claude-code-commands)
 - [Claude Code Skills](#claude-code-skills)
@@ -94,6 +95,76 @@ For PRs with significant changes, create a manual test plan that the `amelia-qa`
 - Place test plan at `docs/testing/pr-test-plan.md` (preferred) or `docs/testing/manual-test-plan-*.md`
 - The file is auto-detected when the PR is opened and posted as a comment
 - After the PR is merged, delete the test plan file (it's preserved in the PR comment)
+
+## Commit Messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```
+type(scope): description
+
+[optional body]
+
+[optional footer]
+```
+
+### Types
+
+| Type | When to Use |
+|------|-------------|
+| `feat` | New features or capabilities |
+| `fix` | Bug fixes |
+| `docs` | Documentation only changes |
+| `refactor` | Code changes that neither fix bugs nor add features |
+| `test` | Adding or updating tests |
+| `chore` | Maintenance tasks, dependency updates |
+| `perf` | Performance improvements |
+| `ci` | CI/CD configuration changes |
+
+### Scopes
+
+| Scope | Component |
+|-------|-----------|
+| `server` | Backend FastAPI server |
+| `cli` | Command-line interface |
+| `dashboard` | React frontend |
+| `skills` | Claude Code skills |
+| `commands` | Slash commands |
+| `client` | API client |
+| `health` | Health check endpoints |
+
+### Examples
+
+```bash
+# Feature with scope
+feat(cli): add dry-run flag to start command
+
+# Bug fix with scope
+fix(server): handle timeout when LLM response exceeds limit
+
+# Breaking change (note the !)
+feat!(api): change response format for workflow status
+
+BREAKING CHANGE: The `status` field is now an object instead of a string.
+
+# Simple docs change (no scope needed)
+docs: update installation instructions
+
+# Multi-line with body
+fix(dashboard): resolve memory leak in workflow view
+
+The useEffect cleanup was not properly canceling pending API requests,
+causing state updates on unmounted components.
+```
+
+### Guidelines
+
+- **Use imperative mood**: "add feature" not "added feature" or "adds feature"
+- **Keep first line under 72 characters**
+- **Reference issues** in the footer: `Closes #123` or `Fixes #456`
+- **Mark breaking changes** with `!` after type/scope and explain in footer
+
+> **Tip:** If you're using Claude Code, run `/amelia:commit-push` to automatically generate a properly formatted commit message and push your changes.
 
 ## Pull Request Process
 
