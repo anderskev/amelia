@@ -5,3 +5,10 @@
  */
 
 import '@testing-library/jest-dom';
+
+// Mock ResizeObserver for React Flow tests
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
