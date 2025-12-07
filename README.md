@@ -10,8 +10,6 @@ Issue → Architect (plan) → Human Approval → Developer (execute) ↔ Review
 
 ## What is Amelia?
 
-One morning, when the developer awoke from troubled dreams, they found themselves transformed in their bed into a project maintainer.
-
 Amelia is an agentic coding orchestrator. Or perhaps it is not. The committee has not yet ruled on this matter, and the relevant forms remain in transit
 between departments.
 
