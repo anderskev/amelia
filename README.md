@@ -234,22 +234,4 @@ See [Configuration Reference](docs/configuration.md) for full details.
 
 > **Vision:** Complete end-to-end workflow control without ever opening GitHub, Jira, or any tracker web UI—with agents that maintain context across sessions and verify their own work.
 
-See [**docs/roadmap.md**](docs/roadmap.md) for the full roadmap with implementation details.
-
-| Phase | Focus | Status |
-|-------|-------|--------|
-| 1 | Core Orchestration | ✅ Complete |
-| 2 | Web Dashboard | 🔄 In Progress |
-| 3 | Session Continuity | Planned |
-| 4 | Verification Framework | Planned |
-| 5 | Bidirectional Tracker Sync | Planned |
-| 6 | Pull Request Lifecycle | Planned |
-| 7 | Quality Gates | Planned |
-| 8 | Parallel Execution | Planned |
-| 9 | Chat Integration | Planned |
-| 10 | Continuous Improvement | Planned |
-| 11 | Spec Builder | Planned |
-| 12 | Debate Mode | Planned |
-| 13 | Knowledge Library | Planned |
-| 14 | Capitalization Tracking | Planned |
-| 15 | AWS AgentCore | Planned |
+See [**docs/roadmap.md**](docs/roadmap.md) for the full development roadmap.

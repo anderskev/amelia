@@ -4,655 +4,238 @@
 
 ## Design Principles
 
-These principles, informed by [Anthropic's research on long-running agent harnesses](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents), guide all roadmap decisions:
+These principles, informed by [Anthropic's research on effective agent harnesses](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents), guide all roadmap decisions:
 
-1. **Model Improvement as Tailwind** - Build features assuming LLMs will get smarter; prefer prompts over code, delegation over hardcoding, and flexible architectures that let better models do more with less scaffolding
-2. **Structured Handoffs** - Agents working across sessions need explicit state transfer mechanisms, not implicit memory
-3. **One Feature at a Time** - Context exhaustion is the enemy; focused work with clear completion criteria prevents scope creep
+1. **Model Improvement as Tailwind** - Build features assuming LLMs will get smarter; prefer prompts over code, delegation over hardcoding
+2. **Structured Handoffs** - Agents working across sessions need explicit state transfer mechanisms
+3. **One Feature at a Time** - Context exhaustion is the enemy; focused work with clear completion criteria
 4. **Verify Before Declaring Done** - Agents must test as humans would, not just claim completion
 5. **Incremental Accountability** - Every change is committed, logged, and recoverable
-6. **Environment as Truth** - Git history and progress artifacts are the source of truth, not agent memory
+6. **Environment as Truth** - Git history and artifacts are the source of truth, not agent memory
 
 ---
 
-## Phase 1: Core Orchestration ✅ Complete
+## Phase 1: Core Orchestration [Complete]
 
-The foundation: multi-agent coordination with human oversight.
+*Multi-agent coordination with human oversight*
 
-- [x] **Agent orchestration** - LangGraph state machine coordinating Architect → Developer → Reviewer loop
-- [x] **Human approval gates** - Explicit checkpoints before execution proceeds
-- [x] **Multi-driver support** - Swap between `api:openai` (direct API) and `cli:claude` (enterprise CLI) without code changes
-- [x] **Issue tracker integrations** - Jira and GitHub issue fetching
-- [x] **Reviewer benchmark framework** - Data-driven prompt iteration with [eval-reviewer](https://github.com/anderskev/amelia/issues/8)
+The foundation: specialized AI agents working in sequence with explicit approval gates before any code changes ship.
 
----
-
-## Phase 2: Web Dashboard 🔄 In Progress
-
-Observable orchestration through a local web interface.
-
-### Completed
-- [x] **FastAPI server foundation** - Async backend with dependency injection
-- [x] **SQLite persistence** - Workflow and task state stored durably
-- [x] **Workflow state machine** - Status transitions with event tracking
-
-### In Progress
-- [ ] **REST API endpoints** - CRUD operations for workflows, tasks, and events
-  - [x] `POST /workflows` - Create new workflow with validation
-  - [x] `GET /workflows` - List workflows with filtering/pagination
-  - [x] `GET /workflows/active` - List active workflows
-  - [x] `GET /workflows/{id}` - Workflow detail with task tree
-  - [x] `POST /workflows/{id}/approve` - Human approval endpoint
-  - [x] `POST /workflows/{id}/reject` - Reject with feedback
-  - [x] `POST /workflows/{id}/cancel` - Cancel active workflow
-  - [ ] `GET /workflows/{id}/events` - Event stream for a workflow
-
-### Planned
-- [ ] **WebSocket events** - Real-time updates pushed to connected clients
-  - Task status changes broadcast immediately
-  - Log streaming from agent execution
-  - Approval request notifications
-- [x] **React dashboard foundation** - Project setup and infrastructure
-  - Vite 6 + React 18 + TypeScript 5 with path aliases
-  - Tailwind CSS v4 with `@tailwindcss/vite` plugin
-  - shadcn/ui components (Button, Card, Badge, ScrollArea, Tooltip, Progress, Skeleton)
-  - ai-elements components (queue, confirmation, loader, shimmer)
-  - React Flow (@xyflow/react) for custom workflow visualization
-  - React Router v7 Data Mode with lazy loading and route-level error boundaries
-  - Aviation theme with CSS variable design tokens (OKLCH color space)
-  - FastAPI static file serving for production
-- [ ] **React dashboard features** - Observability UI components
-  - Workflow list with status indicators
-  - Task DAG visualization (custom React Flow nodes)
-  - Live log viewer with agent attribution
-  - Approval action buttons
-  - API client integration with React Router loaders
+**Key Capabilities:**
+- Agent orchestration via state machine (Architect → Developer → Reviewer loop)
+- Human approval gates before execution proceeds
+- Multi-driver support for API and CLI-based LLM access
+- Jira and GitHub issue tracker integrations
 
 ---
 
-## Phase 3: Session Continuity 🆕
+## Phase 2: Web Dashboard [In Progress]
 
-*Inspired by Anthropic's "engineers working in shifts" pattern*
+*Observable orchestration through a local web interface*
 
-Long-running agents fail across context windows because each session starts fresh. This phase adds structured handoff mechanisms.
+A browser-based dashboard that provides visibility into workflow state, enables approvals, and streams real-time updates.
 
-### Progress Artifacts
-- [ ] **`amelia-progress.json`** - Machine-readable session state
-  ```json
-  {
-    "workflow_id": "WF-123",
-    "current_feature": "add-login-validation",
-    "features_completed": ["create-user-model", "add-routes"],
-    "features_remaining": ["write-tests", "update-docs"],
-    "last_commit": "a1b2c3d",
-    "blockers": [],
-    "session_count": 3
-  }
-  ```
-- [ ] **Session log append** - Each session appends to human-readable progress file
-- [ ] **Git-based state recovery** - Workflow state reconstructible from commit history alone
-
-### Session Kickoff Protocol
-- [ ] **Environment verification** - Before new work, verify:
-  - Working directory correct
-  - Dependencies installed
-  - Tests passing at HEAD
-  - Core functionality operational
-- [ ] **History review** - Agent reads `git log --oneline` and progress file before proceeding
-- [ ] **Feature selection** - Pick highest-priority incomplete feature from tracking file
-- [ ] **One feature per session** - Strict discipline to prevent context exhaustion
-
-### Handoff Artifacts
-- [ ] **Initializer agent pattern** - First session creates:
-  - `init.sh` for reproducible environment setup
-  - Initial feature list with all items marked incomplete
-  - Progress tracking file structure
-  - Git commit documenting setup
-- [ ] **Mergeable state guarantee** - Every session ends with:
-  - All changes committed
-  - Tests passing
-  - Progress file updated
-  - Clear notes on next steps
+**Key Capabilities:**
+- FastAPI server with SQLite persistence
+- Workflow and task state tracking with event history
+- REST API for workflow management (create, list, approve, reject, cancel)
+- React dashboard with workflow visualization
+- Real-time updates via WebSocket events
 
 ---
 
-## Phase 4: Verification Framework 🆕
+## Phase 3: Session Continuity [Planned]
 
-*Agents must verify before declaring done—testing as humans would*
+*Structured handoff mechanisms for long-running work*
 
-A major failure mode: agents mark features complete without proper verification. This phase adds automated end-to-end testing.
+Long-running agents fail across context windows because each session starts fresh. This phase adds explicit progress tracking so any agent can resume where another left off.
 
-### Browser Automation
-- [ ] **Puppeteer/Playwright MCP integration** - Agents can control a browser
-  - Navigate to pages
-  - Fill forms, click buttons
-  - Assert on visible content
-  - Capture screenshots for debugging
-- [ ] **Pre-completion verification** - Before marking any feature done:
-  - Run the feature's happy path in browser
-  - Verify expected UI state
-  - Check for console errors
-  - Test error handling paths
+**Key Capabilities:**
+- Machine-readable progress artifacts persisted to the repository
+- Session kickoff protocol (verify environment, review history, select next feature)
+- One-feature-per-session discipline to prevent context exhaustion
+- Mergeable state guarantee—every session ends with passing tests and committed changes
 
-### Feature Tracking
-- [ ] **JSON-based feature list** - More corruption-resistant than Markdown
-  ```json
-  {
-    "features": [
-      {
-        "id": "login-form",
-        "category": "auth",
-        "description": "User can log in with email/password",
-        "verification_steps": ["navigate to /login", "fill form", "submit", "verify redirect to /dashboard"],
-        "status": "failing"
-      }
-    ]
-  }
-  ```
-- [ ] **Status field immutability** - Agents can only set `status: "passing"`, never remove features
-- [ ] **Verification evidence** - Screenshots or logs attached when marking complete
-
-### Failure Mode Countermeasures
-| Problem | Countermeasure |
-|---------|----------------|
-| Premature "project done" declaration | Comprehensive feature list with explicit passing/failing status |
-| Undocumented bugs left behind | Session starts with health check; tests must pass before new work |
-| Incomplete feature marked complete | Browser verification required before status change |
-| Environment confusion | `init.sh` and documented setup; verify at session start |
+See [Session Continuity Design](brainstorming/) for detailed specification.
 
 ---
 
-## Phase 5: Bidirectional Tracker Sync
+## Phase 4: Verification Framework [Planned]
+
+*Agents must verify before declaring done*
+
+A major failure mode: agents mark features complete without proper verification. This phase adds browser-based end-to-end testing so agents test as humans would.
+
+**Key Capabilities:**
+- Browser automation integration (Puppeteer/Playwright) for agents
+- Pre-completion verification: run happy paths, check for errors, capture evidence
+- Feature tracking with explicit passing/failing status
+- Health checks at session start—tests must pass before new work begins
+
+---
+
+## Phase 5: Bidirectional Tracker Sync [Planned]
 
 *Eliminate tracker web UI entirely*
 
-### Issue Lifecycle
-- [ ] **Create issues** - `amelia issue create --title "..." --body "..."`
-- [ ] **Update issues** - Modify title, description, labels, assignees
-- [ ] **Transition status** - To Do → In Progress → Review → Done
-- [ ] **Add comments** - Agents post progress updates; humans can reply
-- [ ] **Close with resolution** - Mark complete with summary of changes
+Full issue lifecycle management from the command line: create, update, transition, comment, and close issues without opening a browser.
 
-### Organization
-- [ ] **Label management** - Create, apply, remove labels via CLI
-- [ ] **Milestone assignment** - Group issues into milestones
-- [ ] **Related issue linking** - Automatically link dependent or blocking issues
-
-### Sync Strategy
-- [ ] **Bidirectional sync** - Changes from CLI reflect in tracker; tracker changes sync to local state
-- [ ] **Conflict resolution** - Handle concurrent modifications gracefully
-- [ ] **Offline queue** - Queue mutations when disconnected; sync when online
+**Key Capabilities:**
+- Create and update issues via CLI
+- Transition issue status (To Do → In Progress → Review → Done)
+- Add comments and close with resolution summary
+- Label, milestone, and related-issue management
+- Bidirectional sync with conflict resolution
 
 ---
 
-## Phase 6: Pull Request Lifecycle
+## Phase 6: Pull Request Lifecycle [Planned]
 
 *Eliminate GitHub web for code review*
 
-### PR Creation
-- [ ] **Generate from TaskDAG** - PR title/description from task metadata
-- [ ] **Reviewer assignment** - Auto-assign based on code ownership or round-robin
-- [ ] **Template compliance** - Fill PR template fields automatically
-- [ ] **Draft PRs** - Create as draft until ready for review
+Complete PR management from creation through merge, including handling reviewer feedback and automated merge when checks pass.
 
-### Review Handling
-- [ ] **Fetch review comments** - Poll for new feedback
-- [ ] **Address feedback** - Agent generates fixup commits for each comment
-- [ ] **Request re-review** - Notify reviewers when changes pushed
-- [ ] **Resolve conversations** - Mark addressed comments as resolved
-
-### Merge Automation
-- [ ] **CI status monitoring** - Wait for all checks to pass
-- [ ] **Flaky retry** - Automatically retry known-flaky jobs
-- [ ] **Auto-merge** - Merge when approved + checks pass
-- [ ] **Branch cleanup** - Delete merged branches automatically
+**Key Capabilities:**
+- Generate PRs from task metadata with auto-assigned reviewers
+- Fetch and address review comments with fixup commits
+- Monitor CI status and auto-merge when approved
+- Automatic branch cleanup post-merge
 
 ---
 
-## Phase 7: Quality Gates
+## Phase 7: Quality Gates [Planned]
 
 *Objective verification before subjective review*
 
-### Pre-Review Automation
-- [ ] **Lint gate** - Block if linting fails
-- [ ] **Type check gate** - Block if type errors present
-- [ ] **Test gate** - Block if tests fail
-- [ ] **Security scan gate** - Block on high/critical vulnerabilities
+Automated gates that must pass before code reaches human reviewers: linting, type checking, tests, security scans, and architecture rules.
 
-### Coverage Enforcement
-- [ ] **Configurable thresholds** - e.g., "new code must have 80% coverage"
-- [ ] **Baseline detection** - Compare against main branch, not arbitrary number
-- [ ] **Trend tracking** - Alert on coverage regression over time
-
-### Architecture Rules
-- [ ] **Import restrictions** - e.g., "UI layer cannot import from data layer"
-- [ ] **Module boundaries** - Enforce package structure
-- [ ] **Naming conventions** - Lint for project-specific patterns
-- [ ] **Dependency constraints** - Disallow certain packages in certain contexts
-
-### Advanced Verification
-- [ ] **Mutation testing** - Verify tests actually catch bugs, not just execute code
-- [ ] **Specialized reviewers** - Security, Performance, Accessibility agents run in parallel
-- [ ] **Gate aggregation** - All specialized reviews must pass before merge
+**Key Capabilities:**
+- Pre-review automation (lint, typecheck, test, security scan)
+- Configurable coverage thresholds with regression tracking
+- Architecture rules (import restrictions, module boundaries, naming conventions)
+- Specialized reviewers (Security, Performance, Accessibility) running in parallel
 
 ---
 
-## Phase 8: Parallel Execution
+## Phase 8: Parallel Execution [Planned]
 
 *Multiply throughput without proportional attention cost*
 
-### Concurrent Workflows
-- [ ] **Multiple issues simultaneously** - Work on independent issues in parallel
-- [ ] **Isolation** - Each workflow in its own worktree/branch
-- [ ] **Progress aggregation** - Dashboard shows all active workflows
+Run multiple independent workflows concurrently, each isolated in its own worktree, with a unified dashboard view.
 
-### Task-Level Parallelism
-- [ ] **DAG-aware scheduling** - Execute non-dependent tasks concurrently
-- [ ] **Resource pooling** - Share LLM quota across parallel tasks
-- [ ] **Dependency waiting** - Tasks block until predecessors complete
-
-### Resource Management
-- [ ] **LLM rate limiting** - Respect API quotas across all agents
-- [ ] **Compute allocation** - Limit concurrent browser instances, test runs
-- [ ] **Queue prioritization** - High-priority workflows preempt low-priority
-
-### Background Execution
-- [ ] **Fire-and-forget** - Start workflow, receive notification on completion
-- [ ] **Resume on failure** - Automatically retry transient failures
-- [ ] **Manual intervention queue** - Park workflows needing human input
+**Key Capabilities:**
+- Concurrent workflows on independent issues
+- DAG-aware task scheduling within workflows
+- Resource management (LLM rate limiting, compute allocation)
+- Fire-and-forget execution with notifications on completion
 
 ---
 
-## Phase 9: Chat Integration
+## Phase 9: Chat Integration [Planned]
 
-*Async/mobile workflow management*
+*Async and mobile workflow management*
 
-### Slack Integration
-- [ ] **DM interface** - Send commands, receive status via direct message
-- [ ] **Approval requests** - "Approve plan for PROJ-123?" with action buttons
-- [ ] **Status updates** - "PROJ-123: Developer completed 3/5 tasks"
-- [ ] **Thread isolation** - Each workflow in its own thread
+Manage workflows via Slack or Discord: receive status updates, approve plans, and monitor progress from your phone.
 
-### Discord Integration
-- [ ] **Channel-based workflows** - Different channels for different projects
-- [ ] **Bot commands** - `@amelia start PROJ-123`, `@amelia status`
-- [ ] **Role-based permissions** - Only certain roles can approve
-
-### Notification Preferences
-- [ ] **Verbosity levels** - All events, milestones only, failures only
-- [ ] **Per-channel config** - Different verbosity for different channels
-- [ ] **Quiet hours** - Suppress non-critical notifications
+**Key Capabilities:**
+- Slack DM interface with approval action buttons
+- Discord bot commands and role-based permissions
+- Configurable notification verbosity and quiet hours
+- Thread-per-workflow isolation
 
 ---
 
-## Phase 10: Continuous Improvement
+## Phase 10: Continuous Improvement [Planned]
 
 *Quality flywheel that compounds over time*
 
-### Outcome Tracking
-- [ ] **Success/failure rates** - Per agent, per project, per task type
-- [ ] **Time-to-completion** - Track duration trends
-- [ ] **Intervention frequency** - How often do humans need to step in?
-- [ ] **Root cause analysis** - Categorize failure modes
+Track outcomes, learn from patterns, and automatically improve agent behavior based on historical performance.
 
-### Feedback Learning
-- [ ] **Reviewer pattern detection** - "This reviewer always asks for tests" → include preemptively
-- [ ] **Common rejection reasons** - Proactively address frequent feedback themes
-- [ ] **Style preference learning** - Adapt to project-specific conventions
-
-### Knowledge Base
-- [ ] **Project patterns** - Accumulate project-specific idioms and conventions
-- [ ] **Common pitfalls** - Document known traps to avoid
-- [ ] **Architectural decisions** - Record ADRs that agents should respect
-- [ ] **Codebase evolution** - Track how patterns change over time
-
-### Self-Improvement Loop
-- [ ] **Prompt refinement** - A/B test prompt variations with benchmark suite
-- [ ] **Agent specialization** - Split agents when domains diverge
-- [ ] **Workflow optimization** - Identify and eliminate bottlenecks
+**Key Capabilities:**
+- Success/failure rate tracking per agent, project, and task type
+- Reviewer pattern detection (preemptively address common feedback)
+- Project-specific knowledge base (idioms, pitfalls, architectural decisions)
+- Prompt refinement via A/B testing with benchmark suite
 
 ---
 
-## Phase 11: Spec Builder 🆕
+## Phase 11: Spec Builder [Planned]
 
 *Local NotebookLM for technical design documents*
 
-A document-assisted design tool integrated into the dashboard. Upload reference materials, explore them through guided chat, and generate structured design specs that feed directly into Architect.
+A document-assisted design tool: upload reference materials, explore them through guided chat, and generate structured specs that feed directly into the Architect.
 
-### Document Ingestion
-- [ ] **Docling integration** - Parse PDF, DOCX, PPTX, Markdown, HTML
-- [ ] **Chunking pipeline** - Semantic text splitting for retrieval
-- [ ] **sqlite-vec embeddings** - Vector storage in existing SQLite database
-- [ ] **Git repo references** - On-demand filesystem access to local codebases
+**Key Capabilities:**
+- Document ingestion (PDF, DOCX, PPTX, Markdown, HTML)
+- Semantic search with source citations
+- Section-by-section spec generation from templates
+- Dashboard integration with chat interface and spec preview
 
-### Conversation Engine
-- [ ] **Semantic search** - Retrieve relevant chunks based on query
-- [ ] **Multiple choice suggestions** - Guided exploration with concrete options
-- [ ] **Source citations** - Ground responses in uploaded documents
-- [ ] **Full persistence** - Resume conversations across sessions
-
-### Spec Generation
-- [ ] **Template system** - Markdown templates with YAML frontmatter
-- [ ] **Section-by-section generation** - Build specs incrementally from sources
-- [ ] **Built-in templates** - Feature spec, API design, ADR, refactoring plan
-- [ ] **Architect integration** - Auto-attach specs to issues for seamless handoff
-
-### Frontend
-- [ ] **Dashboard tab** - New "Spec Builder" section in web UI
-- [ ] **AI SDK chat** - Streaming responses with Vercel AI SDK patterns
-- [ ] **Sources panel** - Upload documents, add repo paths
-- [ ] **Spec preview** - Rendered markdown with version history
-
-See [Spec Builder Design](brainstorming/2025-12-05-spec-builder-design.md) for full specification.
+See [Spec Builder Design](brainstorming/2025-12-05-spec-builder-design.md) for detailed specification.
 
 ---
 
-## Phase 12: Debate Mode 🆕
+## Phase 12: Debate Mode [Planned]
 
-*Multi-agent deliberation for design decisions and exploratory research*
+*Multi-agent deliberation for design decisions*
 
-When facing complex decisions without clear answers, a single agent often picks one path without exploring alternatives. Debate Mode spawns multiple agents with assigned perspectives to argue different viewpoints, moderated by a Judge agent that synthesizes arguments into a reasoned recommendation.
+When facing complex decisions without clear answers, spawn multiple agents with assigned perspectives to argue different viewpoints, moderated by a Judge that synthesizes a recommendation.
 
-### Core Flow
+**Key Capabilities:**
+- Moderator analyzes prompts and assigns relevant perspectives
+- Parallel debate rounds with convergence detection
+- Human checkpoints for guidance injection
+- Synthesis documents with recommendations, confidence levels, and caveats
 
-```
-User Prompt → Moderator (analyze & assign roles) → Debaters argue Round 1
-    ↓
-[Human checkpoint: Continue / Guide / End]
-    ↓
-Debaters argue Round N... → Moderator detects convergence or hits max rounds
-    ↓
-Moderator synthesizes → Full synthesis document
-    ↓
-[Optional: "Create workflow from this decision?"]
-```
-
-### Moderator Agent
-- [ ] **Prompt analysis** - Identify decision domain, detect constraints, determine debater count (2-4)
-- [ ] **Dynamic perspective assignment** - Select relevant viewpoints from perspective catalog
-- [ ] **Round management** - Assess convergence, decide continuation, enforce max rounds
-- [ ] **Synthesis generation** - Aggregate arguments, identify agreements/tensions, write recommendation
-
-### Debate Rounds
-- [ ] **Parallel initial arguments** - Debaters submit arguments simultaneously
-- [ ] **Sequential rebuttals** - Each debater responds to others' points
-- [ ] **Convergence detection** - Agreement, stagnation, clear winner, or max rounds
-- [ ] **Human checkpoints** - Optional guidance injection between rounds
-
-### Output
-- [ ] **Synthesis document** - Structured markdown in `docs/decisions/`
-  - Perspectives considered with key arguments
-  - Points of agreement and key tensions
-  - Recommendation with confidence level and caveats
-- [ ] **Action items follow-up** - Optional workflow creation from decision
-
-### Interfaces
-- [ ] **CLI** - `amelia debate "prompt"` with options for perspectives, max rounds, checkpoints
-- [ ] **Dashboard** - New "Debates" tab with live streaming, perspective cards, checkpoint buttons
-
-### Configuration
-- [ ] **Perspective catalog** - Built-in perspectives (Performance, Simplicity, Security, etc.)
-- [ ] **Custom perspectives** - User-defined via `settings.amelia.yaml`
-- [ ] **Token budgets** - Per-round limits (configurable, or unlimited)
-- [ ] **Timeouts** - Round, checkpoint, and total debate timeouts
-
-See [Debate Mode Design](brainstorming/2025-12-05-debate-mode-design.md) for full specification.
+See [Debate Mode Design](brainstorming/2025-12-05-debate-mode-design.md) for detailed specification.
 
 ---
 
-## Phase 13: Knowledge Library 🆕
+## Phase 13: Knowledge Library [Planned]
 
 *Co-learning system where developers and agents share framework knowledge*
 
 A shared knowledge base that helps developers learn frameworks while providing agents with documentation context for better code generation.
 
-### Core Concept
+**Key Capabilities:**
+- Framework documentation ingestion and indexing
+- Chat-based Q&A grounded in official docs
+- Contextual code explanations ("Explain" button on agent-generated code)
+- Agent RAG integration for pertinent retrieval during tasks
 
-When Amelia writes code using a framework the developer doesn't know well, two problems arise:
-1. The developer can't effectively review or maintain the code
-2. The developer misses an opportunity to learn from Amelia's work
-
-Knowledge Library solves both by creating a shared knowledge foundation.
-
-### Framework Ingestion
-- [ ] **Manual URL addition** - Paste docs URL, Docling parses and indexes
-- [ ] **Chunking pipeline** - Semantic text splitting for retrieval
-- [ ] **sqlite-vec embeddings** - Vector storage in existing SQLite database
-- [ ] **Global + project layers** - Frameworks available globally, with project-specific conventions
-
-### Developer Learning UI
-- [ ] **Knowledge Library tab** - New dashboard section for framework exploration
-- [ ] **Chat-based Q&A** - Ask questions, get answers grounded in official docs
-- [ ] **Source citations** - Responses include `[Source: filename.md]` references
-- [ ] **Framework sidebar** - List frameworks with ingestion status indicators
-
-### Contextual Code Explanation
-- [ ] **"Explain" button** - Click any code block Amelia wrote to understand it
-- [ ] **Grounded explanations** - Explanations reference the same docs agents used
-- [ ] **Slide-over panel** - Non-intrusive UI for on-demand learning
-
-### Agent RAG Integration
-- [ ] **KnowledgeRetriever** - Query interface for Developer/Architect agents
-- [ ] **Pertinent retrieval** - Only relevant chunks included (avoids context bloat)
-- [ ] **Task-aware signals** - Retrieves based on imports, task description, file patterns
-- [ ] **Token capping** - Max ~2000 tokens of framework context per task
-
-### Future Extensions
-- [ ] Auto-detection from package.json/requirements.txt
-- [ ] Project-specific conventions UI
-- [ ] Post-workflow learning summaries
-- [ ] Multi-page crawling (follow links from docs URL)
-
-See [Knowledge Library Design](brainstorming/2025-12-06-knowledge-library-design.md) for full specification.
+See [Knowledge Library Design](brainstorming/2025-12-06-knowledge-library-design.md) for detailed specification.
 
 ---
 
-## Phase 14: Capitalization Tracking 🆕
+## Phase 14: Capitalization Tracking [Planned]
 
 *Attribute engineering work to initiatives for financial reporting*
 
-A system that maps PRs and issues to capitalizable initiatives (JIRA Epics or GitHub Projects), estimates engineering hours from workflow execution timestamps, and produces auditable reports for finance.
+Map PRs and issues to capitalizable initiatives, estimate engineering hours from workflow execution, and produce auditable reports for finance.
 
-### Goals
-- Real-time attribution when Amelia orchestrates work
-- Retrospective analysis of historical PRs/issues
-- Finance-ready reports with full audit trails
+**Key Capabilities:**
+- Initiative resolution from JIRA Epics or GitHub Projects
+- Hours estimation from workflow execution timestamps
 - OPEX vs CAPEX classification per initiative
+- CLI and dashboard reporting with full audit trails
 
-### Design Decisions
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Initiative source | JIRA Epics / GitHub Projects | Tracker-native, follows CONTRIBUTING.md discipline |
-| Mapping strategy | Hierarchical only | Issue's parent epic/project = initiative |
-| Hours estimation | Workflow execution sum, PR lifecycle fallback | Measures actual work time; PR fallback for manual/historical work |
-| Engineer weighting | Flat rate | Finance applies their own labor rates |
-| Output formats | CLI + JSON/CSV, dashboard later | CLI for automation, dashboard for exploration |
-| Audit trail | Full reasoning per attribution | SOX compliance requires traceability |
-
-### Workflow Tracking
-- [ ] Persist `WorkflowExecution` records with start/end timestamps
-- [ ] Track initiative context and agents invoked per workflow
-- [ ] Link workflows to PRs for attribution
-
-### Initiative Resolution
-- [ ] `InitiativeTracker` protocol in tracker abstraction
-- [ ] JIRA implementation — fetch epics, resolve parent for issue
-- [ ] GitHub implementation — fetch projects, resolve membership
-
-### Hours Estimation
-- [ ] Primary: sum of workflow execution durations (actual work time)
-- [ ] Fallback: PR lifecycle business hours (manual/historical work)
-- [ ] Partial credit for failed workflows (50%), none for cancelled
-
-### CLI Commands
-- [ ] `amelia capex scan --since --until` — retrospective attribution
-- [ ] `amelia capex report --quarter Q1-2025` — JSON/CSV/table output
-- [ ] `amelia capex initiatives` / `show` / `unattributed`
-
-### Dashboard Integration
-- [ ] REST endpoints for initiative list, detail, reports
-- [ ] UI pages with workflow execution timeline
-- [ ] Export with hours source breakdown (workflow vs fallback)
-
-See [Capitalization Tracking Design](brainstorming/2025-12-07-capex-tracking-design.md) for full specification.
+See [Capitalization Tracking Design](brainstorming/2025-12-07-capex-tracking-design.md) for detailed specification.
 
 ---
 
-## Phase 15: AWS AgentCore Cloud Deployment 🆕
+## Phase 15: Cloud Deployment [Planned]
 
-*Parallel workflow execution in the cloud via AWS Bedrock AgentCore*
+*Parallel workflow execution in the cloud*
 
-Deploy Amelia to AWS AgentCore to enable parallel workflow execution without local resource limitations. A thin CLI client communicates with the cloud backend while preserving local-only mode as the default.
+Deploy Amelia to AWS to enable parallel workflow execution without local resource limitations, while preserving local-only mode as the default.
 
-### Goals
-- Run multiple workflows in parallel (not limited by local resources)
+**Key Capabilities:**
+- Multiple workflows running in parallel (not limited by local resources)
 - Thin CLI client for submitting and monitoring workflows
-- Web UI connectivity to cloud backend
-- Preserve existing local-only mode (no breaking changes)
+- Web dashboard connectivity to cloud backend
+- OAuth-based authentication with GitHub
 
-### Architecture Decisions
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Communication | REST + WebSocket | Real-time updates, matches existing server patterns |
-| Execution model | Agent-per-workflow | Natural isolation via AgentCore microVM, scales per-workflow |
-| Human approval | Callback + re-invoke pattern | Runtime cannot pause; checkpoint state, return, re-invoke on approval |
-| State management | LangGraph checkpoint to AgentCore Memory | Native `langgraph-checkpoint-aws` integration |
-| Control Plane compute | ECS Fargate | WebSocket support, long-running processes |
-| Infrastructure as Code | CDK (TypeScript) | Better AWS integration, type safety |
-
-### Phase 1: Foundation (Driver + Memory)
-- [ ] Add `api:bedrock` driver (Bedrock SDK, Claude/Nova models)
-- [ ] Add `api:anthropic` driver (direct Anthropic API)
-- [ ] Register in `DriverFactory`
-- [ ] Add `langgraph-checkpoint-aws` dependency
-- [ ] Test LangGraph + AgentCore Memory with `agentcore dev`
-- [ ] Verify package size < 250 MB for direct code deployment
-
-### Phase 2: Async Approval (Critical Path)
-- [ ] Refactor `human_approval_node` to return `needs_approval` instead of blocking
-- [ ] Implement approval resume via graph re-invocation
-- [ ] Add callback functions for Control Plane notification
-- [ ] Test approval flow with simulated Control Plane
-- [ ] Handle 15-min idle timeout (checkpoint before return)
-
-### Phase 3: Control Plane
-- [ ] FastAPI service with workflow CRUD
-- [ ] Aurora Serverless v2 schema (workflows, approvals, audit log)
-- [ ] Runtime invocation via Bedrock AgentCore SDK
-- [ ] Callback endpoints for Runtime notifications
-- [ ] ECS Fargate task definition + ALB
-
-### Phase 4: WebSocket Hub
-- [ ] API Gateway WebSocket API
-- [ ] Lambda connection manager (connect/disconnect/default)
-- [ ] DynamoDB connection state table
-- [ ] Event broadcasting from Control Plane
-- [ ] Client reconnection with event replay
-
-### Phase 5: Identity + Git
-- [ ] Create GitHub OAuth App (not GitHub App)
-- [ ] Configure AgentCore Identity provider
-- [ ] Implement `@requires_access_token` git operations
-- [ ] Cognito User Pool with GitHub federation
-- [ ] CLI authentication flow (browser-based OAuth)
-
-### Phase 6: Thin CLI
-- [ ] `RemoteClient` class for Control Plane communication
-- [ ] `--remote` flag on existing commands
-- [ ] `amelia workflows` subcommand group
-- [ ] WebSocket event streaming with reconnection
-- [ ] OAuth consent handling (open browser for auth URL)
-
-### Phase 7: Infrastructure
-- [ ] CDK stack for all AWS resources
-- [ ] CI/CD pipeline (GitHub Actions → ECR → ECS)
-- [ ] Integration tests in dedicated AWS account
-- [ ] Documentation and runbooks
-
-### Key Research Findings
-| Area | Finding |
-|------|---------|
-| Runtime Communication | No built-in callback—Runtime must HTTP POST to Control Plane |
-| State Persistence | Native `langgraph-checkpoint-aws` (AgentCoreMemorySaver, AgentCoreMemoryStore) |
-| Session Limits | 15-min idle timeout, 8-hour max; approval = checkpoint + return + re-invoke |
-| Git Authentication | GitHub OAuth via `GithubOauth2` provider; token in HTTPS URL |
-| Deployment Size | Direct code: 250 MB zipped / 750 MB unzipped (15x faster session creation) |
-
-See [AWS AgentCore Deployment Design](brainstorming/2025-12-06-aws-agentcore-deployment-design.md) and [AWS AgentCore Research](brainstorming/2025-12-06-aws-agentcore-research.md) for full specifications.
-
----
-
-## Implementation Notes
-
-### Feature List Format
-
-Use JSON for feature tracking—it's more resistant to model corruption than Markdown:
-
-```json
-{
-  "workflow_id": "PROJ-123",
-  "created_at": "2025-01-15T10:00:00Z",
-  "features": [
-    {
-      "id": "user-model",
-      "description": "Create User model with email, password_hash, created_at",
-      "verification": ["model file exists", "migration runs", "can create user in shell"],
-      "status": "passing",
-      "completed_at": "2025-01-15T11:30:00Z"
-    },
-    {
-      "id": "login-endpoint",
-      "description": "POST /login returns JWT on valid credentials",
-      "verification": ["endpoint responds", "valid creds return token", "invalid creds return 401"],
-      "status": "failing",
-      "completed_at": null
-    }
-  ]
-}
-```
-
-### Session Handoff Checklist
-
-Each agent session should:
-
-1. **On Start:**
-   - Read progress file and git log
-   - Verify environment (tests pass, app starts)
-   - Select one incomplete feature to work on
-
-2. **During Work:**
-   - Make incremental commits with descriptive messages
-   - Update progress file after each milestone
-   - Never work on multiple features simultaneously
-
-3. **On End:**
-   - Ensure all changes committed
-   - Verify tests still pass
-   - Update progress file with next steps
-   - Leave codebase in mergeable state
-
-### Browser Verification Example
-
-```python
-async def verify_login_feature(browser: Browser) -> bool:
-    """Verify login works as a human would test it."""
-    page = await browser.new_page()
-
-    # Navigate to login
-    await page.goto("http://localhost:3000/login")
-
-    # Fill and submit form
-    await page.fill("#email", "test@example.com")
-    await page.fill("#password", "password123")
-    await page.click("button[type=submit]")
-
-    # Verify redirect to dashboard
-    await page.wait_for_url("**/dashboard")
-
-    # Check for welcome message
-    welcome = await page.text_content(".welcome-message")
-    return "Welcome" in welcome
-```
+See [Cloud Deployment Design](brainstorming/2025-12-06-aws-agentcore-deployment-design.md) for detailed specification.
 
 ---
 
@@ -660,4 +243,3 @@ async def verify_login_feature(browser: Browser) -> bool:
 
 - [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) - Anthropic's research on session continuity patterns
 - [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) - Agent design principles
-- [Claude Code](https://claude.ai/code) - CLI tool for code-focused agent workflows
