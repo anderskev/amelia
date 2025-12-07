@@ -45,12 +45,12 @@ export function ActivityLogItem({ event }: ActivityLogItemProps) {
   return (
     <div
       data-slot="activity-log-item"
-      className="flex items-start gap-3 py-1.5 border-b border-border/30 font-mono text-sm"
+      className="grid grid-cols-[90px_90px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm"
     >
-      <span className="text-muted-foreground tabular-nums shrink-0">
+      <span className="text-muted-foreground tabular-nums">
         {formatTime(event.timestamp)}
       </span>
-      <span className={cn('font-semibold shrink-0', agentColor)}>
+      <span className={cn('font-semibold', agentColor)}>
         [{event.agent.toUpperCase()}]
       </span>
       <span className="text-foreground/80 break-words">

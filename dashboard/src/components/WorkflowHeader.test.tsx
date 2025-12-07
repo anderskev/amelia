@@ -35,6 +35,16 @@ describe('WorkflowHeader', () => {
     expect(screen.getByText('2:34')).toBeInTheDocument();
   });
 
+  it('shows placeholder when elapsed time not provided', () => {
+    render(<WorkflowHeader workflow={mockWorkflow} />);
+    expect(screen.getByText('--:--')).toBeInTheDocument();
+  });
+
+  it('shows ELAPSED label in center section', () => {
+    render(<WorkflowHeader workflow={mockWorkflow} />);
+    expect(screen.getByText('ELAPSED')).toBeInTheDocument();
+  });
+
   it('has data-slot attribute', () => {
     const { container } = render(<WorkflowHeader workflow={mockWorkflow} />);
     expect(container.querySelector('[data-slot="workflow-header"]')).toBeInTheDocument();

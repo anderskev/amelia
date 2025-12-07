@@ -22,8 +22,8 @@ interface JobQueueItemProps {
 /**
  * Renders a single workflow item in the job queue.
  *
- * Displays issue ID, worktree name, status badge, and current stage.
- * Supports keyboard navigation (Enter/Space) and visual selection state.
+ * Displays issue ID, worktree name, status badge, and estimated completion time.
+ * Supports keyboard navigation (Enter/Space) and visual selection state with gold glow.
  *
  * @param props - Component props
  * @returns The job queue item UI
@@ -47,31 +47,31 @@ export function JobQueueItem({ workflow, selected, onSelect, className }: JobQue
       data-slot="job-queue-item"
       data-selected={selected}
       className={cn(
-        'flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 cursor-pointer',
+        'flex flex-col gap-1.5 p-3 rounded-lg border transition-all duration-200 cursor-pointer',
         'hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         selected
-          ? 'border-primary bg-primary/10'
-          : 'border-border/50 bg-card/50',
+          ? 'border-primary border-2 bg-primary/5 shadow-[0_0_15px_rgba(255,200,87,0.1)]'
+          : 'border-border/30 bg-card/60',
         className
       )}
     >
-      <StatusBadge status={workflow.status} />
+      {/* Row 1: Issue ID and Status Badge */}
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-sm font-semibold text-accent">
+          {workflow.issue_id}
+        </span>
+        <StatusBadge status={workflow.status} />
+      </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-sm font-semibold text-accent">
-            {workflow.issue_id}
-          </span>
-          <span className="font-body text-sm text-foreground truncate">
-            {workflow.worktree_name}
-          </span>
-        </div>
+      {/* Row 2: Worktree Name */}
+      <div className="font-body text-sm text-foreground truncate">
+        {workflow.worktree_name}
+      </div>
 
-        {workflow.current_stage && (
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Stage: {workflow.current_stage}
-          </p>
-        )}
+      {/* Row 3: ETA */}
+      {/* TODO: Replace hardcoded ETA with actual estimated completion time from API */}
+      <div className="font-heading text-xs text-muted-foreground tracking-wide">
+        Est: 02:45
       </div>
     </div>
   );

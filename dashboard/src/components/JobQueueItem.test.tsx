@@ -22,9 +22,10 @@ describe('JobQueueItem', () => {
     expect(screen.getByRole('status')).toHaveTextContent('RUNNING');
   });
 
-  it('renders current stage', () => {
+  it('renders estimated time', () => {
     render(<JobQueueItem workflow={mockWorkflow} selected={false} onSelect={() => {}} />);
-    expect(screen.getByText(/Stage: Developer/)).toBeInTheDocument();
+    // TODO: Update when ETA comes from API
+    expect(screen.getByText(/Est: 02:45/)).toBeInTheDocument();
   });
 
   it('shows selected state with data-selected attribute', () => {

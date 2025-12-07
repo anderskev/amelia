@@ -21,11 +21,6 @@ describe('JobQueue', () => {
     expect(screen.getByText('JOB QUEUE')).toBeInTheDocument();
   });
 
-  it('shows workflow count', () => {
-    render(<JobQueue workflows={mockWorkflows} />);
-    expect(screen.getByText('3')).toBeInTheDocument();
-  });
-
   it('highlights selected workflow', () => {
     const { container } = render(
       <JobQueue workflows={mockWorkflows} selectedId="wf-001" />

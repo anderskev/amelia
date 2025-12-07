@@ -76,10 +76,52 @@ export default function WorkflowsPage() {
   const pipeline = detail ? buildPipeline(detail) : null;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative overflow-hidden">
+      {/* Starfield background */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 opacity-40"
+        style={{
+          background: `
+            radial-gradient(1px 1px at 20px 30px, rgb(239 248 226), transparent),
+            radial-gradient(1px 1px at 40px 70px, rgb(239 248 226 / 0.8), transparent),
+            radial-gradient(1px 1px at 50px 160px, rgb(239 248 226 / 0.6), transparent),
+            radial-gradient(1px 1px at 90px 40px, rgb(239 248 226), transparent),
+            radial-gradient(1px 1px at 130px 80px, rgb(239 248 226 / 0.7), transparent),
+            radial-gradient(1.5px 1.5px at 160px 120px, rgb(255 200 87), transparent),
+            radial-gradient(1px 1px at 200px 50px, rgb(239 248 226 / 0.5), transparent),
+            radial-gradient(1px 1px at 280px 20px, rgb(239 248 226 / 0.6), transparent),
+            radial-gradient(1.5px 1.5px at 320px 100px, rgb(91 155 213 / 0.8), transparent),
+            radial-gradient(1px 1px at 400px 60px, rgb(239 248 226), transparent),
+            radial-gradient(1.5px 1.5px at 550px 90px, rgb(255 200 87), transparent),
+            radial-gradient(1px 1px at 650px 50px, rgb(239 248 226 / 0.9), transparent)
+          `,
+          backgroundRepeat: 'repeat',
+          backgroundSize: '700px 180px',
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Cockpit glass scanlines */}
+      <div
+        className="fixed inset-0 pointer-events-none z-[100]"
+        style={{
+          background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgb(239 248 226 / 0.01) 2px, rgb(239 248 226 / 0.01) 4px)',
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Vignette */}
+      <div
+        className="fixed inset-0 pointer-events-none z-[99]"
+        style={{
+          background: 'radial-gradient(ellipse at center, transparent 30%, rgb(13 26 18 / 0.6) 100%)',
+        }}
+        aria-hidden="true"
+      />
+
       {/* Top: Header + Canvas (full width) - Card groups related content semantically */}
       {detail && (
-        <Card className="rounded-none border-x-0 border-t-0">
+        <Card className="rounded-none border-x-0 border-t-0 relative z-10">
           <CardHeader className="p-0">
             <WorkflowHeader workflow={detail} />
           </CardHeader>
@@ -91,7 +133,7 @@ export default function WorkflowsPage() {
       )}
 
       {/* Bottom: Queue + Activity (split) - ScrollArea provides overflow handling */}
-      <div className="flex-1 grid grid-cols-[1fr_2fr] gap-4 p-4 overflow-hidden">
+      <div className="flex-1 grid grid-cols-[320px_1fr] gap-4 p-4 overflow-hidden relative z-10">
         <ScrollArea className="h-full">
           <JobQueue
             workflows={workflows}
