@@ -14,10 +14,18 @@ import {
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { NavigationProgress } from '@/components/NavigationProgress';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useWorkflowStore } from '@/store/workflowStore';
 
 export function Layout() {
   const location = useLocation();
   const navigation = useNavigation();
+
+  // Initialize WebSocket connection
+  useWebSocket();
+
+  // Get connection status from store
+  const isConnected = useWorkflowStore((state) => state.isConnected);
 
   const isNavigating = navigation.state !== 'idle';
 
@@ -80,8 +88,15 @@ export function Layout() {
             <div className="text-xs font-mono text-muted-foreground">
               <div>Server: localhost:8420</div>
               <div className="flex items-center gap-2 mt-1">
-                <span className="inline-block w-2 h-2 bg-[--status-running] rounded-full animate-pulse-glow" />
-                Connected
+                <span
+                  className={cn(
+                    'inline-block w-2 h-2 rounded-full',
+                    isConnected
+                      ? 'bg-[--status-running] animate-pulse-glow'
+                      : 'bg-[--status-failed]'
+                  )}
+                />
+                {isConnected ? 'Connected' : 'Disconnected'}
               </div>
             </div>
           </div>
