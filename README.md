@@ -142,72 +142,24 @@ profiles:
 
 ## CLI Commands
 
-### `amelia start <ISSUE_ID> [--profile <NAME>]`
-
-Runs the full orchestrator loop:
-1. Fetches issue from configured tracker
-2. Architect generates TaskDAG (list of tasks with dependencies)
-3. Prompts for human approval
-4. Developer executes tasks (can run in parallel if no dependencies)
-5. Reviewer evaluates changes
-6. Loops back to Developer if reviewer disapproves
-
 ```bash
-amelia start PROJ-123 --profile work
+# Server commands
+amelia dev                    # Start server + dashboard (port 8420)
+amelia server                 # API server only
+
+# Workflow commands (requires server running)
+amelia start 123              # Start workflow for issue #123
+amelia status                 # Show active workflows
+amelia approve                # Approve the generated plan
+amelia reject "feedback"      # Reject with feedback
+amelia cancel                 # Cancel active workflow
+
+# Local commands (no server required)
+amelia plan-only 123          # Generate plan without executing
+amelia review --local         # Review uncommitted changes
 ```
 
-### `amelia review --local [--profile <NAME>]`
-
-Reviews uncommitted changes:
-1. Gets uncommitted changes via `git diff`
-2. Runs Reviewer agent directly
-3. Supports `single` (one review) or `competitive` (parallel Security/Performance/Usability reviews, aggregated)
-
-```bash
-amelia review --local
-```
-
-### `amelia plan-only <ISSUE_ID> [--profile <NAME>] [--design <PATH>]`
-
-Generates plan without execution:
-1. Fetches issue and runs Architect
-2. Optionally uses a design document from brainstorming
-3. Saves TaskDAG to markdown file
-4. Useful for reviewing plans before execution
-
-```bash
-amelia plan-only GH-789 --profile home
-amelia plan-only GH-789 --design docs/designs/feature.md
-```
-
-### `amelia dev [--port <PORT>] [--no-dashboard] [--bind-all]`
-
-Starts the development environment with API server and dashboard:
-
-**In the Amelia repository (dev mode):**
-- Runs uvicorn for the API server
-- Runs Vite dev server for the dashboard with hot reload
-- Auto-installs npm dependencies if needed
-
-**In other repositories (user mode):**
-- Runs uvicorn only
-- Serves bundled dashboard static files
-
-```bash
-amelia dev                    # Start server + dashboard
-amelia dev --port 9000        # Custom port
-amelia dev --no-dashboard     # Server only
-amelia dev --bind-all         # Network access (0.0.0.0)
-```
-
-### `amelia server [--port <PORT>] [--host <HOST>]`
-
-Starts only the API server (no dashboard dev server):
-
-```bash
-amelia server                 # Default: localhost:8420
-amelia server --port 9000     # Custom port
-```
+See the **[Usage Guide](docs/usage.md)** for complete CLI reference, API endpoints, and example workflows.
 
 ## Configuration
 
@@ -227,11 +179,12 @@ See [Configuration Reference](docs/configuration.md) for full details.
 
 ## Learn More
 
-- [Roadmap](docs/roadmap.md) - Detailed development phases and vision
+- **[Usage Guide](docs/usage.md)** - CLI commands, REST API reference, and example workflows
+- [Configuration Reference](docs/configuration.md) - Full settings documentation
+- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
 - [Concepts: Understanding Agentic AI](docs/concepts.md) - How agents, drivers, and orchestration work
 - [Architecture & Data Flow](docs/architecture.md) - Technical deep dive with diagrams
-- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
-- [Configuration Reference](docs/configuration.md) - Full settings documentation
+- [Roadmap](docs/roadmap.md) - Detailed development phases and vision
 - [Benchmarking LLM Agents](docs/benchmarking.md) - How to systematically evaluate and iterate on agents
 - [12-Factor Agents Compliance](docs/analysis/12-factor-agents-compliance.md) - How Amelia aligns with the 12-Factor Agents methodology
 - [Brainstorming](docs/brainstorming/) - Design explorations created using the superpowers:brainstorming skill

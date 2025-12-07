@@ -6,6 +6,7 @@
 
 | Document | Description |
 |----------|-------------|
+| [Usage Guide](usage.md) | CLI commands, API reference, and example workflows |
 | [Architecture](architecture.md) | Technical deep-dive into components, data flow, and system design |
 | [Concepts](concepts.md) | Core agentic AI concepts for engineers new to the system |
 | [Configuration](configuration.md) | Complete reference for `settings.amelia.yaml` |
