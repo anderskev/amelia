@@ -16,20 +16,23 @@ class TestDashboardServing:
         with TestClient(app) as test_client:
             yield test_client
 
-    def test_dashboard_not_built_message(self, client: TestClient) -> None:
-        """GET / returns helpful message when dashboard not built."""
+    def test_root_returns_dashboard_or_message(self, client: TestClient) -> None:
+        """GET / returns dashboard index.html or helpful message."""
         response = client.get("/")
 
-        # When dist/ doesn't exist, should return instructions
-        # or serve index.html if built
-        assert response.status_code in [200, 404]
+        # Should return 200 in either case
+        assert response.status_code == 200
 
-        if response.status_code == 200:
+        content_type = response.headers.get("content-type", "")
+
+        if "text/html" in content_type:
+            # Dashboard is built - should serve index.html
+            assert b"Amelia Dashboard" in response.content
+        else:
+            # Dashboard not built - should return instructions JSON
             data = response.json()
-            if "message" in data:
-                # Dashboard not built case
-                assert data["message"] == "Dashboard not built"
-                assert "instructions" in data
+            assert data["message"] == "Dashboard not built"
+            assert "instructions" in data
 
     def test_api_routes_not_affected(self, client: TestClient) -> None:
         """API routes work normally regardless of dashboard state."""
@@ -59,3 +62,16 @@ class TestDashboardServing:
         # The route exists but returns 404 for non-WebSocket GET requests
         # This confirms the route is registered (not the SPA fallback)
         assert response.status_code == 404
+
+    def test_spa_routing_returns_index(self, client: TestClient) -> None:
+        """SPA routes like /workflows return index.html for client-side routing."""
+        response = client.get("/workflows")
+
+        # Should return 200 (index.html or instructions)
+        assert response.status_code == 200
+
+        content_type = response.headers.get("content-type", "")
+
+        if "text/html" in content_type:
+            # Dashboard built - serves index.html for SPA routing
+            assert b"Amelia Dashboard" in response.content
