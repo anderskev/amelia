@@ -305,9 +305,7 @@ pnpm build         # Ensure production build succeeds
 
 ### Using Claude Code Commands
 
-If you're using Claude Code, leverage Amelia's custom commands to streamline the PR process.
-
-**Recommended workflow:**
+If you're using Claude Code, leverage Amelia's custom commands to streamline the PR process:
 
 ```bash
 # 1. Ensure documentation is complete
