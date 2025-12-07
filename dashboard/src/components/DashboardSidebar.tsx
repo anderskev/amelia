@@ -6,9 +6,12 @@ import {
   SidebarFooter,
   SidebarMenu,
   SidebarMenuItem,
+  SidebarMenuButton,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
+  SidebarRail,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { GitBranch, History, Radio, Compass } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,7 +19,7 @@ import { useWorkflowStore } from '@/store/workflowStore';
 
 /**
  * Navigation link component using React Router's NavLink for active state.
- * Applies shadcn/ui SidebarMenuButton styling with active highlighting.
+ * Uses SidebarMenuButton for proper collapsed state handling with tooltips.
  */
 interface SidebarNavLinkProps {
   to: string;
@@ -27,21 +30,28 @@ interface SidebarNavLinkProps {
 function SidebarNavLink({ to, icon: Icon, label }: SidebarNavLinkProps) {
   return (
     <SidebarMenuItem>
-      <NavLink
-        to={to}
-        className={({ isActive, isPending }) =>
-          cn(
-            'flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm',
-            'focus-visible:ring-ring/50 focus-visible:ring-[3px] transition-colors',
-            isActive && 'bg-sidebar-primary text-sidebar-primary-foreground',
-            isPending && 'opacity-50',
-            !isActive && 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-          )
-        }
-      >
-        <Icon className="h-4 w-4" />
-        <span className="font-heading font-semibold tracking-wide">{label}</span>
-      </NavLink>
+      <SidebarMenuButton asChild tooltip={label}>
+        <NavLink
+          to={to}
+          className={({ isActive, isPending }) =>
+            cn(
+              'flex items-center gap-3',
+              'focus-visible:ring-ring/50 focus-visible:ring-[3px] transition-colors',
+              // Center icon when collapsed
+              'group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0',
+              isActive && 'bg-sidebar-primary text-sidebar-primary-foreground',
+              isPending && 'opacity-50',
+              !isActive &&
+                'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            )
+          }
+        >
+          <Icon className="h-4 w-4 shrink-0" />
+          <span className="font-heading font-semibold tracking-wide truncate group-data-[collapsible=icon]:hidden">
+            {label}
+          </span>
+        </NavLink>
+      </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
@@ -60,20 +70,37 @@ function SidebarNavLink({ to, icon: Icon, label }: SidebarNavLinkProps) {
 export function DashboardSidebar() {
   // Get connection status from store
   const isConnected = useWorkflowStore((state) => state.isConnected);
+  const { state } = useSidebar();
+  const isCollapsed = state === 'collapsed';
 
   return (
-    <Sidebar className="border-r border-sidebar-border">
-      {/* Logo */}
-      <SidebarHeader className="px-6 py-6 border-b border-sidebar-border">
-        <h1 className="text-4xl font-display text-sidebar-primary tracking-wider">
-          AMELIA
-        </h1>
-        <p className="text-xs font-mono text-muted-foreground mt-1">
-          Agentic Orchestrator
-        </p>
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      {/* Logo - shows glowing "A" when collapsed, full "AMELIA" when expanded */}
+      <SidebarHeader
+        className={cn(
+          'border-b border-sidebar-border transition-all',
+          isCollapsed ? 'px-2 py-4' : 'px-6 py-6'
+        )}
+      >
+        {isCollapsed ? (
+          <div className="flex items-center justify-center">
+            <span className="text-3xl font-display text-sidebar-primary animate-pulse-glow">
+              A
+            </span>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-4xl font-display text-sidebar-primary tracking-wider">
+              AMELIA
+            </h1>
+            <p className="text-xs font-mono text-muted-foreground mt-1">
+              Agentic Orchestrator
+            </p>
+          </>
+        )}
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      <SidebarContent className={cn(isCollapsed ? 'px-0' : 'px-2')}>
         {/* Workflows Section */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-heading text-muted-foreground/60 font-semibold tracking-wider">
@@ -124,24 +151,51 @@ export function DashboardSidebar() {
       </SidebarContent>
 
       {/* Footer with server status */}
-      <SidebarFooter className="px-4 py-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <Compass className="w-8 h-8 text-muted-foreground/50" />
-          <div className="text-xs font-mono text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  'inline-block w-2 h-2 rounded-full',
-                  isConnected
-                    ? 'bg-[--status-running] animate-pulse-glow'
-                    : 'bg-[--status-failed]'
-                )}
-              />
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </div>
-          </div>
+      <SidebarFooter
+        className={cn(
+          'border-t border-sidebar-border',
+          isCollapsed ? 'px-2 py-4' : 'px-4 py-4'
+        )}
+      >
+        <div
+          className={cn(
+            'flex items-center',
+            isCollapsed ? 'justify-center' : 'gap-3'
+          )}
+        >
+          {isCollapsed ? (
+            <span
+              className={cn(
+                'inline-block w-3 h-3 rounded-full',
+                isConnected
+                  ? 'bg-[--status-running] animate-pulse-glow'
+                  : 'bg-[--status-failed]'
+              )}
+              title={isConnected ? 'Connected' : 'Disconnected'}
+            />
+          ) : (
+            <>
+              <Compass className="w-8 h-8 text-muted-foreground/50" />
+              <div className="text-xs font-mono text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'inline-block w-2 h-2 rounded-full',
+                      isConnected
+                        ? 'bg-[--status-running] animate-pulse-glow'
+                        : 'bg-[--status-failed]'
+                    )}
+                  />
+                  {isConnected ? 'Connected' : 'Disconnected'}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </SidebarFooter>
+
+      {/* Invisible edge rail for collapse/expand on hover */}
+      <SidebarRail />
     </Sidebar>
   );
 }
