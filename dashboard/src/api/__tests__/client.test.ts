@@ -79,8 +79,8 @@ describe('API Client', () => {
 
   describe('workflow mutations', () => {
     it.each([
-      ['approveWorkflow', 'wf-1', '/api/workflows/wf-1/approve', undefined],
-      ['cancelWorkflow', 'wf-1', '/api/workflows/wf-1/cancel', undefined],
+      ['approveWorkflow', 'wf-1', '/api/workflows/wf-1/approve'],
+      ['cancelWorkflow', 'wf-1', '/api/workflows/wf-1/cancel'],
     ] as const)(
       '%s should POST to correct endpoint',
       async (method, id, expectedUrl) => {

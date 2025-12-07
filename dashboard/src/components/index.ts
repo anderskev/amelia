@@ -11,6 +11,7 @@
 // Status and queue components
 export { StatusBadge } from './StatusBadge';
 export { JobQueueItem } from './JobQueueItem';
+export { JobQueue } from './JobQueue';
 
 // Activity log components
 export { ActivityLogItem } from './ActivityLogItem';
@@ -19,6 +20,16 @@ export { ActivityLog } from './ActivityLog';
 // Workflow components
 export { ApprovalControls } from './ApprovalControls';
 export { WorkflowCanvas } from './WorkflowCanvas';
+export { WorkflowHeader } from './WorkflowHeader';
+export { WorkflowProgress } from './WorkflowProgress';
+export { WorkflowEmptyState } from './WorkflowEmptyState';
+
+// Skeleton loading states
+export { JobQueueSkeleton } from './JobQueueSkeleton';
+export { ActivityLogSkeleton } from './ActivityLogSkeleton';
+
+// Layout components
+export { DashboardSidebar } from './DashboardSidebar';
 
 // Custom flow node/edge types
 export * from './flow';
@@ -43,6 +54,11 @@ export * from './ui/tooltip';
 export * from './ui/progress';
 export * from './ui/skeleton';
 export * from './ui/alert';
+export * from './ui/empty';
+export * from './ui/sidebar';
+export * from './ui/sheet';
+export * from './ui/separator';
+export * from './ui/input';
 
 // =============================================================================
 // Other components

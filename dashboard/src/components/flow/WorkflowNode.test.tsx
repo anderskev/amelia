@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { ReactFlowProvider } from '@xyflow/react';
-import { WorkflowNode } from './WorkflowNode';
+import { ReactFlowProvider, Position } from '@xyflow/react';
+import { WorkflowNode, type WorkflowNodeData } from './WorkflowNode';
 
-const renderNode = (data: any) => {
+const renderNode = (data: WorkflowNodeData) => {
   return render(
     <ReactFlowProvider>
       <WorkflowNode
@@ -15,6 +15,9 @@ const renderNode = (data: any) => {
         positionAbsoluteX={0}
         positionAbsoluteY={0}
         zIndex={0}
+        dragging={false}
+        sourcePosition={Position.Right}
+        targetPosition={Position.Left}
       />
     </ReactFlowProvider>
   );
@@ -41,20 +44,16 @@ describe('WorkflowNode', () => {
     expect(container.querySelector('svg.lucide-map-pin')).toBeInTheDocument();
   });
 
-  it('applies active status with pulse animation', () => {
-    const { container } = renderNode({ label: 'Developer', status: 'active' });
-    expect(container.querySelector('[data-status="active"]')).toBeInTheDocument();
-    expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
-  });
-
-  it('applies completed status', () => {
-    const { container } = renderNode({ label: 'Architect', status: 'completed' });
-    expect(container.querySelector('[data-status="completed"]')).toBeInTheDocument();
-  });
-
-  it('applies pending status', () => {
-    const { container } = renderNode({ label: 'Reviewer', status: 'pending' });
-    expect(container.querySelector('[data-status="pending"]')).toBeInTheDocument();
+  it.each([
+    { status: 'active' as const, hasAnimation: true },
+    { status: 'completed' as const, hasAnimation: false },
+    { status: 'pending' as const, hasAnimation: false },
+  ])('applies $status status (animated: $hasAnimation)', ({ status, hasAnimation }) => {
+    const { container } = renderNode({ label: 'Test', status });
+    expect(container.querySelector(`[data-status="${status}"]`)).toBeInTheDocument();
+    if (hasAnimation) {
+      expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
+    }
   });
 
   it('has proper ARIA label', () => {

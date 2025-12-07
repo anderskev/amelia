@@ -1,6 +1,13 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+"""Configuration and shared type definitions for the Amelia orchestrator.
+
+Contains type aliases (DriverType, TrackerType, StrategyType, ExecutionMode) and
+Pydantic models (RetryConfig, Profile, Settings, Issue, Design) used throughout
+the Amelia agentic coding orchestrator.
+"""
 from typing import Literal
 
 from pydantic import BaseModel, Field

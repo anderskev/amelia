@@ -1,16 +1,18 @@
 import { memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type NodeStatus = 'completed' | 'active' | 'pending' | 'blocked';
 
-export interface WorkflowNodeData {
+export interface WorkflowNodeData extends Record<string, unknown> {
   label: string;
   subtitle?: string;
   status: NodeStatus;
   tokens?: string;
 }
+
+export type WorkflowNodeType = Node<WorkflowNodeData, 'workflow'>;
 
 const statusStyles: Record<NodeStatus, {
   pinClass: string;
@@ -39,7 +41,7 @@ const statusStyles: Record<NodeStatus, {
   },
 };
 
-function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeData>) {
+function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
   const styles = statusStyles[data.status];
   const ariaLabel = `Workflow stage: ${data.label}${data.subtitle ? ` - ${data.subtitle}` : ''} (${data.status})`;
 

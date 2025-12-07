@@ -3,29 +3,15 @@ import { render, screen } from '@testing-library/react';
 import { StatusBadge } from './StatusBadge';
 
 describe('StatusBadge', () => {
-  it('renders RUNNING label for in_progress status', () => {
-    render(<StatusBadge status="in_progress" />);
-    expect(screen.getByText('RUNNING')).toBeInTheDocument();
-  });
-
-  it('renders DONE label for completed status', () => {
-    render(<StatusBadge status="completed" />);
-    expect(screen.getByText('DONE')).toBeInTheDocument();
-  });
-
-  it('renders QUEUED label for pending status', () => {
-    render(<StatusBadge status="pending" />);
-    expect(screen.getByText('QUEUED')).toBeInTheDocument();
-  });
-
-  it('renders BLOCKED label for blocked status', () => {
-    render(<StatusBadge status="blocked" />);
-    expect(screen.getByText('BLOCKED')).toBeInTheDocument();
-  });
-
-  it('renders FAILED label for failed status', () => {
-    render(<StatusBadge status="failed" />);
-    expect(screen.getByText('FAILED')).toBeInTheDocument();
+  it.each([
+    { status: 'in_progress' as const, label: 'RUNNING' },
+    { status: 'completed' as const, label: 'DONE' },
+    { status: 'pending' as const, label: 'QUEUED' },
+    { status: 'blocked' as const, label: 'BLOCKED' },
+    { status: 'failed' as const, label: 'FAILED' },
+  ])('renders $label for $status status', ({ status, label }) => {
+    render(<StatusBadge status={status} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 
   it('has proper ARIA role and label', () => {

@@ -36,14 +36,12 @@ describe('ApprovalControls', () => {
     expect(container.querySelector('[data-slot="approval-controls"]')).toBeInTheDocument();
   });
 
-  it('shows approved state when status is approved', () => {
-    renderWithRouter('wf-001', 'Test', 'approved');
-    expect(screen.getByText(/Plan approved/)).toBeInTheDocument();
-  });
-
-  it('shows rejected state when status is rejected', () => {
-    renderWithRouter('wf-001', 'Test', 'rejected');
-    expect(screen.getByText(/Plan rejected/)).toBeInTheDocument();
+  it.each([
+    { status: 'approved' as const, expectedText: /Plan approved/ },
+    { status: 'rejected' as const, expectedText: /Plan rejected/ },
+  ])('shows $status state', ({ status, expectedText }) => {
+    renderWithRouter('wf-001', 'Test', status);
+    expect(screen.getByText(expectedText)).toBeInTheDocument();
   });
 
   it('hides buttons when not pending', () => {

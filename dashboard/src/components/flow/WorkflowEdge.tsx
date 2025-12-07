@@ -1,12 +1,14 @@
 import { memo } from 'react';
-import { getSmoothStepPath, type EdgeProps, EdgeLabelRenderer } from '@xyflow/react';
+import { getSmoothStepPath, type EdgeProps, type Edge, EdgeLabelRenderer } from '@xyflow/react';
 
 type EdgeStatus = 'completed' | 'active' | 'pending';
 
-export interface WorkflowEdgeData {
+export interface WorkflowEdgeData extends Record<string, unknown> {
   label: string;
   status: EdgeStatus;
 }
+
+export type WorkflowEdgeType = Edge<WorkflowEdgeData, 'workflow'>;
 
 function WorkflowEdgeComponent({
   id,
@@ -17,7 +19,7 @@ function WorkflowEdgeComponent({
   sourcePosition,
   targetPosition,
   data,
-}: EdgeProps<WorkflowEdgeData>) {
+}: EdgeProps<WorkflowEdgeType>) {
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -66,7 +68,7 @@ function WorkflowEdgeComponent({
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               pointerEvents: 'all',
             }}
-            className="px-2 py-0.5 font-mono text-xs text-muted-foreground bg-background/90 border border-border rounded"
+            className="nodrag nopan px-2 py-0.5 font-mono text-xs text-muted-foreground bg-background/90 border border-border rounded"
           >
             {data.label}
           </div>

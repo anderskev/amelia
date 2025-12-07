@@ -28,17 +28,15 @@ describe('ActivityLogItem', () => {
     expect(screen.getByText(/Issue #8 parsed/)).toBeInTheDocument();
   });
 
-  it('applies correct agent color class for ARCHITECT', () => {
-    render(<ActivityLogItem event={mockEvent} />);
-    const agent = screen.getByText('[ARCHITECT]');
-    expect(agent).toHaveClass('text-accent');
-  });
-
-  it('applies correct agent color class for DEVELOPER', () => {
-    const developerEvent = { ...mockEvent, agent: 'DEVELOPER' };
-    render(<ActivityLogItem event={developerEvent} />);
-    const agent = screen.getByText('[DEVELOPER]');
-    expect(agent).toHaveClass('text-primary');
+  it.each([
+    { agent: 'ARCHITECT', colorClass: 'text-accent' },
+    { agent: 'DEVELOPER', colorClass: 'text-primary' },
+    { agent: 'REVIEWER', colorClass: 'text-status-completed' },
+    { agent: 'SYSTEM', colorClass: 'text-muted-foreground' },
+  ])('applies $colorClass for $agent', ({ agent, colorClass }) => {
+    const event = { ...mockEvent, agent };
+    render(<ActivityLogItem event={event} />);
+    expect(screen.getByText(`[${agent}]`)).toHaveClass(colorClass);
   });
 
   it('has data-slot attribute', () => {

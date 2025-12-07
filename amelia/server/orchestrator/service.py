@@ -788,8 +788,13 @@ class OrchestratorService:
     async def recover_interrupted_workflows(self) -> None:
         """Recover workflows that were running when server crashed.
 
-        This is a placeholder - full implementation will be added
-        when LangGraph integration is complete.
+        Scans for workflows in non-terminal states (in_progress, blocked) and marks
+        them as failed with an appropriate reason. This prevents stale workflows from
+        persisting after server restarts.
+
+        Note:
+            This is a placeholder - full implementation will be added when LangGraph
+            integration is complete.
         """
         logger.info("Checking for interrupted workflows...")
         # TODO: Query for workflows with status=in_progress or blocked

@@ -1,4 +1,4 @@
-import { cva, type VariantProps } from 'class-variance-authority';
+import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import type { WorkflowStatus } from '@/types';
 
@@ -20,7 +20,7 @@ const statusBadgeVariants = cva(
   }
 );
 
-interface StatusBadgeProps extends VariantProps<typeof statusBadgeVariants> {
+interface StatusBadgeProps {
   status: WorkflowStatus;
   className?: string;
 }

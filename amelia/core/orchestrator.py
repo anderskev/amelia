@@ -1,6 +1,13 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+"""LangGraph state machine orchestrator for coordinating AI agents.
+
+Implements the core workflow: Issue → Architect (plan) → Human Approval →
+Developer (execute) ↔ Reviewer (review) → Done. Provides node functions for
+the state machine and the create_orchestrator_graph() factory.
+"""
 import os
 import subprocess
 from typing import Any
@@ -34,10 +41,10 @@ async def call_architect_node(state: ExecutionState) -> ExecutionState:
     """
     issue_id_for_log = state.issue.id if state.issue else "No Issue Provided"
     logger.info(f"Orchestrator: Calling Architect for issue {issue_id_for_log}")
-    
+
     if state.issue is None:
         raise ValueError("Cannot call Architect: no issue provided in state.")
-        
+
     driver = DriverFactory.get_driver(state.profile.driver)
     architect = Architect(driver)
     plan_output = await architect.plan(state.issue, output_dir=state.profile.plan_output_dir)
@@ -148,7 +155,7 @@ async def call_reviewer_node(state: ExecutionState) -> ExecutionState:
     review_msg = f"Reviewer completed review: {review_result.severity}, Approved: {review_result.approved}."
     logger.info(review_msg)
     messages = state.messages + [AgentMessage(role="assistant", content=review_msg)]
-    
+
     # Update state with review results
     review_results = state.review_results + [review_result]
 
@@ -270,7 +277,7 @@ def should_continue_developer(state: ExecutionState) -> str:
     """
     if not state.plan:
         return "end"
-    
+
     # Check for ready tasks, not just pending tasks.
     # This prevents infinite loops when tasks are blocked by failed dependencies.
     ready_tasks = state.plan.get_ready_tasks()

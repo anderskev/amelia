@@ -12,6 +12,7 @@ from amelia.core.constants import ToolName
 from amelia.core.exceptions import AgenticExecutionError
 from amelia.core.state import AgentMessage, Task
 from amelia.drivers.base import DriverInterface
+from amelia.drivers.cli.claude import ClaudeStreamEvent
 
 
 DeveloperStatus = Literal["completed", "failed", "in_progress"]
@@ -123,7 +124,7 @@ class Developer:
 
         return "\n".join(sections)
 
-    def _handle_stream_event(self, event: Any) -> None:
+    def _handle_stream_event(self, event: ClaudeStreamEvent) -> None:
         """Display streaming event to terminal.
 
         Args:
@@ -136,7 +137,7 @@ class Developer:
                 suffix = "..." if len(str(event.tool_input)) > 100 else ""
                 typer.echo(f"    {preview}{suffix}")
 
-        elif event.type == "tool_result":
+        elif event.type == "result":
             typer.secho("  Done", fg=typer.colors.GREEN)
 
         elif event.type == "assistant" and event.content:

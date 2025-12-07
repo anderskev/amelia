@@ -32,29 +32,19 @@ describe('WorkflowEdge', () => {
     expect(container.querySelector('path')).toBeInTheDocument();
   });
 
-  it('renders with label data', () => {
-    const { container } = renderEdge(baseProps);
-    // EdgeLabelRenderer creates a portal, so we verify the edge renders
-    // The label is tested in integration/e2e tests with full React Flow
-    expect(container.querySelector('path')).toBeInTheDocument();
-  });
-
-  it('uses solid line for completed status', () => {
-    const { container } = renderEdge(baseProps);
+  it.each([
+    { status: 'completed' as const, hasDash: false },
+    { status: 'pending' as const, hasDash: true },
+  ])('applies $status line style (dashed: $hasDash)', ({ status, hasDash }) => {
+    const props = { ...baseProps, data: { ...baseProps.data, status } };
+    const { container } = renderEdge(props);
     const path = container.querySelector('path');
-    expect(path).toHaveAttribute('data-status', 'completed');
-    expect(path).not.toHaveAttribute('stroke-dasharray');
-  });
-
-  it('uses dashed line for pending status', () => {
-    const pendingProps = {
-      ...baseProps,
-      data: { ...baseProps.data, status: 'pending' as const },
-    };
-    const { container } = renderEdge(pendingProps);
-    const path = container.querySelector('path');
-    expect(path).toHaveAttribute('data-status', 'pending');
-    expect(path).toHaveAttribute('stroke-dasharray');
+    expect(path).toHaveAttribute('data-status', status);
+    if (hasDash) {
+      expect(path).toHaveAttribute('stroke-dasharray');
+    } else {
+      expect(path).not.toHaveAttribute('stroke-dasharray');
+    }
   });
 
   it('shows animated circle for active edges', () => {

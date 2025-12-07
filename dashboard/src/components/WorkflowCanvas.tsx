@@ -3,12 +3,10 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
-  type Node,
-  type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { WorkflowNode, type WorkflowNodeData } from '@/components/flow/WorkflowNode';
-import { WorkflowEdge, type WorkflowEdgeData } from '@/components/flow/WorkflowEdge';
+import { WorkflowNode, type WorkflowNodeType } from '@/components/flow/WorkflowNode';
+import { WorkflowEdge, type WorkflowEdgeType } from '@/components/flow/WorkflowEdge';
 import { cn } from '@/lib/utils';
 
 type NodeStatus = 'completed' | 'active' | 'pending' | 'blocked';
@@ -49,11 +47,11 @@ const edgeTypes = {
 
 export function WorkflowCanvas({ pipeline, className }: WorkflowCanvasProps) {
   // Convert pipeline data to React Flow format
-  const nodes: Node<WorkflowNodeData>[] = useMemo(
+  const nodes: WorkflowNodeType[] = useMemo(
     () =>
       pipeline.nodes.map((node, index) => ({
         id: node.id,
-        type: 'workflow',
+        type: 'workflow' as const,
         position: { x: index * 180, y: 80 },
         data: {
           label: node.label,
@@ -68,13 +66,13 @@ export function WorkflowCanvas({ pipeline, className }: WorkflowCanvasProps) {
     [pipeline.nodes]
   );
 
-  const edges: Edge<WorkflowEdgeData>[] = useMemo(
+  const edges: WorkflowEdgeType[] = useMemo(
     () =>
       pipeline.edges.map((edge) => ({
         id: `e-${edge.from}-${edge.to}`,
         source: edge.from,
         target: edge.to,
-        type: 'workflow',
+        type: 'workflow' as const,
         data: {
           label: edge.label,
           status: edge.status,
