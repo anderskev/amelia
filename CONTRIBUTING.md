@@ -8,6 +8,7 @@ Thank you for your interest in contributing to Amelia! This document provides gu
 - [Build & Development Commands](#build--development-commands)
 - [Code Conventions](#code-conventions)
 - [Test Structure](#test-structure)
+- [GitHub Organization](#github-organization)
 - [Commit Messages](#commit-messages)
 - [Pull Request Process](#pull-request-process)
 - [Claude Code Commands](#claude-code-commands)
@@ -91,10 +92,100 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`.
 
 For PRs with significant changes, create a manual test plan that the `amelia-qa` GitHub Action will post as a PR comment.
 
+**Using Claude Code:**
+```bash
+# Generate a test plan automatically based on branch changes
+/amelia:gen-test-plan
+```
+
+This command analyzes your branch changes and creates a structured test plan at `docs/testing/pr-test-plan.md`.
+
 **Convention:**
 - Place test plan at `docs/testing/pr-test-plan.md` (preferred) or `docs/testing/manual-test-plan-*.md`
 - The file is auto-detected when the PR is opened and posted as a comment
 - After the PR is merged, delete the test plan file (it's preserved in the PR comment)
+
+## GitHub Organization
+
+We practice **continuous delivery** to main while maintaining **versioned releases** for stability. Depend on tagged releases rather than main for production use.
+
+### Issues
+
+Issues are the atomic unit of work. Every bug, feature, or task starts as an issue.
+
+- Use issue templates for consistency
+- Link related issues to each other
+- All discussion about a piece of work happens on the issue
+
+### Labels
+
+Labels are the primary way to categorize and filter issues.
+
+| Category | Labels | Purpose |
+|----------|--------|---------|
+| Type | `bug`, `enhancement`, `breaking-change`, `docs` | What kind of work |
+| Priority | `critical`, `high`, `low` | Internal triage |
+| Status | `needs-triage`, `accepted`, `blocked` | Workflow state |
+| Contributor | `good first issue`, `help wanted` | Guide contributors |
+| Area | `area:core`, `area:agents`, `area:dashboard`, `area:cli`, `area:server` | Which component |
+
+The `breaking-change` label is particularly important for identifying what requires a major version bump and should be highlighted in release notes.
+
+### Milestones
+
+Milestones represent **release versions** (e.g., `v1.2.0`, `v1.3.0`).
+
+- Assign issues and PRs to a milestone when committed to that release
+- Use for tracking progress toward the next release
+- Enables easy release notes generation
+
+### Projects
+
+We use a single public **Roadmap** project board to communicate what's planned and in progress.
+
+#### Board Columns
+
+| Column | Description |
+|--------|-------------|
+| Exploring | Ideas under consideration, not committed |
+| Planned | Accepted work, will happen, not yet started |
+| In Progress | Actively being worked on |
+| Done | Shipped (clear periodically) |
+
+#### Custom Fields
+
+| Field | Values | Purpose |
+|-------|--------|---------|
+| Target release | `v1.2`, `v1.3`, `Future` | When it's expected to ship |
+| Area | `Core`, `Agents`, `Dashboard`, `CLI`, `Server` | Which component |
+| Size | `Small`, `Medium`, `Large` | Set expectations on scope |
+
+#### Roadmap Guidelines
+
+- Link **issues** to the project, not PRs
+- Only include meaningful user-facing work
+- Move items back to Exploring if priorities shift
+- Archive Done items periodically to keep the board scannable
+
+### Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. Issue created                                               │
+│     ↓                                                           │
+│  2. Triaged: labeled, possibly added to Roadmap (Exploring)     │
+│     ↓                                                           │
+│  3. Prioritized: assigned to milestone, moved to Planned        │
+│     ↓                                                           │
+│  4. Work begins: moved to In Progress                           │
+│     ↓                                                           │
+│  5. PR opened: references issue with "Fixes #___"               │
+│     ↓                                                           │
+│  6. PR merged to main (CD deploys)                              │
+│     ↓                                                           │
+│  7. Milestone complete: tag release, publish release notes      │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Commit Messages
 
@@ -168,12 +259,80 @@ causing state updates on unmounted components.
 
 ## Pull Request Process
 
+### General Workflow
+
 1. Create a feature branch from `main`
 2. Write tests first (TDD), then implement
-3. Ensure all checks pass: `uv run ruff check`, `uv run mypy`, `uv run pytest`
+3. Ensure all checks pass (see below)
 4. Create a PR with a clear description of changes
-5. Address review feedback
-6. Squash and merge once approved
+5. **Reference related issues** using closing keywords (`Fixes #123`, `Closes #456`)
+6. **Assign to milestone** when the linked issue has one
+7. Address review feedback
+8. Squash and merge once approved
+
+PRs are merged to main continuously; releases are cut from tags.
+
+### Backend Changes
+
+```bash
+uv run ruff check amelia tests   # Linting
+uv run mypy amelia               # Type checking
+uv run pytest                    # Run all tests
+```
+
+### Frontend Changes (Dashboard)
+
+```bash
+cd dashboard
+
+# Install dependencies
+pnpm install
+
+# Linting and formatting
+pnpm lint          # ESLint check
+pnpm format        # Prettier formatting
+
+# Type checking
+pnpm typecheck     # TypeScript check
+
+# Testing
+pnpm test          # Run Vitest tests
+pnpm test:ui       # Run with UI
+
+# Build verification
+pnpm build         # Ensure production build succeeds
+```
+
+### Using Claude Code Commands
+
+If you're using Claude Code, leverage these commands to streamline the PR process:
+
+| Command | When to Use |
+|---------|-------------|
+| `/amelia:create-pr` | Create a PR with a standardized description template |
+| `/amelia:review` | Run a code review agent before requesting human review |
+| `/amelia:review-tests` | Review test code for quality and conciseness |
+| `/amelia:ensure-doc` | Verify all code is properly documented |
+| `/amelia:gen-test-plan` | Generate a manual test plan for significant changes |
+
+**Recommended workflow:**
+
+```bash
+# 1. Ensure documentation is complete
+/amelia:ensure-doc
+
+# 2. Review your test code
+/amelia:review-tests
+
+# 3. Run a self-review before creating PR
+/amelia:review
+
+# 4. Create the PR with standardized description
+/amelia:create-pr
+
+# 5. Generate manual test plan (for significant changes)
+/amelia:gen-test-plan
+```
 
 ## Claude Code Commands
 

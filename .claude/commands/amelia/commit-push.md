@@ -45,7 +45,7 @@ Review the changes and determine:
   - `health` - Health check endpoints
   - *(omit scope for cross-cutting changes)*
 
-- **Breaking**: Does this break backward compatibility? If yes, add `!` after scope.
+- **Breaking**: Does this break backward compatibility? If yes, add **!** after scope.
 
 ## Step 3: Write Commit Message
 
