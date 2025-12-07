@@ -18,16 +18,22 @@ profiles:
     name: work
     driver: cli:claude        # LLM via claude CLI
     tracker: jira             # Issues from Jira
-    strategy: single          # Single reviewer
-    plan_output_template: "plans/{issue_id}.md"  # Where to save plans
+    strategy: competitive     # Multiple parallel reviewers
+    execution_mode: structured
+    plan_output_dir: "docs/plans"
+    retry:
+      max_retries: 5          # More retries for enterprise API limits
+      base_delay: 2.0
+      max_delay: 120.0
 
   # Personal profile - direct API access
   home:
     name: home
     driver: api:openai        # LLM via OpenAI API
     tracker: github           # Issues from GitHub
-    strategy: competitive     # Multiple parallel reviewers
-    plan_output_template: "plans/{issue_id}.md"
+    strategy: single          # Single reviewer
+    execution_mode: structured
+    plan_output_dir: "docs/plans"
 
   # Testing profile
   test:
@@ -68,34 +74,75 @@ How Amelia communicates with LLMs.
 | `cli:claude` | Wraps claude CLI tool | `claude` CLI installed & authenticated | LLM generation is stub, tool execution works |
 | `cli` | Alias for `cli:claude` | Same as above | Shorthand |
 
-### `profiles.<name>.tracker` (required)
+### `profiles.<name>.tracker` (optional)
 
 Where Amelia fetches issue details from.
+
+Default: `"none"`
 
 | Value | Description | Requirements |
 |-------|-------------|--------------|
 | `jira` | Jira issues | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` env vars |
 | `github` | GitHub issues | `gh` CLI authenticated or `GITHUB_TOKEN` |
-| `noop` | No tracker (manual input) | None |
+| `none` | No tracker | None |
+| `noop` | Alias for `none` | None |
 
-### `profiles.<name>.strategy` (required)
+### `profiles.<name>.strategy` (optional)
 
 How code review is performed.
+
+Default: `"single"`
 
 | Value | Description | Behavior |
 |-------|-------------|----------|
 | `single` | One reviewer pass | General review from single LLM call |
 | `competitive` | Multiple parallel reviews | Security, Performance, Usability reviews run concurrently, results aggregated |
 
-### `profiles.<name>.plan_output_template` (optional)
+### `profiles.<name>.execution_mode` (optional)
 
-Template for where to save generated plans. Supports `{issue_id}` placeholder.
+How the Developer agent executes tasks.
 
-Default: `"plans/{issue_id}.md"`
+Default: `"structured"`
+
+| Value | Description | Behavior |
+|-------|-------------|----------|
+| `structured` | Task-based execution | Developer executes tasks from the Architect's plan sequentially |
+| `agentic` | Autonomous execution | Developer has more freedom to determine how to accomplish goals |
+
+### `profiles.<name>.plan_output_dir` (optional)
+
+Directory for storing generated plans.
+
+Default: `"docs/plans"`
 
 ```yaml
-plan_output_template: "docs/plans/{issue_id}-plan.md"
+plan_output_dir: "plans"
 ```
+
+### `profiles.<name>.working_dir` (optional)
+
+Working directory for agentic execution. When set, the Developer agent operates from this directory.
+
+Default: `null` (uses current working directory)
+
+```yaml
+working_dir: "/path/to/project"
+```
+
+### `profiles.<name>.retry` (optional)
+
+Retry configuration for transient failures (e.g., API rate limits, network errors).
+
+Default values shown below:
+
+```yaml
+retry:
+  max_retries: 3      # Maximum retry attempts (0-10)
+  base_delay: 1.0     # Base delay in seconds for exponential backoff (0.1-30.0)
+  max_delay: 60.0     # Maximum delay cap in seconds (1.0-300.0)
+```
+
+Retries use exponential backoff: delay = min(base_delay * 2^attempt, max_delay)
 
 ## Environment Variables
 
@@ -123,17 +170,20 @@ plan_output_template: "docs/plans/{issue_id}-plan.md"
 
 Amelia validates profiles on startup:
 
-- All required fields must be present
-- Driver and tracker values must be recognized
+- Required fields (`name`, `driver`) must be present
+- Driver values must be one of: `api`, `api:openai`, `cli`, `cli:claude`
+- Tracker values must be one of: `jira`, `github`, `none`, `noop`
 - Strategy must be `single` or `competitive`
+- Execution mode must be `structured` or `agentic`
+- Retry values must be within allowed ranges
 
 Invalid configuration results in exit code 1 with descriptive error message.
 
 ## Example Configurations
 
-### Minimal (API + No Tracker)
+### Minimal
 
-For local development and testing without external integrations:
+Only `name` and `driver` are required. All other fields use sensible defaults:
 
 ```yaml
 active_profile: dev
@@ -141,9 +191,9 @@ profiles:
   dev:
     name: dev
     driver: api:openai
-    tracker: noop
-    strategy: single
 ```
+
+This uses: `tracker: none`, `strategy: single`, `execution_mode: structured`, default retry settings.
 
 ### Enterprise (CLI + Jira)
 

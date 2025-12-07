@@ -80,6 +80,8 @@ profiles:
 EOF
 ```
 
+See **[Configuration](docs/usage.md#configuration)** for all available parameters including retry settings, execution modes, and driver options.
+
 ### 3. Create or Select an Issue
 
 Amelia works on issues from your configured tracker. Create one if needed:

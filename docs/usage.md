@@ -26,6 +26,80 @@ profiles:
     strategy: single
 ```
 
+## Configuration
+
+Amelia uses profile-based configuration in `settings.amelia.yaml`. See [Configuration Reference](configuration.md) for complete details.
+
+### Profile Parameters
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| `name` | Yes | - | Profile identifier (should match the key) |
+| `driver` | Yes | - | LLM driver: `api:openai`, `api`, `cli:claude`, or `cli` |
+| `tracker` | No | `none` | Issue source: `github`, `jira`, `none`, or `noop` |
+| `strategy` | No | `single` | Review strategy: `single` or `competitive` |
+| `execution_mode` | No | `structured` | Execution mode: `structured` or `agentic` |
+| `plan_output_dir` | No | `docs/plans` | Directory for generated plans |
+| `working_dir` | No | `null` | Working directory for agentic execution |
+| `retry` | No | see below | Retry configuration for transient failures |
+
+### Retry Configuration
+
+The `retry` parameter accepts these sub-fields:
+
+| Field | Default | Range | Description |
+|-------|---------|-------|-------------|
+| `max_retries` | `3` | 0-10 | Maximum retry attempts |
+| `base_delay` | `1.0` | 0.1-30.0 | Base delay (seconds) for exponential backoff |
+| `max_delay` | `60.0` | 1.0-300.0 | Maximum delay cap (seconds) |
+
+### Driver Options
+
+| Driver | Description | Requirements |
+|--------|-------------|--------------|
+| `api:openai` | Direct OpenAI API calls via pydantic-ai | `OPENAI_API_KEY` environment variable |
+| `api` | Alias for `api:openai` | Same as above |
+| `cli:claude` | Wraps Claude CLI tool | `claude` CLI installed and authenticated |
+| `cli` | Alias for `cli:claude` | Same as above |
+
+### Tracker Options
+
+| Tracker | Description | Requirements |
+|---------|-------------|--------------|
+| `github` | GitHub Issues | `gh` CLI authenticated or `GITHUB_TOKEN` |
+| `jira` | Jira issues | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` |
+| `none` | No tracker (manual input) | None |
+| `noop` | Alias for `none` | None |
+
+### Full Configuration Example
+
+```yaml
+active_profile: dev
+
+profiles:
+  dev:
+    name: dev
+    driver: api:openai
+    tracker: github
+    strategy: single
+    execution_mode: structured
+    plan_output_dir: "docs/plans"
+    retry:
+      max_retries: 3
+      base_delay: 1.0
+      max_delay: 60.0
+
+  enterprise:
+    name: enterprise
+    driver: cli:claude
+    tracker: jira
+    strategy: competitive
+    retry:
+      max_retries: 5
+      base_delay: 2.0
+      max_delay: 120.0
+```
+
 ## CLI Reference
 
 ### Workflow Commands
