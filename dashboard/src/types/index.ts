@@ -25,6 +25,8 @@ export interface WorkflowSummary {
 }
 
 export interface WorkflowDetail extends WorkflowSummary {
+  worktree_path: string;
+  completed_at: string | null;
   failure_reason: string | null;
   plan: TaskDAG | null;
   token_usage: Record<string, TokenSummary>;
@@ -123,6 +125,8 @@ export interface WorkflowListResponse {
   has_more: boolean;
 }
 
+export type WorkflowDetailResponse = WorkflowDetail;
+
 export interface ErrorResponse {
   error: string;
   code: string;
@@ -145,12 +149,8 @@ export interface RejectRequest {
 
 // Server → Client messages (messages received by the dashboard)
 export type WebSocketMessage =
-  | { type: 'subscribe'; workflow_id: string }
-  | { type: 'unsubscribe'; workflow_id: string }
-  | { type: 'subscribe_all' }
-  | { type: 'pong' }
   | { type: 'ping' }
-  | { type: 'event'; data: WorkflowEvent }
+  | { type: 'event'; payload: WorkflowEvent }
   | { type: 'backfill_complete'; count: number }
   | { type: 'backfill_expired'; message: string };
 

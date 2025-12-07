@@ -39,11 +39,9 @@ describe('React Router Type Definitions', () => {
         {
           id: 'wf-123',
           issue_id: 'ISSUE-456',
-          worktree_path: '/path',
           worktree_name: 'feature-branch',
           status: 'in_progress',
           started_at: '2025-12-01T10:00:00Z',
-          completed_at: null,
           current_stage: 'architect',
         },
       ],
@@ -119,9 +117,9 @@ export interface ActionResult {
   error?: string;
 }
 
-// WebSocket message types (updated to use 'data' instead of 'payload')
+// WebSocket message types (server→client only)
 export type WebSocketMessage =
-  | { type: 'event'; data: WorkflowEvent }  // Changed from 'payload' to 'data'
+  | { type: 'event'; payload: WorkflowEvent }
   | { type: 'ping' }
   | { type: 'backfill_complete'; count: number }
   | { type: 'backfill_expired'; message: string };
@@ -144,7 +142,7 @@ Run: `git add dashboard/src/types/api.ts && git commit -m "feat(dashboard): exte
 
 - WorkflowsLoaderData, WorkflowDetailLoaderData, ActionResult
 - Re-exports base types from Plan 08
-- WebSocket message types with 'data' field (not 'payload')"`
+- WebSocket message types with 'payload' field (matching server)"`
 
 ---
 
@@ -190,7 +188,7 @@ describe('API Client', () => {
 
       const result = await api.getWorkflows();
 
-      expect(global.fetch).toHaveBeenCalledWith('http://localhost:8420/api/workflows?status=in_progress,blocked');
+      expect(global.fetch).toHaveBeenCalledWith('/api/workflows/active');
       expect(result).toEqual(mockWorkflows);
     });
 
@@ -235,7 +233,7 @@ describe('API Client', () => {
 
       const result = await api.getWorkflow('wf-1');
 
-      expect(global.fetch).toHaveBeenCalledWith('http://localhost:8420/api/workflows/wf-1');
+      expect(global.fetch).toHaveBeenCalledWith('/api/workflows/wf-1');
       expect(result.id).toBe('wf-1');
     });
   });
@@ -249,7 +247,7 @@ describe('API Client', () => {
 
       await api.approveWorkflow('wf-1');
 
-      expect(global.fetch).toHaveBeenCalledWith('http://localhost:8420/api/workflows/wf-1/approve', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/workflows/wf-1/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -265,7 +263,7 @@ describe('API Client', () => {
 
       await api.rejectWorkflow('wf-1', 'Plan needs revision');
 
-      expect(global.fetch).toHaveBeenCalledWith('http://localhost:8420/api/workflows/wf-1/reject', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/workflows/wf-1/reject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feedback: 'Plan needs revision' }),
@@ -282,10 +280,50 @@ describe('API Client', () => {
 
       await api.cancelWorkflow('wf-1');
 
-      expect(global.fetch).toHaveBeenCalledWith('http://localhost:8420/api/workflows/wf-1/cancel', {
+      expect(global.fetch).toHaveBeenCalledWith('/api/workflows/wf-1/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
+    });
+  });
+
+  describe('getWorkflowHistory', () => {
+    it('should fetch workflows with completed, failed, and cancelled statuses in parallel', async () => {
+      const completedWorkflows = [
+        { id: 'wf-1', status: 'completed', started_at: '2025-12-01T10:00:00Z' },
+      ];
+      const failedWorkflows = [
+        { id: 'wf-2', status: 'failed', started_at: '2025-12-01T11:00:00Z' },
+      ];
+      const cancelledWorkflows = [
+        { id: 'wf-3', status: 'cancelled', started_at: '2025-12-01T09:00:00Z' },
+      ];
+
+      (global.fetch as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ workflows: completedWorkflows, total: 1, has_more: false }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ workflows: failedWorkflows, total: 1, has_more: false }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ workflows: cancelledWorkflows, total: 1, has_more: false }),
+        });
+
+      const result = await api.getWorkflowHistory();
+
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+      expect(global.fetch).toHaveBeenCalledWith('/api/workflows?status=completed');
+      expect(global.fetch).toHaveBeenCalledWith('/api/workflows?status=failed');
+      expect(global.fetch).toHaveBeenCalledWith('/api/workflows?status=cancelled');
+      // Should be sorted by started_at descending
+      expect(result).toHaveLength(3);
+      expect(result[0].id).toBe('wf-2'); // Most recent (11:00)
+      expect(result[1].id).toBe('wf-1'); // 10:00
+      expect(result[2].id).toBe('wf-3'); // Oldest (09:00)
     });
   });
 });
@@ -302,12 +340,13 @@ Expected: FAIL with module not found
 // dashboard/src/api/client.ts
 import type {
   WorkflowSummary,
+  WorkflowStatus,
   WorkflowDetailResponse,
   WorkflowListResponse,
   ErrorResponse,
 } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8420/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 class ApiError extends Error {
   constructor(
@@ -350,7 +389,7 @@ export const api = {
    * Get all active workflows (in_progress or blocked).
    */
   async getWorkflows(): Promise<WorkflowSummary[]> {
-    const response = await fetch(`${API_BASE_URL}/workflows?status=in_progress,blocked`);
+    const response = await fetch(`${API_BASE_URL}/workflows/active`);
     const data = await handleResponse<WorkflowListResponse>(response);
     return data.workflows;
   },
@@ -395,6 +434,29 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
     });
     await handleResponse(response);
+  },
+
+  /**
+   * Get workflow history (completed, failed, cancelled).
+   * Makes parallel requests for each status since the server only supports single status filtering.
+   */
+  async getWorkflowHistory(): Promise<WorkflowSummary[]> {
+    const statuses: WorkflowStatus[] = ['completed', 'failed', 'cancelled'];
+    const results = await Promise.all(
+      statuses.map(async (status) => {
+        const response = await fetch(`${API_BASE_URL}/workflows?status=${status}`);
+        const data = await handleResponse<WorkflowListResponse>(response);
+        return data.workflows;
+      })
+    );
+    // Flatten and sort by started_at descending (most recent first)
+    return results
+      .flat()
+      .sort((a, b) => {
+        const aTime = a.started_at ? new Date(a.started_at).getTime() : 0;
+        const bTime = b.started_at ? new Date(b.started_at).getTime() : 0;
+        return bTime - aTime;
+      });
   },
 };
 
@@ -533,25 +595,9 @@ describe('Workflow Loaders', () => {
 Run: `cd dashboard && pnpm test -- src/loaders/__tests__/workflows.test.ts`
 Expected: FAIL with module not found
 
-**Step 3: Add getWorkflowHistory to API client**
+> Note: `getWorkflowHistory` was already added to the API client in Task 2.
 
-```typescript
-// dashboard/src/api/client.ts (add to existing api object)
-export const api = {
-  // ... existing methods ...
-
-  /**
-   * Get workflow history (completed, failed, cancelled).
-   */
-  async getWorkflowHistory(): Promise<WorkflowSummary[]> {
-    const response = await fetch(`${API_BASE_URL}/workflows?status=completed,failed,cancelled`);
-    const data = await handleResponse<WorkflowListResponse>(response);
-    return data.workflows;
-  },
-};
-```
-
-**Step 4: Implement route loaders**
+**Step 3: Implement route loaders**
 
 ```typescript
 // dashboard/src/loaders/workflows.ts
@@ -595,14 +641,14 @@ export async function historyLoader() {
 export { workflowsLoader, workflowDetailLoader, historyLoader } from './workflows';
 ```
 
-**Step 5: Run test to verify it passes**
+**Step 4: Run test to verify it passes**
 
 Run: `cd dashboard && pnpm test -- src/loaders/__tests__/workflows.test.ts`
 Expected: PASS
 
-**Step 6: Commit**
+**Step 5: Commit**
 
-Run: `git add dashboard/src/loaders dashboard/src/api && git commit -m "feat(dashboard): add React Router loaders for workflow data"`
+Run: `git add dashboard/src/loaders && git commit -m "feat(dashboard): add React Router loaders for workflow data"`
 
 ---
 
@@ -647,7 +693,7 @@ describe('workflowStore', () => {
       lastEventId: null,
       isConnected: false,
       connectionError: null,
-      pendingActions: new Set(),
+      pendingActions: [],
     });
     sessionStorageMock.clear();
   });
@@ -806,14 +852,14 @@ describe('workflowStore', () => {
       useWorkflowStore.getState().setConnected(true);
 
       expect(useWorkflowStore.getState().isConnected).toBe(true);
-      expect(useWorkflowStore.getState().error).toBeNull();
+      expect(useWorkflowStore.getState().connectionError).toBeNull();
     });
 
     it('should set error when disconnected', () => {
-      useWorkflowStore.getState().setConnected(false);
+      useWorkflowStore.getState().setConnected(false, 'Connection lost');
 
       expect(useWorkflowStore.getState().isConnected).toBe(false);
-      expect(useWorkflowStore.getState().error).toBe('Connection lost');
+      expect(useWorkflowStore.getState().connectionError).toBe('Connection lost');
     });
   });
 
@@ -821,21 +867,21 @@ describe('workflowStore', () => {
     it('should add pending action', () => {
       useWorkflowStore.getState().addPendingAction('approve-wf-1');
 
-      expect(useWorkflowStore.getState().pendingActions.has('approve-wf-1')).toBe(true);
+      expect(useWorkflowStore.getState().pendingActions.includes('approve-wf-1')).toBe(true);
     });
 
     it('should not duplicate pending action', () => {
       useWorkflowStore.getState().addPendingAction('approve-wf-1');
       useWorkflowStore.getState().addPendingAction('approve-wf-1');
 
-      expect(useWorkflowStore.getState().pendingActions.size).toBe(1);
+      expect(useWorkflowStore.getState().pendingActions.length).toBe(1);
     });
 
     it('should remove pending action', () => {
       useWorkflowStore.getState().addPendingAction('approve-wf-1');
       useWorkflowStore.getState().removePendingAction('approve-wf-1');
 
-      expect(useWorkflowStore.getState().pendingActions.size).toBe(0);
+      expect(useWorkflowStore.getState().pendingActions.length).toBe(0);
     });
   });
 
@@ -932,11 +978,12 @@ interface WorkflowState {
   connectionError: string | null;
 
   // Pending actions for optimistic UI tracking
-  pendingActions: Set<string>; // Action IDs currently in flight
+  pendingActions: string[]; // Action IDs currently in flight
 
   // Actions
   selectWorkflow: (id: string | null) => void;
   addEvent: (event: WorkflowEvent) => void;
+  setLastEventId: (id: string | null) => void;
   setConnected: (connected: boolean, error?: string) => void;
   addPendingAction: (actionId: string) => void;
   removePendingAction: (actionId: string) => void;
@@ -950,7 +997,7 @@ export const useWorkflowStore = create<WorkflowState>()(
       lastEventId: null,
       isConnected: false,
       connectionError: null,
-      pendingActions: new Set(),
+      pendingActions: [],
 
       selectWorkflow: (id) => set({ selectedWorkflowId: id }),
 
@@ -974,25 +1021,23 @@ export const useWorkflowStore = create<WorkflowState>()(
           };
         }),
 
+      setLastEventId: (id) => set({ lastEventId: id }),
+
       setConnected: (connected, error) =>
         set({
           isConnected: connected,
-          connectionError: error ?? null,
+          connectionError: connected ? null : (error ?? null),
         }),
 
       addPendingAction: (actionId) =>
-        set((state) => {
-          const newSet = new Set(state.pendingActions);
-          newSet.add(actionId);
-          return { pendingActions: newSet };
-        }),
+        set((state) => ({
+          pendingActions: [...state.pendingActions, actionId],
+        })),
 
       removePendingAction: (actionId) =>
-        set((state) => {
-          const newSet = new Set(state.pendingActions);
-          newSet.delete(actionId);
-          return { pendingActions: newSet };
-        }),
+        set((state) => ({
+          pendingActions: state.pendingActions.filter(id => id !== actionId),
+        })),
     }),
     {
       name: 'amelia-workflow-state',
@@ -1387,7 +1432,7 @@ export function useWebSocket() {
 
       switch (message.type) {
         case 'event':
-          handleEvent(message.data);
+          handleEvent(message.payload);
           break;
 
         case 'ping':
@@ -1661,7 +1706,7 @@ Expected: FAIL with module not found
 import { useLoaderData, useRevalidator } from 'react-router-dom';
 import { useWorkflowStore } from '../store/workflowStore';
 import { useEffect } from 'react';
-import type { WorkflowsLoaderData } from '../types';
+import type { WorkflowsLoaderData } from '../types/api';
 
 /**
  * Hook that combines loader data with real-time updates.
@@ -1929,53 +1974,32 @@ Run: `git add dashboard/src/actions && git commit -m "feat(dashboard): add React
 ```typescript
 // dashboard/src/hooks/__tests__/useWorkflowActions.test.tsx
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { useWorkflowActions } from '../useWorkflowActions';
-import { useFetcher } from 'react-router-dom';
+import { useWorkflowStore } from '../../store/workflowStore';
+import { api } from '../../api/client';
+import * as toast from '../../components/Toast';
 
-vi.mock('react-router-dom', () => ({
-  useFetcher: vi.fn(),
+vi.mock('../../api/client');
+vi.mock('../../components/Toast', () => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
 }));
-
 describe('useWorkflowActions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWorkflowStore.setState({
-      workflows: {
-        'wf-1': {
-          id: 'wf-1',
-          issue_id: 'ISSUE-1',
-          worktree_name: 'main',
-          status: 'blocked',
-          started_at: '2025-12-01T10:00:00Z',
-          current_stage: 'architect',
-        },
-      },
-      selectedWorkflowId: 'wf-1',
+      selectedWorkflowId: null,
       eventsByWorkflow: {},
       lastEventId: null,
-      isLoading: false,
-      error: null,
       isConnected: false,
-      lastSyncAt: null,
+      connectionError: null,
       pendingActions: [],
     });
   });
 
   describe('approveWorkflow', () => {
-    it('should optimistically update status to in_progress', async () => {
-      vi.mocked(api.approveWorkflow).mockResolvedValueOnce(undefined);
-
-      const { result } = renderHook(() => useWorkflowActions());
-
-      result.current.approveWorkflow('wf-1');
-
-      // Should update immediately (optimistic)
-      await waitFor(() => {
-        expect(useWorkflowStore.getState().workflows['wf-1'].status).toBe('in_progress');
-      });
-    });
-
     it('should add pending action during request', async () => {
       vi.mocked(api.approveWorkflow).mockImplementationOnce(
         () =>
@@ -1986,39 +2010,27 @@ describe('useWorkflowActions', () => {
 
       const { result } = renderHook(() => useWorkflowActions());
 
-      result.current.approveWorkflow('wf-1');
+      result.current.approveWorkflow('wf-1', 'blocked');
 
       await waitFor(() => {
-        expect(useWorkflowStore.getState().pendingActions).toContain('approve-wf-1');
+        expect(useWorkflowStore.getState().pendingActions.includes('approve-wf-1')).toBe(true);
       });
 
       await waitFor(() => {
-        expect(useWorkflowStore.getState().pendingActions).not.toContain('approve-wf-1');
-      });
-    });
-
-    it('should rollback on API error', async () => {
-      vi.mocked(api.approveWorkflow).mockRejectedValueOnce(new Error('Server error'));
-
-      const { result } = renderHook(() => useWorkflowActions());
-
-      await result.current.approveWorkflow('wf-1');
-
-      // Should rollback to original status
-      await waitFor(() => {
-        expect(useWorkflowStore.getState().workflows['wf-1'].status).toBe('blocked');
+        expect(useWorkflowStore.getState().pendingActions.includes('approve-wf-1')).toBe(false);
       });
     });
+
 
     it('should show success toast on success', async () => {
       vi.mocked(api.approveWorkflow).mockResolvedValueOnce(undefined);
 
       const { result } = renderHook(() => useWorkflowActions());
 
-      await result.current.approveWorkflow('wf-1');
+      await result.current.approveWorkflow('wf-1', 'blocked');
 
       await waitFor(() => {
-        expect(Toast.success).toHaveBeenCalledWith('Plan approved');
+        expect(toast.success).toHaveBeenCalledWith('Plan approved');
       });
     });
 
@@ -2027,104 +2039,62 @@ describe('useWorkflowActions', () => {
 
       const { result } = renderHook(() => useWorkflowActions());
 
-      await result.current.approveWorkflow('wf-1');
+      await result.current.approveWorkflow('wf-1', 'blocked');
 
       await waitFor(() => {
-        expect(Toast.error).toHaveBeenCalledWith('Approval failed: Server error');
+        expect(toast.error).toHaveBeenCalledWith('Approval failed: Server error');
       });
     });
   });
 
   describe('rejectWorkflow', () => {
-    it('should optimistically update status to failed', async () => {
+    it('should show success toast on success', async () => {
       vi.mocked(api.rejectWorkflow).mockResolvedValueOnce(undefined);
 
       const { result } = renderHook(() => useWorkflowActions());
 
-      result.current.rejectWorkflow('wf-1', 'Needs revision');
+      await result.current.rejectWorkflow('wf-1', 'Needs revision', 'blocked');
 
       await waitFor(() => {
-        expect(useWorkflowStore.getState().workflows['wf-1'].status).toBe('failed');
+        expect(toast.success).toHaveBeenCalledWith('Plan rejected');
       });
     });
 
-    it('should rollback on API error', async () => {
+    it('should show error toast on failure', async () => {
       vi.mocked(api.rejectWorkflow).mockRejectedValueOnce(new Error('Server error'));
 
       const { result } = renderHook(() => useWorkflowActions());
 
-      await result.current.rejectWorkflow('wf-1', 'Needs revision');
+      await result.current.rejectWorkflow('wf-1', 'Needs revision', 'blocked');
 
       await waitFor(() => {
-        expect(useWorkflowStore.getState().workflows['wf-1'].status).toBe('blocked');
+        expect(toast.error).toHaveBeenCalledWith('Rejection failed: Server error');
       });
     });
   });
 
   describe('cancelWorkflow', () => {
-    it('should optimistically update status to cancelled', async () => {
-      useWorkflowStore.setState({
-        workflows: {
-          'wf-1': {
-            id: 'wf-1',
-            issue_id: 'ISSUE-1',
-            worktree_name: 'main',
-            status: 'in_progress',
-            started_at: '2025-12-01T10:00:00Z',
-            current_stage: 'developer',
-          },
-        },
-        selectedWorkflowId: 'wf-1',
-        eventsByWorkflow: {},
-        lastEventId: null,
-        isLoading: false,
-        error: null,
-        isConnected: false,
-        lastSyncAt: null,
-        pendingActions: [],
-      });
-
+    it('should show success toast on success', async () => {
       vi.mocked(api.cancelWorkflow).mockResolvedValueOnce(undefined);
 
       const { result } = renderHook(() => useWorkflowActions());
 
-      result.current.cancelWorkflow('wf-1');
+      await result.current.cancelWorkflow('wf-1', 'in_progress');
 
       await waitFor(() => {
-        expect(useWorkflowStore.getState().workflows['wf-1'].status).toBe('cancelled');
+        expect(toast.success).toHaveBeenCalledWith('Workflow cancelled');
       });
     });
 
-    it('should rollback on API error', async () => {
-      useWorkflowStore.setState({
-        workflows: {
-          'wf-1': {
-            id: 'wf-1',
-            issue_id: 'ISSUE-1',
-            worktree_name: 'main',
-            status: 'in_progress',
-            started_at: '2025-12-01T10:00:00Z',
-            current_stage: 'developer',
-          },
-        },
-        selectedWorkflowId: 'wf-1',
-        eventsByWorkflow: {},
-        lastEventId: null,
-        isLoading: false,
-        error: null,
-        isConnected: false,
-        lastSyncAt: null,
-        pendingActions: [],
-      });
-
+    it('should show error toast on failure', async () => {
       vi.mocked(api.cancelWorkflow).mockRejectedValueOnce(new Error('Server error'));
 
       const { result } = renderHook(() => useWorkflowActions());
 
-      await result.current.cancelWorkflow('wf-1');
+      await result.current.cancelWorkflow('wf-1', 'in_progress');
 
       await waitFor(() => {
-        expect(useWorkflowStore.getState().workflows['wf-1'].status).toBe('in_progress');
+        expect(toast.error).toHaveBeenCalledWith('Cancellation failed: Server error');
       });
     });
   });
@@ -2147,7 +2117,7 @@ describe('useWorkflowActions', () => {
     });
 
     it('should check for any action type for the workflow', () => {
-      useWorkflowStore.setState({ pendingActions: ['reject-wf-1'] });
+      useWorkflowStore.setState({ pendingActions: new Set(['reject-wf-1']) });
 
       const { result } = renderHook(() => useWorkflowActions());
 
@@ -2199,97 +2169,58 @@ import * as toast from '../components/Toast';
 import type { WorkflowStatus } from '../types';
 
 interface UseWorkflowActionsResult {
-  approveWorkflow: (workflowId: string) => Promise<void>;
-  rejectWorkflow: (workflowId: string, feedback: string) => Promise<void>;
-  cancelWorkflow: (workflowId: string) => Promise<void>;
+  approveWorkflow: (workflowId: string, previousStatus: WorkflowStatus) => Promise<void>;
+  rejectWorkflow: (workflowId: string, feedback: string, previousStatus: WorkflowStatus) => Promise<void>;
+  cancelWorkflow: (workflowId: string, previousStatus: WorkflowStatus) => Promise<void>;
   isActionPending: (workflowId: string) => boolean;
 }
 
 export function useWorkflowActions(): UseWorkflowActionsResult {
-  const { updateWorkflow, addPendingAction, removePendingAction, pendingActions, workflows } =
-    useWorkflowStore();
+  const { addPendingAction, removePendingAction, pendingActions } = useWorkflowStore();
 
   const approveWorkflow = useCallback(
-    async (workflowId: string) => {
+    async (workflowId: string, _previousStatus: WorkflowStatus) => {
       const actionId = `approve-${workflowId}`;
-
-      // Capture previous state for rollback
-      const workflow = workflows[workflowId];
-      const previousStatus = workflow?.status;
-
-      if (!previousStatus) {
-        toast.error('Workflow not found');
-        return;
-      }
-
-      // Optimistic update
-      updateWorkflow(workflowId, { status: 'in_progress' });
       addPendingAction(actionId);
 
       try {
         await api.approveWorkflow(workflowId);
         toast.success('Plan approved');
       } catch (error) {
-        // Rollback on failure
-        updateWorkflow(workflowId, { status: previousStatus });
         toast.error(`Approval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       } finally {
         removePendingAction(actionId);
       }
     },
-    [updateWorkflow, addPendingAction, removePendingAction, workflows]
+    [addPendingAction, removePendingAction]
   );
 
   const rejectWorkflow = useCallback(
-    async (workflowId: string, feedback: string) => {
+    async (workflowId: string, feedback: string, _previousStatus: WorkflowStatus) => {
       const actionId = `reject-${workflowId}`;
-
-      const workflow = workflows[workflowId];
-      const previousStatus = workflow?.status;
-
-      if (!previousStatus) {
-        toast.error('Workflow not found');
-        return;
-      }
-
-      // Optimistic update
-      updateWorkflow(workflowId, { status: 'failed' });
       addPendingAction(actionId);
 
       try {
         await api.rejectWorkflow(workflowId, feedback);
         toast.success('Plan rejected');
       } catch (error) {
-        updateWorkflow(workflowId, { status: previousStatus });
         toast.error(`Rejection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       } finally {
         removePendingAction(actionId);
       }
     },
-    [updateWorkflow, addPendingAction, removePendingAction, workflows]
+    [addPendingAction, removePendingAction]
   );
 
   const cancelWorkflow = useCallback(
-    async (workflowId: string) => {
+    async (workflowId: string, _previousStatus: WorkflowStatus) => {
       const actionId = `cancel-${workflowId}`;
-
-      const workflow = workflows[workflowId];
-      const previousStatus = workflow?.status;
-
-      if (!previousStatus) {
-        toast.error('Workflow not found');
-        return;
-      }
-
-      // Optimistic update
-      updateWorkflow(workflowId, { status: 'cancelled' });
       addPendingAction(actionId);
 
       try {
         await api.cancelWorkflow(workflowId);
         toast.success('Workflow cancelled');
       } catch (error) {
-        updateWorkflow(workflowId, { status: previousStatus });
         toast.error(
           `Cancellation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
@@ -2297,7 +2228,7 @@ export function useWorkflowActions(): UseWorkflowActionsResult {
         removePendingAction(actionId);
       }
     },
-    [updateWorkflow, addPendingAction, removePendingAction, workflows]
+    [addPendingAction, removePendingAction]
   );
 
   const isActionPending = useCallback(
