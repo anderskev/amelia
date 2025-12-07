@@ -2,9 +2,7 @@
 
 [Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is a local agentic coding system that orchestrates software development tasks through multiple AI agents with specialized roles.
 
-```
-Issue → Architect (plan) → Human Approval → Developer (execute) ↔ Reviewer (review) → Done
-```
+See the [**Roadmap**](docs/roadmap.md) for where we're headed.
 
 **Core Philosophy:** Amelia is built with the assumption that LLMs will continually improve. We prefer prompts over code, delegation over hardcoding, and flexible architectures—so as models get smarter, Amelia automatically improves without requiring changes.
 
@@ -229,9 +227,3 @@ See [Configuration Reference](docs/configuration.md) for full details.
 
 **Limitations/Coming Soon:**
 - TaskDAG doesn't validate cyclic dependencies
-
-## Roadmap
-
-> **Vision:** Complete end-to-end workflow control without ever opening GitHub, Jira, or any tracker web UI—with agents that maintain context across sessions and verify their own work.
-
-See [**docs/roadmap.md**](docs/roadmap.md) for the full development roadmap.
