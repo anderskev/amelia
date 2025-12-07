@@ -8,4 +8,4 @@ examine tests added as part of this pull request, ensure:
 3. tests follow DRY
 4. tests are actually useful
 
-ultrathink and use subagents
+ultrathink and use Agents
