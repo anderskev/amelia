@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Empty state component for workflow-related screens.
+ */
 import {
   Empty,
   EmptyHeader,
@@ -10,8 +13,17 @@ import { Button } from '@/components/ui/button';
 import { Inbox, Activity, AlertCircle, FileX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/** Available empty state variants for different contexts. */
 type EmptyStateVariant = 'no-workflows' | 'no-activity' | 'no-results' | 'error';
 
+/**
+ * Props for the WorkflowEmptyState component.
+ * @property variant - Type of empty state to display
+ * @property title - Optional override for the default title
+ * @property description - Optional override for the default description
+ * @property action - Optional action button configuration
+ * @property className - Optional additional CSS classes
+ */
 interface WorkflowEmptyStateProps {
   variant: EmptyStateVariant;
   title?: string;
@@ -23,6 +35,7 @@ interface WorkflowEmptyStateProps {
   className?: string;
 }
 
+/** Default configuration for each empty state variant. */
 const variantConfig: Record<EmptyStateVariant, {
   icon: typeof Inbox;
   title: string;
@@ -50,6 +63,23 @@ const variantConfig: Record<EmptyStateVariant, {
   },
 };
 
+/**
+ * Displays a contextual empty state with icon, message, and optional action.
+ *
+ * Supports multiple variants for different scenarios (no workflows,
+ * no activity, no results, error). Title and description can be overridden.
+ *
+ * @param props - Component props
+ * @returns The empty state UI
+ *
+ * @example
+ * ```tsx
+ * <WorkflowEmptyState
+ *   variant="no-workflows"
+ *   action={{ label: 'Start Workflow', onClick: handleStart }}
+ * />
+ * ```
+ */
 export function WorkflowEmptyState({
   variant,
   title,

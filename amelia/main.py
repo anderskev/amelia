@@ -38,8 +38,13 @@ app.command(name="cancel", help="Cancel the active workflow in the current workt
 
 @app.callback()
 def main_callback() -> None:
-    """
-    Amelia: A local agentic coding system.
+    """Initialize the Amelia CLI application.
+
+    Configures logging for all CLI commands. Called automatically by Typer
+    before any subcommand execution.
+
+    Returns:
+        None.
     """
     configure_logging()
 

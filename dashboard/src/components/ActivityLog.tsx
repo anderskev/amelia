@@ -1,15 +1,42 @@
+/**
+ * @fileoverview Real-time activity log for workflow events.
+ */
 import { useEffect, useRef, useMemo } from 'react';
 import { ActivityLogItem } from '@/components/ActivityLogItem';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { cn } from '@/lib/utils';
 import type { WorkflowEvent } from '@/types';
 
+/**
+ * Props for the ActivityLog component.
+ * @property workflowId - ID of the workflow to display events for
+ * @property initialEvents - Events loaded from server (SSR/loader)
+ * @property className - Optional additional CSS classes
+ */
 interface ActivityLogProps {
   workflowId: string;
   initialEvents?: WorkflowEvent[];
   className?: string;
 }
 
+/**
+ * Displays a scrollable log of workflow events with real-time updates.
+ *
+ * Merges initial server-loaded events with real-time WebSocket events,
+ * deduplicating by event ID. Auto-scrolls to bottom when new events arrive.
+ * Includes terminal-style scanlines overlay for visual effect.
+ *
+ * @param props - Component props
+ * @returns The activity log UI
+ *
+ * @example
+ * ```tsx
+ * <ActivityLog
+ *   workflowId="wf-123"
+ *   initialEvents={loaderData.events}
+ * />
+ * ```
+ */
 export function ActivityLog({ workflowId, initialEvents = [], className }: ActivityLogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 

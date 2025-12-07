@@ -4,6 +4,9 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+/**
+ * @fileoverview Workflow detail page with full status display.
+ */
 import { useLoaderData } from 'react-router-dom';
 import { WorkflowHeader } from '@/components/WorkflowHeader';
 import { WorkflowProgress } from '@/components/WorkflowProgress';
@@ -12,10 +15,23 @@ import { ApprovalControls } from '@/components/ApprovalControls';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import type { WorkflowDetail } from '@/types';
 
+/**
+ * Data shape returned by the route loader.
+ * @property workflow - Full workflow details
+ */
 interface LoaderData {
   workflow: WorkflowDetail;
 }
 
+/**
+ * Displays comprehensive workflow details with progress, pipeline, and activity.
+ *
+ * Shows header with status, progress bar, visual pipeline canvas,
+ * approval controls (when blocked), and real-time activity log.
+ * Converts plan tasks to pipeline nodes for visualization.
+ *
+ * @returns The workflow detail page UI
+ */
 export default function WorkflowDetailPage() {
   const { workflow } = useLoaderData() as LoaderData;
 

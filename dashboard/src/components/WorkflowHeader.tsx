@@ -1,14 +1,32 @@
+/**
+ * @fileoverview Header component for workflow detail pages.
+ */
 import { StatusBadge } from '@/components/StatusBadge';
 import { Loader } from '@/components/ai-elements/loader';
 import { cn } from '@/lib/utils';
 import type { WorkflowSummary } from '@/types';
 
+/**
+ * Props for the WorkflowHeader component.
+ * @property workflow - Workflow data to display
+ * @property elapsedTime - Optional formatted elapsed time string
+ * @property className - Optional additional CSS classes
+ */
 interface WorkflowHeaderProps {
   workflow: Pick<WorkflowSummary, 'id' | 'issue_id' | 'worktree_name' | 'status'>;
   elapsedTime?: string;
   className?: string;
 }
 
+/**
+ * Displays workflow identification and status in the page header.
+ *
+ * Shows issue ID, worktree name, status badge with loading indicator
+ * for running workflows, and optional elapsed time.
+ *
+ * @param props - Component props
+ * @returns The workflow header UI
+ */
 export function WorkflowHeader({ workflow, elapsedTime, className }: WorkflowHeaderProps) {
   const isRunning = workflow.status === 'in_progress';
 

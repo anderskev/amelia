@@ -4,12 +4,23 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+/**
+ * @fileoverview Main workflows listing page.
+ */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { JobQueue } from '@/components/JobQueue';
 import { WorkflowEmptyState } from '@/components/WorkflowEmptyState';
 
+/**
+ * Displays the list of active workflows in a job queue format.
+ *
+ * Shows empty state when no workflows exist. Handles workflow
+ * selection and navigation to detail pages.
+ *
+ * @returns The workflows page UI
+ */
 export default function WorkflowsPage() {
   const { workflows } = useWorkflows();
   const navigate = useNavigate();

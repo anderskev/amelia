@@ -1,11 +1,22 @@
+/**
+ * @fileoverview Approval controls for workflow plan review.
+ */
 import { useFetcher } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Loader } from '@/components/ai-elements/loader';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/** Possible states for the approval workflow. */
 type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+/**
+ * Props for the ApprovalControls component.
+ * @property workflowId - Unique identifier for the workflow being approved
+ * @property planSummary - Brief description of the plan to display
+ * @property status - Current approval status (defaults to 'pending')
+ * @property className - Optional additional CSS classes
+ */
 interface ApprovalControlsProps {
   workflowId: string;
   planSummary: string;
@@ -13,6 +24,24 @@ interface ApprovalControlsProps {
   className?: string;
 }
 
+/**
+ * Displays approve/reject buttons for workflow plan review.
+ *
+ * Shows pending controls when awaiting decision, or a status message
+ * once approved/rejected. Uses React Router fetchers for form submissions.
+ *
+ * @param props - Component props
+ * @returns The approval controls UI
+ *
+ * @example
+ * ```tsx
+ * <ApprovalControls
+ *   workflowId="wf-123"
+ *   planSummary="Implement user authentication"
+ *   status="pending"
+ * />
+ * ```
+ */
 export function ApprovalControls({
   workflowId,
   planSummary,

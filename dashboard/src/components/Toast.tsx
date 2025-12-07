@@ -5,21 +5,35 @@
  */
 
 /**
- * Simple toast notification utilities.
- * In a real implementation, this would integrate with a toast library like react-hot-toast.
- * For now, we use console logging and could add a toast UI component later.
+ * @fileoverview Toast notification utilities.
+ *
+ * Simple toast notification utilities for displaying user feedback.
+ * Currently uses console logging; can be integrated with a toast
+ * library like react-hot-toast or sonner in the future.
  */
 
+/**
+ * Displays a success toast notification.
+ * @param message - Success message to display
+ */
 export function success(message: string): void {
   console.log(`✓ ${message}`);
   // TODO: Integrate with toast UI library
 }
 
+/**
+ * Displays an error toast notification.
+ * @param message - Error message to display
+ */
 export function error(message: string): void {
   console.error(`✗ ${message}`);
   // TODO: Integrate with toast UI library
 }
 
+/**
+ * Displays an informational toast notification.
+ * @param message - Info message to display
+ */
 export function info(message: string): void {
   console.info(`ℹ ${message}`);
   // TODO: Integrate with toast UI library

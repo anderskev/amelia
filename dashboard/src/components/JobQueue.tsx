@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Collapsible job queue displaying active workflows.
+ */
 import { JobQueueItem } from '@/components/JobQueueItem';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -9,6 +12,13 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkflowSummary } from '@/types';
 
+/**
+ * Props for the JobQueue component.
+ * @property workflows - Array of workflow summaries to display
+ * @property selectedId - ID of the currently selected workflow
+ * @property onSelect - Callback when a workflow is selected
+ * @property className - Optional additional CSS classes
+ */
 interface JobQueueProps {
   workflows?: Pick<WorkflowSummary, 'id' | 'issue_id' | 'worktree_name' | 'status' | 'current_stage'>[];
   selectedId?: string | null;
@@ -16,6 +26,24 @@ interface JobQueueProps {
   className?: string;
 }
 
+/**
+ * Displays a collapsible list of active workflows.
+ *
+ * Shows workflow count in a badge and renders each workflow as a
+ * selectable JobQueueItem. Displays empty state when no workflows exist.
+ *
+ * @param props - Component props
+ * @returns The job queue UI
+ *
+ * @example
+ * ```tsx
+ * <JobQueue
+ *   workflows={workflows}
+ *   selectedId={currentId}
+ *   onSelect={(id) => navigate(`/workflows/${id}`)}
+ * />
+ * ```
+ */
 export function JobQueue({
   workflows = [],
   selectedId = null,

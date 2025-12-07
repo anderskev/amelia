@@ -1,3 +1,6 @@
+/**
+ * @fileoverview React Flow canvas for visualizing workflow pipelines.
+ */
 import { useMemo } from 'react';
 import {
   ReactFlow,
@@ -9,9 +12,20 @@ import { WorkflowNode, type WorkflowNodeType } from '@/components/flow/WorkflowN
 import { WorkflowEdge, type WorkflowEdgeType } from '@/components/flow/WorkflowEdge';
 import { cn } from '@/lib/utils';
 
+/** Possible status values for pipeline nodes. */
 type NodeStatus = 'completed' | 'active' | 'pending' | 'blocked';
+
+/** Possible status values for pipeline edges. */
 type EdgeStatus = 'completed' | 'active' | 'pending';
 
+/**
+ * Represents a node in the workflow pipeline.
+ * @property id - Unique node identifier
+ * @property label - Display label for the node
+ * @property subtitle - Optional secondary text
+ * @property status - Current node status
+ * @property tokens - Optional token count display
+ */
 interface PipelineNode {
   id: string;
   label: string;
@@ -20,6 +34,13 @@ interface PipelineNode {
   tokens?: string;
 }
 
+/**
+ * Represents an edge connecting two pipeline nodes.
+ * @property from - Source node ID
+ * @property to - Target node ID
+ * @property label - Edge label text
+ * @property status - Current edge status
+ */
 interface PipelineEdge {
   from: string;
   to: string;
@@ -27,24 +48,55 @@ interface PipelineEdge {
   status: EdgeStatus;
 }
 
+/**
+ * Complete pipeline data structure for the canvas.
+ * @property nodes - Array of pipeline nodes
+ * @property edges - Array of pipeline edges
+ */
 interface Pipeline {
   nodes: PipelineNode[];
   edges: PipelineEdge[];
 }
 
+/**
+ * Props for the WorkflowCanvas component.
+ * @property pipeline - Pipeline data to visualize
+ * @property className - Optional additional CSS classes
+ */
 interface WorkflowCanvasProps {
   pipeline: Pipeline;
   className?: string;
 }
 
+/** Custom node types for React Flow. */
 const nodeTypes = {
   workflow: WorkflowNode,
 };
 
+/** Custom edge types for React Flow. */
 const edgeTypes = {
   workflow: WorkflowEdge,
 };
 
+/**
+ * Visualizes a workflow pipeline using React Flow.
+ *
+ * Converts pipeline data to React Flow format and renders nodes
+ * and edges in a non-interactive view. Shows stage progress indicator.
+ *
+ * @param props - Component props
+ * @returns The workflow canvas visualization
+ *
+ * @example
+ * ```tsx
+ * <WorkflowCanvas
+ *   pipeline={{
+ *     nodes: [{ id: '1', label: 'Plan', status: 'completed' }],
+ *     edges: [{ from: '1', to: '2', label: 'approve', status: 'active' }]
+ *   }}
+ * />
+ * ```
+ */
 export function WorkflowCanvas({ pipeline, className }: WorkflowCanvasProps) {
   // Convert pipeline data to React Flow format
   const nodes: WorkflowNodeType[] = useMemo(

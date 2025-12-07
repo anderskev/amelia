@@ -1,7 +1,17 @@
+/**
+ * @fileoverview Individual item in the job queue list.
+ */
 import { StatusBadge } from '@/components/StatusBadge';
 import { cn } from '@/lib/utils';
 import type { WorkflowSummary } from '@/types';
 
+/**
+ * Props for the JobQueueItem component.
+ * @property workflow - Workflow data to display
+ * @property selected - Whether this item is currently selected
+ * @property onSelect - Callback when item is clicked/activated
+ * @property className - Optional additional CSS classes
+ */
 interface JobQueueItemProps {
   workflow: Pick<WorkflowSummary, 'id' | 'issue_id' | 'worktree_name' | 'status' | 'current_stage'>;
   selected: boolean;
@@ -9,6 +19,15 @@ interface JobQueueItemProps {
   className?: string;
 }
 
+/**
+ * Renders a single workflow item in the job queue.
+ *
+ * Displays issue ID, worktree name, status badge, and current stage.
+ * Supports keyboard navigation (Enter/Space) and visual selection state.
+ *
+ * @param props - Component props
+ * @returns The job queue item UI
+ */
 export function JobQueueItem({ workflow, selected, onSelect, className }: JobQueueItemProps) {
   const handleClick = () => onSelect(workflow.id);
 

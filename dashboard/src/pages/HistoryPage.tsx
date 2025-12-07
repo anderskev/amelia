@@ -4,16 +4,31 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
+/**
+ * @fileoverview Workflow history page showing past workflows.
+ */
 import { useLoaderData, useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowEmptyState } from '@/components/WorkflowEmptyState';
 import { cn } from '@/lib/utils';
 import type { WorkflowSummary } from '@/types';
 
+/**
+ * Data shape returned by the route loader.
+ * @property workflows - List of workflow summaries
+ */
 interface HistoryLoaderData {
   workflows: WorkflowSummary[];
 }
 
+/**
+ * Displays a list of past workflows with status and timestamps.
+ *
+ * Shows workflow history in a scrollable list with status badges,
+ * issue IDs, and start times. Supports keyboard navigation.
+ *
+ * @returns The history page UI
+ */
 export default function HistoryPage() {
   const { workflows } = useLoaderData() as HistoryLoaderData;
   const navigate = useNavigate();
@@ -22,10 +37,19 @@ export default function HistoryPage() {
     return <WorkflowEmptyState variant="no-activity" />;
   }
 
+  /**
+   * Handles click navigation to workflow detail.
+   * @param workflowId - ID of workflow to navigate to
+   */
   const handleWorkflowClick = (workflowId: string) => {
     navigate(`/workflows/${workflowId}`);
   };
 
+  /**
+   * Handles keyboard navigation (Enter/Space).
+   * @param e - Keyboard event
+   * @param workflowId - ID of workflow to navigate to
+   */
   const handleKeyDown = (e: React.KeyboardEvent, workflowId: string) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -33,6 +57,11 @@ export default function HistoryPage() {
     }
   };
 
+  /**
+   * Formats an ISO date string for display.
+   * @param dateString - ISO date string or null
+   * @returns Formatted date string (e.g., "Dec 7, 10:30 AM")
+   */
   const formatDate = (dateString: string | null): string => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);

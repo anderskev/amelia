@@ -221,12 +221,10 @@ export const useWorkflowStore = create<WorkflowState>()(
         },
       },
       // Only persist UI state - events are ephemeral
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      partialize: (state) =>
-        ({
-          selectedWorkflowId: state.selectedWorkflowId,
-          lastEventId: state.lastEventId,
-        }) as any,
+      partialize: (state): Pick<WorkflowState, 'selectedWorkflowId' | 'lastEventId'> => ({
+        selectedWorkflowId: state.selectedWorkflowId,
+        lastEventId: state.lastEventId,
+      }),
     }
   )
 );

@@ -199,6 +199,11 @@ class OrchestratorService:
 
         # Remove from active tasks on completion
         def cleanup_task(_: asyncio.Task[None]) -> None:
+            """Clean up resources when workflow task completes.
+
+            Args:
+                _: The completed asyncio Task (unused).
+            """
             self._active_tasks.pop(worktree_path, None)
             self._sequence_counters.pop(workflow_id, None)
             self._sequence_locks.pop(workflow_id, None)

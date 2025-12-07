@@ -120,11 +120,19 @@ class ApiDriver(DriverInterface):
     ) -> AsyncIterator[Any]:
         """Execute prompt with autonomous tool access (agentic mode).
 
-        Note:
-            Agentic execution is not supported by API drivers.
+        Args:
+            prompt: The task or instruction for the model.
+            cwd: Working directory for execution context.
+            session_id: Optional session ID to resume.
+
+        Yields:
+            Stream events from execution (never yields, always raises).
 
         Raises:
             NotImplementedError: Always, as API drivers don't support agentic mode.
+
+        Note:
+            Agentic execution is not supported by API drivers.
         """
         raise NotImplementedError("Agentic execution is not supported by ApiDriver. Use CLI drivers for agentic mode.")
         # This is an async generator stub - yield is never reached but makes the signature correct
