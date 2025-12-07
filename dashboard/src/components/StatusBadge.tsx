@@ -7,7 +7,7 @@ import type { WorkflowStatus } from '@/types';
 
 /** CVA variants for status badge styling based on workflow state. */
 const statusBadgeVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wider transition-colors',
+  'inline-flex items-center justify-center gap-1.5 min-w-[6.5rem] rounded-md px-2.5 py-1 text-xs font-semibold uppercase tracking-wider transition-colors',
   {
     variants: {
       status: {
@@ -16,6 +16,7 @@ const statusBadgeVariants = cva(
         completed: 'bg-status-completed/20 text-status-completed border border-status-completed/30',
         failed: 'bg-status-failed/20 text-status-failed border border-status-failed/30',
         blocked: 'bg-status-blocked/20 text-status-blocked border border-status-blocked/30',
+        cancelled: 'bg-status-cancelled/20 text-status-cancelled border border-status-cancelled/30',
       },
     },
     defaultVariants: {
@@ -45,7 +46,7 @@ const statusLabels: Record<WorkflowStatus, string> = {
 };
 
 /** Internal status type for styling variants. */
-type IndicatorStatus = 'pending' | 'running' | 'completed' | 'failed' | 'blocked';
+type IndicatorStatus = 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'cancelled';
 
 /** Maps workflow status to indicator status for styling. */
 const statusMapping: Record<WorkflowStatus, IndicatorStatus> = {
@@ -54,7 +55,7 @@ const statusMapping: Record<WorkflowStatus, IndicatorStatus> = {
   blocked: 'blocked',
   completed: 'completed',
   failed: 'failed',
-  cancelled: 'failed',
+  cancelled: 'cancelled',
 };
 
 /**
