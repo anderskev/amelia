@@ -4,6 +4,11 @@ from amelia.core.types import Issue
 
 
 class BaseTracker(Protocol):
+    """
+    Protocol definition for issue trackers (e.g. Jira, GitHub).
+
+    All tracker implementations must conform to this interface.
+    """
     def get_issue(self, issue_id: str) -> Issue:
         """Fetch an issue by its ID.
 
