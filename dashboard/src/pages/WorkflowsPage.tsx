@@ -22,7 +22,7 @@ import { ActivityLog } from '@/components/ActivityLog';
 import { ActivityLogSkeleton } from '@/components/ActivityLogSkeleton';
 import { JobQueue } from '@/components/JobQueue';
 import { useWorkflowStore } from '@/store/workflowStore';
-import { getActiveWorkflow } from '@/utils/workflow';
+import { getActiveWorkflow, formatElapsedTime } from '@/utils/workflow';
 import { buildPipeline } from '@/utils/pipeline';
 import type { workflowsLoader, workflowDetailLoader } from '@/loaders/workflows';
 
@@ -110,7 +110,7 @@ export default function WorkflowsPage() {
         </PageHeader.Left>
         <PageHeader.Center>
           <PageHeader.Label>ELAPSED</PageHeader.Label>
-          <PageHeader.Value glow>--:--</PageHeader.Value>
+          <PageHeader.Value glow>{formatElapsedTime(detail)}</PageHeader.Value>
         </PageHeader.Center>
         {detail && (
           <PageHeader.Right>

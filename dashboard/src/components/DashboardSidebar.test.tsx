@@ -75,9 +75,9 @@ describe('DashboardSidebar', () => {
 
     renderSidebar();
 
-    // Should show infinity symbol instead of AMELIA
+    // Should show both AMELIA and infinity symbol
+    expect(screen.getByText('AMELIA')).toBeInTheDocument();
     expect(screen.getByText('∞')).toBeInTheDocument();
-    expect(screen.queryByText('AMELIA')).not.toBeInTheDocument();
   });
 
   it('shows AMELIA logo when not in demo mode', () => {

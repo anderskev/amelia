@@ -30,7 +30,8 @@ export async function workflowsLoader({ request }: LoaderFunctionArgs): Promise<
 
   if (isDemo && demoType === 'infinite') {
     const workflows = getMockActiveWorkflows();
-    const activeDetail = getMockWorkflowDetail(workflows[0]?.id ?? '');
+    const active = getActiveWorkflow(workflows);
+    const activeDetail = active ? getMockWorkflowDetail(active.id) : null;
     return { workflows, activeDetail };
   }
 

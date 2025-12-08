@@ -63,7 +63,7 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
       data-slot="activity-log"
       className={cn('flex flex-col', className)}
     >
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+      <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-2 border-b border-border bg-background">
         <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground">
           ACTIVITY LOG
         </h3>

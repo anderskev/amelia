@@ -96,7 +96,10 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
         />
       </div>
 
-      <span className="font-heading text-sm font-semibold tracking-wider text-foreground mt-2">
+      <span className={cn(
+        "font-heading text-sm font-semibold tracking-wider mt-2",
+        data.status === 'active' ? 'text-primary' : 'text-foreground'
+      )}>
         {data.label}
       </span>
 
@@ -107,7 +110,10 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
       )}
 
       {data.tokens && (
-        <span className="font-mono text-xs text-muted-foreground mt-1">
+        <span className={cn(
+          "font-mono text-xs mt-1",
+          data.status === 'active' ? 'text-primary' : 'text-muted-foreground'
+        )}>
           {data.tokens} tokens
         </span>
       )}

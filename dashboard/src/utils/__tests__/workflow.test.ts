@@ -89,4 +89,35 @@ describe('getActiveWorkflow', () => {
     const result = getActiveWorkflow(workflows);
     expect(result).not.toBeNull();
   });
+
+  it('should return most recently started running workflow when multiple are in progress', () => {
+    const workflows = [
+      createWorkflow({ id: 'oldest-running', status: 'in_progress', started_at: '2025-01-01T05:00:00Z' }),
+      createWorkflow({ id: 'newest-running', status: 'in_progress', started_at: '2025-01-01T01:00:00Z' }),
+      createWorkflow({ id: 'middle-running', status: 'in_progress', started_at: '2025-01-01T03:00:00Z' }),
+    ];
+    expect(getActiveWorkflow(workflows)?.id).toBe('oldest-running');
+  });
+
+  it('should return most recently started blocked workflow when multiple are blocked', () => {
+    const workflows = [
+      createWorkflow({ id: 'oldest-blocked', status: 'blocked', started_at: '2025-01-01T05:00:00Z' }),
+      createWorkflow({ id: 'newest-blocked', status: 'blocked', started_at: '2025-01-01T01:00:00Z' }),
+      createWorkflow({ id: 'middle-blocked', status: 'blocked', started_at: '2025-01-01T03:00:00Z' }),
+    ];
+    expect(getActiveWorkflow(workflows)?.id).toBe('oldest-blocked');
+  });
+
+  it('should work correctly regardless of array order', () => {
+    // Test with completed workflows listed first (like in the bug scenario)
+    const workflows = [
+      createWorkflow({ id: 'completed-1', status: 'completed', started_at: '2025-01-01T10:00:00Z' }),
+      createWorkflow({ id: 'completed-2', status: 'completed', started_at: '2025-01-01T12:00:00Z' }),
+      createWorkflow({ id: 'running-oldest', status: 'in_progress', started_at: '2025-01-01T03:00:00Z' }),
+      createWorkflow({ id: 'running-newest', status: 'in_progress', started_at: '2025-01-01T01:00:00Z' }),
+      createWorkflow({ id: 'blocked', status: 'blocked', started_at: '2025-01-01T02:00:00Z' }),
+    ];
+    // Should select the most recent running workflow (running-oldest), not the first in array
+    expect(getActiveWorkflow(workflows)?.id).toBe('running-oldest');
+  });
 });

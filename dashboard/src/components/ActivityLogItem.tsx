@@ -24,6 +24,7 @@ function formatTime(isoString: string): string {
 
 /** Color mapping for different agent types in the log. */
 const agentColors: Record<string, string> = {
+  ORCHESTRATOR: 'text-muted-foreground',
   ARCHITECT: 'text-accent',
   DEVELOPER: 'text-primary',
   REVIEWER: 'text-status-completed',
@@ -45,7 +46,7 @@ export function ActivityLogItem({ event }: ActivityLogItemProps) {
   return (
     <div
       data-slot="activity-log-item"
-      className="grid grid-cols-[90px_90px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm"
+      className="grid grid-cols-[70px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm"
     >
       <span className="text-muted-foreground tabular-nums">
         {formatTime(event.timestamp)}

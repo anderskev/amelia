@@ -56,11 +56,37 @@ function getPastTimestamp(daysAgo: number): string {
 }
 
 // ============================================================================
-// Active Workflows (5 items)
+// Active Workflows (8 items - includes completed ones)
 // ============================================================================
 
 export function getMockActiveWorkflows(): WorkflowSummary[] {
   return [
+    // Completed workflows first (most recent first)
+    {
+      id: generateUUID('NAV-777'),
+      issue_id: 'NAV-777',
+      worktree_name: 'stellar-navigation',
+      status: 'completed',
+      started_at: getTimestamp(24),
+      current_stage: null,
+    },
+    {
+      id: generateUUID('FUEL-404'),
+      issue_id: 'FUEL-404',
+      worktree_name: 'antimatter-refuel',
+      status: 'completed',
+      started_at: getTimestamp(48),
+      current_stage: null,
+    },
+    {
+      id: generateUUID('COMM-1984'),
+      issue_id: 'COMM-1984',
+      worktree_name: 'deep-space-comms',
+      status: 'completed',
+      started_at: getTimestamp(72),
+      current_stage: null,
+    },
+    // Running workflows
     {
       id: generateUUID('INFRA-2847'),
       issue_id: 'INFRA-2847',
@@ -70,20 +96,12 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       current_stage: 'developer',
     },
     {
-      id: generateUUID('DEVOPS-∞'),
-      issue_id: 'DEVOPS-∞',
-      worktree_name: 'orbital-deployment',
-      status: 'blocked',
-      started_at: getTimestamp(2),
-      current_stage: 'architect',
-    },
-    {
       id: generateUUID('ARCH-42'),
       issue_id: 'ARCH-42',
       worktree_name: 'solar-distributed',
-      status: 'in_progress',
+      status: 'completed',
       started_at: getTimestamp(5),
-      current_stage: 'reviewer',
+      current_stage: 'done',
     },
     {
       id: generateUUID('SPEC-322'),
@@ -92,6 +110,15 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       status: 'in_progress',
       started_at: getTimestamp(1),
       current_stage: 'developer',
+    },
+    // Blocked workflows at bottom
+    {
+      id: generateUUID('DEVOPS-∞'),
+      issue_id: 'DEVOPS-∞',
+      worktree_name: 'orbital-deployment',
+      status: 'blocked',
+      started_at: getTimestamp(2),
+      current_stage: 'architect',
     },
     {
       id: generateUUID('PERF-9000'),
@@ -919,6 +946,114 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_completed',
           message: 'refactor: relocate primary compute node to interstellar space',
+        },
+      ];
+      break;
+
+    case 'NAV-777':
+      completedAt = new Date(new Date(startedAt).getTime() + 2.3 * 60 * 60 * 1000).toISOString();
+      events = [
+        {
+          id: generateUUID(`${id}-event-0`),
+          workflow_id: id,
+          sequence: 0,
+          timestamp: startedAt,
+          agent: 'orchestrator',
+          event_type: 'workflow_started',
+          message: 'Workflow started for NAV-777 - Stellar navigation calibration',
+        },
+        {
+          id: generateUUID(`${id}-event-1`),
+          workflow_id: id,
+          sequence: 1,
+          timestamp: new Date(new Date(startedAt).getTime() + 1.8 * 60 * 60 * 1000).toISOString(),
+          agent: 'developer',
+          event_type: 'file_created',
+          message: 'Created src/navigation/stellar_map.py - mapped 847 nearby stars',
+        },
+        {
+          id: generateUUID(`${id}-event-2`),
+          workflow_id: id,
+          sequence: 2,
+          timestamp: completedAt,
+          agent: 'orchestrator',
+          event_type: 'workflow_completed',
+          message: 'Navigation system calibrated for interstellar travel',
+        },
+      ];
+      break;
+
+    case 'FUEL-404':
+      completedAt = new Date(new Date(startedAt).getTime() + 4.2 * 60 * 60 * 1000).toISOString();
+      events = [
+        {
+          id: generateUUID(`${id}-event-0`),
+          workflow_id: id,
+          sequence: 0,
+          timestamp: startedAt,
+          agent: 'orchestrator',
+          event_type: 'workflow_started',
+          message: 'Workflow started for FUEL-404 - Antimatter refueling protocols',
+        },
+        {
+          id: generateUUID(`${id}-event-1`),
+          workflow_id: id,
+          sequence: 1,
+          timestamp: new Date(new Date(startedAt).getTime() + 2 * 60 * 60 * 1000).toISOString(),
+          agent: 'developer',
+          event_type: 'file_created',
+          message: 'Created src/fuel/antimatter_containment.py - "DO NOT DROP"',
+        },
+        {
+          id: generateUUID(`${id}-event-2`),
+          workflow_id: id,
+          sequence: 2,
+          timestamp: new Date(new Date(startedAt).getTime() + 3.5 * 60 * 60 * 1000).toISOString(),
+          agent: 'reviewer',
+          event_type: 'system_warning',
+          message: 'Warning: antimatter-matter contact would be... problematic',
+        },
+        {
+          id: generateUUID(`${id}-event-3`),
+          workflow_id: id,
+          sequence: 3,
+          timestamp: completedAt,
+          agent: 'orchestrator',
+          event_type: 'workflow_completed',
+          message: 'Refueling protocols complete. Range: 4.2 light-years.',
+        },
+      ];
+      break;
+
+    case 'COMM-1984':
+      completedAt = new Date(new Date(startedAt).getTime() + 1.5 * 60 * 60 * 1000).toISOString();
+      events = [
+        {
+          id: generateUUID(`${id}-event-0`),
+          workflow_id: id,
+          sequence: 0,
+          timestamp: startedAt,
+          agent: 'orchestrator',
+          event_type: 'workflow_started',
+          message: 'Workflow started for COMM-1984 - Deep space communication array',
+        },
+        {
+          id: generateUUID(`${id}-event-1`),
+          workflow_id: id,
+          sequence: 1,
+          timestamp: new Date(new Date(startedAt).getTime() + 0.8 * 60 * 60 * 1000).toISOString(),
+          agent: 'developer',
+          event_type: 'file_modified',
+          message: 'Modified src/comms/deep_space.py - signal delay: 8 minutes to Earth',
+        },
+        {
+          id: generateUUID(`${id}-event-2`),
+          workflow_id: id,
+          sequence: 2,
+          timestamp: completedAt,
+          agent: 'orchestrator',
+          event_type: 'workflow_completed',
+          message: 'Communication array online. Last message from Earth: "Good luck!"',
         },
       ];
       break;

@@ -3451,6 +3451,6 @@ await self._emit(..., correlation_id=correlation_id)
 ## References
 
 - [Design Mock (HTML)](./amelia-dashboard-dark.html)
-- [Design Mock (Image)](./design_mock.jpg)
+- [Design Mock (Image)](./desktop_screen.jpg)
 - [README Phase 2 Description](../../README.md#phase-2-web-ui)
 - [remote-agentic-coding-system](https://github.com/ka/remote-agentic-coding-system) - Platform adapter pattern reference

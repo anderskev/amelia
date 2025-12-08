@@ -7,13 +7,14 @@ import type { WorkflowSummary, WorkflowDetail } from '@/types';
 // Mock modules
 vi.mock('@/utils/workflow', () => ({
   getActiveWorkflow: vi.fn(),
+  formatElapsedTime: vi.fn(),
 }));
 
 vi.mock('@/utils/pipeline', () => ({
   buildPipeline: vi.fn(),
 }));
 
-import { getActiveWorkflow } from '@/utils/workflow';
+import { getActiveWorkflow, formatElapsedTime } from '@/utils/workflow';
 import { buildPipeline } from '@/utils/pipeline';
 
 // Mock data
@@ -79,6 +80,7 @@ describe('WorkflowsPage', () => {
     vi.clearAllMocks();
     vi.mocked(getActiveWorkflow).mockReturnValue(mockWorkflowSummary);
     vi.mocked(buildPipeline).mockReturnValue(mockPipeline);
+    vi.mocked(formatElapsedTime).mockReturnValue('2h 15m');
   });
 
   it('should render WorkflowEmptyState when no workflows', async () => {

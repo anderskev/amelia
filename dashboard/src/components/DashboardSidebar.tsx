@@ -122,7 +122,7 @@ export function DashboardSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      {/* Logo - collapsed shows "A" (glowing primary in demo), expanded shows "∞" in demo or "AMELIA" */}
+      {/* Logo - collapsed shows "A" (glowing primary in demo), expanded shows "AMELIA" with "∞" in demo */}
       <SidebarHeader
         className={cn(
           'border-b border-sidebar-border transition-all',
@@ -140,15 +140,14 @@ export function DashboardSidebar() {
               A
             </span>
           </div>
-        ) : isDemo ? (
-          <div className="flex items-center justify-center">
-            <span className="text-4xl font-display text-primary animate-pulse-glow">
-              ∞
-            </span>
-          </div>
         ) : (
-          <h1 className="text-4xl font-display text-sidebar-primary tracking-wider">
+          <h1 className="text-4xl font-display text-sidebar-primary tracking-wider flex items-center gap-2">
             AMELIA
+            {isDemo && (
+              <span className="text-4xl font-display text-primary animate-pulse-glow">
+                ∞
+              </span>
+            )}
           </h1>
         )}
       </SidebarHeader>
