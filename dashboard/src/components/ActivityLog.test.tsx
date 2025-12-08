@@ -81,7 +81,10 @@ describe('ActivityLog', () => {
   });
 
   it('has data-slot attribute', () => {
-    const { container } = render(<ActivityLog workflowId="wf-001" initialEvents={mockEvents} />);
-    expect(container.querySelector('[data-slot="activity-log"]')).toBeInTheDocument();
+    render(<ActivityLog workflowId="wf-001" initialEvents={mockEvents} />);
+    // Find the activity log by its heading, then check parent has data-slot
+    const heading = screen.getByText('ACTIVITY LOG');
+    const activityLog = heading.closest('[data-slot="activity-log"]');
+    expect(activityLog).toBeInTheDocument();
   });
 });

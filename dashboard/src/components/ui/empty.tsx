@@ -101,4 +101,5 @@ export {
   EmptyDescription,
   EmptyContent,
   EmptyMedia,
+  emptyMediaVariants,
 }

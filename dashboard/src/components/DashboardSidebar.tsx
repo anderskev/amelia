@@ -79,7 +79,7 @@ function SidebarNavLink({ to, icon: Icon, label, onClick, comingSoon }: SidebarN
               'focus-visible:ring-ring/50 focus-visible:ring-[3px] transition-colors',
               // Center icon when collapsed
               'group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0',
-              isActive && 'bg-sidebar-primary text-sidebar-primary-foreground',
+              isActive && 'bg-sidebar-accent text-sidebar-accent-foreground font-medium',
               isPending && 'opacity-50',
               !isActive &&
                 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'

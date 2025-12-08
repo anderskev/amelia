@@ -74,7 +74,7 @@ export function ApprovalControls({
             <Button
               type="submit"
               disabled={isPending}
-              className="bg-status-completed hover:bg-status-completed/90"
+              className="bg-status-completed hover:bg-status-completed/90 focus-visible:ring-status-completed/50"
             >
               {isPending ? (
                 <Loader className="w-4 h-4 mr-2" />
@@ -91,7 +91,7 @@ export function ApprovalControls({
               type="submit"
               variant="outline"
               disabled={isPending}
-              className="border-destructive text-destructive hover:bg-destructive hover:text-foreground"
+              className="border-destructive text-destructive hover:bg-destructive hover:text-foreground focus-visible:ring-destructive/50"
             >
               {isPending ? (
                 <Loader className="w-4 h-4 mr-2" />

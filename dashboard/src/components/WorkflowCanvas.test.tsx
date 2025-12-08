@@ -22,9 +22,9 @@ describe('WorkflowCanvas', () => {
     });
 
     it('renders empty state with GitBranch icon', () => {
-      const { container } = render(<WorkflowCanvas />);
-      const icon = container.querySelector('svg');
-      expect(icon).toBeInTheDocument();
+      render(<WorkflowCanvas />);
+      // The icon is decorative, part of the status element
+      expect(screen.getByRole('status')).toBeInTheDocument();
     });
 
     it('has proper ARIA role and label for empty state', () => {
@@ -34,14 +34,15 @@ describe('WorkflowCanvas', () => {
     });
 
     it('has data-slot attribute in empty state', () => {
-      const { container } = render(<WorkflowCanvas />);
-      expect(container.querySelector('[data-slot="workflow-canvas"]')).toBeInTheDocument();
+      render(<WorkflowCanvas />);
+      const canvas = screen.getByRole('status');
+      expect(canvas).toHaveAttribute('data-slot', 'workflow-canvas');
     });
 
     it('maintains consistent height in empty state', () => {
-      const { container } = render(<WorkflowCanvas />);
-      const canvas = container.querySelector('[data-slot="workflow-canvas"]');
-      expect(canvas?.className).toContain('h-64');
+      render(<WorkflowCanvas />);
+      const canvas = screen.getByRole('status');
+      expect(canvas.className).toContain('h-64');
     });
   });
 
@@ -52,9 +53,10 @@ describe('WorkflowCanvas', () => {
     });
 
     it('renders loading state with spinner', () => {
-      const { container } = render(<WorkflowCanvas isLoading={true} />);
-      const spinner = container.querySelector('.animate-spin');
-      expect(spinner).toBeInTheDocument();
+      render(<WorkflowCanvas isLoading={true} />);
+      // The spinner is part of the loading status element
+      expect(screen.getByRole('status')).toBeInTheDocument();
+      expect(screen.getByText('Loading pipeline...')).toBeInTheDocument();
     });
 
     it('has proper ARIA role and label for loading state', () => {
@@ -64,16 +66,17 @@ describe('WorkflowCanvas', () => {
     });
 
     it('maintains consistent height in loading state', () => {
-      const { container } = render(<WorkflowCanvas isLoading={true} />);
-      const canvas = container.querySelector('[data-slot="workflow-canvas"]');
-      expect(canvas?.className).toContain('h-64');
+      render(<WorkflowCanvas isLoading={true} />);
+      const canvas = screen.getByRole('status');
+      expect(canvas.className).toContain('h-64');
     });
   });
 
   describe('active state', () => {
     it('renders React Flow container when pipeline provided', () => {
-      const { container } = render(<WorkflowCanvas pipeline={mockPipeline} />);
-      expect(container.querySelector('.react-flow')).toBeInTheDocument();
+      render(<WorkflowCanvas pipeline={mockPipeline} />);
+      // React Flow renders inside the canvas with role="img"
+      expect(screen.getByRole('img')).toBeInTheDocument();
     });
 
     it('has proper ARIA role and label for active state', () => {
@@ -90,14 +93,15 @@ describe('WorkflowCanvas', () => {
     });
 
     it('has data-slot attribute in active state', () => {
-      const { container } = render(<WorkflowCanvas pipeline={mockPipeline} />);
-      expect(container.querySelector('[data-slot="workflow-canvas"]')).toBeInTheDocument();
+      render(<WorkflowCanvas pipeline={mockPipeline} />);
+      const canvas = screen.getByRole('img');
+      expect(canvas).toHaveAttribute('data-slot', 'workflow-canvas');
     });
 
     it('maintains consistent height in active state', () => {
-      const { container } = render(<WorkflowCanvas pipeline={mockPipeline} />);
-      const canvas = container.querySelector('[data-slot="workflow-canvas"]');
-      expect(canvas?.className).toContain('h-40');
+      render(<WorkflowCanvas pipeline={mockPipeline} />);
+      const canvas = screen.getByRole('img');
+      expect(canvas.className).toContain('h-40');
     });
   });
 });

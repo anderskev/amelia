@@ -79,36 +79,49 @@ describe('API Client', () => {
 
   describe('workflow mutations', () => {
     it.each([
-      ['approveWorkflow', 'wf-1', '/api/workflows/wf-1/approve'],
-      ['cancelWorkflow', 'wf-1', '/api/workflows/wf-1/cancel'],
-    ] as const)(
-      '%s should POST to correct endpoint',
-      async (method, id, expectedUrl) => {
-        mockFetchSuccess({ status: 'ok' });
+      {
+        method: 'approveWorkflow' as const,
+        id: 'wf-1',
+        expectedUrl: '/api/workflows/wf-1/approve',
+        feedback: undefined,
+      },
+      {
+        method: 'cancelWorkflow' as const,
+        id: 'wf-1',
+        expectedUrl: '/api/workflows/wf-1/cancel',
+        feedback: undefined,
+      },
+      {
+        method: 'rejectWorkflow' as const,
+        id: 'wf-1',
+        expectedUrl: '/api/workflows/wf-1/reject',
+        feedback: 'Plan needs revision',
+      },
+    ])(
+      '$method should POST to correct endpoint',
+      async ({ method, id, expectedUrl, feedback }) => {
+        mockFetchSuccess({ status: method === 'rejectWorkflow' ? 'failed' : 'ok' });
 
-        await api[method](id);
+        if (feedback) {
+          await api[method](id, feedback);
+        } else {
+          await api[method](id);
+        }
 
-        expect(global.fetch).toHaveBeenCalledWith(
-          expectedUrl,
-          expect.objectContaining({
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          })
-        );
+        const expectedCall = feedback
+          ? {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ feedback }),
+            }
+          : expect.objectContaining({
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+            });
+
+        expect(global.fetch).toHaveBeenCalledWith(expectedUrl, expectedCall);
       }
     );
-
-    it('rejectWorkflow should POST to correct endpoint with feedback', async () => {
-      mockFetchSuccess({ status: 'failed' });
-
-      await api.rejectWorkflow('wf-1', 'Plan needs revision');
-
-      expect(global.fetch).toHaveBeenCalledWith('/api/workflows/wf-1/reject', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback: 'Plan needs revision' }),
-      });
-    });
 
     it('should handle HTTP errors on mutations', async () => {
       mockFetchError(403, 'Forbidden', 'FORBIDDEN');

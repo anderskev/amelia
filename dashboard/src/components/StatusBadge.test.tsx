@@ -21,7 +21,8 @@ describe('StatusBadge', () => {
   });
 
   it('applies data-status attribute for running status', () => {
-    const { container } = render(<StatusBadge status="in_progress" />);
-    expect(container.querySelector('[data-status="running"]')).toBeInTheDocument();
+    render(<StatusBadge status="in_progress" />);
+    const badge = screen.getByRole('status');
+    expect(badge).toHaveAttribute('data-status', 'running');
   });
 });

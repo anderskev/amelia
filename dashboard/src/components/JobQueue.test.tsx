@@ -22,17 +22,21 @@ describe('JobQueue', () => {
   });
 
   it('highlights selected workflow', () => {
-    const { container } = render(
+    render(
       <JobQueue workflows={mockWorkflows} selectedId="wf-001" />
     );
-    expect(container.querySelector('[data-selected="true"]')).toBeInTheDocument();
+    // Find the selected workflow item by its button role and data-selected attribute
+    const selectedButton = screen.getByText('#8').closest('[role="button"]');
+    expect(selectedButton).toHaveAttribute('data-selected', 'true');
   });
 
   it('calls onSelect when workflow is clicked', () => {
     const onSelect = vi.fn();
     render(<JobQueue workflows={mockWorkflows} onSelect={onSelect} />);
 
-    fireEvent.click(screen.getByText('#8').closest('[role="button"]')!);
+    const button = screen.getByText('#8').closest('[role="button"]');
+    expect(button).not.toBeNull();
+    fireEvent.click(button!);
     expect(onSelect).toHaveBeenCalledWith('wf-001');
   });
 
@@ -42,7 +46,10 @@ describe('JobQueue', () => {
   });
 
   it('has data-slot attribute', () => {
-    const { container } = render(<JobQueue workflows={mockWorkflows} />);
-    expect(container.querySelector('[data-slot="job-queue"]')).toBeInTheDocument();
+    render(<JobQueue workflows={mockWorkflows} />);
+    // Find the job queue by its heading, then check parent has data-slot
+    const heading = screen.getByText('JOB QUEUE');
+    const jobQueue = heading.closest('[data-slot="job-queue"]');
+    expect(jobQueue).toBeInTheDocument();
   });
 });

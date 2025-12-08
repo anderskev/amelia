@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import WorkflowsPage from './WorkflowsPage';
 import type { WorkflowSummary, WorkflowDetail } from '@/types';
@@ -97,11 +97,13 @@ describe('WorkflowsPage', () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
 
     await waitFor(() => {
-      // PageHeader uses data-slot attribute
-      expect(document.querySelector('[data-slot="page-header"]')).toBeInTheDocument();
-      // Issue ID appears in header (and possibly job queue), so use getAllByText
-      expect(screen.getAllByText('PROJ-123').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('proj-123-feature').length).toBeGreaterThanOrEqual(1);
+      // PageHeader uses banner role
+      const pageHeader = screen.getByRole('banner');
+      expect(pageHeader).toBeInTheDocument();
+
+      // Scope assertions to the page header to verify text appears in the correct location
+      expect(within(pageHeader).getByText('PROJ-123')).toBeInTheDocument();
+      expect(within(pageHeader).getByText('proj-123-feature')).toBeInTheDocument();
     });
   });
 
@@ -109,8 +111,9 @@ describe('WorkflowsPage', () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
 
     await waitFor(() => {
-      // WorkflowCanvas uses data-slot attribute
-      expect(document.querySelector('[data-slot="workflow-canvas"]')).toBeInTheDocument();
+      // WorkflowCanvas renders pipeline nodes
+      expect(screen.getByText('architect')).toBeInTheDocument();
+      expect(screen.getByText('developer')).toBeInTheDocument();
     });
   });
 
@@ -118,10 +121,10 @@ describe('WorkflowsPage', () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
 
     await waitFor(() => {
-      // JobQueue uses data-slot attribute
-      expect(document.querySelector('[data-slot="job-queue"]')).toBeInTheDocument();
-      // ActivityLog uses data-slot attribute
-      expect(document.querySelector('[data-slot="activity-log"]')).toBeInTheDocument();
+      // JobQueue renders the section title
+      expect(screen.getByText('JOB QUEUE')).toBeInTheDocument();
+      // ActivityLog renders the section title
+      expect(screen.getByText('ACTIVITY LOG')).toBeInTheDocument();
     });
   });
 
@@ -129,10 +132,10 @@ describe('WorkflowsPage', () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
 
     await waitFor(() => {
-      // Should not see loading skeleton when detail is pre-loaded
-      expect(document.querySelector('[data-slot="activity-log-skeleton"]')).not.toBeInTheDocument();
+      // Should not see loading text when detail is pre-loaded
+      expect(screen.queryByText('Loading activity...')).not.toBeInTheDocument();
       // Should see actual activity log
-      expect(document.querySelector('[data-slot="activity-log"]')).toBeInTheDocument();
+      expect(screen.getByText('ACTIVITY LOG')).toBeInTheDocument();
     });
   });
 
@@ -140,8 +143,11 @@ describe('WorkflowsPage', () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
 
     await waitFor(() => {
-      // The active workflow should be selected by default
-      expect(document.querySelector('[data-selected="true"]')).toBeInTheDocument();
+      // Find all instances of PROJ-123 and get the one inside a button (job queue item)
+      const allMatches = screen.getAllByText('PROJ-123');
+      const workflowButton = allMatches.find(el => el.closest('[role="button"]'))?.closest('[role="button"]');
+      expect(workflowButton).toBeInTheDocument();
+      expect(workflowButton).toHaveAttribute('data-selected', 'true');
     });
   });
 

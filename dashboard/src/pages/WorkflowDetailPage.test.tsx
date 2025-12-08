@@ -63,8 +63,8 @@ describe('WorkflowDetailPage', () => {
       </MemoryRouter>
     );
 
-    // WorkflowProgress uses data-slot="workflow-progress"
-    expect(document.querySelector('[data-slot="workflow-progress"]')).toBeInTheDocument();
+    // WorkflowProgress component shows task completion
+    expect(screen.getByText(/of 2 stages/)).toBeInTheDocument();
   });
 
   it('should render activity log', () => {
@@ -76,6 +76,6 @@ describe('WorkflowDetailPage', () => {
       </MemoryRouter>
     );
 
-    expect(document.querySelector('[data-slot="activity-log"]')).toBeInTheDocument();
+    expect(screen.getByText('ACTIVITY LOG')).toBeInTheDocument();
   });
 });

@@ -32,8 +32,11 @@ describe('ApprovalControls', () => {
   });
 
   it('has data-slot attribute', () => {
-    const { container } = renderWithRouter('wf-001', 'Test');
-    expect(container.querySelector('[data-slot="approval-controls"]')).toBeInTheDocument();
+    renderWithRouter('wf-001', 'Test');
+    // Find the approval controls by its heading, then check parent has data-slot
+    const heading = screen.getByText('Test');
+    const controls = heading.closest('[data-slot="approval-controls"]');
+    expect(controls).toBeInTheDocument();
   });
 
   it.each([

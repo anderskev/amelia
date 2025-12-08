@@ -32,21 +32,24 @@ describe('WorkflowProgress', () => {
 
   describe('completion state', () => {
     it('marks as incomplete when stages remain', () => {
-      const { container } = render(<WorkflowProgress completed={4} total={5} />);
-
-      expect(container.querySelector('[data-complete="true"]')).not.toBeInTheDocument();
+      render(<WorkflowProgress completed={4} total={5} />);
+      // Find the progress bar element by its ARIA role
+      const progressBar = screen.getByRole('progressbar');
+      expect(progressBar.parentElement).not.toHaveAttribute('data-complete', 'true');
     });
 
     it('marks as complete when all stages done', () => {
-      const { container } = render(<WorkflowProgress completed={5} total={5} />);
-
-      expect(container.querySelector('[data-complete="true"]')).toBeInTheDocument();
+      render(<WorkflowProgress completed={5} total={5} />);
+      // Find the progress bar element by its ARIA role
+      const progressBar = screen.getByRole('progressbar');
+      expect(progressBar.parentElement).toHaveAttribute('data-complete', 'true');
     });
 
     it('does not mark 0/0 as complete', () => {
-      const { container } = render(<WorkflowProgress completed={0} total={0} />);
-
-      expect(container.querySelector('[data-complete="true"]')).not.toBeInTheDocument();
+      render(<WorkflowProgress completed={0} total={0} />);
+      // Find the progress bar element by its ARIA role
+      const progressBar = screen.getByRole('progressbar');
+      expect(progressBar.parentElement).not.toHaveAttribute('data-complete', 'true');
     });
   });
 });

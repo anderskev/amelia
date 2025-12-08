@@ -15,6 +15,7 @@ import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { buildPipeline } from '@/utils/pipeline';
+import { formatElapsedTime } from '@/utils/workflow';
 import type { WorkflowDetail } from '@/types';
 
 /**
@@ -65,7 +66,7 @@ export default function WorkflowDetailPage() {
         </PageHeader.Left>
         <PageHeader.Center>
           <PageHeader.Label>ELAPSED</PageHeader.Label>
-          <PageHeader.Value glow>--:--</PageHeader.Value>
+          <PageHeader.Value glow>{formatElapsedTime(workflow)}</PageHeader.Value>
         </PageHeader.Center>
         <PageHeader.Right>
           {workflow.status === 'in_progress' && (

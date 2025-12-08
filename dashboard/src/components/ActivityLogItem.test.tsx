@@ -40,7 +40,10 @@ describe('ActivityLogItem', () => {
   });
 
   it('has data-slot attribute', () => {
-    const { container } = render(<ActivityLogItem event={mockEvent} />);
-    expect(container.querySelector('[data-slot="activity-log-item"]')).toBeInTheDocument();
+    render(<ActivityLogItem event={mockEvent} />);
+    // Testing data-slot attribute directly is valid for this component
+    // Find element by its text content, then verify it has the correct attribute
+    const timeElement = screen.getByText('14:32:07');
+    expect(timeElement.parentElement).toHaveAttribute('data-slot', 'activity-log-item');
   });
 });

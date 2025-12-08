@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import { ReactFlowProvider } from '@xyflow/react';
-import { WorkflowEdge } from './WorkflowEdge';
+import { ReactFlowProvider, type EdgeProps } from '@xyflow/react';
+import { WorkflowEdge, type WorkflowEdgeType } from './WorkflowEdge';
 
-const renderEdge = (props: any) => {
+const renderEdge = (props: Partial<EdgeProps<WorkflowEdgeType>>) => {
   return render(
     <ReactFlowProvider>
       <svg>
@@ -29,7 +29,9 @@ describe('WorkflowEdge', () => {
 
   it('renders edge path', () => {
     const { container } = renderEdge(baseProps);
-    expect(container.querySelector('path')).toBeInTheDocument();
+    // SVG paths don't have semantic roles, querySelector is appropriate here
+    const path = container.querySelector('path');
+    expect(path).toBeInTheDocument();
   });
 
   it.each([
@@ -38,6 +40,7 @@ describe('WorkflowEdge', () => {
   ])('applies $status line style (dashed: $hasDash)', ({ status, hasDash }) => {
     const props = { ...baseProps, data: { ...baseProps.data, status } };
     const { container } = renderEdge(props);
+    // SVG paths don't have semantic roles, querySelector is appropriate here
     const path = container.querySelector('path');
     expect(path).toHaveAttribute('data-status', status);
     if (hasDash) {
@@ -53,6 +56,7 @@ describe('WorkflowEdge', () => {
       data: { ...baseProps.data, status: 'active' as const },
     };
     const { container } = renderEdge(activeProps);
+    // SVG paths don't have semantic roles, querySelector is appropriate here
     const path = container.querySelector('path');
     expect(path).toHaveAttribute('data-status', 'active');
     expect(path).toHaveAttribute('stroke-dasharray');

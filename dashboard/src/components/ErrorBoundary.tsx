@@ -4,7 +4,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useRouteError, isRouteErrorResponse, useNavigate } from 'react-router-dom';
+import { useRouteError, isRouteErrorResponse, useNavigate, Link } from 'react-router-dom';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -28,9 +28,11 @@ export function RootErrorBoundary() {
           {error.data?.message || 'The page you are looking for does not exist.'}
         </p>
         <div className="flex gap-4">
-          <Button onClick={() => navigate('/')}>
-            <Home className="w-4 h-4" />
-            Go Home
+          <Button asChild>
+            <Link to="/">
+              <Home className="w-4 h-4" />
+              Go Home
+            </Link>
           </Button>
           <Button variant="outline" onClick={() => navigate(-1)}>
             Go Back
@@ -68,9 +70,11 @@ export function RootErrorBoundary() {
           <RefreshCw className="w-4 h-4" />
           Reload Dashboard
         </Button>
-        <Button variant="outline" onClick={() => navigate('/')}>
-          <Home className="w-4 h-4" />
-          Go Home
+        <Button variant="outline" asChild>
+          <Link to="/">
+            <Home className="w-4 h-4" />
+            Go Home
+          </Link>
         </Button>
       </div>
     </div>

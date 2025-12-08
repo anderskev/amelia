@@ -29,10 +29,11 @@ describe('JobQueueItem', () => {
   });
 
   it('shows selected state with data-selected attribute', () => {
-    const { container } = render(
+    render(
       <JobQueueItem workflow={mockWorkflow} selected={true} onSelect={() => {}} />
     );
-    expect(container.querySelector('[data-selected="true"]')).toBeInTheDocument();
+    const button = screen.getByRole('button');
+    expect(button).toHaveAttribute('data-selected', 'true');
   });
 
   it('calls onSelect when clicked', () => {
@@ -52,9 +53,10 @@ describe('JobQueueItem', () => {
   });
 
   it('has data-slot attribute', () => {
-    const { container } = render(
+    render(
       <JobQueueItem workflow={mockWorkflow} selected={false} onSelect={() => {}} />
     );
-    expect(container.querySelector('[data-slot="job-queue-item"]')).toBeInTheDocument();
+    const button = screen.getByRole('button');
+    expect(button).toHaveAttribute('data-slot', 'job-queue-item');
   });
 });
