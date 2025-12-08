@@ -8,20 +8,32 @@ import { api } from '@/api/client';
 import { getActiveWorkflow } from '@/utils/workflow';
 import type { LoaderFunctionArgs } from 'react-router-dom';
 import type { WorkflowsLoaderData } from '@/types/api';
+import { getDemoMode } from '@/hooks/useDemoMode';
+import { getMockActiveWorkflows, getMockHistoryWorkflows, getMockWorkflowDetail } from '@/mocks/infinite-mode';
 
 /**
  * Loader for the active workflows page.
  * Fetches all in_progress and blocked workflows from the API,
  * plus pre-loads the active workflow detail for instant display.
  *
+ * @param args - React Router loader arguments containing request URL.
  * @returns Object containing the list of active workflows and optional active detail.
  * @throws {Error} When the API request fails.
  * @example
  * ```typescript
- * const { workflows, activeDetail } = await workflowsLoader();
+ * const { workflows, activeDetail } = await workflowsLoader({ request });
  * ```
  */
-export async function workflowsLoader(): Promise<WorkflowsLoaderData> {
+export async function workflowsLoader({ request }: LoaderFunctionArgs): Promise<WorkflowsLoaderData> {
+  const url = new URL(request.url);
+  const { isDemo, demoType } = getDemoMode(url.searchParams);
+
+  if (isDemo && demoType === 'infinite') {
+    const workflows = getMockActiveWorkflows();
+    const activeDetail = getMockWorkflowDetail(workflows[0]?.id ?? '');
+    return { workflows, activeDetail };
+  }
+
   const workflows = await api.getWorkflows();
   const active = getActiveWorkflow(workflows);
 
@@ -43,18 +55,26 @@ export async function workflowsLoader(): Promise<WorkflowsLoaderData> {
  * Loader for the workflow detail page.
  * Fetches full workflow details including events and token usage for a specific workflow.
  *
- * @param args - React Router loader arguments containing route parameters.
+ * @param args - React Router loader arguments containing route parameters and request.
  * @returns Object containing the detailed workflow data.
  * @throws {Response} 400 error when workflow ID is missing from route parameters.
  * @throws {Error} When the API request fails.
  * @example
  * ```typescript
- * const { workflow } = await workflowDetailLoader({ params: { id: 'workflow-123' } });
+ * const { workflow } = await workflowDetailLoader({ params: { id: 'workflow-123' }, request });
  * ```
  */
-export async function workflowDetailLoader({ params }: LoaderFunctionArgs) {
+export async function workflowDetailLoader({ params, request }: LoaderFunctionArgs) {
   if (!params.id) {
     throw new Response('Workflow ID required', { status: 400 });
+  }
+
+  const url = new URL(request.url);
+  const { isDemo, demoType } = getDemoMode(url.searchParams);
+
+  if (isDemo && demoType === 'infinite') {
+    const workflow = getMockWorkflowDetail(params.id);
+    return { workflow };
   }
 
   const workflow = await api.getWorkflow(params.id);
@@ -65,14 +85,23 @@ export async function workflowDetailLoader({ params }: LoaderFunctionArgs) {
  * Loader for the workflow history page.
  * Fetches all completed, failed, and cancelled workflows from the API.
  *
+ * @param args - React Router loader arguments containing request URL.
  * @returns Object containing the list of historical workflows.
  * @throws {Error} When the API request fails.
  * @example
  * ```typescript
- * const { workflows } = await historyLoader();
+ * const { workflows } = await historyLoader({ request });
  * ```
  */
-export async function historyLoader() {
+export async function historyLoader({ request }: LoaderFunctionArgs) {
+  const url = new URL(request.url);
+  const { isDemo, demoType } = getDemoMode(url.searchParams);
+
+  if (isDemo && demoType === 'infinite') {
+    const workflows = getMockHistoryWorkflows();
+    return { workflows };
+  }
+
   const workflows = await api.getWorkflowHistory();
   return { workflows };
 }

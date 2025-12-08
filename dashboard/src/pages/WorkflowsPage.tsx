@@ -122,7 +122,10 @@ export default function WorkflowsPage() {
         )}
       </PageHeader>
       <Separator />
-      {pipeline && <WorkflowCanvas pipeline={pipeline} />}
+      <WorkflowCanvas
+        pipeline={pipeline ?? undefined}
+        isLoading={isLoadingDetail && !!displayedId}
+      />
 
       {/* Bottom: Queue + Activity (split) - ScrollArea provides overflow handling */}
       <div className="flex-1 grid grid-cols-[320px_1fr] gap-4 p-4 overflow-hidden relative z-10">

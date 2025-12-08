@@ -28,6 +28,7 @@ import {
 import { version } from '../../package.json';
 import { cn } from '@/lib/utils';
 import { useWorkflowStore } from '@/store/workflowStore';
+import { useDemoMode } from '@/hooks/useDemoMode';
 
 /**
  * Navigation link component using React Router's NavLink for active state.
@@ -112,6 +113,7 @@ export function DashboardSidebar() {
   const selectWorkflow = useWorkflowStore((state) => state.selectWorkflow);
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
+  const { isDemo } = useDemoMode();
 
   // Clear workflow selection when clicking Active Jobs
   const handleActiveJobsClick = () => {
@@ -120,7 +122,7 @@ export function DashboardSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      {/* Logo - shows glowing "A" when collapsed, full "AMELIA" when expanded */}
+      {/* Logo - collapsed shows "A" (glowing primary in demo), expanded shows "∞" in demo or "AMELIA" */}
       <SidebarHeader
         className={cn(
           'border-b border-sidebar-border transition-all',
@@ -129,8 +131,19 @@ export function DashboardSidebar() {
       >
         {isCollapsed ? (
           <div className="flex items-center justify-center">
-            <span className="text-3xl font-display text-sidebar-primary animate-pulse-glow">
+            <span
+              className={cn(
+                'text-3xl font-display animate-pulse-glow',
+                isDemo ? 'text-primary' : 'text-sidebar-primary'
+              )}
+            >
               A
+            </span>
+          </div>
+        ) : isDemo ? (
+          <div className="flex items-center justify-center">
+            <span className="text-4xl font-display text-primary animate-pulse-glow">
+              ∞
             </span>
           </div>
         ) : (

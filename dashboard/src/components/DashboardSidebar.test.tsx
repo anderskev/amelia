@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { DashboardSidebar } from './DashboardSidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import { useDemoMode } from '@/hooks/useDemoMode';
 
 // Mock the workflow store
 vi.mock('@/store/workflowStore', () => ({
@@ -10,6 +11,11 @@ vi.mock('@/store/workflowStore', () => ({
     const state = { isConnected: true, selectWorkflow: vi.fn() };
     return selector(state);
   }),
+}));
+
+// Mock the demo mode hook
+vi.mock('@/hooks/useDemoMode', () => ({
+  useDemoMode: vi.fn(() => ({ isDemo: false, demoType: null })),
 }));
 
 const renderSidebar = (initialRoute = '/') => {
@@ -30,7 +36,6 @@ describe('DashboardSidebar', () => {
   it('renders branding', () => {
     renderSidebar();
     expect(screen.getByText('AMELIA')).toBeInTheDocument();
-    expect(screen.getByText('Agentic Orchestrator')).toBeInTheDocument();
   });
 
   it.each([
@@ -47,8 +52,9 @@ describe('DashboardSidebar', () => {
   it('renders section labels', () => {
     renderSidebar();
     expect(screen.getByText('WORKFLOWS')).toBeInTheDocument();
-    expect(screen.getByText('HISTORY')).toBeInTheDocument();
-    expect(screen.getByText('MONITORING')).toBeInTheDocument();
+    expect(screen.getByText('TOOLS')).toBeInTheDocument();
+    expect(screen.getByText('IMPROVE')).toBeInTheDocument();
+    expect(screen.getByText('USAGE')).toBeInTheDocument();
   });
 
   it('shows connected status when WebSocket is connected', () => {
@@ -61,5 +67,26 @@ describe('DashboardSidebar', () => {
     const link = screen.getByRole('link', { name: /Active Jobs/ });
     // NavLink sets aria-current="page" when active
     expect(link).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('shows infinity symbol when in demo mode', () => {
+    // Mock demo mode as active
+    vi.mocked(useDemoMode).mockReturnValue({ isDemo: true, demoType: 'infinite' });
+
+    renderSidebar();
+
+    // Should show infinity symbol instead of AMELIA
+    expect(screen.getByText('∞')).toBeInTheDocument();
+    expect(screen.queryByText('AMELIA')).not.toBeInTheDocument();
+  });
+
+  it('shows AMELIA logo when not in demo mode', () => {
+    // Mock demo mode as inactive (default)
+    vi.mocked(useDemoMode).mockReturnValue({ isDemo: false, demoType: null });
+
+    renderSidebar();
+
+    // Should show AMELIA instead of infinity symbol
+    expect(screen.getByText('AMELIA')).toBeInTheDocument();
   });
 });

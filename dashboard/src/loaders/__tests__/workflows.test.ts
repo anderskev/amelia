@@ -66,7 +66,7 @@ describe('Workflow Loaders', () => {
       vi.mocked(getActiveWorkflow).mockReturnValueOnce(mockWorkflowSummary);
       vi.mocked(api.getWorkflow).mockResolvedValueOnce(mockWorkflowDetail);
 
-      const result = await workflowsLoader();
+      const result = await workflowsLoader(createLoaderArgs({}));
 
       expect(api.getWorkflows).toHaveBeenCalledTimes(1);
       expect(result).toHaveProperty('workflows');
@@ -79,7 +79,7 @@ describe('Workflow Loaders', () => {
       vi.mocked(api.getWorkflows).mockResolvedValueOnce([]);
       vi.mocked(getActiveWorkflow).mockReturnValueOnce(null);
 
-      const result = await workflowsLoader();
+      const result = await workflowsLoader(createLoaderArgs({}));
 
       expect(result.workflows).toEqual([]);
       expect(result.activeDetail).toBeNull();
@@ -91,7 +91,7 @@ describe('Workflow Loaders', () => {
       vi.mocked(getActiveWorkflow).mockReturnValueOnce(mockWorkflowSummary);
       vi.mocked(api.getWorkflow).mockRejectedValueOnce(new Error('Detail fetch failed'));
 
-      const result = await workflowsLoader();
+      const result = await workflowsLoader(createLoaderArgs({}));
 
       expect(result.workflows).toEqual([mockWorkflowSummary]);
       expect(result.activeDetail).toBeNull();
@@ -104,7 +104,7 @@ describe('Workflow Loaders', () => {
       vi.mocked(getActiveWorkflow).mockReturnValueOnce(runningWorkflow);
       vi.mocked(api.getWorkflow).mockResolvedValueOnce(runningDetail);
 
-      const result = await workflowsLoader();
+      const result = await workflowsLoader(createLoaderArgs({}));
 
       expect(getActiveWorkflow).toHaveBeenCalledWith([runningWorkflow]);
       expect(api.getWorkflow).toHaveBeenCalledWith(runningWorkflow.id);
@@ -114,7 +114,7 @@ describe('Workflow Loaders', () => {
     it('should propagate API errors from getWorkflows', async () => {
       vi.mocked(api.getWorkflows).mockRejectedValueOnce(new Error('Network error'));
 
-      await expect(workflowsLoader()).rejects.toThrow('Network error');
+      await expect(workflowsLoader(createLoaderArgs({}))).rejects.toThrow('Network error');
     });
   });
 
@@ -141,7 +141,7 @@ describe('Workflow Loaders', () => {
     it('should fetch workflow history', async () => {
       vi.mocked(api.getWorkflowHistory).mockResolvedValueOnce([mockWorkflowHistory]);
 
-      const result = await historyLoader();
+      const result = await historyLoader(createLoaderArgs({}));
 
       expect(api.getWorkflowHistory).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ workflows: [mockWorkflowHistory] });
