@@ -2,7 +2,7 @@
 
 [Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is a local agentic coding system that orchestrates software development tasks through multiple AI agents with specialized roles.
 
-See the [**Roadmap**](docs/roadmap.md) for where we're headed.
+See the [**Roadmap**](docs/roadmap.md) for where we're headed and [**Current Status**](#current-status) for where we are.
 
 **Core Philosophy:** Amelia is built with the assumption that LLMs will continually improve. We prefer prompts over code, delegation over hardcoding, and flexible architectures—so as models get smarter, Amelia automatically improves without requiring changes.
 
