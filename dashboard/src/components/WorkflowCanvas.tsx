@@ -6,6 +6,8 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
+  type NodeTypes,
+  type EdgeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { GitBranch, Loader2 } from 'lucide-react';
@@ -27,12 +29,12 @@ interface WorkflowCanvasProps {
 }
 
 /** Custom node types for React Flow. */
-const nodeTypes = {
+const nodeTypes: NodeTypes = {
   workflow: WorkflowNode,
 };
 
 /** Custom edge types for React Flow. */
-const edgeTypes = {
+const edgeTypes: EdgeTypes = {
   workflow: WorkflowEdge,
 };
 
