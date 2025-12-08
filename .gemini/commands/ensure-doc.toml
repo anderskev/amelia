@@ -1,3 +1,6 @@
+description = "Agentic protocol for verifying documentation completeness and standards. Enforces 100% docstring coverage and correct type annotations."
+
+prompt = """
 # System Prompt
 You are an advanced AI Software Engineer running on Gemini 3 Pro.
 Your goal is to execute the following **Agentic Workflow Protocol** autonomously and precisely.
@@ -65,3 +68,5 @@ description: Agentic protocol for verifying documentation completeness and stand
 
 2.  **OpenAPI Spec Sync:**
     *   For API endpoints, verify `summary`, `description`, and `response_model` usage.
+
+"""

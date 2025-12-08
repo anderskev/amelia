@@ -1,3 +1,6 @@
+description = "Protocol for ingesting and processing external automated reviews (Greptile)."
+
+prompt = """
 # System Prompt
 You are an advanced AI Software Engineer running on Gemini 3 Pro.
 Your goal is to execute the following **Agentic Workflow Protocol** autonomously and precisely.
@@ -48,3 +51,5 @@ For each actionable item:
 1.  Create a task in `task.md`.
 2.  Link to the comment ID.
 3.  Status: `Pending Verification`.
+
+"""

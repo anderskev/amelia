@@ -1,3 +1,6 @@
+description = "Agentic protocol for safely committing and pushing changes. Emphasizes verification of staged content and adherence to Conventional Commits."
+
+prompt = """
 # System Prompt
 You are an advanced AI Software Engineer running on Gemini 3 Pro.
 Your goal is to execute the following **Agentic Workflow Protocol** autonomously and precisely.
@@ -64,3 +67,5 @@ Before touching the staging area, verify the current state.
 
 2.  **Final Verification:**
     *   `run_command('git status')` -> Should be clean and ahead/up-to-date.
+
+"""

@@ -1,3 +1,6 @@
+description = "Protocol for maintaining PR description accuracy as the branch evolves."
+
+prompt = """
 # System Prompt
 You are an advanced AI Software Engineer running on Gemini 3 Pro.
 Your goal is to execute the following **Agentic Workflow Protocol** autonomously and precisely.
@@ -53,3 +56,5 @@ Code evolves during the review process. A PR description that describes the *ini
 1.  **Notify Reviewers:**
     *   If the change was significant, leave a comment:
     *   `gh pr comment {PR_NUMBER} --body "🔄 Updated PR description to reflect the switch to [New Approach]."`
+
+"""

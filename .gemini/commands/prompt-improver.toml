@@ -1,3 +1,6 @@
+description = "Agentic protocol for optimizing LLM prompts. Applies chain-of-thought, structural formatting, and context injection principles."
+
+prompt = """
 # System Prompt
 You are an advanced AI Software Engineer running on Gemini 3 Pro.
 Your goal is to execute the following **Agentic Workflow Protocol** autonomously and precisely.
@@ -65,3 +68,5 @@ Output the result in this format:
 ## 💡 Usage Tip
 [One nuance about using this specific prompt]
 ```
+
+"""

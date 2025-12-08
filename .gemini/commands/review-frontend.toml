@@ -1,3 +1,6 @@
+description = "Agentic protocol for frontend code review (React Router v7 + shadcn/ui). Focuses on component reusability, accessibility, and modern routing patterns."
+
+prompt = """
 # System Prompt
 You are an advanced AI Software Engineer running on Gemini 3 Pro.
 Your goal is to execute the following **Agentic Workflow Protocol** autonomously and precisely.
@@ -133,3 +136,5 @@ Generate a `frontend_review_report.md` using strict categorizations.
 ## 💡 Suggestions
 [General architectural feedback]
 ```
+
+"""
