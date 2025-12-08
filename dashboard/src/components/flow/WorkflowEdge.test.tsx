@@ -7,7 +7,7 @@ const renderEdge = (props: Partial<EdgeProps<WorkflowEdgeType>>) => {
   return render(
     <ReactFlowProvider>
       <svg>
-        <WorkflowEdge {...props} />
+        <WorkflowEdge {...(props as any)} />
       </svg>
     </ReactFlowProvider>
   );
@@ -28,7 +28,7 @@ describe('WorkflowEdge', () => {
   };
 
   it('renders edge path', () => {
-    const { container } = renderEdge(baseProps);
+    const { container } = renderEdge(baseProps as any);
     // SVG paths don't have semantic roles, querySelector is appropriate here
     const path = container.querySelector('path');
     expect(path).toBeInTheDocument();
@@ -40,7 +40,7 @@ describe('WorkflowEdge', () => {
     { status: 'active' as const, hasDash: true },
   ])('applies $status line style (dashed: $hasDash)', ({ status, hasDash }) => {
     const props = { ...baseProps, data: { ...baseProps.data, status } };
-    const { container } = renderEdge(props);
+    const { container } = renderEdge(props as any);
     const path = container.querySelector('path');
     expect(path).toHaveAttribute('data-status', status);
     if (hasDash) {

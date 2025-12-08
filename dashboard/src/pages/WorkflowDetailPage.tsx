@@ -7,7 +7,7 @@
 /**
  * @fileoverview Workflow detail page with full status display.
  */
-import { useLoaderData } from 'react-router-dom';
+import { useLoaderData, useNavigation } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowProgress } from '@/components/WorkflowProgress';
@@ -17,6 +17,8 @@ import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { buildPipeline } from '@/utils/pipeline';
 import { formatElapsedTime } from '@/utils/workflow';
 import { workflowDetailLoader } from '@/loaders';
+import { Loader } from '@/components/ai-elements/loader';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**
  * Displays comprehensive workflow details with progress, pipeline, and activity.
@@ -29,25 +31,43 @@ import { workflowDetailLoader } from '@/loaders';
  */
 export default function WorkflowDetailPage() {
   const { workflow } = useLoaderData<typeof workflowDetailLoader>();
+  const navigation = useNavigation();
+  const isLoading = navigation.state === 'loading';
 
-  // Calculate progress from plan tasks
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader size={48} />
+      </div>
+    );
+  }
+
+  if (!workflow) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
+        <div className="text-destructive font-semibold">
+          Workflow not found
+        </div>
+        <p className="text-muted-foreground">
+          The requested workflow could not be loaded.
+        </p>
+      </div>
+    );
+  }
+
   const completedTasks = workflow.plan?.tasks.filter(t => t.status === 'completed').length || 0;
   const totalTasks = workflow.plan?.tasks.length || 0;
 
-  // Check if workflow needs approval (blocked status)
   const needsApproval = workflow.status === 'blocked';
-
-  // Generate plan summary for approval controls
   const planSummary = workflow.plan
     ? `Plan with ${workflow.plan.tasks.length} tasks`
-    : 'No plan available';
+    : 'No plan generated';
 
-  // Convert plan to pipeline format for WorkflowCanvas
+  // Build pipeline for visualization
   const pipeline = buildPipeline(workflow);
 
   return (
     <div className="flex flex-col h-full w-full">
-      {/* Header */}
       <PageHeader>
         <PageHeader.Left>
           <PageHeader.Label>WORKFLOW</PageHeader.Label>
@@ -56,41 +76,13 @@ export default function WorkflowDetailPage() {
             <PageHeader.Subtitle>{workflow.worktree_name}</PageHeader.Subtitle>
           </div>
         </PageHeader.Left>
+
         <PageHeader.Center>
           <PageHeader.Label>ELAPSED</PageHeader.Label>
           <PageHeader.Value glow>{formatElapsedTime(workflow)}</PageHeader.Value>
         </PageHeader.Center>
+
         <PageHeader.Right>
-          {workflow.status === 'in_progress' && (
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(255,200,87,0.6)]" />
-          )}
-          <StatusBadge status={workflow.status} />
-        </PageHeader.Right>
-      </PageHeader>
-
-      {/* Main content area */}
-      <div className="flex-1 overflow-hidden grid grid-cols-2 gap-4 p-6">
-        {/* Left column: Progress, Canvas, and Approval Controls */}
-        <div className="flex flex-col gap-4 overflow-y-auto">
-          {/* Progress */}
-          <div className="p-4 border border-border rounded-lg bg-card/50">
-            <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-3">
-              PROGRESS
-            </h3>
-            <WorkflowProgress completed={completedTasks} total={totalTasks} />
-          </div>
-
-          {/* Workflow Canvas (visual pipeline) */}
-          {pipeline && (
-            <div className="p-4 border border-border rounded-lg bg-card/50">
-              <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-3">
-                PIPELINE
-              </h3>
-              <WorkflowCanvas pipeline={pipeline} />
-            </div>
-          )}
-
-          {/* Approval Controls (only shown when blocked) */}
           {needsApproval && (
             <ApprovalControls
               workflowId={workflow.id}
@@ -98,19 +90,47 @@ export default function WorkflowDetailPage() {
               status="pending"
             />
           )}
+          <StatusBadge status={workflow.status} />
+        </PageHeader.Right>
+      </PageHeader>
+
+      <div className="flex-1 overflow-hidden grid grid-cols-2 gap-4 p-6">
+        {/* Left column: Progress, Canvas */}
+        <div className="flex flex-col gap-4 overflow-y-auto">
+          {/* Progress */}
+          {workflow.status === 'in_progress' && (
+            <div className="p-4 border border-border rounded-lg bg-card/50">
+              <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-3">
+                PROGRESS
+              </h3>
+              <WorkflowProgress completed={completedTasks} total={totalTasks} />
+            </div>
+          )}
+
+          {/* Workflow Canvas (visual pipeline) */}
+          <div className="p-4 border border-border rounded-lg bg-card/50">
+            <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-3">
+              PIPELINE
+            </h3>
+            <WorkflowCanvas pipeline={pipeline || undefined} />
+          </div>
         </div>
 
         {/* Right column: Activity Log */}
-        <div className="border border-border rounded-lg bg-card/50 overflow-hidden">
-          <ActivityLog
-            workflowId={workflow.id}
-            initialEvents={workflow.recent_events}
-          />
+        <div className="border border-border rounded-lg bg-card/50 overflow-hidden flex flex-col">
+          <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground p-4 border-b border-border bg-muted/20">
+            ACTIVITY LOG
+          </h3>
+          <ScrollArea className="flex-1">
+            <div className="p-4">
+              <ActivityLog
+                workflowId={workflow.id}
+                initialEvents={workflow.recent_events}
+              />
+            </div>
+          </ScrollArea>
         </div>
       </div>
     </div>
   );
 }
-
-// Loader function will be added in Plan 09
-// export async function loader({ params }) { ... }

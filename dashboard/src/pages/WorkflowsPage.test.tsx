@@ -33,6 +33,7 @@ const mockWorkflowDetail: WorkflowDetail = {
   completed_at: null,
   failure_reason: null,
   plan: {
+    execution_order: ['t1', 't2'],
     tasks: [
       { id: 't1', agent: 'architect', description: 'Plan', status: 'completed', dependencies: [] },
       { id: 't2', agent: 'developer', description: 'Code', status: 'in_progress', dependencies: ['t1'] },
@@ -40,7 +41,7 @@ const mockWorkflowDetail: WorkflowDetail = {
   },
   token_usage: {},
   recent_events: [
-    { id: 'e1', timestamp: '2025-12-07T09:01:00Z', event_type: 'stage_started', agent: 'developer', message: 'Started coding' },
+    { id: 'e1', workflow_id: '1', sequence: 1, timestamp: '2025-12-07T09:01:00Z', event_type: 'stage_started', agent: 'developer', message: 'Started coding' },
   ],
 };
 

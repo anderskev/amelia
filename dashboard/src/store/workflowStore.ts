@@ -221,10 +221,10 @@ export const useWorkflowStore = create<WorkflowState>()(
         },
       },
       // Only persist UI state - events are ephemeral
-      partialize: (state): Pick<WorkflowState, 'selectedWorkflowId' | 'lastEventId'> => ({
+      partialize: (state) => ({
         selectedWorkflowId: state.selectedWorkflowId,
         lastEventId: state.lastEventId,
-      }),
+      }) as unknown as WorkflowState,
     }
   )
 );

@@ -20,7 +20,7 @@ describe('getActiveWorkflow', () => {
     const workflows = [
       createWorkflow({ id: '1', status: 'completed' }),
       createWorkflow({ id: '2', status: 'in_progress' }),
-      createWorkflow({ id: '3', status: 'queued' }),
+      createWorkflow({ id: '3', status: 'pending' }),
     ];
     expect(getActiveWorkflow(workflows)?.id).toBe('2');
   });

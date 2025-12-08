@@ -210,7 +210,7 @@ def create_app() -> FastAPI:
             )
 
         # SPA fallback: serve index.html for all non-API routes
-        @application.api_route("/{full_path:path}", methods=["GET", "HEAD"])
+        @application.api_route("/{full_path:path}", methods=["GET", "HEAD"], operation_id="serve_dashboard_fallback")
         async def serve_dashboard(full_path: str) -> FileResponse:
             """Serve dashboard index.html for client-side routing."""
             # Skip API and WebSocket routes

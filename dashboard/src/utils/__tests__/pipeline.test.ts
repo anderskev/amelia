@@ -105,7 +105,10 @@ describe('buildPipeline', () => {
 
     const result = buildPipeline(workflow);
 
-    expect(result!.nodes[0].status).toBe('active');
+    expect(result).not.toBeNull();
+    if (!result) throw new Error('Result should not be null');
+
+    expect(result!.nodes[0]!.status).toBe('active');
   });
 
   it('should handle empty stages array', () => {
@@ -171,7 +174,10 @@ describe('buildPipeline', () => {
 
     const result = buildPipeline(workflow);
 
-    expect(result!.nodes[0].status).toBe('blocked');
+    expect(result).not.toBeNull();
+    if (!result) throw new Error('Result should not be null');
+
+    expect(result!.nodes[0]!.status).toBe('blocked');
   });
 
   describe('edge status computation', () => {

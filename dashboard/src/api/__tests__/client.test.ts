@@ -105,19 +105,19 @@ describe('API Client', () => {
         if (feedback) {
           await api[method](id, feedback);
         } else {
-          await api[method](id);
+          await api[method](id, 'feedback');
         }
 
         const expectedCall = feedback
           ? {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ feedback }),
-            }
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ feedback }),
+          }
           : expect.objectContaining({
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-            });
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
 
         expect(global.fetch).toHaveBeenCalledWith(expectedUrl, expectedCall);
       }

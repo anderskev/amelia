@@ -67,5 +67,5 @@ export function promise<T>(
     error: string | ((error: Error) => string);
   }
 ): Promise<T> {
-  return toast.promise(promise, messages);
+  return toast.promise(promise, messages) as unknown as Promise<T>;
 }

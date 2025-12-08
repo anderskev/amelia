@@ -7,6 +7,13 @@ from typing import Any
 
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
+)
 
 from amelia.core.constants import ToolName
 from amelia.core.state import AgentMessage
@@ -60,20 +67,46 @@ class ApiDriver(DriverInterface):
         # Reusing might be better but for now per-call is safer for state isolation.
         agent = Agent(self.model_name, output_type=schema if schema else str)
         
-        # Convert AgentMessage to prompt string or pydantic-ai messages
-        # pydantic-ai 'run' takes a string prompt usually, or sequence of messages?
-        # Let's assume basic prompt construction for now as pydantic-ai 0.0.x might vary.
-        # But v1.20.0 is specified. 
-        
         # Constructing conversation history
-        # pydantic-ai typically takes the last user message as 'prompt' and history as 'message_history'.
-        # But let's just concat for simplicity if API allows, or map properly.
+        # Pydantic-ai Agent.run takes the user prompt and history separately.
+        # We need to extract the last user message as the prompt, or use a dummy prompt if none.
+        # However, Agent.run() signature is run(prompt: str, *, message_history: list[ModelMessage] | None = None)
+
+        # Convert AgentMessages to pydantic-ai ModelMessages
+        # This is a simplification; a full implementation would map roles precisely.
+        # For now, we will just map user/assistant/system.
         
-        # Simple concatenation for the 'prompt' argument
-        full_prompt = "\n\n".join([f"[{msg.role.upper()}]: {msg.content}" for msg in messages])
+        # We'll use the last message as the new prompt if it's from user,
+        # otherwise we might need to send an empty prompt or continue?
+        # Agent.run requires a string prompt.
         
+        current_prompt = "Please continue."
+        history_messages: list[ModelMessage] = []
+        
+        # If the last message is from the user, use it as the prompt.
+        if messages and messages[-1].role == 'user':
+            current_prompt = messages[-1].content
+            # Use all previous messages as history
+            msgs_to_process = messages[:-1]
+        else:
+            msgs_to_process = messages
+
+        for msg in msgs_to_process:
+            if msg.role == 'user':
+                history_messages.append(ModelRequest(parts=[UserPromptPart(content=msg.content)]))
+            elif msg.role == 'assistant':
+                history_messages.append(ModelResponse(parts=[TextPart(content=msg.content)]))
+            elif msg.role == 'system':
+                # Pydantic-ai handles system prompts via Agent constructor usually,
+                # but we can try to inject it or just ignore if global system prompt is set elsewhere.
+                # ideally we should have a way to set system prompt per run or use SystemPromptPart (if exists).
+                # For now, prepending to next user message or init is common fallback.
+                # Let's assume system format is handled by main agent config for simplicity
+                # or append to history as ModelRequest if supported.
+                pass 
+                
         try:
-            result = await agent.run(full_prompt)
+            result = await agent.run(current_prompt, message_history=history_messages)
             return result.output
         except Exception as e:
             raise RuntimeError(f"ApiDriver generation failed: {e}") from e

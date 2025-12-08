@@ -20,7 +20,7 @@ export { ActivityLog } from './ActivityLog';
 // Workflow components
 export { ApprovalControls } from './ApprovalControls';
 export { WorkflowCanvas } from './WorkflowCanvas';
-export { WorkflowHeader } from './WorkflowHeader';
+// export { WorkflowHeader } from './WorkflowHeader';
 export { WorkflowProgress } from './WorkflowProgress';
 export { WorkflowEmptyState } from './WorkflowEmptyState';
 

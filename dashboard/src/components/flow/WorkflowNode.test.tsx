@@ -8,6 +8,9 @@ const renderNode = (data: WorkflowNodeData) => {
     <ReactFlowProvider>
       <WorkflowNode
         id="test"
+        draggable={false}
+        selectable={false}
+        deletable={false}
         data={data}
         type="workflow"
         selected={false}
