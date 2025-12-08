@@ -15,6 +15,18 @@ This document describes the core data structures used throughout the Amelia orch
 
 ## Configuration Entities
 
+### RetryConfig
+
+Retry configuration for transient failures.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_retries` | `int` | `3` | Maximum number of retry attempts (range: 0-10). |
+| `base_delay` | `float` | `1.0` | Base delay in seconds for exponential backoff (range: 0.1-30.0). |
+| `max_delay` | `float` | `60.0` | Maximum delay cap in seconds (range: 1.0-300.0). |
+
+**Location:** `amelia/core/types.py`
+
 ### Profile
 
 Defines the runtime environment and constraints.
@@ -28,6 +40,7 @@ Defines the runtime environment and constraints.
 | `execution_mode` | `ExecutionMode` | `"structured"` | Execution mode (structured or agentic). |
 | `plan_output_dir` | `str` | `"docs/plans"` | Directory for storing generated plans. |
 | `working_dir` | `str \| None` | `None` | Working directory for agentic execution. |
+| `retry` | `RetryConfig` | `RetryConfig()` | Retry configuration for transient failures. |
 
 **Location:** `amelia/core/types.py`
 
@@ -181,11 +194,99 @@ The central state object for the LangGraph orchestrator.
 
 **Location:** `amelia/core/state.py`
 
+## Server Models
+
+### ServerConfig
+
+Server configuration with environment variable support.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `host` | `str` | `"127.0.0.1"` | Host to bind the server to. |
+| `port` | `int` | `8420` | Port to bind the server to (range: 1-65535). |
+| `database_path` | `Path` | `~/.amelia/amelia.db` | Path to SQLite database file. |
+| `log_retention_days` | `int` | `30` | Days to retain event logs (min: 1). |
+| `log_retention_max_events` | `int` | `100000` | Maximum events per workflow (min: 1000). |
+| `websocket_idle_timeout_seconds` | `float` | `300.0` | WebSocket idle timeout in seconds (5 min default). |
+| `workflow_start_timeout_seconds` | `float` | `60.0` | Max time to start a workflow in seconds. |
+| `max_concurrent` | `int` | `5` | Maximum number of concurrent workflows (min: 1). |
+
+**Location:** `amelia/server/config.py`
+
+### EventType
+
+Exhaustive list of workflow event types (enum).
+
+| Value | Category | Description |
+|-------|----------|-------------|
+| `WORKFLOW_STARTED` | Lifecycle | Workflow execution started. |
+| `WORKFLOW_COMPLETED` | Lifecycle | Workflow execution completed successfully. |
+| `WORKFLOW_FAILED` | Lifecycle | Workflow execution failed. |
+| `WORKFLOW_CANCELLED` | Lifecycle | Workflow execution cancelled. |
+| `STAGE_STARTED` | Stages | Workflow stage started. |
+| `STAGE_COMPLETED` | Stages | Workflow stage completed. |
+| `APPROVAL_REQUIRED` | Approval | Human approval required for plan. |
+| `APPROVAL_GRANTED` | Approval | Human approval granted. |
+| `APPROVAL_REJECTED` | Approval | Human approval rejected. |
+| `FILE_CREATED` | Artifacts | File created during execution. |
+| `FILE_MODIFIED` | Artifacts | File modified during execution. |
+| `FILE_DELETED` | Artifacts | File deleted during execution. |
+| `REVIEW_REQUESTED` | Review | Code review requested. |
+| `REVIEW_COMPLETED` | Review | Code review completed. |
+| `REVISION_REQUESTED` | Review | Revision requested after review. |
+| `SYSTEM_ERROR` | System | System error occurred. |
+| `SYSTEM_WARNING` | System | System warning issued. |
+
+**Location:** `amelia/server/models/events.py`
+
+### WorkflowEvent
+
+Event for activity log and real-time updates. Events are immutable and append-only.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `str` | Unique event identifier (UUID). |
+| `workflow_id` | `str` | Workflow this event belongs to (links to ExecutionState). |
+| `sequence` | `int` | Monotonic sequence number per workflow (min: 1). |
+| `timestamp` | `datetime` | When event occurred. |
+| `agent` | `str` | Event source agent (architect, developer, reviewer, system). |
+| `event_type` | `EventType` | Typed event category. |
+| `message` | `str` | Human-readable summary. |
+| `data` | `dict[str, Any] \| None` | Optional structured payload (file paths, error details, etc.). |
+| `correlation_id` | `str \| None` | Links related events for tracing (e.g., approval request → granted). |
+
+**Location:** `amelia/server/models/events.py`
+
+### TokenUsage
+
+Token consumption tracking per agent with cache-aware cost calculation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | `str` | `uuid4()` | Unique identifier. |
+| `workflow_id` | `str` | — | Workflow this usage belongs to. |
+| `agent` | `str` | — | Agent that consumed tokens. |
+| `model` | `str` | `"claude-sonnet-4-20250514"` | Model used for cost calculation. |
+| `input_tokens` | `int` | — | Total input tokens (includes cache reads, min: 0). |
+| `output_tokens` | `int` | — | Output tokens generated (min: 0). |
+| `cache_read_tokens` | `int` | `0` | Subset of input tokens served from cache (discounted, min: 0). |
+| `cache_creation_tokens` | `int` | `0` | Tokens written to cache (premium rate, min: 0). |
+| `cost_usd` | `float \| None` | `None` | Net cost in USD after cache adjustments. |
+| `timestamp` | `datetime` | — | When tokens were consumed. |
+
+**Notes:**
+- `input_tokens` includes `cache_read_tokens` (not additive)
+- Cost formula: `(base_input × input_rate) + (cache_read × cache_read_rate) + (cache_write × cache_write_rate) + (output × output_rate)`
+- Where `base_input = input_tokens - cache_read_tokens`
+
+**Location:** `amelia/server/models/tokens.py`
+
 ## Entity Relationships
 
 ```
 Settings
 └── profiles: Dict[str, Profile]
+    └── retry: RetryConfig
 
 ExecutionState
 ├── profile: Profile
@@ -196,4 +297,14 @@ ExecutionState
 │       └── steps: List[TaskStep]
 ├── review_results: List[ReviewResult]
 └── messages: List[AgentMessage]
+
+ServerConfig (singleton)
+
+WorkflowEvent (append-only log)
+├── workflow_id → ExecutionState
+├── event_type: EventType (enum)
+└── correlation_id (links related events)
+
+TokenUsage (per-agent tracking)
+└── workflow_id → ExecutionState
 ```

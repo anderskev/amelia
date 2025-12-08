@@ -25,12 +25,7 @@ Evaluations of Amelia against industry frameworks and best practices.
 
 ### [Brainstorming](brainstorming/)
 
-Design explorations created through collaborative sessions. Ideas refined through discussion before implementation.
-
-- [Knowledge Library Design](brainstorming/2025-12-06-knowledge-library-design.md) - Co-learning system for sharing documentation
-- [AWS AgentCore Deployment](brainstorming/2025-12-06-aws-agentcore-deployment-design.md) - Cloud deployment for parallel workflows
-- [Debate Mode Design](brainstorming/2025-12-05-debate-mode-design.md) - Multi-agent deliberation for decisions
-- [Spec Builder Design](brainstorming/2025-12-05-spec-builder-design.md) - Document-assisted technical design tool
+Design explorations created through collaborative sessions. Ideas refined through discussion before implementation. See the [brainstorming index](brainstorming/README.md) for all documents.
 
 ### [Design](design/)
 
@@ -47,7 +42,7 @@ Active implementation plans for in-progress work. Temporary documents deleted af
 - [Zustand & WebSocket](plans/phase-2.3-09-zustand-websocket.md) - State management and real-time updates
 - [Dashboard Components](plans/phase-2.3-10-dashboard-components.md) - UI components for workflow visualization
 - [Web Dashboard Design](plans/2025-12-01-web-dashboard-design.md) - Overall dashboard architecture
-- [LangGraph Execution Bridge](plans/2025-12-06-langgraph-execution-bridge.md) - Bridge between orchestrator and server
+- [Dashboard Integration](plans/2025-12-07-dashboard-integration.md) - Integration of dashboard with backend
 - [Skill Creation Plan](plans/2025-12-06-skill-creation-plan.md) - Adding new skills to the system
 
 ### [Testing](testing/)

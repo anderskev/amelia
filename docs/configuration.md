@@ -144,7 +144,44 @@ retry:
 
 Retries use exponential backoff: delay = min(base_delay * 2^attempt, max_delay)
 
+## Server Configuration
+
+The Amelia server (API + WebSocket) can be configured via environment variables with the `AMELIA_` prefix.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `AMELIA_HOST` | string | `127.0.0.1` | Server bind address |
+| `AMELIA_PORT` | int | `8420` | Server port (1-65535) |
+| `AMELIA_DATABASE_PATH` | path | `~/.amelia/amelia.db` | SQLite database location |
+| `AMELIA_LOG_RETENTION_DAYS` | int | `30` | Days to retain event logs (minimum 1) |
+| `AMELIA_LOG_RETENTION_MAX_EVENTS` | int | `100000` | Max events per workflow (minimum 1000) |
+| `AMELIA_WEBSOCKET_IDLE_TIMEOUT_SECONDS` | float | `300.0` | WebSocket idle timeout in seconds |
+| `AMELIA_WORKFLOW_START_TIMEOUT_SECONDS` | float | `60.0` | Workflow start timeout in seconds |
+| `AMELIA_MAX_CONCURRENT` | int | `5` | Max concurrent workflows (minimum 1) |
+
+Example:
+
+```bash
+# Run server on a different port
+export AMELIA_PORT=9000
+amelia server
+
+# Use custom database location
+export AMELIA_DATABASE_PATH=/var/lib/amelia/db.sqlite
+amelia server
+
+# Allow more concurrent workflows
+export AMELIA_MAX_CONCURRENT=10
+amelia server
+```
+
 ## Environment Variables
+
+### General
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AMELIA_SETTINGS` | No | Custom path to settings.amelia.yaml (default: `./settings.amelia.yaml`) |
 
 ### OpenAI API Driver
 

@@ -25,6 +25,8 @@ Each agent has:
 
 The Architect examines an issue and breaks it down into discrete, actionable tasks with clear dependencies. This plan forms the foundation for the Developer's work.
 
+**Note**: The Architect's `plan()` method accepts an optional `Design` parameter for incorporating design specifications from brainstorming sessions.
+
 ### Developer (`amelia/agents/developer.py`)
 
 **Role**: Executes tasks by writing code and running commands.
@@ -36,6 +38,10 @@ The Architect examines an issue and breaks it down into discrete, actionable tas
 | LLM generation | Generate code or content for complex tasks |
 
 Tasks are executed based on their descriptions. The Developer can work in parallel on independent tasks, speeding up execution.
+
+**Execution Modes**:
+- `structured` (default): Tasks executed as individual tool calls (shell commands, file writes)
+- `agentic`: Full Claude tool access with streaming, autonomous execution
 
 ### Reviewer (`amelia/agents/reviewer.py`)
 
@@ -88,6 +94,10 @@ flowchart TD
 - Messages exchanged
 - Approval status
 - Review results
+- `current_task_id`: Tracks currently executing task
+- `code_changes_for_review`: Staged code changes
+- `claude_session_id`: For CLI driver session continuity
+- `workflow_status`: Workflow lifecycle status
 
 ## Tool Use
 
@@ -120,7 +130,7 @@ Developer marks task complete
 |------|---------|
 | `run_shell_command` | Execute terminal commands |
 | `write_file` | Create or modify files |
-| `generate` | Get LLM response for complex generation |
+| `read_file` | Read file contents |
 
 ## The Driver Abstraction
 
@@ -179,7 +189,7 @@ All implement the `BaseTracker` protocol:
 
 ```python
 class BaseTracker(Protocol):
-    async def get_issue(self, issue_id: str) -> Issue:
+    def get_issue(self, issue_id: str) -> Issue:
         """Fetch issue details by ID."""
         ...
 ```
