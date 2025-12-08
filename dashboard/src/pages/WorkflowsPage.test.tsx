@@ -146,9 +146,8 @@ describe('WorkflowsPage', () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
 
     await waitFor(() => {
-      // Find all instances of PROJ-123 and get the one inside a button (job queue item)
-      const allMatches = screen.getAllByText('PROJ-123');
-      const workflowButton = allMatches.find(el => el.closest('[role="button"]'))?.closest('[role="button"]');
+      // Query the job queue button directly by its accessible name
+      const workflowButton = screen.getByRole('button', { name: /PROJ-123/ });
       expect(workflowButton).toBeInTheDocument();
       expect(workflowButton).toHaveAttribute('data-selected', 'true');
     });

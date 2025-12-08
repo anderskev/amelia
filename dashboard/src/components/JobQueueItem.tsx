@@ -22,7 +22,7 @@ interface JobQueueItemProps {
 /**
  * Renders a single workflow item in the job queue.
  *
- * Displays issue ID, worktree name, status badge, and estimated completion time.
+ * Displays issue ID, worktree name, and status badge.
  * Supports keyboard navigation (Enter/Space) and visual selection state with gold glow.
  *
  * @param props - Component props
@@ -68,11 +68,7 @@ export function JobQueueItem({ workflow, selected, onSelect, className }: JobQue
         {workflow.worktree_name}
       </div>
 
-      {/* Row 3: ETA */}
-      {/* TODO: Replace hardcoded ETA with actual estimated completion time from API */}
-      <div className="font-heading text-xs text-muted-foreground tracking-wide">
-        Est: 02:45
-      </div>
+      {/* TODO: Add ETA row when backend provides estimated completion time */}
     </div>
   );
 }
