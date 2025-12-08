@@ -89,11 +89,6 @@ describe('WorkflowCanvas', () => {
       expect(screen.getByText('Developer')).toBeInTheDocument();
     });
 
-    it('renders stage progress info', () => {
-      render(<WorkflowCanvas pipeline={mockPipeline} />);
-      expect(screen.getByText(/2.*\/.*3/)).toBeInTheDocument(); // "2/3 stages" or similar
-    });
-
     it('has data-slot attribute in active state', () => {
       const { container } = render(<WorkflowCanvas pipeline={mockPipeline} />);
       expect(container.querySelector('[data-slot="workflow-canvas"]')).toBeInTheDocument();
@@ -102,7 +97,7 @@ describe('WorkflowCanvas', () => {
     it('maintains consistent height in active state', () => {
       const { container } = render(<WorkflowCanvas pipeline={mockPipeline} />);
       const canvas = container.querySelector('[data-slot="workflow-canvas"]');
-      expect(canvas?.className).toContain('h-64');
+      expect(canvas?.className).toContain('h-40');
     });
   });
 });

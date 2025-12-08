@@ -35,7 +35,14 @@ describe('buildPipeline', () => {
   it('should convert workflow detail to pipeline nodes', () => {
     const workflow = createWorkflowDetail({
       tasks: [
-        createTask({ id: 't1', agent: 'architect', description: 'Plan', status: 'completed' }),
+        createTask({
+          id: 't1',
+          agent: 'architect',
+          description: 'Plan',
+          status: 'completed',
+          started_at: '2025-01-01T00:00:00Z',
+          completed_at: '2025-01-01T00:01:23Z', // 1m 23s duration
+        }),
         createTask({ id: 't2', agent: 'developer', description: 'Code', status: 'in_progress' }),
       ],
       execution_order: ['t1', 't2'],
@@ -48,14 +55,16 @@ describe('buildPipeline', () => {
     expect(result!.nodes[0]).toEqual({
       id: 't1',
       label: 'architect',
-      subtitle: 'Plan',
+      subtitle: '1m 23s',
       status: 'completed',
+      tokens: undefined,
     });
     expect(result!.nodes[1]).toEqual({
       id: 't2',
       label: 'developer',
-      subtitle: 'Code',
+      subtitle: 'Running...',
       status: 'active',
+      tokens: undefined,
     });
   });
 

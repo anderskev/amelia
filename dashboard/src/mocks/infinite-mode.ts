@@ -399,6 +399,9 @@ function getHeatShieldsDAG(): TaskDAG {
         agent: 'architect',
         dependencies: [],
         status: 'completed',
+        started_at: '2025-12-07T08:00:00Z',
+        completed_at: '2025-12-07T08:02:34Z',
+        tokens: 45200,
       },
       {
         id: 'task-2',
@@ -406,6 +409,9 @@ function getHeatShieldsDAG(): TaskDAG {
         agent: 'architect',
         dependencies: ['task-1'],
         status: 'completed',
+        started_at: '2025-12-07T08:02:35Z',
+        completed_at: '2025-12-07T08:05:12Z',
+        tokens: 78300,
       },
       {
         id: 'task-3',
@@ -413,6 +419,9 @@ function getHeatShieldsDAG(): TaskDAG {
         agent: 'developer',
         dependencies: ['task-2'],
         status: 'completed',
+        started_at: '2025-12-07T08:05:15Z',
+        completed_at: '2025-12-07T08:12:47Z',
+        tokens: 234500,
       },
       {
         id: 'task-4',
@@ -420,6 +429,8 @@ function getHeatShieldsDAG(): TaskDAG {
         agent: 'developer',
         dependencies: ['task-3'],
         status: 'in_progress',
+        started_at: '2025-12-07T08:12:50Z',
+        tokens: 156000,
       },
       {
         id: 'task-5',
@@ -452,6 +463,9 @@ function getOrbitalDeploymentDAG(): TaskDAG {
         agent: 'architect',
         dependencies: [],
         status: 'completed',
+        started_at: '2025-12-07T09:00:00Z',
+        completed_at: '2025-12-07T09:03:45Z',
+        tokens: 67800,
       },
       {
         id: 'task-2',
@@ -459,6 +473,9 @@ function getOrbitalDeploymentDAG(): TaskDAG {
         agent: 'architect',
         dependencies: ['task-1'],
         status: 'completed',
+        started_at: '2025-12-07T09:03:48Z',
+        completed_at: '2025-12-07T09:15:22Z',
+        tokens: 189400,
       },
       {
         id: 'task-3',
@@ -466,6 +483,9 @@ function getOrbitalDeploymentDAG(): TaskDAG {
         agent: 'architect',
         dependencies: ['task-2'],
         status: 'completed',
+        started_at: '2025-12-07T09:15:25Z',
+        completed_at: '2025-12-07T09:28:03Z',
+        tokens: 245600,
       },
       {
         id: 'task-4',
@@ -505,6 +525,9 @@ function getSolarDistributedDAG(): TaskDAG {
         agent: 'architect',
         dependencies: [],
         status: 'completed',
+        started_at: '2025-12-07T10:00:00Z',
+        completed_at: '2025-12-07T10:04:20Z',
+        tokens: 89200,
       },
       {
         id: 'task-2',
@@ -512,6 +535,9 @@ function getSolarDistributedDAG(): TaskDAG {
         agent: 'architect',
         dependencies: ['task-1'],
         status: 'completed',
+        started_at: '2025-12-07T10:04:22Z',
+        completed_at: '2025-12-07T10:18:55Z',
+        tokens: 312000,
       },
       {
         id: 'task-3',
@@ -519,6 +545,9 @@ function getSolarDistributedDAG(): TaskDAG {
         agent: 'developer',
         dependencies: ['task-2'],
         status: 'completed',
+        started_at: '2025-12-07T10:19:00Z',
+        completed_at: '2025-12-07T10:42:18Z',
+        tokens: 456700,
       },
       {
         id: 'task-4',
@@ -526,6 +555,9 @@ function getSolarDistributedDAG(): TaskDAG {
         agent: 'developer',
         dependencies: ['task-3'],
         status: 'completed',
+        started_at: '2025-12-07T10:42:22Z',
+        completed_at: '2025-12-07T10:58:45Z',
+        tokens: 289300,
       },
       {
         id: 'task-5',
@@ -533,6 +565,9 @@ function getSolarDistributedDAG(): TaskDAG {
         agent: 'developer',
         dependencies: ['task-4'],
         status: 'completed',
+        started_at: '2025-12-07T10:58:50Z',
+        completed_at: '2025-12-07T11:01:12Z',
+        tokens: 42000,
       },
       {
         id: 'task-6',
@@ -540,6 +575,8 @@ function getSolarDistributedDAG(): TaskDAG {
         agent: 'reviewer',
         dependencies: ['task-5'],
         status: 'in_progress',
+        started_at: '2025-12-07T11:01:15Z',
+        tokens: 98500,
       },
       {
         id: 'task-7',
@@ -565,6 +602,9 @@ function getMicroservicesThrustDAG(): TaskDAG {
         agent: 'architect',
         dependencies: [],
         status: 'completed',
+        started_at: '2025-12-07T11:00:00Z',
+        completed_at: '2025-12-07T11:01:45Z',
+        tokens: 32100,
       },
       {
         id: 'task-2',
@@ -572,6 +612,9 @@ function getMicroservicesThrustDAG(): TaskDAG {
         agent: 'architect',
         dependencies: ['task-1'],
         status: 'completed',
+        started_at: '2025-12-07T11:01:48Z',
+        completed_at: '2025-12-07T11:08:33Z',
+        tokens: 145800,
       },
       {
         id: 'task-3',
@@ -579,6 +622,8 @@ function getMicroservicesThrustDAG(): TaskDAG {
         agent: 'developer',
         dependencies: ['task-2'],
         status: 'in_progress',
+        started_at: '2025-12-07T11:08:36Z',
+        tokens: 178200,
       },
       {
         id: 'task-4',
@@ -611,6 +656,9 @@ function getEscapeVelocityDAG(): TaskDAG {
         agent: 'architect',
         dependencies: [],
         status: 'completed',
+        started_at: '2025-12-07T12:00:00Z',
+        completed_at: '2025-12-07T12:05:30Z',
+        tokens: 112300,
       },
       {
         id: 'task-2',
@@ -618,6 +666,9 @@ function getEscapeVelocityDAG(): TaskDAG {
         agent: 'architect',
         dependencies: ['task-1'],
         status: 'completed',
+        started_at: '2025-12-07T12:05:33Z',
+        completed_at: '2025-12-07T12:06:15Z',
+        tokens: 18900,
       },
       {
         id: 'task-3',
@@ -625,6 +676,9 @@ function getEscapeVelocityDAG(): TaskDAG {
         agent: 'architect',
         dependencies: ['task-2'],
         status: 'completed',
+        started_at: '2025-12-07T12:06:18Z',
+        completed_at: '2025-12-07T12:22:45Z',
+        tokens: 387600,
       },
       {
         id: 'task-4',

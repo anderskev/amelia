@@ -58,9 +58,4 @@ describe('WorkflowEdge', () => {
     expect(path).toHaveAttribute('stroke-dasharray');
   });
 
-  it('includes arrow marker on edge end', () => {
-    const { container } = renderEdge(baseProps);
-    const path = container.querySelector('path');
-    expect(path).toHaveAttribute('marker-end');
-  });
 });

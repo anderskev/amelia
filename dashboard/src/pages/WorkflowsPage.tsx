@@ -114,9 +114,6 @@ export default function WorkflowsPage() {
         </PageHeader.Center>
         {detail && (
           <PageHeader.Right>
-            {detail.status === 'in_progress' && (
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(255,200,87,0.6)]" />
-            )}
             <StatusBadge status={detail.status} />
           </PageHeader.Right>
         )}
@@ -128,8 +125,8 @@ export default function WorkflowsPage() {
       />
 
       {/* Bottom: Queue + Activity (split) - ScrollArea provides overflow handling */}
-      <div className="flex-1 grid grid-cols-[320px_1fr] gap-4 p-4 overflow-hidden relative z-10">
-        <ScrollArea className="h-full">
+      <div className="flex-1 grid grid-cols-[320px_1fr] grid-rows-[1fr] gap-4 p-4 overflow-hidden relative z-10 min-h-0">
+        <ScrollArea className="h-full overflow-hidden">
           <div ref={jobQueueRef}>
             <JobQueue
               workflows={workflows}
@@ -138,7 +135,7 @@ export default function WorkflowsPage() {
             />
           </div>
         </ScrollArea>
-        <ScrollArea className="h-full">
+        <ScrollArea className="h-full overflow-hidden">
           {detail ? (
             <ActivityLog workflowId={detail.id} initialEvents={detail.recent_events} />
           ) : isLoadingDetail ? (

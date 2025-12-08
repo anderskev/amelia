@@ -61,7 +61,7 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
   return (
     <div
       data-slot="activity-log"
-      className={cn('flex flex-col h-full', className)}
+      className={cn('flex flex-col', className)}
     >
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground">
@@ -76,7 +76,7 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
         role="log"
         aria-live="polite"
         aria-label="Workflow activity log"
-        className="flex-1 overflow-y-auto p-4 relative"
+        className="p-4 relative"
       >
         {/* Scanlines overlay for terminal aesthetic */}
         <div

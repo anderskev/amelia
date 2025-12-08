@@ -196,6 +196,11 @@
   ::-webkit-scrollbar-thumb:hover {
     background: oklch(from var(--primary) l c h);
   }
+
+  /* Hide React Flow attribution watermark */
+  .react-flow__attribution {
+    display: none;
+  }
 }
 
 /*

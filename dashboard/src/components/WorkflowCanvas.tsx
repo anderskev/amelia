@@ -196,7 +196,7 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
       role="img"
       aria-label={`Workflow pipeline with ${nodeCount} stages. Current stage: ${currentStage}`}
       data-slot="workflow-canvas"
-      className={cn('h-40 bg-linear-to-b from-card/40 to-background/40 relative', className)}
+      className={cn('h-40 py-4 bg-linear-to-b from-card/40 to-background/40 relative', className)}
     >
       <ReactFlow
         nodes={nodes}
@@ -204,7 +204,7 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.02 }}
+        fitViewOptions={{ padding: 0.15 }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}

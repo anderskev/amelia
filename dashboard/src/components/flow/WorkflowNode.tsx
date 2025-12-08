@@ -54,6 +54,11 @@ const statusStyles: Record<NodeStatus, {
   },
 };
 
+/** Icon layout constants for handle positioning */
+const ICON_WRAPPER_PADDING = 8;  // p-2 = 0.5rem = 8px
+const ICON_SIZE = 32;            // size-8 = 2rem = 32px
+const HANDLE_TOP_PX = ICON_WRAPPER_PADDING + ICON_SIZE;  // Bottom of MapPin icon
+
 /**
  * Renders a workflow stage node with status-based styling.
  *
@@ -73,14 +78,15 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
       aria-label={ariaLabel}
       data-status={data.status}
       className={cn(
-        'flex flex-col items-center min-w-[100px]',
+        'flex flex-col items-center min-w-[100px] h-28 relative',
         styles.containerClass
       )}
     >
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-0 !h-0 !bg-transparent !border-0 !min-w-0 !min-h-0"
+        style={{ top: `${HANDLE_TOP_PX}px` }}
+        className="w-0! h-0! bg-transparent! border-0! min-w-0! min-h-0!"
       />
 
       <div className={cn('rounded-full p-2', styles.glowClass)}>
@@ -95,7 +101,7 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
       </span>
 
       {data.subtitle && (
-        <span className="font-body text-xs text-muted-foreground">
+        <span className="font-body text-xs text-muted-foreground mt-0.5">
           {data.subtitle}
         </span>
       )}
@@ -109,7 +115,8 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-0 !h-0 !bg-transparent !border-0 !min-w-0 !min-h-0"
+        style={{ top: `${HANDLE_TOP_PX}px` }}
+        className="w-0! h-0! bg-transparent! border-0! min-w-0! min-h-0!"
       />
     </div>
   );

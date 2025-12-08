@@ -208,6 +208,18 @@ export interface TaskNode {
 
   /** Error message if the task failed (populated on failure). */
   error?: string;
+
+  // TODO(#73): Wire up from backend
+  /** ISO 8601 timestamp when task execution started. */
+  started_at?: string;
+
+  // TODO(#73): Wire up from backend
+  /** ISO 8601 timestamp when task execution completed. */
+  completed_at?: string;
+
+  // TODO(#73): Wire up from backend
+  /** Total tokens used by this task. */
+  tokens?: number;
 }
 
 /**
