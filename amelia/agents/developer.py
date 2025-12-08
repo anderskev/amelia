@@ -187,15 +187,23 @@ class Developer:
 
                 return {"status": "completed", "output": "\n".join(results)}
 
-            if task.description.lower().startswith("run shell command:"):
-                command = task.description[len("run shell command:"):].strip()
+            task_desc_lower = task.description.lower().strip()
+
+            if task_desc_lower.startswith("run shell command:"):
+                # Extract command with original casing, just skip the prefix length
+                prefix_len = len("run shell command:")
+                # We need to find where the prefix ends in the original string to preserve case of the command
+                # Simple approach: case-insensitive split or just indexing if we assume structure
+                # Let's use the known length of the prefix we matched against
+                command = task.description[prefix_len:].strip()
                 logger.info(f"Developer executing shell command: {command}")
                 result = await self.driver.execute_tool(ToolName.RUN_SHELL_COMMAND, command=command)
                 return {"status": "completed", "output": result}
 
-            elif task.description.lower().startswith("write file:"):
+            elif task_desc_lower.startswith("write file:"):
                 logger.info(f"Developer executing write file task: {task.description}")
 
+                # Using original description for content extraction
                 if " with " in task.description:
                     parts = task.description.split(" with ", 1)
                     path_part = parts[0]
@@ -203,7 +211,9 @@ class Developer:
                 else:
                     path_part = task.description
                     content = ""
-
+                
+                # Extract path by removing "write file:" prefix (case-insensitive match)
+                # Since we know it starts with "write file:", we can just slice
                 file_path = path_part[len("write file:"):].strip()
 
                 result = await self.driver.execute_tool(ToolName.WRITE_FILE, file_path=file_path, content=content)

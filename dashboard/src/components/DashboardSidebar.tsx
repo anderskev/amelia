@@ -32,7 +32,7 @@ import {
   Gauge,
   Coins,
 } from 'lucide-react';
-import { version } from '../../package.json';
+import { APP_VERSION } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useDemoMode } from '@/hooks/useDemoMode';
@@ -89,7 +89,7 @@ function SidebarNavLink({ to, icon: Icon, label, onClick, comingSoon }: SidebarN
               isActive && 'bg-sidebar-accent text-sidebar-accent-foreground font-medium',
               isPending && 'opacity-50',
               !isActive &&
-                'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
             )
           }
         >
@@ -296,7 +296,7 @@ export function DashboardSidebar() {
             ) : (
               <>
                 <span className="text-xs font-mono text-muted-foreground/50">
-                  v{version}
+                  v{APP_VERSION}
                 </span>
                 <div className="text-xs font-mono text-muted-foreground">
                   <div className="flex items-center gap-2">

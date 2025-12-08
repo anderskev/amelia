@@ -53,11 +53,7 @@ class ApiDriver(DriverInterface):
             RuntimeError: If API call fails.
         """
         if not os.environ.get("OPENAI_API_KEY"):
-             # Fail fast if no key, or maybe fallback? For now, fail.
-             # But for tests, we might need to mock this. 
-             # The User said "no functionality simulated", so we expect real keys in prod.
-             # In tests, we usually mock the network calls.
-             pass
+            raise ValueError("OPENAI_API_KEY environment variable is not set. Please configure it to use the ApiDriver.")
 
         # pydantic-ai Agent instantiation
         # We create a new agent for each call or reuse? 
