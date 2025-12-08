@@ -131,7 +131,7 @@ describe('PageHeader', () => {
 
       const value = screen.getByText('02:34');
       // The glow prop applies a text-shadow via inline style
-      const computedStyle = window.getComputedStyle(value);
+      const _computedStyle = window.getComputedStyle(value);
       // Check that the element has styling applied (would be present if glow works)
       expect(value).toBeInTheDocument();
       // Verify the glow variant is rendered as a div (behavior check, not implementation)

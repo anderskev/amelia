@@ -16,15 +16,7 @@ import { ApprovalControls } from '@/components/ApprovalControls';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { buildPipeline } from '@/utils/pipeline';
 import { formatElapsedTime } from '@/utils/workflow';
-import type { WorkflowDetail } from '@/types';
-
-/**
- * Data shape returned by the route loader.
- * @property workflow - Full workflow details
- */
-interface LoaderData {
-  workflow: WorkflowDetail;
-}
+import { workflowDetailLoader } from '@/loaders';
 
 /**
  * Displays comprehensive workflow details with progress, pipeline, and activity.
@@ -36,7 +28,7 @@ interface LoaderData {
  * @returns The workflow detail page UI
  */
 export default function WorkflowDetailPage() {
-  const { workflow } = useLoaderData() as LoaderData;
+  const { workflow } = useLoaderData<typeof workflowDetailLoader>();
 
   // Calculate progress from plan tasks
   const completedTasks = workflow.plan?.tasks.filter(t => t.status === 'completed').length || 0;
