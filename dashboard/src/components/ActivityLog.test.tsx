@@ -79,4 +79,29 @@ describe('ActivityLog', () => {
     render(<ActivityLog workflowId="wf-001" initialEvents={[]} />);
     expect(screen.getByText(/No activity/)).toBeInTheDocument();
   });
+
+  it('deduplicates events with same ID from initialEvents and real-time store', () => {
+    const duplicateEvent = createMockEvent({
+      id: 'evt-001',
+      workflow_id: 'wf-001',
+      sequence: 1,
+      timestamp: '2025-12-01T14:32:07Z',
+      agent: 'ARCHITECT',
+      event_type: 'stage_started',
+      message: 'Issue #8 parsed.',
+    });
+
+    vi.mocked(workflowStore.useWorkflowStore).mockReturnValue({
+      eventsByWorkflow: { 'wf-001': [duplicateEvent] },
+    } as any);
+
+    render(<ActivityLog workflowId="wf-001" initialEvents={mockEvents} />);
+
+    // Verify the event appears only once (not duplicated)
+    const issueElements = screen.getAllByText(/Issue #8 parsed/);
+    expect(issueElements).toHaveLength(1);
+
+    // Verify event count shows 2 (initial events), not 3
+    expect(screen.getByText('2 events')).toBeInTheDocument();
+  });
 });

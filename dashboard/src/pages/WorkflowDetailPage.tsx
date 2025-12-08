@@ -7,7 +7,7 @@
 /**
  * @fileoverview Workflow detail page with full status display.
  */
-import { useLoaderData, useNavigation } from 'react-router-dom';
+import { useLoaderData } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowProgress } from '@/components/WorkflowProgress';
@@ -17,7 +17,6 @@ import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { buildPipeline } from '@/utils/pipeline';
 import { formatElapsedTime } from '@/utils/workflow';
 import { workflowDetailLoader } from '@/loaders';
-import { Loader } from '@/components/ai-elements/loader';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**
@@ -31,16 +30,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
  */
 export default function WorkflowDetailPage() {
   const { workflow } = useLoaderData<typeof workflowDetailLoader>();
-  const navigation = useNavigation();
-  const isLoading = navigation.state === 'loading';
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader size={48} />
-      </div>
-    );
-  }
 
   if (!workflow) {
     return (

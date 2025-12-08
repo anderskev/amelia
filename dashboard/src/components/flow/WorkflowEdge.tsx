@@ -81,7 +81,7 @@ function WorkflowEdgeComponent({
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
             }}
-            className="text-xs font-mono bg-background px-1 rounded border border-border"
+            className="nodrag nopan text-xs font-mono bg-background px-1 rounded border border-border"
             data-status={status}
           >
             <span style={{ color: strokeColor, opacity: strokeOpacity }}>

@@ -68,7 +68,7 @@ const HANDLE_TOP_PX = ICON_WRAPPER_PADDING + ICON_SIZE;  // Bottom of MapPin ico
  * @param props - React Flow node props
  * @returns The workflow node UI
  */
-function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
+function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeData>) {
   const styles = statusStyles[data.status];
   const ariaLabel = `Workflow stage: ${data.label}${data.subtitle ? ` - ${data.subtitle}` : ''} (${data.status})`;
 

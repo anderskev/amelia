@@ -95,7 +95,7 @@ interface SlotProps {
  * Left slot - primary content area (title, subtitle).
  */
 function Left({ children, className }: SlotProps) {
-  return <div className={cn('', className)}>{children}</div>;
+  return <div className={className}>{children}</div>;
 }
 Left.displayName = 'PageHeader.Left';
 

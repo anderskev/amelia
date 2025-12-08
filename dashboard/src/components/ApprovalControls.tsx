@@ -2,6 +2,7 @@
  * @fileoverview Approval controls for workflow plan review.
  */
 import { useFetcher } from 'react-router-dom';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader } from '@/components/ai-elements/loader';
 import { Check, X } from 'lucide-react';
@@ -51,6 +52,8 @@ export function ApprovalControls({
   const approveFetcher = useFetcher();
   const rejectFetcher = useFetcher();
   const isPending = approveFetcher.state !== 'idle' || rejectFetcher.state !== 'idle';
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectionFeedback, setRejectionFeedback] = useState('');
 
   return (
     <div
@@ -86,23 +89,74 @@ export function ApprovalControls({
               </Button>
             </approveFetcher.Form>
 
-            <rejectFetcher.Form method="post" action={`/workflows/${workflowId}/reject`}>
-              <input type="hidden" name="feedback" value="Rejected by user" />
+            {!showRejectForm ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => setShowRejectForm(true)}
+                className="border-destructive text-destructive hover:bg-destructive hover:text-foreground focus-visible:ring-destructive/50"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Reject
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowRejectForm(false);
+                  setRejectionFeedback('');
+                }}
+                className="text-muted-foreground"
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+
+          {showRejectForm && (
+            <rejectFetcher.Form
+              method="post"
+              action={`/workflows/${workflowId}/reject`}
+              className="flex flex-col gap-3"
+            >
+              <div className="flex flex-col gap-2">
+                <label htmlFor="feedback" className="text-sm font-medium">
+                  Rejection feedback
+                </label>
+                <textarea
+                  id="feedback"
+                  name="feedback"
+                  value={rejectionFeedback}
+                  onChange={(e) => setRejectionFeedback(e.target.value)}
+                  placeholder="Explain why this plan needs revision..."
+                  rows={3}
+                  required
+                  disabled={isPending}
+                  className={cn(
+                    "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm resize-none",
+                    "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+                    "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
+                  )}
+                />
+              </div>
               <Button
                 type="submit"
                 variant="outline"
-                disabled={isPending}
-                className="border-destructive text-destructive hover:bg-destructive hover:text-foreground focus-visible:ring-destructive/50"
+                disabled={isPending || !rejectionFeedback.trim()}
+                className="w-fit border-destructive text-destructive hover:bg-destructive hover:text-foreground focus-visible:ring-destructive/50"
               >
                 {isPending ? (
                   <Loader className="w-4 h-4 mr-2" />
                 ) : (
                   <X className="w-4 h-4 mr-2" />
                 )}
-                Reject
+                Submit Rejection
               </Button>
             </rejectFetcher.Form>
-          </div>
+          )}
 
           {approveFetcher.data?.error && (
             <p className="text-sm text-destructive mt-2">{approveFetcher.data.error}</p>
