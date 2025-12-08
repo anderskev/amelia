@@ -4,7 +4,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useWorkflowStore } from '../store/workflowStore';
 import type { WebSocketMessage, WorkflowEvent } from '../types';
 
@@ -76,6 +76,9 @@ export function useWebSocket() {
   const reconnectTimeoutRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef(0);
   const lastSequenceRef = useRef<Map<string, number>>(new Map());
+  // Store connect function in a ref to allow scheduleReconnect to call it
+  // without creating a circular dependency
+  const connectRef = useRef<() => void>(() => {});
 
   const addEvent = useWorkflowStore((state) => state.addEvent);
   const setConnected = useWorkflowStore((state) => state.setConnected);
@@ -88,37 +91,41 @@ export function useWebSocket() {
    * - Add event to store
    * - Dispatch custom event for revalidation hints
    */
-  const handleEvent = (event: WorkflowEvent) => {
-    const workflowId = event.workflow_id;
-    const lastSequence = lastSequenceRef.current.get(workflowId);
+  const handleEvent = useCallback(
+    (event: WorkflowEvent) => {
+      const workflowId = event.workflow_id;
+      const lastSequence = lastSequenceRef.current.get(workflowId);
 
-    // Detect sequence gaps
-    if (lastSequence !== undefined && event.sequence !== lastSequence + 1) {
-      console.warn('Sequence gap detected', {
-        workflow_id: workflowId,
-        expected: lastSequence + 1,
-        received: event.sequence,
-      });
-    }
+      // Detect sequence gaps
+      if (lastSequence !== undefined && event.sequence !== lastSequence + 1) {
+        console.warn('Sequence gap detected', {
+          workflow_id: workflowId,
+          expected: lastSequence + 1,
+          received: event.sequence,
+        });
+      }
 
-    // Update sequence tracker
-    lastSequenceRef.current.set(workflowId, event.sequence);
+      // Update sequence tracker
+      lastSequenceRef.current.set(workflowId, event.sequence);
 
-    // Add to store
-    addEvent(event);
+      // Add to store
+      addEvent(event);
 
-    // Dispatch custom event for revalidation hints
-    window.dispatchEvent(
-      new CustomEvent('workflow-event', {
-        detail: event,
-      })
-    );
-  };
+      // Dispatch custom event for revalidation hints
+      window.dispatchEvent(
+        new CustomEvent('workflow-event', {
+          detail: event,
+        })
+      );
+    },
+    [addEvent]
+  );
 
   /**
    * Schedule reconnection with exponential backoff.
+   * Uses connectRef to avoid circular dependency with connect.
    */
-  const scheduleReconnect = () => {
+  const scheduleReconnect = useCallback(() => {
     // Clear any existing timeout
     if (reconnectTimeoutRef.current !== null) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -133,14 +140,14 @@ export function useWebSocket() {
     reconnectAttemptRef.current += 1;
 
     reconnectTimeoutRef.current = window.setTimeout(() => {
-      connect();
+      connectRef.current();
     }, delay);
-  };
+  }, []);
 
   /**
    * Connect to WebSocket server.
    */
-  const connect = () => {
+  const connect = useCallback(() => {
     // Build URL with optional ?since= parameter for backfill
     let url = WS_BASE_URL;
     const currentLastEventId = useWorkflowStore.getState().lastEventId;
@@ -210,18 +217,21 @@ export function useWebSocket() {
       console.error('WebSocket error:', error);
       setConnected(false, 'WebSocket error');
     };
-  };
+  }, [handleEvent, scheduleReconnect, setConnected, setLastEventId]);
+
+  // Keep connectRef in sync with connect
+  connectRef.current = connect;
 
   /**
    * Manual reconnect function (for external use if needed).
    */
-  const reconnect = () => {
+  const reconnect = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close();
     }
     reconnectAttemptRef.current = 0;
     connect();
-  };
+  }, [connect]);
 
   // Connect on mount, disconnect on unmount
   useEffect(() => {
@@ -238,8 +248,7 @@ export function useWebSocket() {
         wsRef.current.close();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [connect]);
 
   return { reconnect };
 }

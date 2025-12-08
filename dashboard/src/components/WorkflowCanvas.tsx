@@ -167,7 +167,7 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
   }
 
   // Loading state - workflow selected but loading
-  if (isLoading) {
+  if (isLoading || !pipeline) {
     return (
       <div
         role="status"
@@ -189,8 +189,8 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
     );
   }
 
-  // Active state - pipeline data available (pipeline is guaranteed defined here)
-  const nodeCount = pipeline!.nodes.length;
+  // Active state - pipeline data is guaranteed defined after above guards
+  const nodeCount = pipeline.nodes.length;
   return (
     <div
       role="img"
