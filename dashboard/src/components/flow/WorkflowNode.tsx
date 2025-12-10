@@ -27,31 +27,39 @@ export interface WorkflowNodeData extends Record<string, unknown> {
 /** Type definition for workflow nodes used in React Flow. */
 export type WorkflowNodeType = Node<WorkflowNodeData, 'workflow'>;
 
-/** Style configuration for each node status. */
-const statusStyles: Record<NodeStatus, {
+/** Style properties for node status. */
+type StatusStyle = {
   pinClass: string;
   containerClass: string;
   glowClass: string;
-}> = {
+  borderClass: string;
+};
+
+/** Style configuration for each node status. */
+const statusStyles: Record<NodeStatus, StatusStyle> = {
   completed: {
     pinClass: 'text-status-completed',
     containerClass: 'opacity-100',
     glowClass: '',
+    borderClass: 'border-status-completed/40',
   },
   active: {
     pinClass: 'text-primary animate-pulse',
     containerClass: 'opacity-100',
     glowClass: 'drop-shadow-[0_0_12px_var(--primary)]',
+    borderClass: 'border-primary/60',
   },
   pending: {
     pinClass: 'text-muted-foreground',
     containerClass: 'opacity-50',
     glowClass: '',
+    borderClass: 'border-border',
   },
   blocked: {
     pinClass: 'text-destructive',
     containerClass: 'opacity-100',
     glowClass: '',
+    borderClass: 'border-destructive/40',
   },
 };
 
@@ -77,7 +85,8 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
       aria-label={ariaLabel}
       className={cn(
         'min-w-[160px] rounded-md transition-all duration-200',
-        styles.containerClass
+        styles.containerClass,
+        styles.borderClass
       )}
     >
       <CardContent className="flex flex-col items-center p-4">

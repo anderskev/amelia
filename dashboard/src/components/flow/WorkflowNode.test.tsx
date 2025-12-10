@@ -77,4 +77,34 @@ describe('WorkflowNode', () => {
     expect(card).toBeInTheDocument();
     expect(card).toHaveClass('rounded-md', 'border');
   });
+
+  describe('status-based card borders', () => {
+    it('applies primary border for active status', () => {
+      renderNode({ label: 'Test', status: 'active' });
+
+      const card = screen.getByTestId('workflow-node-card');
+      expect(card).toHaveClass('border-primary/60');
+    });
+
+    it('applies completed border for completed status', () => {
+      renderNode({ label: 'Test', status: 'completed' });
+
+      const card = screen.getByTestId('workflow-node-card');
+      expect(card).toHaveClass('border-status-completed/40');
+    });
+
+    it('applies default border for pending status', () => {
+      renderNode({ label: 'Test', status: 'pending' });
+
+      const card = screen.getByTestId('workflow-node-card');
+      expect(card).toHaveClass('border-border');
+    });
+
+    it('applies destructive border for blocked status', () => {
+      renderNode({ label: 'Test', status: 'blocked' });
+
+      const card = screen.getByTestId('workflow-node-card');
+      expect(card).toHaveClass('border-destructive/40');
+    });
+  });
 });
