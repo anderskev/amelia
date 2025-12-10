@@ -9,12 +9,11 @@ import {
   Controls,
   MiniMap,
   type NodeTypes,
-  type EdgeTypes,
+  type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { GitBranch, Loader2 } from 'lucide-react';
 import { WorkflowNode, type WorkflowNodeType } from '@/components/flow/WorkflowNode';
-import { WorkflowEdge, type WorkflowEdgeType } from '@/components/flow/WorkflowEdge';
 import { cn } from '@/lib/utils';
 import type { Pipeline } from '@/utils/pipeline';
 import { getLayoutedElements } from '@/utils/layout';
@@ -36,9 +35,11 @@ const nodeTypes: NodeTypes = {
   workflow: WorkflowNode,
 };
 
-/** Custom edge types for React Flow. */
-const edgeTypes: EdgeTypes = {
-  workflow: WorkflowEdge,
+/** Maps edge status to stroke color CSS variable. */
+const edgeColors: Record<string, string> = {
+  completed: 'var(--status-completed)',
+  active: 'var(--primary)',
+  pending: 'var(--muted-foreground)',
 };
 
 /**
@@ -79,37 +80,49 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
           status: node.status,
           tokens: node.tokens,
         },
-        draggable: false,
-        selectable: false,
-        connectable: false,
       })) ?? [],
     [pipeline?.nodes]
   );
 
-  // Create edges for layout calculation
-  const rawEdges: WorkflowEdgeType[] = useMemo(
+  // Create edges with built-in smoothstep type and status-based styling
+  const edges: Edge[] = useMemo(
     () =>
-      pipeline?.edges.map((edge) => ({
-        id: `e-${edge.from}-${edge.to}`,
-        source: edge.from,
-        target: edge.to,
-        type: 'workflow' as const,
-        data: {
-          label: edge.label,
-          status: edge.status,
-        },
-      })) ?? [],
+      pipeline?.edges.map((edge) => {
+        const status = edge.status;
+        const strokeColor = edgeColors[status] || edgeColors.pending;
+
+        return {
+          id: `e-${edge.from}-${edge.to}`,
+          source: edge.from,
+          target: edge.to,
+          type: 'smoothstep',
+          animated: status === 'active',
+          label: edge.label || undefined,
+          style: {
+            stroke: strokeColor,
+            strokeWidth: 2.5,
+            strokeDasharray: status !== 'completed' ? '8 4' : undefined,
+            opacity: status === 'pending' ? 0.6 : 1,
+          },
+          labelStyle: {
+            fill: strokeColor,
+            fontSize: 12,
+            fontFamily: 'var(--font-mono)',
+          },
+          labelBgStyle: {
+            fill: 'var(--background)',
+            stroke: 'var(--border)',
+          },
+        };
+      }) ?? [],
     [pipeline?.edges]
   );
 
-  // Apply dagre layout to position nodes based on dependencies
+  // Apply layout to position nodes
   const nodes = useMemo(
-    () => getLayoutedElements(rawNodes, rawEdges),
-    [rawNodes, rawEdges]
+    () => getLayoutedElements(rawNodes, []),
+    [rawNodes]
   );
-
-  // Use rawEdges directly (already in correct format)
-  const edges = rawEdges;
 
   const currentStage = pipeline?.nodes.find((n) => n.status === 'active')?.label || 'Unknown';
 
@@ -172,19 +185,11 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.15, maxZoom: 1.5, minZoom: 0.1 }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        panOnDrag={true}
-        zoomOnScroll={true}
-        zoomOnPinch={true}
-        zoomOnDoubleClick={true}
-        minZoom={0.1}
-        maxZoom={2}
-        preventScrolling={true}
         className="workflow-canvas"
       >
         <Background
@@ -219,7 +224,6 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
           aria-label="Workflow minimap for navigation"
         />
       </ReactFlow>
-
     </div>
   );
 }

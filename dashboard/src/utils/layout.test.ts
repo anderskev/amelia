@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { getLayoutedElements } from './layout';
 import type { WorkflowNodeType } from '@/components/flow/WorkflowNode';
-import type { WorkflowEdgeType } from '@/components/flow/WorkflowEdge';
+import type { Edge } from '@xyflow/react';
 
 describe('getLayoutedElements', () => {
   const mockNodes: WorkflowNodeType[] = [
@@ -10,7 +10,7 @@ describe('getLayoutedElements', () => {
     { id: '2', type: 'workflow', position: { x: 0, y: 0 }, data: { label: 'B', status: 'active' } },
     { id: '3', type: 'workflow', position: { x: 0, y: 0 }, data: { label: 'C', status: 'pending' } },
   ];
-  const mockEdges: WorkflowEdgeType[] = [];
+  const mockEdges: Edge[] = [];
 
   it('positions nodes horizontally with consistent spacing', () => {
     const result = getLayoutedElements(mockNodes, mockEdges);

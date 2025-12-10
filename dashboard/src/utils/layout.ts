@@ -5,7 +5,7 @@
  * Uses React Flow's default behavior - nodes are positioned sequentially.
  */
 import type { WorkflowNodeType } from '@/components/flow/WorkflowNode';
-import type { WorkflowEdgeType } from '@/components/flow/WorkflowEdge';
+import type { Edge } from '@xyflow/react';
 
 /** Spacing between nodes. */
 const NODE_SPACING = 200;
@@ -22,7 +22,7 @@ const NODE_SPACING = 200;
  */
 export function getLayoutedElements(
   nodes: WorkflowNodeType[],
-  _edges: WorkflowEdgeType[]
+  _edges: Edge[]
 ): WorkflowNodeType[] {
   return nodes.map((node, index) => ({
     ...node,

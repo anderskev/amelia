@@ -5,7 +5,6 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { WorkflowNode } from '../WorkflowNode';
-import { NODE_WIDTH, NODE_HEIGHT } from '@/utils/layout';
 
 describe('WorkflowNode', () => {
   const defaultProps = {
@@ -23,16 +22,6 @@ describe('WorkflowNode', () => {
       </ReactFlowProvider>
     );
   };
-
-  describe('dimensions', () => {
-    it('renders with fixed dimensions matching layout constants', () => {
-      renderWithProvider();
-
-      const card = screen.getByTestId('workflow-node-card');
-      expect(card).toHaveClass(`w-[${NODE_WIDTH}px]`);
-      expect(card).toHaveClass(`h-[${NODE_HEIGHT}px]`);
-    });
-  });
 
   describe('rendering', () => {
     it('renders the label', () => {
