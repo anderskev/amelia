@@ -15,6 +15,7 @@ import { WorkflowNode, type WorkflowNodeType } from '@/components/flow/WorkflowN
 import { WorkflowEdge, type WorkflowEdgeType } from '@/components/flow/WorkflowEdge';
 import { cn } from '@/lib/utils';
 import type { Pipeline } from '@/utils/pipeline';
+import { getLayoutedElements } from '@/utils/layout';
 
 /**
  * Props for the WorkflowCanvas component.
@@ -63,13 +64,13 @@ const edgeTypes: EdgeTypes = {
  * ```
  */
 export function WorkflowCanvas({ pipeline, isLoading = false, className }: WorkflowCanvasProps) {
-  // Convert pipeline data to React Flow format
-  const nodes: WorkflowNodeType[] = useMemo(
+  // Create nodes without positions first
+  const rawNodes: WorkflowNodeType[] = useMemo(
     () =>
-      pipeline?.nodes.map((node, index) => ({
+      pipeline?.nodes.map((node) => ({
         id: node.id,
         type: 'workflow' as const,
-        position: { x: index * 150, y: 80 },
+        position: { x: 0, y: 0 }, // Will be set by layout
         data: {
           label: node.label,
           subtitle: node.subtitle,
@@ -83,7 +84,8 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
     [pipeline?.nodes]
   );
 
-  const edges: WorkflowEdgeType[] = useMemo(
+  // Create edges for layout calculation
+  const rawEdges: WorkflowEdgeType[] = useMemo(
     () =>
       pipeline?.edges.map((edge) => ({
         id: `e-${edge.from}-${edge.to}`,
@@ -97,6 +99,15 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
       })) ?? [],
     [pipeline?.edges]
   );
+
+  // Apply dagre layout to position nodes based on dependencies
+  const nodes = useMemo(
+    () => getLayoutedElements(rawNodes, rawEdges),
+    [rawNodes, rawEdges]
+  );
+
+  // Use rawEdges directly (already in correct format)
+  const edges = rawEdges;
 
   const currentStage = pipeline?.nodes.find((n) => n.status === 'active')?.label || 'Unknown';
 
