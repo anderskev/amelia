@@ -75,7 +75,7 @@ describe('WorkflowNode', () => {
 
     const card = screen.getByTestId('workflow-node-card');
     expect(card).toBeInTheDocument();
-    expect(card).toHaveClass('rounded-md', 'border', 'min-w-[180px]');
+    expect(card).toHaveClass('rounded-md', 'border', 'w-[180px]', 'h-[128px]');
   });
 
   describe('status-based card borders', () => {

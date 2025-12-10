@@ -94,7 +94,7 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
       role="img"
       aria-label={ariaLabel}
       className={cn(
-        'min-w-[180px] relative rounded-md transition-all duration-200',
+        'w-[180px] h-[128px] relative rounded-md transition-all duration-200 overflow-hidden',
         styles.containerClass,
         styles.borderClass,
         styles.backgroundClass,
