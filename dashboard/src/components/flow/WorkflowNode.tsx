@@ -79,7 +79,7 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
       data-status={data.status}
       data-slot="workflow-node"
       className={cn(
-        'flex flex-col items-center min-w-[100px] h-28 relative',
+        'flex flex-col items-center min-w-[160px] h-28 relative',
         styles.containerClass
       )}
     >
