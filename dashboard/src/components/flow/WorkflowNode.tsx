@@ -34,6 +34,7 @@ type StatusStyle = {
   glowClass: string;
   borderClass: string;
   backgroundClass: string;
+  shadowClass: string;
 };
 
 /** Style configuration for each node status. */
@@ -44,6 +45,7 @@ const statusStyles: Record<NodeStatus, StatusStyle> = {
     glowClass: '',
     borderClass: 'border-status-completed/40',
     backgroundClass: 'bg-status-completed/5',
+    shadowClass: 'shadow-md',
   },
   active: {
     pinClass: 'text-primary animate-pulse',
@@ -51,6 +53,7 @@ const statusStyles: Record<NodeStatus, StatusStyle> = {
     glowClass: 'drop-shadow-[0_0_12px_var(--primary)]',
     borderClass: 'border-primary/60',
     backgroundClass: 'bg-primary/10',
+    shadowClass: 'shadow-lg shadow-primary/20',
   },
   pending: {
     pinClass: 'text-muted-foreground',
@@ -58,6 +61,7 @@ const statusStyles: Record<NodeStatus, StatusStyle> = {
     glowClass: '',
     borderClass: 'border-border',
     backgroundClass: 'bg-card/60',
+    shadowClass: 'shadow-sm',
   },
   blocked: {
     pinClass: 'text-destructive',
@@ -65,6 +69,7 @@ const statusStyles: Record<NodeStatus, StatusStyle> = {
     glowClass: '',
     borderClass: 'border-destructive/40',
     backgroundClass: 'bg-destructive/5',
+    shadowClass: 'shadow-md',
   },
 };
 
@@ -92,7 +97,8 @@ function WorkflowNodeComponent({ data }: NodeProps<WorkflowNodeType>) {
         'min-w-[160px] rounded-md transition-all duration-200',
         styles.containerClass,
         styles.borderClass,
-        styles.backgroundClass
+        styles.backgroundClass,
+        styles.shadowClass
       )}
     >
       <CardContent className="flex flex-col items-center p-4">

@@ -137,4 +137,34 @@ describe('WorkflowNode', () => {
       expect(card).toHaveClass('bg-destructive/5');
     });
   });
+
+  describe('status-based card shadows', () => {
+    it('applies elevated shadow with gold glow for active status', () => {
+      renderNode({ label: 'Test', status: 'active' });
+
+      const card = screen.getByTestId('workflow-node-card');
+      expect(card).toHaveClass('shadow-lg');
+    });
+
+    it('applies medium shadow for completed status', () => {
+      renderNode({ label: 'Test', status: 'completed' });
+
+      const card = screen.getByTestId('workflow-node-card');
+      expect(card).toHaveClass('shadow-md');
+    });
+
+    it('applies small shadow for pending status', () => {
+      renderNode({ label: 'Test', status: 'pending' });
+
+      const card = screen.getByTestId('workflow-node-card');
+      expect(card).toHaveClass('shadow-sm');
+    });
+
+    it('applies medium shadow for blocked status', () => {
+      renderNode({ label: 'Test', status: 'blocked' });
+
+      const card = screen.getByTestId('workflow-node-card');
+      expect(card).toHaveClass('shadow-md');
+    });
+  });
 });
