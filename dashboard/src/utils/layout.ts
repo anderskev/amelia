@@ -6,11 +6,11 @@ import Dagre from '@dagrejs/dagre';
 import type { WorkflowNodeType } from '@/components/flow/WorkflowNode';
 import type { WorkflowEdgeType } from '@/components/flow/WorkflowEdge';
 
-/** Fixed node width for layout calculation. */
-export const NODE_WIDTH = 160;
+/** Fixed node width for layout calculation. Increased for card padding. */
+export const NODE_WIDTH = 180;
 
-/** Fixed node height for layout calculation. */
-export const NODE_HEIGHT = 112;
+/** Fixed node height for layout calculation. Increased for card structure. */
+export const NODE_HEIGHT = 128;
 
 /** Horizontal spacing between nodes in the same rank. */
 const NODE_SEP = 60;

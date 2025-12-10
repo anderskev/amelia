@@ -119,6 +119,18 @@ describe('getLayoutedElements', () => {
     expect(NODE_HEIGHT).toBeGreaterThan(0);
   });
 
+  describe('node dimensions for card styling', () => {
+    it('has wider node width to accommodate card padding', () => {
+      // Card adds padding, so nodes need more width
+      expect(NODE_WIDTH).toBeGreaterThanOrEqual(180);
+    });
+
+    it('has taller node height to accommodate card structure', () => {
+      // Card with CardContent adds vertical space
+      expect(NODE_HEIGHT).toBeGreaterThanOrEqual(120);
+    });
+  });
+
   it('preserves node data and type', () => {
     const nodes: WorkflowNodeType[] = [
       {
