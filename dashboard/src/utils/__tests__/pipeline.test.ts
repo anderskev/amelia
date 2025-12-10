@@ -23,7 +23,6 @@ function createWorkflowDetail(plan: TaskDAG | null): WorkflowDetail {
 function createTask(overrides: Partial<TaskNode> = {}): TaskNode {
   return {
     id: 'task-1',
-    agent: 'developer',
     description: 'Test task',
     status: 'pending',
     dependencies: [],
@@ -37,13 +36,12 @@ describe('buildPipeline', () => {
       tasks: [
         createTask({
           id: 't1',
-          agent: 'architect',
-          description: 'Plan',
+          description: 'Plan the architecture',
           status: 'completed',
           started_at: '2025-01-01T00:00:00Z',
           completed_at: '2025-01-01T00:01:23Z', // 1m 23s duration
         }),
-        createTask({ id: 't2', agent: 'developer', description: 'Code', status: 'in_progress' }),
+        createTask({ id: 't2', description: 'Write the code', status: 'in_progress' }),
       ],
       execution_order: ['t1', 't2'],
     });
@@ -54,14 +52,14 @@ describe('buildPipeline', () => {
     expect(result!.nodes).toHaveLength(2);
     expect(result!.nodes[0]).toEqual({
       id: 't1',
-      label: 'architect',
+      label: 'Plan the architectu…', // truncated to 20 chars
       subtitle: '1m 23s',
       status: 'completed',
       tokens: undefined,
     });
     expect(result!.nodes[1]).toEqual({
       id: 't2',
-      label: 'developer',
+      label: 'Write the code', // under 20 chars, no truncation
       subtitle: 'Running...',
       status: 'active',
       tokens: undefined,

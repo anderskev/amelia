@@ -63,6 +63,29 @@ function formatTokens(tokens: number): string {
 }
 
 /**
+ * Truncates text to a maximum length, adding ellipsis if needed.
+ * @param text - Text to truncate
+ * @param maxLength - Maximum length (default 20)
+ * @returns Truncated text
+ */
+function truncateText(text: string, maxLength = 20): string {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.slice(0, maxLength - 1) + '…';
+}
+
+/**
+ * Generates a label for a task node from the task description.
+ * Uses a truncated version of the description as the primary label.
+ * @param task - The task node
+ * @returns Short label for the task (e.g., "Setup test infra…")
+ */
+function getTaskLabel(task: TaskNode): string {
+  return truncateText(task.description);
+}
+
+/**
  * Calculates the subtitle for a task node based on execution time.
  * TODO(#73): Wire up started_at/completed_at from backend
  * @param task - The task node
@@ -108,7 +131,7 @@ export function buildPipeline(workflow: WorkflowDetail): Pipeline | null {
 
   const nodes: PipelineNode[] = workflow.plan.tasks.map((task) => ({
     id: task.id,
-    label: task.agent,
+    label: getTaskLabel(task),
     subtitle: getTaskSubtitle(task),
     status: task.status === 'completed'
       ? 'completed'
