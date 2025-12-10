@@ -36,7 +36,9 @@ describe('WorkflowCanvas', () => {
 
   it('has proper ARIA label for active pipeline', () => {
     render(<WorkflowCanvas pipeline={mockPipeline} />);
-    const canvas = screen.getByRole('img');
+    const canvas = screen.getByRole('img', { name: /pipeline/i });
     expect(canvas.getAttribute('aria-label')).toContain('pipeline');
+    expect(canvas.getAttribute('aria-label')).toContain('3 stages');
+    expect(canvas.getAttribute('aria-label')).toContain('Developer');
   });
 });
