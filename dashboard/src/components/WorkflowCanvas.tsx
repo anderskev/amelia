@@ -6,6 +6,8 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
+  Controls,
+  MiniMap,
   type NodeTypes,
   type EdgeTypes,
 } from '@xyflow/react';
@@ -164,7 +166,7 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
       role="img"
       aria-label={`Workflow pipeline with ${nodeCount} stages. Current stage: ${currentStage}`}
       data-slot="workflow-canvas"
-      className={cn('h-40 py-4 bg-linear-to-b from-card/40 to-background/40 relative', className)}
+      className={cn('h-80 py-4 bg-linear-to-b from-card/40 to-background/40 relative', className)}
     >
       <ReactFlow
         nodes={nodes}
@@ -172,15 +174,17 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
+        fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        panOnDrag={false}
-        zoomOnScroll={false}
-        zoomOnPinch={false}
-        zoomOnDoubleClick={false}
-        preventScrolling={false}
+        panOnDrag={true}
+        zoomOnScroll={true}
+        zoomOnPinch={true}
+        zoomOnDoubleClick={true}
+        minZoom={0.3}
+        maxZoom={2}
+        preventScrolling={true}
         className="workflow-canvas"
       >
         <Background
@@ -189,6 +193,30 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
           size={1}
           color="var(--muted-foreground)"
           style={{ opacity: 0.1 }}
+        />
+        <Controls
+          showZoom={true}
+          showFitView={true}
+          showInteractive={false}
+          position="bottom-right"
+          aria-label="Workflow canvas zoom controls"
+        />
+        <MiniMap
+          nodeColor={(node) => {
+            const status = node.data?.status;
+            if (status === 'completed') return 'var(--status-completed)';
+            if (status === 'active') return 'var(--primary)';
+            if (status === 'blocked') return 'var(--destructive)';
+            return 'var(--muted-foreground)';
+          }}
+          maskColor="rgba(0, 0, 0, 0.1)"
+          style={{
+            backgroundColor: 'var(--background)',
+            border: '1px solid var(--border)',
+          }}
+          pannable
+          zoomable
+          aria-label="Workflow minimap for navigation"
         />
       </ReactFlow>
 
