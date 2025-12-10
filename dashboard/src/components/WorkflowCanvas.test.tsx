@@ -41,4 +41,29 @@ describe('WorkflowCanvas', () => {
     expect(canvas.getAttribute('aria-label')).toContain('3 stages');
     expect(canvas.getAttribute('aria-label')).toContain('Developer');
   });
+
+  describe('zoom configuration', () => {
+    it('renders large pipelines with many nodes', () => {
+      const largePipeline = {
+        nodes: Array.from({ length: 10 }, (_, i) => ({
+          id: `task-${i}`,
+          label: `Task ${i}`,
+          status: 'pending' as const,
+        })),
+        edges: Array.from({ length: 9 }, (_, i) => ({
+          from: `task-${i}`,
+          to: `task-${i + 1}`,
+          label: '',
+          status: 'pending' as const,
+        })),
+      };
+
+      render(<WorkflowCanvas pipeline={largePipeline} />);
+
+      // All 10 nodes should render (fitView with low minZoom allows this)
+      for (let i = 0; i < 10; i++) {
+        expect(screen.getByText(`Task ${i}`)).toBeInTheDocument();
+      }
+    });
+  });
 });

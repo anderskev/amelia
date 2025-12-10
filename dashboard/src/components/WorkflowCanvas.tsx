@@ -174,7 +174,7 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1.5 }}
+        fitViewOptions={{ padding: 0.15, maxZoom: 1.5, minZoom: 0.1 }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
@@ -182,7 +182,7 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
         zoomOnScroll={true}
         zoomOnPinch={true}
         zoomOnDoubleClick={true}
-        minZoom={0.3}
+        minZoom={0.1}
         maxZoom={2}
         preventScrolling={true}
         className="workflow-canvas"
