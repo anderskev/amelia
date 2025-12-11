@@ -81,7 +81,7 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
           tokens: node.tokens,
         },
       })) ?? [],
-    [pipeline?.nodes]
+    [pipeline]
   );
 
   // Create edges with built-in smoothstep type and status-based styling
@@ -115,7 +115,7 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
           },
         };
       }) ?? [],
-    [pipeline?.edges]
+    [pipeline]
   );
 
   // Apply layout to position nodes
@@ -130,18 +130,19 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
   if (!pipeline && !isLoading) {
     return (
       <div
-        role="status"
-        aria-label="No workflow selected"
         data-slot="workflow-canvas"
         className={cn('h-64 bg-linear-to-b from-card/40 to-background/40 relative overflow-hidden', className)}
-        style={{
-          backgroundImage: 'radial-gradient(circle, var(--muted-foreground) 1px, transparent 1px)',
-          backgroundSize: '20px 20px',
-          backgroundPosition: '0 0',
-          opacity: 0.1,
-        }}
       >
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3" style={{ opacity: 1 }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: 'radial-gradient(circle, var(--muted-foreground) 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+            backgroundPosition: '0 0',
+            opacity: 0.1,
+          }}
+        />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           <GitBranch className="h-12 w-12 text-muted-foreground/40" strokeWidth={1.5} />
           <p className="text-sm text-muted-foreground">Select a workflow to view pipeline</p>
         </div>
@@ -153,18 +154,19 @@ export function WorkflowCanvas({ pipeline, isLoading = false, className }: Workf
   if (isLoading || !pipeline) {
     return (
       <div
-        role="status"
-        aria-label="Loading pipeline"
         data-slot="workflow-canvas"
         className={cn('h-64 bg-linear-to-b from-card/40 to-background/40 relative overflow-hidden', className)}
-        style={{
-          backgroundImage: 'radial-gradient(circle, var(--muted-foreground) 1px, transparent 1px)',
-          backgroundSize: '20px 20px',
-          backgroundPosition: '0 0',
-          opacity: 0.1,
-        }}
       >
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3" style={{ opacity: 1 }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: 'radial-gradient(circle, var(--muted-foreground) 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+            backgroundPosition: '0 0',
+            opacity: 0.1,
+          }}
+        />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           <Loader2 className="h-8 w-8 text-muted-foreground/60 animate-spin" strokeWidth={2} />
           <p className="text-sm text-muted-foreground">Loading pipeline...</p>
         </div>

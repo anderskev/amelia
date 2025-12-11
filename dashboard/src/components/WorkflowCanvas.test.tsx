@@ -18,13 +18,11 @@ describe('WorkflowCanvas', () => {
   it('renders empty state when no pipeline provided', () => {
     render(<WorkflowCanvas />);
     expect(screen.getByText('Select a workflow to view pipeline')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'No workflow selected');
   });
 
   it('renders loading state when isLoading is true', () => {
     render(<WorkflowCanvas isLoading={true} />);
     expect(screen.getByText('Loading pipeline...')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Loading pipeline');
   });
 
   it('renders pipeline nodes when data provided', () => {
