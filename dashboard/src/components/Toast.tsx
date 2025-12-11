@@ -58,6 +58,7 @@ export function loading(message: string): string | number {
  * Displays a promise toast notification that updates based on promise state.
  * @param promise - Promise to track
  * @param messages - Messages for loading, success, and error states
+ * @returns The original promise, allowing callers to await the resolved value
  */
 export function promise<T>(
   promise: Promise<T>,
@@ -67,5 +68,9 @@ export function promise<T>(
     error: string | ((error: Error) => string);
   }
 ): Promise<T> {
-  return toast.promise(promise, messages) as unknown as Promise<T>;
+  // Call toast.promise for side effect (displays toast)
+  // toast.promise returns toast ID (string | number), not the promise
+  toast.promise(promise, messages);
+  // Return the original promise so callers get the resolved value
+  return promise;
 }

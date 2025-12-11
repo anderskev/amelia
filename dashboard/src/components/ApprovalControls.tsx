@@ -8,6 +8,12 @@ import { Loader } from '@/components/ai-elements/loader';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/** Response shape from approve/reject actions. */
+interface ActionResponse {
+  success: boolean;
+  error?: string;
+}
+
 /** Possible states for the approval workflow. */
 type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
@@ -49,8 +55,8 @@ export function ApprovalControls({
   status = 'pending',
   className,
 }: ApprovalControlsProps) {
-  const approveFetcher = useFetcher();
-  const rejectFetcher = useFetcher();
+  const approveFetcher = useFetcher<ActionResponse>();
+  const rejectFetcher = useFetcher<ActionResponse>();
   const isPending = approveFetcher.state !== 'idle' || rejectFetcher.state !== 'idle';
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionFeedback, setRejectionFeedback] = useState('');

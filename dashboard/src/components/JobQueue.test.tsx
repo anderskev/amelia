@@ -24,7 +24,7 @@ describe('JobQueue', () => {
 
   it('highlights selected workflow', () => {
     render(<JobQueue workflows={mockWorkflows} selectedId="wf-001" />);
-    const selectedButton = screen.getByText('#8').closest('[role="button"]');
+    const selectedButton = screen.getByText('#8').closest('button');
     expect(selectedButton).toHaveAttribute('data-selected', 'true');
   });
 
@@ -32,7 +32,7 @@ describe('JobQueue', () => {
     const onSelect = vi.fn();
     render(<JobQueue workflows={mockWorkflows} onSelect={onSelect} />);
 
-    const button = screen.getByText('#8').closest('[role="button"]');
+    const button = screen.getByText('#8').closest('button');
     expect(button).not.toBeNull();
     fireEvent.click(button!);
     expect(onSelect).toHaveBeenCalledWith('wf-001');

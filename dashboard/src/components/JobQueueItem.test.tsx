@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { JobQueueItem } from './JobQueueItem';
 import { createMockWorkflowSummary } from '@/__tests__/fixtures';
 
@@ -29,13 +30,31 @@ describe('JobQueueItem', () => {
     expect(button).toHaveAttribute('data-selected', 'true');
   });
 
-  it.each([
-    { interaction: 'click', trigger: (el: Element) => fireEvent.click(el) },
-    { interaction: 'Enter key', trigger: (el: Element) => fireEvent.keyDown(el, { key: 'Enter' }) },
-  ])('calls onSelect on $interaction', ({ trigger }) => {
+  it('calls onSelect on click', async () => {
+    const user = userEvent.setup();
     const onSelect = vi.fn();
     render(<JobQueueItem workflow={mockWorkflow} selected={false} onSelect={onSelect} />);
-    trigger(screen.getByRole('button'));
+    await user.click(screen.getByRole('button'));
+    expect(onSelect).toHaveBeenCalledWith('wf-001');
+  });
+
+  it('calls onSelect on Enter key (native button behavior)', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<JobQueueItem workflow={mockWorkflow} selected={false} onSelect={onSelect} />);
+    const button = screen.getByRole('button');
+    button.focus();
+    await user.keyboard('{Enter}');
+    expect(onSelect).toHaveBeenCalledWith('wf-001');
+  });
+
+  it('calls onSelect on Space key (native button behavior)', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<JobQueueItem workflow={mockWorkflow} selected={false} onSelect={onSelect} />);
+    const button = screen.getByRole('button');
+    button.focus();
+    await user.keyboard(' ');
     expect(onSelect).toHaveBeenCalledWith('wf-001');
   });
 });

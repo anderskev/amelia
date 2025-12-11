@@ -31,22 +31,14 @@ interface JobQueueItemProps {
 export function JobQueueItem({ workflow, selected, onSelect, className }: JobQueueItemProps) {
   const handleClick = () => onSelect(workflow.id);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onSelect(workflow.id);
-    }
-  };
-
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
       data-slot="job-queue-item"
       data-selected={selected}
       className={cn(
+        'w-full text-left',
         'flex flex-col gap-1.5 p-3 rounded-lg border transition-all duration-200 cursor-pointer',
         'hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         selected
@@ -69,6 +61,6 @@ export function JobQueueItem({ workflow, selected, onSelect, className }: JobQue
       </div>
 
       {/* TODO: Add ETA row when backend provides estimated completion time */}
-    </div>
+    </button>
   );
 }
