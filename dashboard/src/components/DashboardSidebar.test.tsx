@@ -8,7 +8,7 @@ import { useDemoMode } from '@/hooks/useDemoMode';
 // Mock the workflow store
 vi.mock('@/store/workflowStore', () => ({
   useWorkflowStore: vi.fn((selector) => {
-    const state = { isConnected: true, selectWorkflow: vi.fn() };
+    const state = { isConnected: true };
     return selector(state);
   }),
 }));

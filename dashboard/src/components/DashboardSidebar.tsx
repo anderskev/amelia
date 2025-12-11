@@ -115,17 +115,11 @@ function SidebarNavLink({ to, icon: Icon, label, onClick, comingSoon }: SidebarN
  * - Server connection status indicator
  */
 export function DashboardSidebar() {
-  // Get connection status and selection actions from store
+  // Get connection status from store
   const isConnected = useWorkflowStore((state) => state.isConnected);
-  const selectWorkflow = useWorkflowStore((state) => state.selectWorkflow);
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
   const { isDemo } = useDemoMode();
-
-  // Clear workflow selection when clicking Active Jobs
-  const handleActiveJobsClick = () => {
-    selectWorkflow(null);
-  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -171,7 +165,6 @@ export function DashboardSidebar() {
                 to="/workflows"
                 icon={GitBranch}
                 label="Active Jobs"
-                onClick={handleActiveJobsClick}
               />
               <SidebarNavLink
                 to="/history"

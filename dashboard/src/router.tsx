@@ -20,7 +20,8 @@ import { approveAction, rejectAction, cancelAction } from '@/actions/workflows';
  * Route structure:
  * - `/` → Redirects to `/workflows`
  * - `/workflows` → Active workflows list (lazy-loaded)
- * - `/workflows/:id` → Workflow detail view (lazy-loaded)
+ * - `/workflows/:id` → Active workflows list with specific workflow selected (lazy-loaded)
+ * - `/workflows/:id/detail` → Workflow detail view (lazy-loaded)
  * - `/workflows/:id/approve` → Approve workflow action
  * - `/workflows/:id/reject` → Reject workflow action
  * - `/workflows/:id/cancel` → Cancel workflow action
@@ -42,19 +43,32 @@ export const router = createBrowserRouter([
       },
       {
         path: 'workflows',
-        loader: workflowsLoader,
-        lazy: async () => {
-          const { default: Component } = await import('@/pages/WorkflowsPage');
-          return { Component };
-        },
-      },
-      {
-        path: 'workflows/:id',
-        loader: workflowDetailLoader,
-        lazy: async () => {
-          const { default: Component } = await import('@/pages/WorkflowDetailPage');
-          return { Component };
-        },
+        children: [
+          {
+            index: true,
+            loader: workflowsLoader,
+            lazy: async () => {
+              const { default: Component } = await import('@/pages/WorkflowsPage');
+              return { Component };
+            },
+          },
+          {
+            path: ':id',
+            loader: workflowsLoader,
+            lazy: async () => {
+              const { default: Component } = await import('@/pages/WorkflowsPage');
+              return { Component };
+            },
+          },
+          {
+            path: ':id/detail',
+            loader: workflowDetailLoader,
+            lazy: async () => {
+              const { default: Component } = await import('@/pages/WorkflowDetailPage');
+              return { Component };
+            },
+          },
+        ],
       },
       {
         path: 'workflows/:id/approve',

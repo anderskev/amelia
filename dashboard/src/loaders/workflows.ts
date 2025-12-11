@@ -15,42 +15,51 @@ import { logger } from '@/lib/logger';
 /**
  * Loader for the active workflows page.
  * Fetches all in_progress and blocked workflows from the API,
- * plus pre-loads the active workflow detail for instant display.
+ * plus pre-loads the workflow detail based on URL parameter or active workflow.
  *
- * @param args - React Router loader arguments containing request URL.
- * @returns Object containing the list of active workflows and optional active detail.
+ * @param args - React Router loader arguments containing request URL and optional route params.
+ * @returns Object containing the list of active workflows and optional detail.
  * @throws {Error} When the API request fails.
  * @example
  * ```typescript
- * const { workflows, activeDetail } = await workflowsLoader({ request });
+ * // For /workflows - loads active workflow detail
+ * const { workflows, detail } = await workflowsLoader({ request });
+ *
+ * // For /workflows/:id - loads specific workflow detail
+ * const { workflows, detail } = await workflowsLoader({ request, params: { id: 'wf-123' } });
  * ```
  */
-export async function workflowsLoader({ request }: LoaderFunctionArgs): Promise<WorkflowsLoaderData> {
+export async function workflowsLoader({ request, params }: LoaderFunctionArgs): Promise<WorkflowsLoaderData> {
   const url = new URL(request.url);
   const { isDemo, demoType } = getDemoMode(url.searchParams);
 
   if (isDemo && demoType === 'infinite') {
     const workflows = getMockActiveWorkflows();
     const active = getActiveWorkflow(workflows);
-    const activeDetail = active ? getMockWorkflowDetail(active.id) : null;
-    return { workflows, activeDetail };
+    // Use id param if provided, otherwise use active workflow
+    const targetId = params?.id ?? active?.id;
+    const detail = targetId ? getMockWorkflowDetail(targetId) : null;
+    return { workflows, detail };
   }
 
   const workflows = await api.getWorkflows();
   const active = getActiveWorkflow(workflows);
 
-  // Fetch active detail with error handling - don't fail the whole page if detail fails
-  let activeDetail = null;
-  if (active) {
+  // Determine which workflow detail to fetch:
+  // 1. If id param exists, fetch that specific workflow
+  // 2. Otherwise, fetch the active workflow detail
+  const targetId = params?.id ?? active?.id;
+  let detail = null;
+  if (targetId) {
     try {
-      activeDetail = await api.getWorkflow(active.id);
+      detail = await api.getWorkflow(targetId);
     } catch (error) {
-      logger.warn('Failed to fetch active workflow detail', { workflowId: active.id, error });
+      logger.warn('Failed to fetch workflow detail', { workflowId: targetId, error });
       // Continue with null - page will show list without canvas
     }
   }
 
-  return { workflows, activeDetail };
+  return { workflows, detail };
 }
 
 /**

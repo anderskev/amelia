@@ -32,7 +32,7 @@ describe('Workflow Loaders', () => {
   });
 
   describe('workflowsLoader', () => {
-    it('should return workflows list and activeDetail in response', async () => {
+    it('should return workflows list and detail in response', async () => {
       const mockWorkflowSummary = createMockWorkflowSummary({
         id: 'wf-1',
         issue_id: 'ISSUE-1',
@@ -59,23 +59,23 @@ describe('Workflow Loaders', () => {
 
       expect(api.getWorkflows).toHaveBeenCalledTimes(1);
       expect(result).toHaveProperty('workflows');
-      expect(result).toHaveProperty('activeDetail');
+      expect(result).toHaveProperty('detail');
       expect(result.workflows).toEqual([mockWorkflowSummary]);
-      expect(result.activeDetail).toEqual(mockWorkflowDetail);
+      expect(result.detail).toEqual(mockWorkflowDetail);
     });
 
-    it('should return null activeDetail when no workflows exist', async () => {
+    it('should return null detail when no workflows exist', async () => {
       vi.mocked(api.getWorkflows).mockResolvedValueOnce([]);
       vi.mocked(getActiveWorkflow).mockReturnValueOnce(null);
 
       const result = await workflowsLoader(createLoaderArgs({}));
 
       expect(result.workflows).toEqual([]);
-      expect(result.activeDetail).toBeNull();
+      expect(result.detail).toBeNull();
       expect(api.getWorkflow).not.toHaveBeenCalled();
     });
 
-    it('should return null activeDetail when detail API call fails', async () => {
+    it('should return null detail when detail API call fails', async () => {
       const mockWorkflowSummary = createMockWorkflowSummary({
         id: 'wf-1',
         issue_id: 'ISSUE-1',
@@ -92,7 +92,7 @@ describe('Workflow Loaders', () => {
       const result = await workflowsLoader(createLoaderArgs({}));
 
       expect(result.workflows).toEqual([mockWorkflowSummary]);
-      expect(result.activeDetail).toBeNull();
+      expect(result.detail).toBeNull();
     });
 
     it('should include active workflow detail when running workflow exists', async () => {
@@ -113,7 +113,7 @@ describe('Workflow Loaders', () => {
 
       expect(getActiveWorkflow).toHaveBeenCalledWith([runningWorkflow]);
       expect(api.getWorkflow).toHaveBeenCalledWith(runningWorkflow.id);
-      expect(result.activeDetail).toEqual(runningDetail);
+      expect(result.detail).toEqual(runningDetail);
     });
 
     it('should propagate API errors from getWorkflows', async () => {

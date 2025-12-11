@@ -44,6 +44,27 @@ export function getActiveWorkflow(workflows: WorkflowSummary[]): WorkflowSummary
 }
 
 /**
+ * Determines the end time for elapsed time calculation.
+ *
+ * @param workflow - The workflow detail
+ * @returns End time in milliseconds since epoch
+ */
+function getEndTime(workflow: WorkflowDetail): number {
+  if (workflow.completed_at) {
+    return new Date(workflow.completed_at).getTime();
+  }
+
+  if (workflow.status === 'in_progress') {
+    return Date.now();  // Still running, show live elapsed time
+  }
+
+  // Blocked, failed, canceled - use last event time
+  return workflow.recent_events?.at(-1)?.timestamp
+    ? new Date(workflow.recent_events.at(-1)!.timestamp).getTime()
+    : Date.now();
+}
+
+/**
  * Formats the elapsed time for a workflow in HH:MM format.
  *
  * For running workflows: calculates time from started_at to now
@@ -58,9 +79,7 @@ export function formatElapsedTime(workflow: WorkflowDetail | null): string {
   }
 
   const startTime = new Date(workflow.started_at).getTime();
-  const endTime = workflow.completed_at
-    ? new Date(workflow.completed_at).getTime()
-    : Date.now();
+  const endTime = getEndTime(workflow);
 
   const elapsedMs = endTime - startTime;
   const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));

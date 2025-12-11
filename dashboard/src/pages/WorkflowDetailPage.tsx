@@ -15,7 +15,7 @@ import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { buildPipeline } from '@/utils/pipeline';
-import { formatElapsedTime } from '@/utils/workflow';
+import { useElapsedTime } from '@/hooks';
 import { workflowDetailLoader } from '@/loaders';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -30,6 +30,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
  */
 export default function WorkflowDetailPage() {
   const { workflow } = useLoaderData<typeof workflowDetailLoader>();
+  const elapsedTime = useElapsedTime(workflow);
 
   if (!workflow) {
     return (
@@ -68,7 +69,7 @@ export default function WorkflowDetailPage() {
 
         <PageHeader.Center>
           <PageHeader.Label>ELAPSED</PageHeader.Label>
-          <PageHeader.Value glow>{formatElapsedTime(workflow)}</PageHeader.Value>
+          <PageHeader.Value glow>{elapsedTime}</PageHeader.Value>
         </PageHeader.Center>
 
         <PageHeader.Right>

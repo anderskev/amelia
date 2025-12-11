@@ -84,29 +84,37 @@ const mockSecondWorkflowDetail: WorkflowDetail = {
 /**
  * Helper to render WorkflowsPage with router context and loader data
  */
-function renderWithRouter(loaderData: { workflows: WorkflowSummary[]; activeDetail: WorkflowDetail | null }) {
+function renderWithRouter(
+  loaderData: { workflows: WorkflowSummary[]; detail: WorkflowDetail | null },
+  initialPath = '/'
+) {
   const router = createMemoryRouter(
     [
       {
-        path: '/',
-        element: <WorkflowsPage />,
-        loader: () => loaderData,
-        HydrateFallback: () => null,
-      },
-      {
-        path: '/workflows/:id',
-        element: <div>Detail Page</div>,
-        loader: ({ params }) => {
-          // Return the appropriate detail based on the workflow ID
-          if (params.id === 'wf-002') {
-            return { workflow: mockSecondWorkflowDetail };
-          }
-          return { workflow: mockWorkflowDetail };
-        },
-        HydrateFallback: () => null,
+        path: '/workflows',
+        children: [
+          {
+            index: true,
+            element: <WorkflowsPage />,
+            loader: () => loaderData,
+            HydrateFallback: () => null,
+          },
+          {
+            path: ':id',
+            element: <WorkflowsPage />,
+            loader: ({ params }) => {
+              // Return the appropriate detail based on the workflow ID
+              if (params.id === 'wf-002') {
+                return { workflows: loaderData.workflows, detail: mockSecondWorkflowDetail };
+              }
+              return { workflows: loaderData.workflows, detail: mockWorkflowDetail };
+            },
+            HydrateFallback: () => null,
+          },
+        ],
       },
     ],
-    { initialEntries: ['/'] }
+    { initialEntries: [initialPath] }
   );
 
   return render(<RouterProvider router={router} />);
@@ -123,15 +131,15 @@ describe('WorkflowsPage', () => {
   it('should render WorkflowEmptyState when no workflows', async () => {
     vi.mocked(getActiveWorkflow).mockReturnValue(null);
 
-    renderWithRouter({ workflows: [], activeDetail: null });
+    renderWithRouter({ workflows: [], detail: null }, '/workflows');
 
     await waitFor(() => {
       expect(screen.getByText(/no active workflows/i)).toBeInTheDocument();
     });
   });
 
-  it('should display workflow header with issue info when activeDetail exists', async () => {
-    renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
+  it('should display workflow header with issue info when detail exists', async () => {
+    renderWithRouter({ workflows: [mockWorkflowSummary], detail: mockWorkflowDetail }, '/workflows');
 
     await waitFor(() => {
       // PageHeader uses banner role
@@ -144,8 +152,8 @@ describe('WorkflowsPage', () => {
     });
   });
 
-  it('should display workflow pipeline canvas when activeDetail exists', async () => {
-    renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
+  it('should display workflow pipeline canvas when detail exists', async () => {
+    renderWithRouter({ workflows: [mockWorkflowSummary], detail: mockWorkflowDetail }, '/workflows');
 
     await waitFor(() => {
       // WorkflowCanvas renders pipeline nodes
@@ -155,7 +163,7 @@ describe('WorkflowsPage', () => {
   });
 
   it('should display job queue and activity log side by side', async () => {
-    renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
+    renderWithRouter({ workflows: [mockWorkflowSummary], detail: mockWorkflowDetail }, '/workflows');
 
     await waitFor(() => {
       // JobQueue renders the section title
@@ -165,8 +173,8 @@ describe('WorkflowsPage', () => {
     });
   });
 
-  it('should not show loading skeleton when activeDetail is pre-loaded from loader', async () => {
-    renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
+  it('should not show loading skeleton when detail is pre-loaded from loader', async () => {
+    renderWithRouter({ workflows: [mockWorkflowSummary], detail: mockWorkflowDetail }, '/workflows');
 
     await waitFor(() => {
       // Should not see loading text when detail is pre-loaded
@@ -177,7 +185,7 @@ describe('WorkflowsPage', () => {
   });
 
   it('should highlight selected workflow in job queue', async () => {
-    renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
+    renderWithRouter({ workflows: [mockWorkflowSummary], detail: mockWorkflowDetail }, '/workflows');
 
     await waitFor(() => {
       // Query the job queue button directly by its accessible name
@@ -188,7 +196,7 @@ describe('WorkflowsPage', () => {
   });
 
   it('should call buildPipeline with workflow detail', async () => {
-    renderWithRouter({ workflows: [mockWorkflowSummary], activeDetail: mockWorkflowDetail });
+    renderWithRouter({ workflows: [mockWorkflowSummary], detail: mockWorkflowDetail }, '/workflows');
 
     await waitFor(() => {
       expect(buildPipeline).toHaveBeenCalledWith(mockWorkflowDetail);
@@ -199,10 +207,13 @@ describe('WorkflowsPage', () => {
     const user = userEvent.setup();
 
     // Render with two workflows, active workflow is wf-001
-    renderWithRouter({
-      workflows: [mockWorkflowSummary, mockSecondWorkflowSummary],
-      activeDetail: mockWorkflowDetail,
-    });
+    renderWithRouter(
+      {
+        workflows: [mockWorkflowSummary, mockSecondWorkflowSummary],
+        detail: mockWorkflowDetail,
+      },
+      '/workflows'
+    );
 
     // Wait for initial render showing active workflow (PROJ-123)
     await waitFor(() => {
@@ -210,27 +221,27 @@ describe('WorkflowsPage', () => {
       expect(within(pageHeader).getByText('PROJ-123')).toBeInTheDocument();
     });
 
-    // Click the second workflow (PROJ-456) - should trigger fetch
+    // Click the second workflow (PROJ-456) - should navigate to /workflows/wf-002
     const secondWorkflowButton = screen.getByRole('button', { name: /PROJ-456/ });
     await user.click(secondWorkflowButton);
 
-    // Wait for the fetched workflow detail to display
+    // Wait for the workflow detail to display (loaded via URL param)
     await waitFor(() => {
       const pageHeader = screen.getByRole('banner');
       expect(within(pageHeader).getByText('PROJ-456')).toBeInTheDocument();
     });
 
-    // Click back to the active workflow (PROJ-123) - should show pre-loaded activeDetail
+    // Click back to the active workflow (PROJ-123) - should navigate to /workflows/wf-001
     const firstWorkflowButton = screen.getByRole('button', { name: /PROJ-123/ });
     await user.click(firstWorkflowButton);
 
-    // BUG: Currently shows PROJ-456 (stale fetcher data) instead of PROJ-123 (activeDetail)
+    // Should show PROJ-123 detail from loader
     await waitFor(() => {
       const pageHeader = screen.getByRole('banner');
       expect(within(pageHeader).getByText('PROJ-123')).toBeInTheDocument();
     });
 
-    // Verify buildPipeline was called with the active workflow detail, not the fetched one
+    // Verify buildPipeline was called with the active workflow detail
     expect(buildPipeline).toHaveBeenLastCalledWith(mockWorkflowDetail);
   });
 });

@@ -11,7 +11,7 @@
  * job queue and activity log in a split view below.
  */
 import { useCallback, useEffect, useRef } from 'react';
-import { useLoaderData, useFetcher } from 'react-router-dom';
+import { useLoaderData, useNavigate, useParams } from 'react-router-dom';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { WorkflowEmptyState } from '@/components/WorkflowEmptyState';
@@ -19,12 +19,11 @@ import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { ActivityLog } from '@/components/ActivityLog';
-import { ActivityLogSkeleton } from '@/components/ActivityLogSkeleton';
 import { JobQueue } from '@/components/JobQueue';
-import { useWorkflowStore } from '@/store/workflowStore';
-import { getActiveWorkflow, formatElapsedTime } from '@/utils/workflow';
+import { getActiveWorkflow } from '@/utils/workflow';
+import { useElapsedTime } from '@/hooks';
 import { buildPipeline } from '@/utils/pipeline';
-import type { workflowsLoader, workflowDetailLoader } from '@/loaders/workflows';
+import type { workflowsLoader } from '@/loaders/workflows';
 
 /**
  * Displays workflow canvas and job queue with activity log.
@@ -37,39 +36,31 @@ import type { workflowsLoader, workflowDetailLoader } from '@/loaders/workflows'
  * 1. Running workflow (status === 'in_progress')
  * 2. Most recently started completed workflow
  *
+ * Selection is managed via URL:
+ * - /workflows - shows active workflow
+ * - /workflows/:id - shows specific workflow
+ *
  * @returns The workflows page UI
  */
 export default function WorkflowsPage() {
-  const { workflows, activeDetail } = useLoaderData<typeof workflowsLoader>();
-  const selectedId = useWorkflowStore((state) => state.selectedWorkflowId);
-  const selectWorkflow = useWorkflowStore((state) => state.selectWorkflow);
-  const fetcher = useFetcher<typeof workflowDetailLoader>();
+  const { workflows, detail } = useLoaderData<typeof workflowsLoader>();
+  const navigate = useNavigate();
+  const params = useParams<{ id?: string }>();
   const jobQueueRef = useRef<HTMLDivElement>(null);
 
-  // Auto-select active workflow
+  // Determine which workflow is displayed
   const activeWorkflow = getActiveWorkflow(workflows);
-  const displayedId = selectedId ?? activeWorkflow?.id ?? null;
+  const displayedId = params.id ?? activeWorkflow?.id ?? null;
+  const elapsedTime = useElapsedTime(detail);
 
-  // Determine which detail to show:
-  // 1. If user selected a workflow and fetcher has data for THAT workflow, use fetcher data
-  // 2. If displaying the active workflow, use pre-loaded activeDetail
-  // 3. Otherwise show loading state
-  const isLoadingDetail = fetcher.state !== 'idle';
-  let detail = null;
-  if (selectedId && fetcher.data?.workflow?.id === selectedId) {
-    detail = fetcher.data.workflow;
-  } else if (displayedId === activeWorkflow?.id) {
-    detail = activeDetail;
-  }
-
-  // Fetch detail when user selects a different workflow
-  // NOTE: Uses existing /workflows/:id route and workflowDetailLoader
+  // Handle workflow selection by navigating to URL
   const handleSelect = useCallback((id: string | null) => {
-    selectWorkflow(id);
-    if (id && id !== activeWorkflow?.id) {
-      fetcher.load(`/workflows/${id}`);
+    if (id) {
+      navigate(`/workflows/${id}`);
+    } else {
+      navigate('/workflows');
     }
-  }, [selectWorkflow, activeWorkflow?.id, fetcher]);
+  }, [navigate]);
 
   // Clear selection when clicking outside the job queue
   useEffect(() => {
@@ -79,14 +70,14 @@ export default function WorkflowsPage() {
       const isInsideJobQueue = jobQueueRef.current?.contains(target);
       const isInsideSidebar = target.closest('[data-slot="sidebar"]');
 
-      if (!isInsideJobQueue && !isInsideSidebar && selectedId) {
-        selectWorkflow(null);
+      if (!isInsideJobQueue && !isInsideSidebar && params.id) {
+        navigate('/workflows');
       }
     };
 
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [selectedId, selectWorkflow]);
+  }, [params.id, navigate]);
 
   if (workflows.length === 0) {
     return <WorkflowEmptyState variant="no-workflows" />;
@@ -110,7 +101,7 @@ export default function WorkflowsPage() {
         </PageHeader.Left>
         <PageHeader.Center>
           <PageHeader.Label>ELAPSED</PageHeader.Label>
-          <PageHeader.Value glow>{formatElapsedTime(detail)}</PageHeader.Value>
+          <PageHeader.Value glow>{elapsedTime}</PageHeader.Value>
         </PageHeader.Center>
         {detail && (
           <PageHeader.Right>
@@ -119,10 +110,7 @@ export default function WorkflowsPage() {
         )}
       </PageHeader>
       <Separator />
-      <WorkflowCanvas
-        pipeline={pipeline ?? undefined}
-        isLoading={isLoadingDetail && !!displayedId}
-      />
+      <WorkflowCanvas pipeline={pipeline ?? undefined} />
 
       {/* Bottom: Queue + Activity (split) - ScrollArea provides overflow handling */}
       <div className="flex-1 grid grid-cols-[320px_1fr] grid-rows-[1fr] gap-4 p-4 overflow-hidden relative z-10 min-h-0">
@@ -138,8 +126,6 @@ export default function WorkflowsPage() {
         <ScrollArea className="h-full overflow-hidden">
           {detail ? (
             <ActivityLog workflowId={detail.id} initialEvents={detail.recent_events} />
-          ) : isLoadingDetail ? (
-            <ActivityLogSkeleton />
           ) : null}
         </ScrollArea>
       </div>
