@@ -216,23 +216,24 @@ See [Configuration Reference](docs/configuration.md) for full details.
 ## Current Status
 
 **What works:**
-- Full orchestrator loop with human approval gates (CLI mode)
+- Full orchestrator loop with human approval gates (CLI and web dashboard)
 - CLI driver (Claude CLI wrapper) with structured outputs, streaming, and agentic execution
 - Local code review with competitive strategy
 - GitHub tracker integration (via `gh` CLI)
 - Real tool execution in Developer agent (shell commands, file writes)
 - FastAPI server with SQLite persistence and WebSocket event streaming
-- Workflow state machine with event tracking
+- Web dashboard with workflow visualization, real-time activity log, and approval controls
 
 **Limitations:**
 
 _This is an experimental project. Set expectations accordingly._
 
-**Web Dashboard (not ready for use):**
-- All pages display "Coming soon" placeholders - no actual workflow data rendered
-- API client, WebSocket hooks, and data loaders are implemented but not connected to UI
-- Toast notifications only log to console
-- Connection status indicator is hardcoded
+**Web Dashboard (early access):**
+- Core pages implemented: Workflows (with canvas visualization), Workflow Detail, History
+- Logs page still shows "Coming soon" placeholder
+- Real-time updates via WebSocket with connection status indicator
+- Approval controls functional (approve/reject plans from browser)
+- Not yet battle-tested in production workflows
 
 **API Driver (OpenAI):**
 - No agentic execution support (structured mode only)
