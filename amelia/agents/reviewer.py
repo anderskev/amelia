@@ -3,9 +3,11 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import asyncio
 
+from loguru import logger
 from pydantic import BaseModel, Field
 
-from amelia.core.state import AgentMessage, ExecutionState, ReviewResult, Severity
+from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
+from amelia.core.state import ExecutionState, ReviewResult, Severity
 from amelia.drivers.base import DriverInterface
 
 
@@ -22,12 +24,100 @@ class ReviewResponse(BaseModel):
     comments: list[str] = Field(description="Specific feedback items.")
     severity: Severity = Field(description="Overall severity of the review findings.")
 
+
+class ReviewerContextStrategy(ContextStrategy):
+    """Context compilation strategy for code review.
+
+    Compiles minimal context for reviewing code changes against task requirements.
+    Uses a templated system prompt with {persona} placeholder to maximize cache hits
+    across same-persona reviews.
+    """
+
+    SYSTEM_PROMPT_TEMPLATE = """You are an expert code reviewer with a focus on {persona} aspects.
+Analyze the provided code changes and provide a comprehensive review."""
+
+    ALLOWED_SECTIONS = {"task", "issue", "diff", "criteria"}
+
+    def compile(self, state: ExecutionState, persona: str = "General") -> CompiledContext:
+        """Compile ExecutionState into review context.
+
+        Args:
+            state: Current execution state containing task and code changes.
+            persona: Review perspective (e.g., "Security", "Performance", "General").
+
+        Returns:
+            CompiledContext with system prompt and relevant sections.
+
+        Raises:
+            ValueError: If code_changes_for_review is missing or sections are invalid.
+        """
+        # Format system prompt with persona
+        system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(persona=persona)
+
+        # Get current task or fall back to issue summary
+        current_task = self.get_current_task(state)
+        issue_summary = self.get_issue_summary(state)
+        if not current_task and not issue_summary:
+            raise ValueError("No task or issue context found for review")
+
+        # Get code changes
+        code_changes = state.code_changes_for_review
+        if not code_changes:
+            raise ValueError("No code changes provided for review")
+
+        # Build sections
+        sections: list[ContextSection] = []
+
+        # Task or issue section - what was supposed to be done
+        if current_task:
+            sections.append(
+                ContextSection(
+                    name="task",
+                    content=current_task.description,
+                    source="state.current_task.description"
+                )
+            )
+        else:
+            sections.append(
+                ContextSection(
+                    name="issue",
+                    content=issue_summary,  # type: ignore[arg-type]
+                    source="state.issue"
+                )
+            )
+
+        # Diff section - code changes to review (required)
+        sections.append(
+            ContextSection(
+                name="diff",
+                content=f"```diff\n{code_changes}\n```",
+                source="state.code_changes_for_review"
+            )
+        )
+
+        # Criteria section - acceptance criteria (optional, if available)
+        # Note: Current Task model doesn't have acceptance_criteria field
+        # This is a placeholder for when it's added to the schema
+        # For now, we'll skip this section since it's optional
+
+        # Validate sections before returning
+        self.validate_sections(sections)
+
+        return CompiledContext(
+            system_prompt=system_prompt,
+            sections=sections
+        )
+
+
 class Reviewer:
     """Agent responsible for reviewing code changes against requirements.
 
     Attributes:
         driver: LLM driver interface for generating reviews.
+        context_strategy: Strategy for compiling review context.
     """
+
+    context_strategy: type[ContextStrategy] = ReviewerContextStrategy
 
     def __init__(self, driver: DriverInterface):
         """Initialize the Reviewer agent.
@@ -65,31 +155,36 @@ class Reviewer:
         Returns:
             ReviewResult with approval status, comments, and severity.
         """
-        system_prompt = (
-            f"You are an expert code reviewer with a focus on {persona} aspects. "
-            "Analyze the provided code changes in the context of the given issue and "
-            "provide a comprehensive review."
+        # Prepare state for context strategy
+        # Set code_changes_for_review if not already set
+        review_state = state
+        updates: dict[str, str | None] = {}
+        if not state.code_changes_for_review:
+            updates["code_changes_for_review"] = code_changes
+        # Set current_task_id if not set but plan has tasks
+        if not state.current_task_id and state.plan and state.plan.tasks:
+            updates["current_task_id"] = state.plan.tasks[0].id
+        if updates:
+            review_state = state.model_copy(update=updates)
+
+        # Use context strategy to compile review context
+        strategy = self.context_strategy()
+        # Type assertion needed because strategy.compile() signature varies by implementation
+        assert isinstance(strategy, ReviewerContextStrategy)
+        compiled_context = strategy.compile(review_state, persona=persona)
+
+        logger.debug(
+            "Compiled context",
+            agent="reviewer",
+            sections=[s.name for s in compiled_context.sections],
+            system_prompt_length=len(compiled_context.system_prompt) if compiled_context.system_prompt else 0
         )
 
-        issue_title = state.issue.title if state.issue else "No Issue Title"
-        issue_description = state.issue.description if state.issue else "No Issue Description"
-
-        user_prompt = (
-            f"Given the following issue:\n\n"
-            f"Title: {issue_title}\n"
-            f"Description: {issue_description}\n\n"
-            f"And the following code changes to review:\n"
-            f"```diff\n{code_changes}\n```\n\n"
-            f"Provide your review indicating approval status, comments, and overall severity."
-        )
-        
-        prompt_messages = [
-            AgentMessage(role="system", content=system_prompt),
-            AgentMessage(role="user", content=user_prompt)
-        ]
+        # Convert to messages
+        prompt_messages = strategy.to_messages(compiled_context)
 
         response = await self.driver.generate(messages=prompt_messages, schema=ReviewResponse)
-        
+
         return ReviewResult(
             reviewer_persona=persona,
             approved=response.approved,

@@ -47,7 +47,7 @@ async def call_architect_node(state: ExecutionState) -> dict[str, Any]:
 
     driver = DriverFactory.get_driver(state.profile.driver)
     architect = Architect(driver)
-    plan_output = await architect.plan(state.issue, output_dir=state.profile.plan_output_dir)
+    plan_output = await architect.plan(state)
 
     # Log the agent action
     logger.info(

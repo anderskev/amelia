@@ -358,3 +358,50 @@ def git_repo_with_changes(tmp_path):
 def cli_runner():
     """Typer CLI test runner for command testing."""
     return CliRunner()
+
+
+@pytest.fixture
+def section_helper():
+    """Helper for extracting and validating context sections.
+
+    Provides utility methods for working with CompiledContext sections:
+    - get(context, name): Extract a section by name, returns None if not found
+    - get_names(context): Get set of all section names
+    - assert_has(context, *names): Assert context has all specified sections
+    - assert_missing(context, *names): Assert context doesn't have specified sections
+
+    Example usage:
+        def test_example(section_helper):
+            context = strategy.compile(state)
+            task_section = section_helper.get(context, "task")
+            assert task_section is not None
+
+            section_helper.assert_has(context, "task", "files")
+            section_helper.assert_missing(context, "issue")
+    """
+    class SectionHelper:
+        @staticmethod
+        def get(context, name):
+            """Get section by name, returns None if not found."""
+            return next((s for s in context.sections if s.name == name), None)
+
+        @staticmethod
+        def get_names(context):
+            """Get set of all section names."""
+            return {s.name for s in context.sections}
+
+        @staticmethod
+        def assert_has(context, *names):
+            """Assert context has all specified sections."""
+            actual = {s.name for s in context.sections}
+            for name in names:
+                assert name in actual, f"Expected section '{name}' not found. Available: {actual}"
+
+        @staticmethod
+        def assert_missing(context, *names):
+            """Assert context doesn't have specified sections."""
+            actual = {s.name for s in context.sections}
+            for name in names:
+                assert name not in actual, f"Section '{name}' should not be present. Found: {actual}"
+
+    return SectionHelper()

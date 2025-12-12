@@ -4,9 +4,11 @@
 from datetime import date
 from pathlib import Path
 
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from amelia.core.state import AgentMessage, Task, TaskDAG
+from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
+from amelia.core.state import AgentMessage, ExecutionState, Task, TaskDAG
 from amelia.core.types import Design, Issue
 from amelia.drivers.base import DriverInterface
 
@@ -47,12 +49,67 @@ def _slugify(text: str) -> str:
     return text.lower().replace(" ", "-").replace("_", "-")[:50]
 
 
+class ArchitectContextStrategy(ContextStrategy):
+    """Context compilation strategy for the Architect agent.
+
+    Compiles minimal context for planning by including issue information
+    and optional design context. Excludes developer history and review history
+    to keep the context focused on planning.
+    """
+
+    SYSTEM_PROMPT = """You are a senior software architect creating implementation plans.
+You analyze issues and produce structured task DAGs with clear dependencies."""
+
+    ALLOWED_SECTIONS = {"issue", "design"}
+
+    def compile(self, state: ExecutionState) -> CompiledContext:
+        """Compile ExecutionState into context for planning.
+
+        Args:
+            state: The current execution state.
+
+        Returns:
+            CompiledContext with system prompt and relevant sections.
+
+        Raises:
+            ValueError: If required sections are missing.
+        """
+        sections: list[ContextSection] = []
+
+        # Issue section (required)
+        issue_summary = self.get_issue_summary(state)
+        if not issue_summary:
+            raise ValueError("Issue context is required for planning")
+
+        sections.append(
+            ContextSection(
+                name="issue",
+                content=issue_summary,
+                source="state.issue",
+            )
+        )
+
+        # Design section (optional) - for future implementation
+        # Design context will be added when ExecutionState includes design field
+
+        # Validate all sections before returning
+        self.validate_sections(sections)
+
+        return CompiledContext(
+            system_prompt=self.SYSTEM_PROMPT,
+            sections=sections,
+        )
+
+
 class Architect:
     """Agent responsible for creating implementation plans from issues and designs.
 
     Attributes:
         driver: LLM driver interface for generating plans.
+        context_strategy: Strategy for compiling context from ExecutionState.
     """
+
+    context_strategy: type[ContextStrategy] = ArchitectContextStrategy
 
     def __init__(self, driver: DriverInterface):
         """Initialize the Architect agent.
@@ -64,71 +121,70 @@ class Architect:
 
     async def plan(
         self,
-        issue: Issue,
+        state: ExecutionState,
         design: Design | None = None,
-        output_dir: str = "docs/plans"
+        output_dir: str | None = None
     ) -> PlanOutput:
         """Generate a development plan from an issue and optional design.
 
         Creates a structured TaskDAG and saves a markdown version for human review.
 
         Args:
-            issue: The issue to generate a plan for.
+            state: The execution state containing the issue to plan for.
             design: Optional design context to incorporate into the plan.
             output_dir: Directory path where the markdown plan will be saved.
+                If None, uses profile's plan_output_dir from state.
 
         Returns:
             PlanOutput containing the task DAG and path to the saved markdown file.
+
+        Raises:
+            ValueError: If no issue is present in the state.
         """
-        context = self._build_context(issue, design)
-        task_dag = await self._generate_task_dag(context, issue)
-        markdown_path = self._save_markdown(task_dag, issue, design, output_dir)
+        if not state.issue:
+            raise ValueError("Cannot generate plan: no issue in ExecutionState")
+
+        # Use profile's output directory if not specified
+        if output_dir is None:
+            output_dir = state.profile.plan_output_dir
+
+        # Compile context using strategy
+        strategy = self.context_strategy()
+        compiled_context = strategy.compile(state)
+
+        logger.debug(
+            "Compiled context",
+            agent="architect",
+            sections=[s.name for s in compiled_context.sections],
+            system_prompt_length=len(compiled_context.system_prompt) if compiled_context.system_prompt else 0
+        )
+
+        # Generate task DAG using compiled context
+        task_dag = await self._generate_task_dag(compiled_context, state.issue, design)
+
+        # Save markdown
+        markdown_path = self._save_markdown(task_dag, state.issue, design, output_dir)
 
         return PlanOutput(task_dag=task_dag, markdown_path=markdown_path)
 
-    def _build_context(self, issue: Issue, design: Design | None) -> str:
-        """Build context string from issue and optional design.
-
-        Args:
-            issue: The issue to include in context.
-            design: Optional design context to incorporate.
-
-        Returns:
-            Formatted context string combining issue and design information.
-        """
-        context = f"Issue: {issue.title}\nDescription: {issue.description}\n"
-
-        if design:
-            context += "\nDesign Context:\n"
-            context += f"Title: {design.title}\n"
-            context += f"Goal: {design.goal}\n"
-            context += f"Architecture: {design.architecture}\n"
-            context += f"Tech Stack: {', '.join(design.tech_stack)}\n"
-            context += f"Components: {', '.join(design.components)}\n"
-            if design.data_flow:
-                context += f"Data Flow: {design.data_flow}\n"
-            if design.error_handling:
-                context += f"Error Handling: {design.error_handling}\n"
-            if design.testing_strategy:
-                context += f"Testing Strategy: {design.testing_strategy}\n"
-            if design.relevant_files:
-                context += f"Relevant Files: {', '.join(design.relevant_files)}\n"
-            if design.conventions:
-                context += f"Conventions: {design.conventions}\n"
-
-        return context
-
-    async def _generate_task_dag(self, context: str, issue: Issue) -> TaskDAG:
+    async def _generate_task_dag(
+        self,
+        compiled_context: CompiledContext,
+        issue: Issue,
+        design: Design | None = None
+    ) -> TaskDAG:
         """Generate TaskDAG using LLM.
 
         Args:
-            context: Formatted context string containing issue and design information.
+            compiled_context: Compiled context from the strategy.
             issue: Original issue being planned.
+            design: Optional design context (for backward compatibility with markdown).
 
         Returns:
             TaskDAG containing structured tasks with TDD steps.
         """
-        system_prompt = """You are an expert software architect creating implementation plans.
+        # Build detailed system prompt for task generation
+        detailed_system_prompt = """You are an expert software architect creating implementation plans.
 
 Your role is to break down the given context into a sequence of actionable development tasks.
 Each task MUST follow TDD (Test-Driven Development) principles.
@@ -151,19 +207,27 @@ For each task, provide:
 
 Each step should be 2-5 minutes of work. Include complete code, not placeholders."""
 
-        user_prompt = f"""Given the following context:
-
-{context}
-
-Create a detailed implementation plan with bite-sized TDD tasks.
+        user_prompt = """Create a detailed implementation plan with bite-sized TDD tasks.
 Ensure exact file paths, complete code in steps, and commands with expected output."""
 
-        prompt_messages = [
-            AgentMessage(role="system", content=system_prompt),
-            AgentMessage(role="user", content=user_prompt)
-        ]
+        # Convert compiled context to messages and append detailed user prompt
+        strategy = self.context_strategy()
+        base_messages = strategy.to_messages(compiled_context)
 
-        response = await self.driver.generate(messages=prompt_messages, schema=TaskListResponse)
+        # Replace or enhance the system prompt with detailed instructions
+        messages = []
+        for msg in base_messages:
+            if msg.role == "system":
+                messages.append(
+                    AgentMessage(role="system", content=detailed_system_prompt)
+                )
+            else:
+                messages.append(msg)
+
+        # Add user instruction
+        messages.append(AgentMessage(role="user", content=user_prompt))
+
+        response = await self.driver.generate(messages=messages, schema=TaskListResponse)
 
         return TaskDAG(tasks=response.tasks, original_issue=issue.id)
 
