@@ -8,7 +8,6 @@ Implements the core workflow: Issue → Architect (plan) → Human Approval →
 Developer (execute) ↔ Reviewer (review) → Done. Provides node functions for
 the state machine and the create_orchestrator_graph() factory.
 """
-import os
 import subprocess
 from typing import Any, Literal
 
@@ -184,9 +183,6 @@ async def call_developer_node(state: ExecutionState) -> dict[str, Any]:
     driver = DriverFactory.get_driver(state.profile.driver)
     developer = Developer(driver, execution_mode=state.profile.execution_mode)
 
-    # Get working directory for agentic execution
-    cwd = state.profile.working_dir or os.getcwd()
-
     ready_tasks = state.plan.get_ready_tasks()
 
     if not ready_tasks:
@@ -207,7 +203,9 @@ async def call_developer_node(state: ExecutionState) -> dict[str, Any]:
         logger.info(f"Orchestrator: Developer executing task {task.id}")
 
         try:
-            result = await developer.execute_task(task, cwd=cwd)
+            # Create state with current task ID for execution
+            current_state = state.model_copy(update={"current_task_id": task.id})
+            result = await developer.execute_current_task(current_state)
 
             if result.get("status") == "completed":
                 # Update status to completed (immutably)

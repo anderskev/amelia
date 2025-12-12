@@ -70,9 +70,9 @@ async def test_orchestrator_parallel_execution(
     profile = Profile(name=profile_name, driver=driver_type, tracker="noop", strategy="single")
     test_issue = Issue(id=issue_id, title=issue_title, description="Execute tasks in parallel.")
 
-    async def delayed_execute_task(_self: Any, task: Task, cwd: str | None = None) -> dict[str, str]:
+    async def delayed_execute_current_task(_self: Any, state: ExecutionState) -> dict[str, str]:
         await asyncio.sleep(0.05)
-        return {"status": "completed", "output": f"Task {task.id} finished"}
+        return {"status": "completed", "output": f"Task {state.current_task_id} finished"}
 
     mock_plan_output = PlanOutput(
         task_dag=TaskDAG(tasks=[
@@ -86,7 +86,7 @@ async def test_orchestrator_parallel_execution(
     mock_driver.generate.return_value = ReviewResponse(approved=True, comments=[], severity="low")
 
     with patch('amelia.agents.architect.Architect.plan', new_callable=AsyncMock) as mock_plan, \
-         patch('amelia.agents.developer.Developer.execute_task', new=delayed_execute_task), \
+         patch('amelia.agents.developer.Developer.execute_current_task', new=delayed_execute_current_task), \
          patch('amelia.drivers.factory.DriverFactory.get_driver', return_value=mock_driver), \
          patch('amelia.core.orchestrator.get_code_changes_for_review', new_callable=AsyncMock, return_value="mock code changes"), \
          patch('typer.confirm', return_value=True), \

@@ -78,7 +78,7 @@ class TestAgenticExecution:
             assert captured_cwd == "/tmp/test"
 
     async def test_structured_profile_does_not_use_agentic(self):
-        """Structured profile should use standard execute_task, not execute_agentic."""
+        """Structured profile should use execute_current_task, not execute_agentic directly."""
         profile = Profile(
             name="test",
             driver="cli:claude",
@@ -100,12 +100,12 @@ class TestAgenticExecution:
             mock_factory.get_driver.return_value = mock_driver
 
             mock_developer = AsyncMock()
-            mock_developer.execute_task.return_value = {"status": "completed", "output": "done"}
+            mock_developer.execute_current_task.return_value = {"status": "completed", "output": "done"}
             mock_developer_class.return_value = mock_developer
 
             await call_developer_node(state)
 
             # Developer should be initialized with structured mode
             mock_developer_class.assert_called_once_with(mock_driver, execution_mode="structured")
-            # execute_task should be called (not execute_agentic)
-            mock_developer.execute_task.assert_called_once()
+            # execute_current_task should be called
+            mock_developer.execute_current_task.assert_called_once()

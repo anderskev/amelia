@@ -134,6 +134,17 @@ class TaskDAG(BaseModel):
                 ready.append(task)
         return ready
 
+    def get_task(self, task_id: str) -> Task | None:
+        """Get a task by ID.
+
+        Args:
+            task_id: The task ID to find.
+
+        Returns:
+            The task if found, None otherwise.
+        """
+        return next((t for t in self.tasks if t.id == task_id), None)
+
 class ReviewResult(BaseModel):
     """Result from a code review.
 

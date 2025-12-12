@@ -12,8 +12,7 @@ from pydantic import BaseModel
 from amelia.core.constants import ToolName
 from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
 from amelia.core.exceptions import AgenticExecutionError
-from amelia.core.state import AgentMessage, ExecutionState, Task, TaskDAG
-from amelia.core.types import Profile
+from amelia.core.state import AgentMessage, ExecutionState, Task
 from amelia.drivers.base import DriverInterface
 
 
@@ -136,30 +135,40 @@ class Developer:
         self.driver = driver
         self.execution_mode = execution_mode
 
-    async def execute_task(self, task: Task, cwd: str | None = None) -> dict[str, Any]:
-        """Execute a single development task.
+    async def execute_current_task(self, state: ExecutionState) -> dict[str, Any]:
+        """Execute the current task from execution state.
 
         Args:
-            task: The task to execute.
-            cwd: Working directory for agentic execution.
+            state: Full execution state containing profile, plan, and current_task_id.
 
         Returns:
-            Dict with status and output.
+            Dict with status, task_id, and output.
 
         Raises:
+            ValueError: If current_task_id not found in plan.
             AgenticExecutionError: If agentic execution fails.
         """
-        if self.execution_mode == "agentic":
-            return await self._execute_agentic(task, cwd or os.getcwd())
-        else:
-            return await self._execute_structured(task)
+        if not state.plan or not state.current_task_id:
+            raise ValueError("State must have plan and current_task_id")
 
-    async def _execute_agentic(self, task: Task, cwd: str) -> dict[str, Any]:
+        task = state.plan.get_task(state.current_task_id)
+        if not task:
+            raise ValueError(f"Task not found: {state.current_task_id}")
+
+        cwd = state.profile.working_dir or os.getcwd()
+
+        if self.execution_mode == "agentic":
+            return await self._execute_agentic(task, cwd, state)
+        else:
+            return await self._execute_structured(task, state)
+
+    async def _execute_agentic(self, task: Task, cwd: str, state: ExecutionState) -> dict[str, Any]:
         """Execute task autonomously with full Claude tool access.
 
         Args:
             task: The task to execute.
             cwd: Working directory for execution.
+            state: Full execution state for context compilation.
 
         Returns:
             Dict with status and output.
@@ -167,17 +176,9 @@ class Developer:
         Raises:
             AgenticExecutionError: If execution fails.
         """
-        # Create minimal ExecutionState for context strategy
-        # Note: This is a temporary bridge until the orchestrator passes full state
-        minimal_state = ExecutionState(
-            profile=Profile(name="default", driver="api:openai", tracker="noop"),
-            plan=TaskDAG(tasks=[task], original_issue=task.description),
-            current_task_id=task.id,
-        )
-
-        # Use context strategy to build prompt
+        # Use context strategy with full state (no longer creating fake state)
         strategy = self.context_strategy()
-        context = strategy.compile(minimal_state)
+        context = strategy.compile(state)
 
         logger.debug(
             "Compiled context",
@@ -223,11 +224,12 @@ class Developer:
         elif event.type == "error":
             typer.secho(f"  Error: {event.content}", fg=typer.colors.RED)
 
-    async def _execute_structured(self, task: Task) -> dict[str, Any]:
+    async def _execute_structured(self, task: Task, state: ExecutionState) -> dict[str, Any]:
         """Execute task using structured step-by-step approach.
 
         Args:
             task: The task to execute.
+            state: Full execution state (for future context usage).
 
         Returns:
             Dict with status and output.

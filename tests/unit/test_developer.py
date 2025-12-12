@@ -9,41 +9,56 @@ import pytest
 
 from amelia.agents.developer import Developer
 from amelia.core.exceptions import AgenticExecutionError
+from amelia.core.state import TaskDAG
 from amelia.drivers.base import DriverInterface
 from amelia.drivers.cli.claude import ClaudeStreamEvent
 
 
 class TestDeveloperExecution:
-    """Tests for Developer.execute_task() behavior."""
+    """Tests for Developer.execute_current_task() structured mode behavior."""
 
-    async def test_execute_shell_command_calls_driver(self, mock_task_factory):
+    async def test_execute_shell_command_calls_driver(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
         """Developer should call execute_tool for shell commands."""
         mock_driver = AsyncMock(spec=DriverInterface)
         mock_driver.execute_tool.return_value = "Command output"
         task = mock_task_factory(
             id="1", description="Run shell command: echo hello", status="pending"
         )
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_task(task)
+        result = await developer.execute_current_task(state)
 
         assert result["status"] == "completed"
         mock_driver.execute_tool.assert_called_once_with("run_shell_command", command="echo hello")
 
-    async def test_execute_write_file_calls_driver(self, mock_task_factory):
+    async def test_execute_write_file_calls_driver(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
         """Developer should call execute_tool for write file tasks."""
         mock_driver = AsyncMock(spec=DriverInterface)
         mock_driver.execute_tool.return_value = "File created"
         task = mock_task_factory(
             id="1", description="write file: test.py with print('hi')", status="pending"
         )
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
         developer = Developer(driver=mock_driver)
 
-        await developer.execute_task(task)
+        await developer.execute_current_task(state)
 
         mock_driver.execute_tool.assert_called_once()
 
-    async def test_exception_returns_failed_status(self, mock_task_factory):
+    async def test_exception_returns_failed_status(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
         """Developer should return failed status on exception."""
         mock_driver = AsyncMock(spec=DriverInterface)
         mock_driver.execute_tool.side_effect = RuntimeError(
@@ -52,14 +67,20 @@ class TestDeveloperExecution:
         task = mock_task_factory(
             id="FAIL_T1", description="Run shell command: /bin/false", status="pending"
         )
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_task(task)
+        result = await developer.execute_current_task(state)
 
         assert result["status"] == "failed"
         assert "Mocked command failed" in result["output"]
 
-    async def test_propagates_error_output(self, mock_task_factory):
+    async def test_propagates_error_output(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
         """Developer should propagate error messages in output."""
         mock_driver = AsyncMock(spec=DriverInterface)
         mock_driver.execute_tool.return_value = (
@@ -68,22 +89,32 @@ class TestDeveloperExecution:
         task = mock_task_factory(
             id="FIX_T1", description="Run shell command: python broken.py", status="pending"
         )
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_task(task)
+        result = await developer.execute_current_task(state)
 
         assert "failed" in result["output"].lower() or "error" in result["output"].lower()
 
-    async def test_fallback_uses_generate(self, mock_task_factory):
+    async def test_fallback_uses_generate(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
         """Developer should use generate() for unstructured tasks."""
         mock_driver = AsyncMock(spec=DriverInterface)
         mock_driver.generate.return_value = "Generated response"
         task = mock_task_factory(
             id="1", description="Implement the foo feature", status="pending"
         )
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_task(task)
+        result = await developer.execute_current_task(state)
 
         assert result["status"] == "completed"
         mock_driver.generate.assert_called_once()
@@ -92,7 +123,9 @@ class TestDeveloperExecution:
 class TestDeveloperAgenticExecution:
     """Tests for Developer agentic execution mode."""
 
-    async def test_execute_task_agentic_calls_execute_agentic(self, mock_task_factory):
+    async def test_execute_current_task_agentic_calls_execute_agentic(
+        self, mock_task_factory, mock_execution_state_factory, mock_profile_factory
+    ):
         """Developer in agentic mode should call driver.execute_agentic."""
         mock_driver = AsyncMock(spec=DriverInterface)
 
@@ -103,13 +136,23 @@ class TestDeveloperAgenticExecution:
         mock_driver.execute_agentic = mock_execute_agentic
 
         task = mock_task_factory(id="1", description="Implement feature")
+        # Use api:openai profile for agentic mode
+        profile = mock_profile_factory(preset="api_single")
+        profile = profile.model_copy(update={"working_dir": "/tmp"})
+        state = mock_execution_state_factory(
+            profile=profile,
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
         developer = Developer(driver=mock_driver, execution_mode="agentic")
 
-        result = await developer.execute_task(task, cwd="/tmp")
+        result = await developer.execute_current_task(state)
 
         assert result["status"] == "completed"
 
-    async def test_execute_task_agentic_raises_on_error(self, mock_task_factory):
+    async def test_execute_current_task_agentic_raises_on_error(
+        self, mock_task_factory, mock_execution_state_factory, mock_profile_factory
+    ):
         """Developer in agentic mode should raise AgenticExecutionError on error event."""
         mock_driver = AsyncMock(spec=DriverInterface)
 
@@ -119,22 +162,78 @@ class TestDeveloperAgenticExecution:
         mock_driver.execute_agentic = mock_execute_agentic
 
         task = mock_task_factory(id="1", description="Implement feature")
+        profile = mock_profile_factory(preset="api_single")
+        profile = profile.model_copy(update={"working_dir": "/tmp"})
+        state = mock_execution_state_factory(
+            profile=profile,
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
         developer = Developer(driver=mock_driver, execution_mode="agentic")
 
         with pytest.raises(AgenticExecutionError) as exc_info:
-            await developer.execute_task(task, cwd="/tmp")
+            await developer.execute_current_task(state)
 
         assert "Something went wrong" in str(exc_info.value)
 
-    async def test_execute_task_structured_ignores_cwd(self, mock_task_factory):
-        """Developer in structured mode should work without cwd."""
+    async def test_execute_current_task_structured_works(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
+        """Developer in structured mode should work correctly."""
         mock_driver = AsyncMock(spec=DriverInterface)
         mock_driver.generate.return_value = "Generated response"
 
         task = mock_task_factory(id="1", description="Implement feature")
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
         developer = Developer(driver=mock_driver, execution_mode="structured")
 
-        result = await developer.execute_task(task)
+        result = await developer.execute_current_task(state)
 
         assert result["status"] == "completed"
         mock_driver.generate.assert_called_once()
+
+
+class TestDeveloperValidation:
+    """Tests for execute_current_task validation."""
+
+    async def test_raises_when_no_plan(self, mock_execution_state_factory):
+        """execute_current_task should raise ValueError when plan is None."""
+        mock_driver = AsyncMock(spec=DriverInterface)
+        state = mock_execution_state_factory(plan=None, current_task_id="1")
+        developer = Developer(driver=mock_driver)
+
+        with pytest.raises(ValueError, match="State must have plan and current_task_id"):
+            await developer.execute_current_task(state)
+
+    async def test_raises_when_no_current_task_id(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
+        """execute_current_task should raise ValueError when current_task_id is None."""
+        mock_driver = AsyncMock(spec=DriverInterface)
+        task = mock_task_factory(id="1", description="Test task")
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=None,
+        )
+        developer = Developer(driver=mock_driver)
+
+        with pytest.raises(ValueError, match="State must have plan and current_task_id"):
+            await developer.execute_current_task(state)
+
+    async def test_raises_when_task_not_found(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
+        """execute_current_task should raise ValueError when task ID not in plan."""
+        mock_driver = AsyncMock(spec=DriverInterface)
+        task = mock_task_factory(id="1", description="Test task")
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id="nonexistent",
+        )
+        developer = Developer(driver=mock_driver)
+
+        with pytest.raises(ValueError, match="Task not found: nonexistent"):
+            await developer.execute_current_task(state)
