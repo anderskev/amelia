@@ -88,6 +88,7 @@ async def test_orchestrator_parallel_execution(
     with patch('amelia.agents.architect.Architect.plan', new_callable=AsyncMock) as mock_plan, \
          patch('amelia.agents.developer.Developer.execute_task', new=delayed_execute_task), \
          patch('amelia.drivers.factory.DriverFactory.get_driver', return_value=mock_driver), \
+         patch('amelia.core.orchestrator.get_code_changes_for_review', new_callable=AsyncMock, return_value="mock code changes"), \
          patch('typer.confirm', return_value=True), \
          patch('typer.prompt', return_value=""):
 
