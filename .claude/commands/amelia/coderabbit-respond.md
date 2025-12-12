@@ -7,6 +7,8 @@ Respond to the coderabbitai[bot] review comments on the current PR.
 
 You have just evaluated the CodeRabbit feedback using `/amelia:coderabbit-review` and made any necessary fixes. Now post responses to the review comments.
 
+**Important**: CodeRabbit re-posts comments on each review iteration, creating duplicates. This command filters to only show unreplied comments and picks the newest version of each duplicate set.
+
 ## Steps
 
 1. **Get PR context**:
@@ -15,13 +17,30 @@ You have just evaluated the CodeRabbit feedback using `/amelia:coderabbit-review
    gh pr view --json number --jq '.number'
    ```
 
-2. **Get all CodeRabbit review comment IDs and content** (use `--paginate` to ensure all comments are fetched):
+2. **Get unreplied CodeRabbit comments** (filters out already-replied comments and duplicates):
    ```bash
-   gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments \
-     --jq '.[] | select(.user.login == "coderabbitai[bot]") | {id: .id, path: .path, line: .line, body: .body}'
+   gh api --paginate repos/{owner}/{repo}/pulls/{number}/comments | jq '
+     # Get root CodeRabbit comments (not replies to other comments)
+     [.[] | select(.user.login == "coderabbitai[bot]" and .in_reply_to_id == null)] as $roots |
+     # Get IDs that hey-amelia has already replied to
+     [.[] | select(.user.login == "hey-amelia[bot]") | .in_reply_to_id] as $replied |
+     # Filter to unreplied comments only
+     $roots | map(select(. as $c | $replied | index($c.id) == null)) |
+     # Group by file:line and pick newest comment for each (handles duplicates)
+     group_by({p: .path, l: .line}) |
+     map(sort_by(.created_at) | last) |
+     # Format output
+     map({id, path, line, body})
+   '
    ```
 
-3. **For each review comment, post a reply** based on the evaluation:
+   This query:
+   - Excludes comments that are replies (e.g., CodeRabbit responding to itself)
+   - Excludes comments that hey-amelia has already responded to
+   - Groups duplicate comments by file:line and picks the newest one
+   - Returns only the comments that need responses
+
+3. **For each unreplied comment, post a reply** based on the evaluation:
 
    - **If feedback was incorrect/unfounded**: Reply explaining why the current code is correct
    - **If feedback lacked context**: Reply explaining the design decision
