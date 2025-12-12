@@ -23,8 +23,8 @@ class TestReviewerContextStrategy:
 
     @pytest.fixture
     def strategy(self):
-        """Create a ReviewerContextStrategy instance."""
-        return ReviewerContextStrategy()
+        """Create a ReviewerContextStrategy instance with default persona."""
+        return ReviewerContextStrategy(persona="General")
 
     @pytest.fixture
     def code_diff(self):
@@ -71,15 +71,16 @@ index 1234567..abcdefg 100644
         assert code_diff in diff_sections[0].content
 
     @pytest.mark.parametrize("persona", ["Security", "Performance", "General"])
-    def test_compile_with_persona(self, strategy, state_with_task, persona):
+    def test_compile_with_persona(self, state_with_task, persona):
         """Test persona appears in system prompt and produces stable output."""
-        context = strategy.compile(state_with_task, persona=persona)
+        strategy = ReviewerContextStrategy(persona=persona)
+        context = strategy.compile(state_with_task)
 
         assert context.system_prompt is not None
         assert persona in context.system_prompt
 
         # Test stability by compiling twice
-        context2 = strategy.compile(state_with_task, persona=persona)
+        context2 = strategy.compile(state_with_task)
         assert context.system_prompt == context2.system_prompt
 
     def test_compile_task_context_included_not_full_issue(
@@ -131,7 +132,6 @@ index 1234567..abcdefg 100644
 
     def test_compile_raises_when_no_task_or_issue(
         self,
-        strategy,
         mock_profile_factory,
         code_diff
     ):
@@ -148,29 +148,29 @@ index 1234567..abcdefg 100644
         )
 
         # Should raise ValueError
+        strategy = ReviewerContextStrategy()
         with pytest.raises(ValueError, match="No task or issue context found"):
             strategy.compile(state)
 
     def test_system_prompt_template_produces_stable_prefix_per_persona(
         self,
-        strategy,
         state_with_task
     ):
         """Test SYSTEM_PROMPT_TEMPLATE produces stable prefix per persona (Gap 3)."""
         persona = "Security"
 
         # Compile multiple times with same persona
-        context1 = strategy.compile(state_with_task, persona=persona)
-        context2 = strategy.compile(state_with_task, persona=persona)
+        strategy1 = ReviewerContextStrategy(persona=persona)
+        context1 = strategy1.compile(state_with_task)
+        strategy2 = ReviewerContextStrategy(persona=persona)
+        context2 = strategy2.compile(state_with_task)
 
         # System prompts should be identical for same persona
         assert context1.system_prompt == context2.system_prompt
 
         # Should be different for different personas
-        context3 = strategy.compile(
-            state_with_task,
-            persona="Performance"
-        )
+        strategy3 = ReviewerContextStrategy(persona="Performance")
+        context3 = strategy3.compile(state_with_task)
         assert context1.system_prompt != context3.system_prompt
 
     def test_compile_validates_allowed_sections(
@@ -264,14 +264,11 @@ index 1234567..abcdefg 100644
 
     def test_to_messages_integration(
         self,
-        strategy,
         state_with_task
     ):
         """Test compiled context can be converted to messages."""
-        context = strategy.compile(
-            state_with_task,
-            persona="Security"
-        )
+        strategy = ReviewerContextStrategy(persona="Security")
+        context = strategy.compile(state_with_task)
 
         messages = strategy.to_messages(context)
 
@@ -288,7 +285,6 @@ index 1234567..abcdefg 100644
 
     def test_compile_raises_when_no_code_changes(
         self,
-        strategy,
         mock_execution_state_factory,
         mock_task_factory,
         mock_task_dag_factory
@@ -303,6 +299,7 @@ index 1234567..abcdefg 100644
         )
 
         # Should raise ValueError
+        strategy = ReviewerContextStrategy()
         with pytest.raises(ValueError, match="No code changes provided"):
             strategy.compile(state)
 
@@ -328,10 +325,11 @@ index 1234567..abcdefg 100644
 
     def test_compile_default_persona(
         self,
-        strategy,
         state_with_task
     ):
         """Test compile with default persona when not specified."""
+        # Create strategy without explicit persona (should use default)
+        strategy = ReviewerContextStrategy()
         context = strategy.compile(state_with_task)
 
         # Should have a system prompt even without explicit persona

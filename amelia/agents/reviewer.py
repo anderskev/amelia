@@ -38,12 +38,19 @@ Analyze the provided code changes and provide a comprehensive review."""
 
     ALLOWED_SECTIONS = {"task", "issue", "diff", "criteria"}
 
-    def compile(self, state: ExecutionState, persona: str = "General") -> CompiledContext:
+    def __init__(self, persona: str = "General"):
+        """Initialize the strategy with a review persona.
+
+        Args:
+            persona: Review perspective (e.g., "Security", "Performance", "General").
+        """
+        self.persona = persona
+
+    def compile(self, state: ExecutionState) -> CompiledContext:
         """Compile ExecutionState into review context.
 
         Args:
             state: Current execution state containing task and code changes.
-            persona: Review perspective (e.g., "Security", "Performance", "General").
 
         Returns:
             CompiledContext with system prompt and relevant sections.
@@ -52,7 +59,7 @@ Analyze the provided code changes and provide a comprehensive review."""
             ValueError: If code_changes_for_review is missing or sections are invalid.
         """
         # Format system prompt with persona
-        system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(persona=persona)
+        system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(persona=self.persona)
 
         # Get current task or fall back to issue summary
         current_task = self.get_current_task(state)
@@ -168,10 +175,8 @@ class Reviewer:
             review_state = state.model_copy(update=updates)
 
         # Use context strategy to compile review context
-        strategy = self.context_strategy()
-        # Type assertion needed because strategy.compile() signature varies by implementation
-        assert isinstance(strategy, ReviewerContextStrategy)
-        compiled_context = strategy.compile(review_state, persona=persona)
+        strategy = ReviewerContextStrategy(persona=persona)
+        compiled_context = strategy.compile(review_state)
 
         logger.debug(
             "Compiled context",
