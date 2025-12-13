@@ -297,3 +297,131 @@ class TestArchitect:
         assert "Build it well" in all_content, (
             "Design goal from state.design must appear in messages passed to driver"
         )
+
+
+class TestArchitectStreamEmitter:
+    """Test Architect agent stream emitter functionality."""
+
+    def test_architect_accepts_stream_emitter(
+        self,
+        mock_driver: MagicMock,
+    ) -> None:
+        """Test that Architect constructor accepts optional stream_emitter parameter."""
+        from unittest.mock import AsyncMock
+        mock_emitter = AsyncMock()
+
+        # Should not raise
+        architect = Architect(
+            driver=mock_driver,
+            stream_emitter=mock_emitter,
+        )
+
+        assert architect._stream_emitter is mock_emitter
+
+    def test_architect_works_without_stream_emitter(
+        self,
+        mock_driver: MagicMock,
+    ) -> None:
+        """Test that Architect works without stream_emitter (backward compatible)."""
+        # Should not raise
+        architect = Architect(driver=mock_driver)
+
+        assert architect._stream_emitter is None
+
+    async def test_architect_emits_agent_output_after_plan_generation(
+        self,
+        mock_driver: MagicMock,
+        mock_execution_state_factory: Callable[..., ExecutionState],
+        mock_issue_factory: Callable[..., Issue],
+        mock_task_response: TaskListResponse,
+    ) -> None:
+        """Test that Architect emits AGENT_OUTPUT event after generating plan."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock
+
+        from amelia.core.types import StreamEvent, StreamEventType
+
+        issue = mock_issue_factory(id="TEST-123", title="Build feature", description="Feature desc")
+        state = mock_execution_state_factory(
+            issue=issue,
+        )
+
+        # Mock driver to return a valid TaskListResponse
+        mock_driver.generate.return_value = mock_task_response
+
+        # Create emitter mock
+        mock_emitter = AsyncMock()
+
+        # Create architect with emitter
+        architect = Architect(driver=mock_driver, stream_emitter=mock_emitter)
+
+        # Generate plan
+        result = await architect.plan(state)
+
+        # Verify plan was generated
+        assert result.task_dag is not None
+        assert len(result.task_dag.tasks) == 1
+
+        # Verify emitter was called
+        assert mock_emitter.called
+        assert mock_emitter.call_count == 1
+
+        # Verify the emitted event
+        event = mock_emitter.call_args.args[0]
+        assert isinstance(event, StreamEvent)
+        assert event.type == StreamEventType.AGENT_OUTPUT
+        assert event.agent == "architect"
+        assert event.workflow_id == "TEST-123"  # Falls back to issue ID
+        assert "1 tasks" in event.content  # Generated plan with 1 tasks
+        assert isinstance(event.timestamp, datetime)
+
+    async def test_architect_does_not_emit_when_no_emitter_configured(
+        self,
+        mock_driver: MagicMock,
+        mock_execution_state_factory: Callable[..., ExecutionState],
+        mock_issue_factory: Callable[..., Issue],
+        mock_task_response: TaskListResponse,
+    ) -> None:
+        """Test that Architect does not crash when no emitter is configured."""
+        issue = mock_issue_factory(id="TEST-456", title="Test", description="Test")
+        state = mock_execution_state_factory(issue=issue)
+
+        mock_driver.generate.return_value = mock_task_response
+
+        # Create architect WITHOUT emitter
+        architect = Architect(driver=mock_driver)
+
+        # Should not raise even without emitter
+        result = await architect.plan(state)
+        assert result.task_dag is not None
+
+    async def test_architect_emits_correct_task_count(
+        self,
+        mock_driver: MagicMock,
+        mock_execution_state_factory: Callable[..., ExecutionState],
+        mock_issue_factory: Callable[..., Issue],
+    ) -> None:
+        """Test that Architect emits event with correct task count."""
+        from unittest.mock import AsyncMock
+
+        from amelia.core.state import Task
+
+        issue = mock_issue_factory(id="TEST-789", title="Test", description="Test")
+        state = mock_execution_state_factory(issue=issue)
+
+        # Create response with multiple tasks
+        multi_task_response = TaskListResponse(tasks=[
+            Task(id="1", description="Task 1", dependencies=[], files=[], steps=[]),
+            Task(id="2", description="Task 2", dependencies=[], files=[], steps=[]),
+            Task(id="3", description="Task 3", dependencies=[], files=[], steps=[]),
+        ])
+
+        mock_driver.generate.return_value = multi_task_response
+        mock_emitter = AsyncMock()
+
+        architect = Architect(driver=mock_driver, stream_emitter=mock_emitter)
+        await architect.plan(state)
+
+        # Verify the event contains correct count
+        event = mock_emitter.call_args.args[0]
+        assert "3 tasks" in event.content

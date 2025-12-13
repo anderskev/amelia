@@ -2,12 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import asyncio
+from datetime import UTC, datetime
 
 from loguru import logger
 from pydantic import BaseModel, Field
 
 from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
 from amelia.core.state import ExecutionState, ReviewResult, Severity
+from amelia.core.types import StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import DriverInterface
 
 
@@ -127,13 +129,19 @@ class Reviewer:
 
     context_strategy: type[ReviewerContextStrategy] = ReviewerContextStrategy
 
-    def __init__(self, driver: DriverInterface):
+    def __init__(
+        self,
+        driver: DriverInterface,
+        stream_emitter: StreamEmitter | None = None,
+    ):
         """Initialize the Reviewer agent.
 
         Args:
             driver: LLM driver interface for generating reviews.
+            stream_emitter: Optional callback for streaming events.
         """
         self.driver = driver
+        self._stream_emitter = stream_emitter
 
     async def review(self, state: ExecutionState, code_changes: str) -> ReviewResult:
         """Review code changes in context of execution state and issue.
@@ -192,6 +200,20 @@ class Reviewer:
         prompt_messages = strategy.to_messages(compiled_context)
 
         response = await self.driver.generate(messages=prompt_messages, schema=ReviewResponse)
+
+        # Emit completion event before return
+        if self._stream_emitter is not None:
+            # Get workflow_id from state (fallback to issue ID if not available)
+            workflow_id = getattr(review_state, "workflow_id", review_state.issue.id if review_state.issue else "unknown")
+
+            event = StreamEvent(
+                type=StreamEventType.AGENT_OUTPUT,
+                content=f"Review completed: {'Approved' if response.approved else 'Changes requested'}",
+                timestamp=datetime.now(UTC),
+                agent="reviewer",
+                workflow_id=workflow_id,
+            )
+            await self._stream_emitter(event)
 
         return ReviewResult(
             reviewer_persona=persona,

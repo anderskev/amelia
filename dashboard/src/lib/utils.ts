@@ -28,3 +28,19 @@ import { twMerge } from 'tailwind-merge';
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+/**
+ * Formats ISO 8601 timestamp to HH:MM:SS.mmm format.
+ *
+ * @param isoString - ISO 8601 timestamp string
+ * @returns Formatted time string (e.g., "10:30:45.123")
+ *
+ * @example
+ * ```ts
+ * formatTime('2025-12-13T10:30:45.123Z') // => '10:30:45.123'
+ * ```
+ */
+export function formatTime(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toISOString().slice(11, 23); // HH:MM:SS.mmm
+}

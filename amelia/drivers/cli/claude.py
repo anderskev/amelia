@@ -4,6 +4,7 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from loguru import logger
@@ -11,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from amelia.core.constants import ToolName
 from amelia.core.state import AgentMessage
+from amelia.core.types import StreamEvent, StreamEventType
 from amelia.drivers.cli.base import CliDriver
 from amelia.tools.safe_file import SafeFileWriter
 from amelia.tools.safe_shell import SafeShellExecutor
@@ -126,6 +128,42 @@ class ClaudeStreamEvent(BaseModel):
 
         # Unknown type - return as system event
         return cls(type="system", content=f"Unknown event type: {msg_type}")
+
+
+def convert_to_stream_event(
+    event: ClaudeStreamEvent,
+    agent: str,
+    workflow_id: str,
+) -> StreamEvent | None:
+    """Convert CLI driver event to unified StreamEvent.
+
+    Args:
+        event: Raw event from Claude CLI.
+        agent: Agent name ("developer", "architect", "reviewer").
+        workflow_id: Current workflow ID.
+
+    Returns:
+        Converted StreamEvent, or None for events to skip.
+    """
+    type_mapping = {
+        "assistant": StreamEventType.CLAUDE_THINKING,
+        "tool_use": StreamEventType.CLAUDE_TOOL_CALL,
+        "result": StreamEventType.CLAUDE_TOOL_RESULT,
+    }
+
+    stream_type = type_mapping.get(event.type)
+    if stream_type is None:
+        return None  # Skip error/system events for now
+
+    return StreamEvent(
+        type=stream_type,
+        content=event.content,
+        timestamp=datetime.now(UTC),
+        agent=agent,
+        workflow_id=workflow_id,
+        tool_name=event.tool_name,
+        tool_input=event.tool_input,
+    )
 
 
 class ClaudeCliDriver(CliDriver):

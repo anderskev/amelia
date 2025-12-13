@@ -106,6 +106,10 @@ class TestAgenticExecution:
             await call_developer_node(state)
 
             # Developer should be initialized with structured mode
-            mock_developer_class.assert_called_once_with(mock_driver, execution_mode="structured")
+            mock_developer_class.assert_called_once_with(
+                mock_driver,
+                execution_mode="structured",
+                stream_emitter=None,
+            )
             # execute_current_task should be called
             mock_developer.execute_current_task.assert_called_once()

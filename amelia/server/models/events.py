@@ -9,6 +9,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from amelia.core.types import StreamEventType
+
 
 class EventType(StrEnum):
     """Exhaustive list of workflow event types.
@@ -58,6 +60,9 @@ class EventType(StrEnum):
     SYSTEM_ERROR = "system_error"
     SYSTEM_WARNING = "system_warning"
 
+    # Streaming (ephemeral, not persisted)
+    STREAM = "stream"
+
 
 class WorkflowEvent(BaseModel):
     """Event for activity log and real-time updates.
@@ -105,6 +110,55 @@ class WorkflowEvent(BaseModel):
                     "event_type": "stage_started",
                     "message": "Creating task plan",
                     "data": {"stage": "planning"},
+                }
+            ]
+        }
+    }
+
+
+class StreamEventPayload(BaseModel):
+    """Payload for STREAM WebSocket events (ephemeral, not persisted).
+
+    Stream events represent real-time Claude Code streaming output
+    (thinking, tool calls, tool results, agent output). Unlike WorkflowEvent,
+    these are never persisted to the database - they're broadcast to
+    WebSocket clients and then discarded.
+
+    Attributes:
+        subtype: Type of streaming event (thinking, tool_call, etc.).
+        content: Event content (optional).
+        agent: Agent name (architect, developer, reviewer).
+        workflow_id: Unique workflow identifier.
+        timestamp: When the event occurred.
+        tool_name: Name of tool being called/returning (optional).
+        tool_input: Input parameters for tool call (optional).
+    """
+
+    subtype: StreamEventType = Field(..., description="Type of streaming event")
+    content: str | None = Field(default=None, description="Event content")
+    agent: str = Field(..., description="Agent name")
+    workflow_id: str = Field(..., description="Workflow this event belongs to")
+    timestamp: datetime = Field(..., description="When event occurred")
+    tool_name: str | None = Field(
+        default=None,
+        description="Name of tool being called/returning",
+    )
+    tool_input: dict[str, Any] | None = Field(
+        default=None,
+        description="Input parameters for tool call",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "subtype": "claude_thinking",
+                    "content": "Analyzing the requirements...",
+                    "agent": "developer",
+                    "workflow_id": "wf-789",
+                    "timestamp": "2025-01-15T10:30:00Z",
+                    "tool_name": None,
+                    "tool_input": None,
                 }
             ]
         }

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from amelia.core.types import StreamEvent
 from amelia.server.models.events import WorkflowEvent
 
 
@@ -148,6 +149,41 @@ class ConnectionManager:
         results = await asyncio.gather(*(send_to_client(ws) for ws in targets))
 
         # Remove failed connections
+        failed = [ws for ws, success in results if not success]
+        if failed:
+            async with self._lock:
+                for ws in failed:
+                    self._connections.pop(ws, None)
+
+    async def broadcast_stream(self, event: StreamEvent) -> None:
+        """Broadcast stream event to all connections (no filtering by workflow).
+
+        Stream events are ephemeral real-time events, broadcast to all connected
+        clients regardless of their subscription settings.
+
+        Args:
+            event: The stream event to broadcast.
+        """
+        async with self._lock:
+            targets = list(self._connections.keys())
+
+        if not targets:
+            return
+
+        payload = {
+            "type": "stream",
+            "payload": event.model_dump(mode="json"),
+        }
+
+        async def send_to_client(ws: WebSocket) -> tuple[WebSocket, bool]:
+            try:
+                await asyncio.wait_for(ws.send_json(payload), timeout=5.0)
+                return (ws, True)
+            except (WebSocketDisconnect, TimeoutError, ConnectionResetError, ConnectionError):
+                return (ws, False)
+
+        results = await asyncio.gather(*(send_to_client(ws) for ws in targets))
+
         failed = [ws for ws, success in results if not success]
         if failed:
             async with self._lock:

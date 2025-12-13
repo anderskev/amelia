@@ -58,7 +58,11 @@ class TestDeveloperNode:
 
             await call_developer_node(state)
 
-            mock_developer_class.assert_called_once_with(mock_driver, execution_mode=execution_mode)
+            mock_developer_class.assert_called_once_with(
+                mock_driver,
+                execution_mode=execution_mode,
+                stream_emitter=None,
+            )
 
     async def test_developer_node_passes_state_with_current_task_id(
         self,

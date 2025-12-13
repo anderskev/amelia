@@ -19,7 +19,7 @@ from loguru import logger
 
 from amelia.core.orchestrator import create_orchestrator_graph
 from amelia.core.state import ExecutionState, TaskDAG
-from amelia.core.types import Settings
+from amelia.core.types import Settings, StreamEmitter, StreamEvent
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.exceptions import (
@@ -107,6 +107,22 @@ class OrchestratorService:
             checkpoint_saver=checkpointer,
             interrupt_before=["human_approval_node"],
         )
+
+    def _create_stream_emitter(self, workflow_id: str) -> StreamEmitter:
+        """Create a stream emitter callback for the given workflow.
+
+        Stream events are broadcast via WebSocket but NOT persisted to the database.
+
+        Args:
+            workflow_id: The workflow ID to associate with emitted events.
+
+        Returns:
+            Async callback that broadcasts StreamEvent via WebSocket.
+        """
+        async def emit(event: StreamEvent) -> None:
+            self._event_bus.emit_stream(event)
+
+        return emit
 
     async def start_workflow(
         self,
@@ -333,10 +349,13 @@ class OrchestratorService:
             # CRITICAL: Pass interrupt_before to enable server-mode approval
             graph = self._create_server_graph(checkpointer)
 
+            # Create stream emitter and pass it via config
+            stream_emitter = self._create_stream_emitter(workflow_id)
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
+                    "stream_emitter": stream_emitter,
                 }
             }
 
@@ -594,10 +613,13 @@ class OrchestratorService:
         ) as checkpointer:
             graph = self._create_server_graph(checkpointer)
 
+            # Create stream emitter and pass it via config
+            stream_emitter = self._create_stream_emitter(workflow_id)
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
+                    "stream_emitter": stream_emitter,
                 }
             }
 

@@ -1,7 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from loguru import logger
@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
 from amelia.core.state import AgentMessage, ExecutionState, Task, TaskDAG
-from amelia.core.types import Design, Issue
+from amelia.core.types import Design, Issue, StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import DriverInterface
 
 
@@ -204,13 +204,19 @@ class Architect:
 
     context_strategy: type[ArchitectContextStrategy] = ArchitectContextStrategy
 
-    def __init__(self, driver: DriverInterface):
+    def __init__(
+        self,
+        driver: DriverInterface,
+        stream_emitter: StreamEmitter | None = None,
+    ):
         """Initialize the Architect agent.
 
         Args:
             driver: LLM driver interface for generating plans.
+            stream_emitter: Optional callback for streaming events.
         """
         self.driver = driver
+        self._stream_emitter = stream_emitter
 
     async def plan(
         self,
@@ -244,15 +250,36 @@ class Architect:
         strategy = self.context_strategy()
         compiled_context = strategy.compile(state)
 
+        # Calculate system prompt length for logging
+        prompt_length = (
+            len(compiled_context.system_prompt)
+            if compiled_context.system_prompt
+            else 0
+        )
         logger.debug(
             "Compiled context",
             agent="architect",
             sections=[s.name for s in compiled_context.sections],
-            system_prompt_length=len(compiled_context.system_prompt) if compiled_context.system_prompt else 0
+            system_prompt_length=prompt_length
         )
 
         # Generate task DAG using compiled context
         task_dag = await self._generate_task_dag(compiled_context, state.issue, strategy)
+
+        # Emit completion event
+        if self._stream_emitter is not None:
+            # Get workflow_id from state (fallback to issue ID if not available)
+            default_id = state.issue.id if state.issue else "unknown"
+            workflow_id = getattr(state, "workflow_id", default_id)
+
+            event = StreamEvent(
+                type=StreamEventType.AGENT_OUTPUT,
+                content=f"Generated plan with {len(task_dag.tasks)} tasks",
+                timestamp=datetime.now(UTC),
+                agent="architect",
+                workflow_id=workflow_id,
+            )
+            await self._stream_emitter(event)
 
         # Save markdown
         markdown_path = self._save_markdown(task_dag, state.issue, state.design, output_dir)
@@ -343,10 +370,16 @@ class Architect:
         architecture = design.architecture if design else "See task descriptions below."
         tech_stack = ", ".join(design.tech_stack) if design else "See implementation details."
 
+        # Build the markdown header with Claude instructions
+        claude_instruction = (
+            "> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans "
+            "to implement this plan task-by-task."
+        )
+
         lines = [
             f"# {title} Implementation Plan",
             "",
-            "> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.",
+            claude_instruction,
             "",
             f"**Goal:** {goal}",
             "",
