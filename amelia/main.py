@@ -4,7 +4,6 @@
 import asyncio
 
 import typer
-from langgraph.checkpoint.memory import MemorySaver
 
 from amelia.agents.architect import Architect
 from amelia.client.cli import (
@@ -15,7 +14,7 @@ from amelia.client.cli import (
     status_command,
 )
 from amelia.config import load_settings, validate_profile
-from amelia.core.orchestrator import call_reviewer_node, create_orchestrator_graph
+from amelia.core.orchestrator import call_reviewer_node
 from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile, Settings
 from amelia.drivers.factory import DriverFactory
@@ -87,61 +86,6 @@ def _safe_load_settings() -> Settings:
         typer.echo(f"Error loading settings: {e}", err=True)
         raise typer.Exit(code=1) from None
 
-@app.command(name="start-local")
-def start_local(
-    ctx: typer.Context,
-    issue_id: str = typer.Argument(..., help="The ID of the issue to work on (e.g., PROJ-123)."),
-    profile_name: str | None = typer.Option(
-        None,
-        "--profile",
-        "-p",
-        help="Specify the profile to use from settings.amelia.yaml."
-    ),
-) -> None:
-    """Starts the Amelia orchestrator locally (without server).
-
-    DEPRECATED: Use 'amelia server' and 'amelia start' instead.
-
-    Args:
-        ctx: Typer context (unused).
-        issue_id: The ID of the issue to work on (e.g., PROJ-123).
-        profile_name: Optional profile name to use from settings.amelia.yaml.
-
-    Raises:
-        typer.Exit: On validation failure or orchestration error.
-    """
-    settings = _safe_load_settings()
-    active_profile = _get_active_profile(settings, profile_name)
-
-    try:
-        validate_profile(active_profile)
-    except ValueError as e:
-        typer.echo(f"Profile validation failed: {e}", err=True)
-        raise typer.Exit(code=1) from None
-
-    typer.echo(f"Starting Amelia with profile: {active_profile.name} (Driver: {active_profile.driver}, Tracker: {active_profile.tracker})")
-
-    checkpoint_saver = MemorySaver()
-
-    app_graph = create_orchestrator_graph(checkpoint_saver=checkpoint_saver)
-
-    tracker = create_tracker(active_profile)
-    try:
-        issue = tracker.get_issue(issue_id)
-    except ValueError as e:
-        typer.echo(f"Error fetching issue: {e}", err=True)
-        raise typer.Exit(code=1) from None
-
-    # Prepare initial state
-    initial_state = ExecutionState(profile=active_profile, issue=issue)
-
-    # Run the orchestrator
-    try:
-        asyncio.run(app_graph.ainvoke(initial_state))
-    except Exception as e:
-        typer.echo(f"An unexpected error occurred during orchestration: {e}", err=True)
-        raise typer.Exit(code=1) from None
-    
 @app.command(name="plan-only")
 def plan_only_command(
     ctx: typer.Context,
