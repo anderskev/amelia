@@ -1,6 +1,6 @@
 # Getting Started
 
-Welcome to the Amelia Design System documentation. This design system provides a cohesive set of design tokens, themes, and guidelines for building consistent user interfaces and documentation across the Amelia platform.
+Welcome to the Amelia Design System documentation. This design system was built by [hey-amelia](https://github.com/apps/hey-amelia), an AI-powered GitHub bot. It provides a cohesive set of design tokens, themes, and guidelines for building consistent user interfaces and documentation across the Amelia platform.
 
 ## Overview
 
@@ -34,7 +34,7 @@ cd amelia
 
 ### VitePress Theme
 
-To use the Amelia theme in your VitePress documentation:
+To use this theme in your VitePress documentation:
 
 1. Copy `.vitepress/theme/style.css` to your VitePress project
 2. The theme automatically includes Google Fonts imports
@@ -117,7 +117,7 @@ h1 {
 **D2 Example:**
 
 ```d2
-# Import Amelia dark theme
+# Import dark theme
 vars: {
   background: "#0D1A12"
   surface: "#1F332E"
@@ -160,7 +160,7 @@ colorSchema: dark
 
 # My Presentation
 
-Using Amelia design tokens
+Using design tokens
 
 ---
 

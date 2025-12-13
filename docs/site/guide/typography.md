@@ -12,7 +12,7 @@ The design system uses four specialized font families, each serving a specific p
 **Google Fonts**: [Bebas Neue](https://fonts.google.com/specimen/Bebas+Neue)
 **Weight**: 400 (Regular)
 
-Used for logos, brand elements, and large impact text. Features a bold, condensed sans-serif design with uppercase styling.
+Used for the Amelia logo, brand elements, and large impact text. Features a bold, condensed sans-serif design with uppercase styling.
 
 ```css
 .logo {
@@ -25,7 +25,7 @@ Used for logos, brand elements, and large impact text. Features a bold, condense
 
 **Example:**
 <div style="font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 0.02em;">
-AMELIA DESIGN SYSTEM
+DESIGN SYSTEM
 </div>
 
 ### Heading Font - Barlow Condensed

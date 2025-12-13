@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "Amelia Design System"
   text: "Dark-First Design"
-  tagline: A unified design system for the Amelia AI orchestrator with dark-first theming optimized for extended developer sessions.
+  tagline: A unified design system for the Amelia AI orchestrator with dark-first theming optimized for extended developer sessions. Built by hey-amelia bot.
   actions:
     - theme: brand
       text: Get Started
@@ -12,37 +12,28 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/anderskev/amelia
-  image:
-    src: /logo/amelia-gold.svg
-    alt: Amelia Logo
 
 features:
-  - icon: 🎨
-    title: Design Tokens
+  - title: Design Tokens
     details: OKLCH color palette with dark and light modes, modular typography scale, and comprehensive spacing system.
     link: /guide/color-system
-  - icon: 📊
-    title: Diagram Themes
+  - title: Diagram Themes
     details: Consistent styling for D2 and Mermaid diagrams with cohesive theming.
     link: /guide/diagrams
-  - icon: 📽️
-    title: Presentation Theme
+  - title: Presentation Theme
     details: Slidev theme for stakeholder presentations with projector-optimized light mode.
     link: /guide/presentations
-  - icon: 📚
-    title: Documentation
+  - title: Documentation
     details: VitePress theme for beautiful, accessible documentation with professional aesthetics.
-  - icon: 🌙
-    title: Dark-First Design
+  - title: Dark-First Design
     details: Optimized for extended developer sessions with reduced eye strain and professional aesthetics.
-  - icon: ♿
-    title: Accessible
+  - title: Accessible
     details: WCAG 2.1 AA compliant contrast ratios ensuring readability for all users.
 ---
 
 ## Why Amelia Design System?
 
-The Amelia Design System provides a cohesive visual language across all Amelia project artifacts—from documentation and diagrams to presentations and dashboards. Built on design tokens, it ensures consistency while maintaining flexibility.
+The Amelia Design System was built by [hey-amelia](https://github.com/apps/hey-amelia), an AI-powered GitHub bot. It provides a cohesive visual language across Amelia project artifacts—from documentation and diagrams to presentations and dashboards. Built on design tokens, it ensures consistency while maintaining flexibility.
 
 ### Key Principles
 

@@ -62,11 +62,11 @@ slidev export slides.md
 
 ## Custom Layouts
 
-The Amelia theme provides specialized layouts for different presentation scenarios.
+The theme provides specialized layouts for different presentation scenarios.
 
 ### 1. Cover Layout
 
-Title slide with large display font and gradient background.
+Title slide with large display font.
 
 ```markdown
 ---
@@ -488,7 +488,7 @@ Highlighted callout for key messages.
 
 ### Dark Mode (Default)
 
-Dark mode aesthetic:
+Amelia Dark Mode aesthetic:
 - Background: #0D1A12 (deep green)
 - Text: #EFF8E2 (warm off-white)
 - Primary: #FFC857 (gold)
@@ -502,7 +502,7 @@ colorSchema: dark
 
 ### Light Mode
 
-Professional daytime theme:
+Amelia Light Mode professional daytime theme:
 - Background: #FDF8F0 (warm cream)
 - Text: #1A2F23 (dark green-black)
 - Primary: #2E6B9C (professional blue)
@@ -526,7 +526,7 @@ colorSchema: both
 
 ## Typography
 
-The theme uses Amelia design system fonts:
+The Amelia theme uses the Amelia design system fonts:
 
 - **Display**: Bebas Neue (cover slides, large headings)
 - **Headings**: Barlow Condensed (section titles)
@@ -612,7 +612,7 @@ Regular content with sufficient contrast
 
 ### Consistency
 
-1. **Use design tokens**: Colors adapt to theme automatically
+1. **Use Amelia design tokens**: Colors adapt to theme automatically
 2. **Consistent layouts**: Same layout type for similar content
 3. **Component reuse**: Use same component for same data types
 
@@ -839,7 +839,7 @@ source: "Strategic Planning 2025"
 - [Slidev Guide](https://sli.dev/guide/)
 - [Slidev Themes](https://sli.dev/themes/gallery.html)
 
-### Amelia Theme
+### Theme Source
 - Theme source: [design-system/themes/slidev](https://github.com/anderskev/amelia/tree/main/design-system/themes/slidev)
 - Layout docs: `design-system/themes/slidev/layouts/README.md`
 - Component docs: `design-system/themes/slidev/components/README.md`

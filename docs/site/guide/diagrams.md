@@ -17,7 +17,7 @@ Both tools use Amelia's color tokens to ensure visual consistency across documen
 
 ### Dark Theme Configuration
 
-Use the dark theme for professional aesthetics:
+Use the Amelia Dark Theme for professional aesthetics:
 
 ```d2
 # Amelia Dark Theme
@@ -36,7 +36,7 @@ vars: {
 
 ### Light Theme Configuration
 
-Use the light theme for daytime professional aesthetics:
+Use the Amelia Light Theme for daytime professional aesthetics:
 
 ```d2
 # Amelia Light Theme
@@ -147,7 +147,7 @@ system: System Boundary {
 
 #### State Diagrams
 
-Use status colors for workflow states:
+Use Amelia workflow colors for workflow states:
 
 ```d2
 vars: {
@@ -241,11 +241,11 @@ api -> user: Result {
 
 ## Mermaid Diagrams
 
-Mermaid diagrams are rendered directly in VitePress markdown. Configure Mermaid to use Amelia colors in your VitePress config.
+Mermaid diagrams are rendered directly in VitePress markdown. Configure Mermaid to use the design system colors in your VitePress config.
 
 ### VitePress Configuration
 
-Add Mermaid theme configuration to `.vitepress/config.ts`:
+Add Amelia Mermaid theme configuration to `.vitepress/config.ts`:
 
 ```typescript
 import { defineConfig } from 'vitepress'
@@ -255,7 +255,7 @@ export default defineConfig({
     mermaidPlugin: {
       theme: 'dark',
       themeVariables: {
-        // Dark mode theme
+        // Amelia Dark Theme
         primaryColor: '#FFC857',      // Gold
         primaryTextColor: '#0D1A12',   // Dark text on gold
         primaryBorderColor: '#E5B350', // Darker gold
@@ -316,7 +316,7 @@ sequenceDiagram
 
 ### State Diagram Example
 
-Using Amelia workflow colors:
+Using the Amelia workflow colors:
 
 ```mermaid
 stateDiagram-v2
@@ -442,9 +442,9 @@ connection: {
 
 ### Consistency
 
-1. **Use Theme Variables**: Always reference theme vars, never hardcode colors
+1. **Use Theme Variables**: Always reference Amelia theme vars, never hardcode colors
 2. **Consistent Patterns**: Use same colors for same element types
-3. **Font Families**: Match diagram fonts to design system
+3. **Font Families**: Match diagram fonts to Amelia design system
 
 ```d2
 vars: {
