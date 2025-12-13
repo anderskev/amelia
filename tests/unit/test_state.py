@@ -52,3 +52,30 @@ class TestTaskDAGGetTask:
         result = dag.get_task("any-id")
 
         assert result is None
+
+
+def test_execution_state_accepts_design_field():
+    """ExecutionState should accept optional design field."""
+    from amelia.core.types import Design
+
+    profile = Profile(name="test", driver="cli:claude")
+    design = Design(
+        title="Test Design",
+        goal="Test goal",
+        architecture="Test architecture",
+        tech_stack=["Python"],
+        components=["Component A"],
+        raw_content="# Test Design\n\nRaw content here",
+    )
+    state = ExecutionState(profile=profile, design=design)
+
+    assert state.design is not None
+    assert state.design.title == "Test Design"
+
+
+def test_execution_state_design_defaults_to_none():
+    """ExecutionState design should default to None."""
+    profile = Profile(name="test", driver="cli:claude")
+    state = ExecutionState(profile=profile)
+
+    assert state.design is None
