@@ -38,7 +38,7 @@ export default defineConfig({
         text: 'Resources',
         items: [
           { text: 'GitHub', link: 'https://github.com/anderskev/amelia' },
-          { text: 'License', link: '/license' }
+          { text: 'License', link: 'https://github.com/anderskev/amelia/blob/main/LICENSE' }
         ]
       }
     ],
