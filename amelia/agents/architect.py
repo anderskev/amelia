@@ -107,6 +107,46 @@ Each step should be 2-5 minutes of work. Include complete code, not placeholders
         return """Create a detailed implementation plan with bite-sized TDD tasks.
 Ensure exact file paths, complete code in steps, and commands with expected output."""
 
+    def _format_design_section(self, design: Design) -> str:
+        """Format Design into structured markdown for context.
+
+        Args:
+            design: The design to format.
+
+        Returns:
+            Formatted markdown string with design fields.
+        """
+        parts = []
+
+        parts.append(f"## Goal\n\n{design.goal}")
+        parts.append(f"## Architecture\n\n{design.architecture}")
+
+        if design.tech_stack:
+            tech_list = "\n".join(f"- {tech}" for tech in design.tech_stack)
+            parts.append(f"## Tech Stack\n\n{tech_list}")
+
+        if design.components:
+            comp_list = "\n".join(f"- {comp}" for comp in design.components)
+            parts.append(f"## Components\n\n{comp_list}")
+
+        if design.data_flow:
+            parts.append(f"## Data Flow\n\n{design.data_flow}")
+
+        if design.error_handling:
+            parts.append(f"## Error Handling\n\n{design.error_handling}")
+
+        if design.testing_strategy:
+            parts.append(f"## Testing Strategy\n\n{design.testing_strategy}")
+
+        if design.conventions:
+            parts.append(f"## Conventions\n\n{design.conventions}")
+
+        if design.relevant_files:
+            files_list = "\n".join(f"- `{f}`" for f in design.relevant_files)
+            parts.append(f"## Relevant Files\n\n{files_list}")
+
+        return "\n\n".join(parts)
+
     def compile(self, state: ExecutionState) -> CompiledContext:
         """Compile ExecutionState into context for planning.
 

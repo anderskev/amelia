@@ -192,3 +192,33 @@ class TestArchitectContextStrategy:
         assert len(context.sections) == 1
         expected_content = title if title else description
         assert expected_content in context.sections[0].content
+
+    def test_format_design_section_structures_design_fields(
+        self, strategy, mock_design_factory
+    ):
+        """Test _format_design_section formats design as structured markdown."""
+        design = mock_design_factory(
+            title="Authentication System",
+            goal="Build secure JWT-based authentication",
+            architecture="Layered architecture with service and repository patterns",
+            tech_stack=["FastAPI", "PostgreSQL", "Redis"],
+            components=["AuthService", "TokenManager", "UserRepository"],
+            data_flow="Request -> AuthService -> TokenManager -> Response",
+            testing_strategy="Unit tests for services, integration for API",
+        )
+
+        result = strategy._format_design_section(design)
+
+        assert "## Goal" in result
+        assert "Build secure JWT-based authentication" in result
+        assert "## Architecture" in result
+        assert "Layered architecture" in result
+        assert "## Tech Stack" in result
+        assert "- FastAPI" in result
+        assert "- PostgreSQL" in result
+        assert "## Components" in result
+        assert "- AuthService" in result
+        assert "## Data Flow" in result
+        assert "Request -> AuthService" in result
+        assert "## Testing Strategy" in result
+        assert "Unit tests for services" in result
