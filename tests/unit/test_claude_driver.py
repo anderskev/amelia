@@ -511,8 +511,6 @@ class TestClaudeCliDriverAgentic:
 
     async def test_execute_agentic_uses_skip_permissions(self, driver, mock_subprocess_process_factory):
         """execute_agentic should use --dangerously-skip-permissions."""
-        from amelia.core.state import AgentMessage
-
         messages = [AgentMessage(role="user", content="test prompt")]
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}\n',
@@ -532,8 +530,6 @@ class TestClaudeCliDriverAgentic:
 
     async def test_execute_agentic_tracks_tool_calls(self, driver, mock_subprocess_process_factory):
         """execute_agentic should track tool calls in tool_call_history."""
-        from amelia.core.state import AgentMessage
-
         messages = [AgentMessage(role="user", content="test prompt")]
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"path":"test.py"}}]}}\n',
@@ -551,8 +547,6 @@ class TestClaudeCliDriverAgentic:
 
     async def test_execute_agentic_with_system_prompt(self, driver, mock_subprocess_process_factory):
         """execute_agentic should use --append-system-prompt when system_prompt is provided."""
-        from amelia.core.state import AgentMessage
-
         messages = [AgentMessage(role="user", content="test prompt")]
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working with persona..."}]}}\n',
@@ -578,8 +572,6 @@ class TestClaudeCliDriverAgentic:
 
     async def test_execute_agentic_without_system_prompt(self, driver, mock_subprocess_process_factory):
         """execute_agentic should not use --append-system-prompt when system_prompt is None."""
-        from amelia.core.state import AgentMessage
-
         messages = [AgentMessage(role="user", content="test prompt")]
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}\n',
