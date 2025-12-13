@@ -205,7 +205,7 @@ class Architect:
         )
 
         # Generate task DAG using compiled context
-        task_dag = await self._generate_task_dag(compiled_context, state.issue, design)
+        task_dag = await self._generate_task_dag(compiled_context, state.issue, strategy, design)
 
         # Save markdown
         markdown_path = self._save_markdown(task_dag, state.issue, design, output_dir)
@@ -216,40 +216,31 @@ class Architect:
         self,
         compiled_context: CompiledContext,
         issue: Issue,
-        design: Design | None = None
+        strategy: ArchitectContextStrategy,
+        design: Design | None = None,
     ) -> TaskDAG:
         """Generate TaskDAG using LLM.
 
         Args:
             compiled_context: Compiled context from the strategy.
             issue: Original issue being planned.
+            strategy: The context strategy instance for prompt generation.
             design: Optional design context (for backward compatibility with markdown).
 
         Returns:
             TaskDAG containing structured tasks with TDD steps.
         """
-        # Get prompts from strategy (must be ArchitectContextStrategy)
-        # We instantiate directly since we know the context_strategy class attribute
-        strategy_instance = self.context_strategy()
-
-        task_system_prompt = strategy_instance.get_task_generation_system_prompt()
-        task_user_prompt = strategy_instance.get_task_generation_user_prompt()
+        task_system_prompt = strategy.get_task_generation_system_prompt()
+        task_user_prompt = strategy.get_task_generation_user_prompt()
 
         # Convert compiled context to messages
-        base_messages = strategy_instance.to_messages(compiled_context)
+        base_messages = strategy.to_messages(compiled_context)
 
-        # Replace the system prompt with the task generation specific one
-        messages = []
-        for msg in base_messages:
-            if msg.role == "system":
-                messages.append(
-                    AgentMessage(role="system", content=task_system_prompt)
-                )
-            else:
-                messages.append(msg)
-
-        # Add user instruction for task generation
-        messages.append(AgentMessage(role="user", content=task_user_prompt))
+        # Replace system prompt with task-specific one and append user prompt
+        messages = [
+            AgentMessage(role="system", content=task_system_prompt) if msg.role == "system" else msg
+            for msg in base_messages
+        ] + [AgentMessage(role="user", content=task_user_prompt)]
 
         response = await self.driver.generate(messages=messages, schema=TaskListResponse)
 

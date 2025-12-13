@@ -97,20 +97,20 @@ class TestGetCodeChangesForReview:
         assert result == ""
         mock_run.assert_called_once()
 
+    @patch("subprocess.run")
     async def test_handles_empty_string_in_state(
-        self, mock_execution_state_factory
+        self, mock_run, mock_execution_state_factory
     ):
         """Edge case: Empty string in state is treated as falsy, triggers git diff."""
         state = mock_execution_state_factory(code_changes_for_review="")
 
-        with patch("subprocess.run") as mock_run:
-            mock_process = MagicMock()
-            mock_process.returncode = 0
-            mock_process.stdout = "git output"
-            mock_run.return_value = mock_process
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stdout = "git output"
+        mock_run.return_value = mock_process
 
-            result = await get_code_changes_for_review(state)
+        result = await get_code_changes_for_review(state)
 
-            # Empty string is falsy, should trigger git diff fallback
-            assert result == "git output"
-            mock_run.assert_called_once()
+        # Empty string is falsy, should trigger git diff fallback
+        assert result == "git output"
+        mock_run.assert_called_once()

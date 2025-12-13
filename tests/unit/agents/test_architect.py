@@ -115,7 +115,7 @@ class TestArchitect:
         compiled_context = strategy.compile(state)
 
         # Generate task DAG
-        await architect._generate_task_dag(compiled_context, issue, design=None)
+        await architect._generate_task_dag(compiled_context, issue, strategy, design=None)
 
         # Verify driver.generate was called
         assert mock_driver.generate.called
@@ -171,7 +171,7 @@ class TestArchitect:
         compiled_context = strategy.compile(state)
 
         # Generate task DAG
-        await architect._generate_task_dag(compiled_context, issue, design=None)
+        await architect._generate_task_dag(compiled_context, issue, strategy, design=None)
 
         # Get the messages passed to driver
         call_args = mock_driver.generate.call_args
@@ -221,7 +221,7 @@ class TestArchitect:
         compiled_context = strategy.compile(state)
 
         # Generate task DAG
-        await architect._generate_task_dag(compiled_context, issue, design=None)
+        await architect._generate_task_dag(compiled_context, issue, strategy, design=None)
 
         # Get the messages passed to driver
         call_args = mock_driver.generate.call_args
