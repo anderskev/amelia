@@ -48,13 +48,17 @@ async def call_architect_node(
     if state.issue is None:
         raise ValueError("Cannot call Architect: no issue provided in state.")
 
-    # Extract stream_emitter from config if available
+    # Extract stream_emitter and workflow_id from config if available
     config = config or {}
-    stream_emitter = config.get("configurable", {}).get("stream_emitter")
+    configurable = config.get("configurable", {})
+    stream_emitter = configurable.get("stream_emitter")
+    workflow_id = configurable.get("thread_id")
+    if not workflow_id:
+        raise ValueError("workflow_id (thread_id) is required in config.configurable")
 
     driver = DriverFactory.get_driver(state.profile.driver)
     architect = Architect(driver, stream_emitter=stream_emitter)
-    plan_output = await architect.plan(state)
+    plan_output = await architect.plan(state, workflow_id=workflow_id)
 
     # Log the agent action
     logger.info(
@@ -171,15 +175,19 @@ async def call_reviewer_node(
         )
         review_state = state.model_copy(update={"current_task_id": state.plan.tasks[0].id})
 
-    # Extract stream_emitter from config if available
+    # Extract stream_emitter and workflow_id from config if available
     config = config or {}
-    stream_emitter = config.get("configurable", {}).get("stream_emitter")
+    configurable = config.get("configurable", {})
+    stream_emitter = configurable.get("stream_emitter")
+    workflow_id = configurable.get("thread_id")
+    if not workflow_id:
+        raise ValueError("workflow_id (thread_id) is required in config.configurable")
 
     driver = DriverFactory.get_driver(state.profile.driver)
     reviewer = Reviewer(driver, stream_emitter=stream_emitter)
 
     code_changes = await get_code_changes_for_review(review_state)
-    review_result = await reviewer.review(review_state, code_changes)
+    review_result = await reviewer.review(review_state, code_changes, workflow_id=workflow_id)
 
     # Log the review completion
     logger.info(
@@ -216,9 +224,13 @@ async def call_developer_node(
         logger.info("Orchestrator: No plan or tasks to execute.")
         return {}
 
-    # Extract stream_emitter from config if available
+    # Extract stream_emitter and workflow_id from config if available
     config = config or {}
-    stream_emitter = config.get("configurable", {}).get("stream_emitter")
+    configurable = config.get("configurable", {})
+    stream_emitter = configurable.get("stream_emitter")
+    workflow_id = configurable.get("thread_id")
+    if not workflow_id:
+        raise ValueError("workflow_id (thread_id) is required in config.configurable")
 
     driver = DriverFactory.get_driver(state.profile.driver)
     developer = Developer(
@@ -249,7 +261,7 @@ async def call_developer_node(
         try:
             # Create state with current task ID for execution
             current_state = state.model_copy(update={"current_task_id": task.id})
-            result = await developer.execute_current_task(current_state)
+            result = await developer.execute_current_task(current_state, workflow_id=workflow_id)
 
             if result.get("status") == "completed":
                 # Update status to completed (immutably)
