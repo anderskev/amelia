@@ -18,6 +18,9 @@ import type { Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import './style.css'
 import './custom.css'
+import ColorSwatch from './components/ColorSwatch.vue'
+import ColorPalette from './components/ColorPalette.vue'
+import ColorComparison from './components/ColorComparison.vue'
 
 export default {
   extends: DefaultTheme,
@@ -28,6 +31,9 @@ export default {
     })
   },
   enhanceApp({ app, router, siteData }) {
-    // App-level customizations can be added here
+    // Register custom components globally
+    app.component('ColorSwatch', ColorSwatch)
+    app.component('ColorPalette', ColorPalette)
+    app.component('ColorComparison', ColorComparison)
   }
 } satisfies Theme

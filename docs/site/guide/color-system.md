@@ -11,25 +11,20 @@ The Amelia Design System features dual themes designed for professional environm
 
 ## Core Color Tokens
 
-### Dark Mode (Default)
-
-The default dark mode uses deep forest greens with gold accents:
-
-<div class="color-swatch-grid">
-
-| Token | Hex | OKLCH | Usage |
-|-------|-----|-------|-------|
-| `--background` | #0D1A12 | oklch(8% 0.02 150) | Main background |
-| `--foreground` | #EFF8E2 | oklch(95% 0.02 120) | Main text color |
-| `--card` | #1F332E | oklch(18% 0.025 150) | Elevated surfaces |
-| `--primary` | #FFC857 | oklch(82% 0.16 85) | Gold - primary actions |
-| `--secondary` | #4A5C54 | oklch(35% 0.04 150) | Muted panels |
-| `--muted` | #2B3D35 | oklch(25% 0.03 150) | Subtle backgrounds |
-| `--muted-foreground` | #88A896 | oklch(60% 0.05 150) | Secondary text |
-| `--accent` | #5B9BD5 | oklch(65% 0.12 240) | Blue - links & interactive |
-| `--destructive` | #A33D2E | oklch(50% 0.2 25) | Error states |
-
-</div>
+<ColorComparison
+  title="Core Colors"
+  :colors="[
+    { name: '--background', dark: { hex: '#0D1A12', oklch: 'oklch(8% 0.02 150)' }, light: { hex: '#FDF8F0', oklch: 'oklch(96% 0.02 85)' }, usage: 'Main background' },
+    { name: '--foreground', dark: { hex: '#EFF8E2', oklch: 'oklch(95% 0.02 120)' }, light: { hex: '#1A2F23', oklch: 'oklch(20% 0.04 150)' }, usage: 'Main text color' },
+    { name: '--card', dark: { hex: '#1F332E', oklch: 'oklch(18% 0.025 150)' }, light: { hex: '#FFFDF9', oklch: 'oklch(99% 0.01 85)' }, usage: 'Elevated surfaces' },
+    { name: '--primary', dark: { hex: '#FFC857', oklch: 'oklch(82% 0.16 85)' }, light: { hex: '#2E6B9C', oklch: 'oklch(45% 0.12 240)' }, usage: 'Primary actions (Gold/Blue)' },
+    { name: '--secondary', dark: { hex: '#4A5C54', oklch: 'oklch(35% 0.04 150)' }, light: { hex: '#F5F1E8', oklch: 'oklch(94% 0.015 85)' }, usage: 'Muted panels' },
+    { name: '--muted', dark: { hex: '#2B3D35', oklch: 'oklch(25% 0.03 150)' }, light: { hex: '#EBE5D8', oklch: 'oklch(90% 0.02 85)' }, usage: 'Subtle backgrounds' },
+    { name: '--muted-foreground', dark: { hex: '#88A896', oklch: 'oklch(60% 0.05 150)' }, light: { hex: '#5C7263', oklch: 'oklch(45% 0.03 150)' }, usage: 'Secondary text' },
+    { name: '--accent', dark: { hex: '#5B9BD5', oklch: 'oklch(65% 0.12 240)' }, light: { hex: '#E8B84A', oklch: 'oklch(75% 0.14 85)' }, usage: 'Links & interactive (Blue/Gold)' },
+    { name: '--destructive', dark: { hex: '#A33D2E', oklch: 'oklch(50% 0.2 25)' }, light: { hex: '#8B3224', oklch: 'oklch(45% 0.18 25)' }, usage: 'Error states' }
+  ]"
+/>
 
 **Example Usage:**
 
@@ -54,51 +49,21 @@ The default dark mode uses deep forest greens with gold accents:
 }
 ```
 
-### Light Mode
-
-The light mode provides a warm, professional aesthetic for daytime use:
-
-<div class="color-swatch-grid">
-
-| Token | Hex | OKLCH | Usage |
-|-------|-----|-------|-------|
-| `--background` | #FDF8F0 | oklch(96% 0.02 85) | Main background |
-| `--foreground` | #1A2F23 | oklch(20% 0.04 150) | Main text color |
-| `--card` | #FFFDF9 | oklch(99% 0.01 85) | Elevated surfaces |
-| `--primary` | #2E6B9C | oklch(45% 0.12 240) | Professional blue |
-| `--secondary` | #F5F1E8 | oklch(94% 0.015 85) | Light panels |
-| `--muted` | #EBE5D8 | oklch(90% 0.02 85) | Subtle backgrounds |
-| `--muted-foreground` | #5C7263 | oklch(45% 0.03 150) | Secondary text |
-| `--accent` | #E8B84A | oklch(75% 0.14 85) | Gold highlights |
-| `--destructive` | #8B3224 | oklch(45% 0.18 25) | Error states |
-
-</div>
-
 ## Status Colors
 
 Workflow state colors that adapt to both themes:
 
-### Dark Mode Status
-
-| Token | Hex | OKLCH | Usage |
-|-------|-----|-------|-------|
-| `--status-running` | #FFC857 | oklch(82% 0.16 85) | In progress |
-| `--status-completed` | #5B8A72 | oklch(50% 0.1 150) | Successfully done |
-| `--status-pending` | #4A5C54 | oklch(35% 0.04 150) | Queued/waiting |
-| `--status-blocked` | #A33D2E | oklch(50% 0.2 25) | Blocked/awaiting |
-| `--status-failed` | #A33D2E | oklch(50% 0.2 25) | Error state |
-| `--status-cancelled` | #5B6B7A | oklch(45% 0.03 250) | Cancelled |
-
-### Light Mode Status
-
-| Token | Hex | OKLCH | Usage |
-|-------|-----|-------|-------|
-| `--status-running` | #2E6B9C | oklch(45% 0.12 240) | In progress |
-| `--status-completed` | #3D7552 | oklch(40% 0.1 150) | Successfully done |
-| `--status-pending` | #B8AE9C | oklch(60% 0.02 85) | Queued/waiting |
-| `--status-blocked` | #8B3224 | oklch(45% 0.18 25) | Blocked/awaiting |
-| `--status-failed` | #8B3224 | oklch(45% 0.18 25) | Error state |
-| `--status-cancelled` | #6B7D8C | oklch(50% 0.04 250) | Cancelled |
+<ColorComparison
+  title="Status Colors"
+  :colors="[
+    { name: '--status-running', dark: { hex: '#FFC857', oklch: 'oklch(82% 0.16 85)' }, light: { hex: '#2E6B9C', oklch: 'oklch(45% 0.12 240)' }, usage: 'In progress' },
+    { name: '--status-completed', dark: { hex: '#5B8A72', oklch: 'oklch(50% 0.1 150)' }, light: { hex: '#3D7552', oklch: 'oklch(40% 0.1 150)' }, usage: 'Successfully done' },
+    { name: '--status-pending', dark: { hex: '#4A5C54', oklch: 'oklch(35% 0.04 150)' }, light: { hex: '#B8AE9C', oklch: 'oklch(60% 0.02 85)' }, usage: 'Queued/waiting' },
+    { name: '--status-blocked', dark: { hex: '#A33D2E', oklch: 'oklch(50% 0.2 25)' }, light: { hex: '#8B3224', oklch: 'oklch(45% 0.18 25)' }, usage: 'Blocked/awaiting' },
+    { name: '--status-failed', dark: { hex: '#A33D2E', oklch: 'oklch(50% 0.2 25)' }, light: { hex: '#8B3224', oklch: 'oklch(45% 0.18 25)' }, usage: 'Error state' },
+    { name: '--status-cancelled', dark: { hex: '#5B6B7A', oklch: 'oklch(45% 0.03 250)' }, light: { hex: '#6B7D8C', oklch: 'oklch(50% 0.04 250)' }, usage: 'Cancelled' }
+  ]"
+/>
 
 **Example Usage:**
 
@@ -128,25 +93,16 @@ Workflow state colors that adapt to both themes:
 
 Data visualization palette for both themes:
 
-### Dark Mode Charts
-
-| Token | Color | Usage |
-|-------|-------|-------|
-| `--chart-1` | #FFC857 (Gold) | Primary data series |
-| `--chart-2` | #5B8A72 (Green) | Secondary data series |
-| `--chart-3` | #5B9BD5 (Blue) | Tertiary data series |
-| `--chart-4` | #A33D2E (Red) | Warning/error data |
-| `--chart-5` | #88A896 (Gray) | Neutral data |
-
-### Light Mode Charts
-
-| Token | Color | Usage |
-|-------|-------|-------|
-| `--chart-1` | #2E6B9C (Blue) | Primary data series |
-| `--chart-2` | #3D7552 (Green) | Secondary data series |
-| `--chart-3` | #E8B84A (Gold) | Tertiary data series |
-| `--chart-4` | #8B3224 (Red) | Warning/error data |
-| `--chart-5` | #5C7263 (Gray) | Neutral data |
+<ColorComparison
+  title="Chart Colors"
+  :colors="[
+    { name: '--chart-1', dark: { hex: '#FFC857' }, light: { hex: '#2E6B9C' }, usage: 'Primary data series' },
+    { name: '--chart-2', dark: { hex: '#5B8A72' }, light: { hex: '#3D7552' }, usage: 'Secondary data series' },
+    { name: '--chart-3', dark: { hex: '#5B9BD5' }, light: { hex: '#E8B84A' }, usage: 'Tertiary data series' },
+    { name: '--chart-4', dark: { hex: '#A33D2E' }, light: { hex: '#8B3224' }, usage: 'Warning/error data' },
+    { name: '--chart-5', dark: { hex: '#88A896' }, light: { hex: '#5C7263' }, usage: 'Neutral data' }
+  ]"
+/>
 
 **Example Usage:**
 
@@ -251,7 +207,7 @@ For overlays and borders, use tokens with built-in alpha:
 
 ### OKLCH Color Space
 
-All Amelia colors are defined in OKLCH (Oklab Lightness Chroma Hue) for:
+All colors are defined in OKLCH (Oklab Lightness Chroma Hue) for:
 
 - **Perceptual uniformity**: Equal numerical changes = equal perceived changes
 - **Predictable lightness**: Easier to create accessible color scales
