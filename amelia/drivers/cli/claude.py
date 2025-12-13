@@ -465,7 +465,7 @@ class ClaudeCliDriver(CliDriver):
 
     async def execute_agentic(
         self,
-        prompt: str,
+        messages: list[AgentMessage],
         cwd: str,
         session_id: str | None = None,
         system_prompt: str | None = None
@@ -473,14 +473,23 @@ class ClaudeCliDriver(CliDriver):
         """Execute prompt with full autonomous tool access (YOLO mode).
 
         Args:
-            prompt: The task or instruction for Claude.
+            messages: List of conversation messages (system, user, assistant).
             cwd: Working directory for Claude Code context.
             session_id: Optional session ID to resume.
-            system_prompt: Optional system prompt to append to Claude's system context.
+            system_prompt: Optional system prompt to override any system messages in the list.
 
         Yields:
             ClaudeStreamEvent objects including tool executions.
         """
+        # Extract system messages from the list if no explicit system_prompt provided
+        if system_prompt is None:
+            system_messages = [m for m in messages if m.role == "system"]
+            if system_messages:
+                system_prompt = "\n\n".join(m.content for m in system_messages if m.content)
+
+        # Convert messages to prompt string (excluding system messages)
+        prompt = self._convert_messages_to_prompt(messages)
+
         cmd_args = [
             "claude", "-p",
             "--model", self.model,

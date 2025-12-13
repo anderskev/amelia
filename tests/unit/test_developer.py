@@ -119,6 +119,39 @@ class TestDeveloperExecution:
         assert result["status"] == "completed"
         mock_driver.generate.assert_called_once()
 
+    async def test_fallback_uses_context_strategy(
+        self, mock_task_factory, mock_execution_state_factory
+    ):
+        """Developer should use DeveloperContextStrategy for structured fallback."""
+        from amelia.agents.developer import DeveloperContextStrategy
+
+        mock_driver = AsyncMock(spec=DriverInterface)
+        mock_driver.generate.return_value = "Generated response"
+        task = mock_task_factory(
+            id="1", description="Implement the foo feature", status="pending"
+        )
+        state = mock_execution_state_factory(
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
+        developer = Developer(driver=mock_driver)
+
+        result = await developer.execute_current_task(state)
+
+        assert result["status"] == "completed"
+        # Verify generate was called with messages from the strategy
+        mock_driver.generate.assert_called_once()
+        call_args = mock_driver.generate.call_args
+        messages = call_args.kwargs["messages"]
+
+        # Should have system message from DeveloperContextStrategy
+        assert len(messages) >= 1
+        assert messages[0].role == "system"
+        assert messages[0].content == DeveloperContextStrategy.SYSTEM_PROMPT
+
+        # Should have user message with task content
+        assert any(msg.role == "user" and task.description in msg.content for msg in messages)
+
 
 class TestDeveloperAgenticExecution:
     """Tests for Developer agentic execution mode."""
@@ -126,10 +159,13 @@ class TestDeveloperAgenticExecution:
     async def test_execute_current_task_agentic_calls_execute_agentic(
         self, mock_task_factory, mock_execution_state_factory, mock_profile_factory
     ):
-        """Developer in agentic mode should call driver.execute_agentic."""
+        """Developer in agentic mode should call driver.execute_agentic with messages."""
         mock_driver = AsyncMock(spec=DriverInterface)
 
-        async def mock_execute_agentic(prompt, cwd, session_id=None, system_prompt=None):
+        async def mock_execute_agentic(messages, cwd, session_id=None, system_prompt=None):
+            # Verify that messages is a list of AgentMessage
+            assert isinstance(messages, list)
+            assert all(hasattr(msg, 'role') and hasattr(msg, 'content') for msg in messages)
             yield ClaudeStreamEvent(type="assistant", content="Working...")
             yield ClaudeStreamEvent(type="result", session_id="sess_001")
 
@@ -158,10 +194,12 @@ class TestDeveloperAgenticExecution:
 
         mock_driver = AsyncMock(spec=DriverInterface)
         captured_system_prompt = None
+        captured_messages = None
 
-        async def mock_execute_agentic(prompt, cwd, session_id=None, system_prompt=None):
-            nonlocal captured_system_prompt
+        async def mock_execute_agentic(messages, cwd, session_id=None, system_prompt=None):
+            nonlocal captured_system_prompt, captured_messages
             captured_system_prompt = system_prompt
+            captured_messages = messages
             yield ClaudeStreamEvent(type="assistant", content="Working...")
             yield ClaudeStreamEvent(type="result", session_id="sess_001")
 
@@ -185,6 +223,8 @@ class TestDeveloperAgenticExecution:
         assert captured_system_prompt == DeveloperContextStrategy.SYSTEM_PROMPT
         assert "TDD principles" in captured_system_prompt
         assert "senior developer" in captured_system_prompt
+        # Verify messages were passed as list
+        assert isinstance(captured_messages, list)
 
     async def test_execute_current_task_agentic_raises_on_error(
         self, mock_task_factory, mock_execution_state_factory, mock_profile_factory
@@ -192,7 +232,7 @@ class TestDeveloperAgenticExecution:
         """Developer in agentic mode should raise AgenticExecutionError on error event."""
         mock_driver = AsyncMock(spec=DriverInterface)
 
-        async def mock_execute_agentic(prompt, cwd, session_id=None, system_prompt=None):
+        async def mock_execute_agentic(messages, cwd, session_id=None, system_prompt=None):
             yield ClaudeStreamEvent(type="error", content="Something went wrong")
 
         mock_driver.execute_agentic = mock_execute_agentic

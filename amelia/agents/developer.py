@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from amelia.core.constants import ToolName
 from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
 from amelia.core.exceptions import AgenticExecutionError
-from amelia.core.state import AgentMessage, ExecutionState, Task
+from amelia.core.state import ExecutionState, Task
 from amelia.drivers.base import DriverInterface
 
 
@@ -189,12 +189,9 @@ class Developer:
 
         messages = strategy.to_messages(context)
 
-        # Extract user prompt from messages (skip system message)
-        prompt = "\n\n".join(msg.content for msg in messages if msg.role == "user")
-
         logger.info(f"Starting agentic execution for task {task.id}")
 
-        async for event in self.driver.execute_agentic(prompt, cwd, system_prompt=context.system_prompt):
+        async for event in self.driver.execute_agentic(messages, cwd, system_prompt=context.system_prompt):
             self._handle_stream_event(event)
 
             if event.type == "error":
@@ -294,10 +291,10 @@ class Developer:
 
             else:
                 logger.info(f"Developer generating response for task: {task.description}")
-                messages = [
-                    AgentMessage(role="system", content="You are a skilled software developer. Execute the given task."),
-                    AgentMessage(role="user", content=f"Task to execute: {task.description}")
-                ]
+                # Use context strategy for consistent message compilation
+                strategy = self.context_strategy()
+                context = strategy.compile(state)
+                messages = strategy.to_messages(context)
                 llm_response = await self.driver.generate(messages=messages)
                 return {"status": "completed", "output": llm_response}
 

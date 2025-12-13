@@ -62,6 +62,51 @@ You analyze issues and produce structured task DAGs with clear dependencies."""
 
     ALLOWED_SECTIONS = {"issue", "design"}
 
+    def get_task_generation_system_prompt(self) -> str:
+        """Get the detailed system prompt for task DAG generation.
+
+        This prompt is used specifically when generating the structured task DAG
+        from the compiled context. It includes detailed TDD instructions and
+        task structure requirements.
+
+        Returns:
+            Detailed system prompt string for task generation.
+        """
+        return """You are an expert software architect creating implementation plans.
+
+Your role is to break down the given context into a sequence of actionable development tasks.
+Each task MUST follow TDD (Test-Driven Development) principles.
+
+For each task, provide:
+- id: Unique identifier (e.g., "1", "2", "3")
+- description: Clear, concise description of what to build
+- dependencies: List of task IDs this task depends on
+- files: List of FileOperation objects with:
+  - operation: "create", "modify", or "test"
+  - path: Exact file path (e.g., "src/auth/middleware.py")
+  - line_range: Optional, for modify operations (e.g., "10-25")
+- steps: List of TaskStep objects following TDD:
+  1. Write the failing test (include actual code)
+  2. Run test to verify it fails (include command and expected output)
+  3. Write minimal implementation (include actual code)
+  4. Run test to verify it passes (include command and expected output)
+  5. Commit (include commit message)
+- commit_message: Conventional commit message (e.g., "feat: add auth middleware")
+
+Each step should be 2-5 minutes of work. Include complete code, not placeholders."""
+
+    def get_task_generation_user_prompt(self) -> str:
+        """Get the user prompt for task DAG generation.
+
+        This prompt is appended to the context to instruct the LLM to generate
+        the task DAG with specific formatting requirements.
+
+        Returns:
+            User prompt string for task generation.
+        """
+        return """Create a detailed implementation plan with bite-sized TDD tasks.
+Ensure exact file paths, complete code in steps, and commands with expected output."""
+
     def compile(self, state: ExecutionState) -> CompiledContext:
         """Compile ExecutionState into context for planning.
 
@@ -183,49 +228,32 @@ class Architect:
         Returns:
             TaskDAG containing structured tasks with TDD steps.
         """
-        # Build detailed system prompt for task generation
-        detailed_system_prompt = """You are an expert software architect creating implementation plans.
+        # Get prompts from strategy (must be ArchitectContextStrategy)
+        # We instantiate directly since we know the context_strategy class attribute
+        strategy_instance = self.context_strategy()
+        if not isinstance(strategy_instance, ArchitectContextStrategy):
+            raise TypeError(
+                f"Expected ArchitectContextStrategy, got {type(strategy_instance).__name__}"
+            )
 
-Your role is to break down the given context into a sequence of actionable development tasks.
-Each task MUST follow TDD (Test-Driven Development) principles.
+        task_system_prompt = strategy_instance.get_task_generation_system_prompt()
+        task_user_prompt = strategy_instance.get_task_generation_user_prompt()
 
-For each task, provide:
-- id: Unique identifier (e.g., "1", "2", "3")
-- description: Clear, concise description of what to build
-- dependencies: List of task IDs this task depends on
-- files: List of FileOperation objects with:
-  - operation: "create", "modify", or "test"
-  - path: Exact file path (e.g., "src/auth/middleware.py")
-  - line_range: Optional, for modify operations (e.g., "10-25")
-- steps: List of TaskStep objects following TDD:
-  1. Write the failing test (include actual code)
-  2. Run test to verify it fails (include command and expected output)
-  3. Write minimal implementation (include actual code)
-  4. Run test to verify it passes (include command and expected output)
-  5. Commit (include commit message)
-- commit_message: Conventional commit message (e.g., "feat: add auth middleware")
+        # Convert compiled context to messages
+        base_messages = strategy_instance.to_messages(compiled_context)
 
-Each step should be 2-5 minutes of work. Include complete code, not placeholders."""
-
-        user_prompt = """Create a detailed implementation plan with bite-sized TDD tasks.
-Ensure exact file paths, complete code in steps, and commands with expected output."""
-
-        # Convert compiled context to messages and append detailed user prompt
-        strategy = self.context_strategy()
-        base_messages = strategy.to_messages(compiled_context)
-
-        # Replace or enhance the system prompt with detailed instructions
+        # Replace the system prompt with the task generation specific one
         messages = []
         for msg in base_messages:
             if msg.role == "system":
                 messages.append(
-                    AgentMessage(role="system", content=detailed_system_prompt)
+                    AgentMessage(role="system", content=task_system_prompt)
                 )
             else:
                 messages.append(msg)
 
-        # Add user instruction
-        messages.append(AgentMessage(role="user", content=user_prompt))
+        # Add user instruction for task generation
+        messages.append(AgentMessage(role="user", content=task_user_prompt))
 
         response = await self.driver.generate(messages=messages, schema=TaskListResponse)
 

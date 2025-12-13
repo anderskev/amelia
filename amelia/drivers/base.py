@@ -41,14 +41,14 @@ class DriverInterface(Protocol):
         """
         ...
 
-    def execute_agentic(self, prompt: str, cwd: str, session_id: str | None = None, system_prompt: str | None = None) -> AsyncIterator[Any]:
+    def execute_agentic(self, messages: list[AgentMessage], cwd: str, session_id: str | None = None, system_prompt: str | None = None) -> AsyncIterator[Any]:
         """Execute prompt with autonomous tool access (agentic mode).
 
         Args:
-            prompt: The task or instruction for the model.
+            messages: List of conversation messages (system, user, assistant).
             cwd: Working directory for execution context.
             session_id: Optional session ID to resume.
-            system_prompt: Optional system prompt to set the agent's behavior.
+            system_prompt: Optional system prompt to override any system messages in the list.
 
         Yields:
             Stream events from execution.

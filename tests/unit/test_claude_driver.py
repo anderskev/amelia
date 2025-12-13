@@ -511,6 +511,9 @@ class TestClaudeCliDriverAgentic:
 
     async def test_execute_agentic_uses_skip_permissions(self, driver, mock_subprocess_process_factory):
         """execute_agentic should use --dangerously-skip-permissions."""
+        from amelia.core.state import AgentMessage
+
+        messages = [AgentMessage(role="user", content="test prompt")]
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}\n',
             b'{"type":"result","session_id":"sess_001","subtype":"success"}\n',
@@ -520,7 +523,7 @@ class TestClaudeCliDriverAgentic:
 
         with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
             events = []
-            async for event in driver.execute_agentic("test prompt", "/tmp"):
+            async for event in driver.execute_agentic(messages, "/tmp"):
                 events.append(event)
 
             mock_exec.assert_called_once()
@@ -529,6 +532,9 @@ class TestClaudeCliDriverAgentic:
 
     async def test_execute_agentic_tracks_tool_calls(self, driver, mock_subprocess_process_factory):
         """execute_agentic should track tool calls in tool_call_history."""
+        from amelia.core.state import AgentMessage
+
+        messages = [AgentMessage(role="user", content="test prompt")]
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"path":"test.py"}}]}}\n',
             b'{"type":"result","session_id":"sess_001","subtype":"success"}\n',
@@ -537,7 +543,7 @@ class TestClaudeCliDriverAgentic:
         mock_process = mock_subprocess_process_factory(stdout_lines=stream_lines, return_code=0)
 
         with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process):
-            async for _ in driver.execute_agentic("test prompt", "/tmp"):
+            async for _ in driver.execute_agentic(messages, "/tmp"):
                 pass
 
             assert len(driver.tool_call_history) == 1
@@ -545,6 +551,9 @@ class TestClaudeCliDriverAgentic:
 
     async def test_execute_agentic_with_system_prompt(self, driver, mock_subprocess_process_factory):
         """execute_agentic should use --append-system-prompt when system_prompt is provided."""
+        from amelia.core.state import AgentMessage
+
+        messages = [AgentMessage(role="user", content="test prompt")]
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working with persona..."}]}}\n',
             b'{"type":"result","session_id":"sess_002","subtype":"success"}\n',
@@ -555,7 +564,7 @@ class TestClaudeCliDriverAgentic:
         with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
             events = []
             async for event in driver.execute_agentic(
-                "test prompt",
+                messages,
                 "/tmp",
                 system_prompt="You are a senior software engineer."
             ):
@@ -569,6 +578,9 @@ class TestClaudeCliDriverAgentic:
 
     async def test_execute_agentic_without_system_prompt(self, driver, mock_subprocess_process_factory):
         """execute_agentic should not use --append-system-prompt when system_prompt is None."""
+        from amelia.core.state import AgentMessage
+
+        messages = [AgentMessage(role="user", content="test prompt")]
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}\n',
             b'{"type":"result","session_id":"sess_003","subtype":"success"}\n',
@@ -578,7 +590,7 @@ class TestClaudeCliDriverAgentic:
 
         with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
             events = []
-            async for event in driver.execute_agentic("test prompt", "/tmp"):
+            async for event in driver.execute_agentic(messages, "/tmp"):
                 events.append(event)
 
             mock_exec.assert_called_once()
