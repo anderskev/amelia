@@ -94,12 +94,6 @@ export default defineConfig({
       provider: 'local'
     },
 
-    // Edit link
-    editLink: {
-      pattern: 'https://github.com/anderskev/amelia/edit/main/docs/site/:path',
-      text: 'Edit this page on GitHub'
-    },
-
     // Last updated timestamp
     lastUpdated: {
       text: 'Last updated',
