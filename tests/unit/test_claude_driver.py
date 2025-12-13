@@ -40,6 +40,12 @@ def messages():
     ]
 
 
+@pytest.fixture
+def agentic_test_messages():
+    """Single-message list for execute_agentic tests."""
+    return [AgentMessage(role="user", content="test prompt")]
+
+
 class TestClaudeCliDriver:
 
     def test_convert_messages_to_prompt(self, driver, messages):
@@ -509,7 +515,7 @@ class TestClaudeStreamEvent:
 class TestClaudeCliDriverAgentic:
     """Tests for execute_agentic method."""
 
-    async def test_execute_agentic_uses_skip_permissions(self, driver, mock_subprocess_process_factory):
+    async def test_execute_agentic_uses_skip_permissions(self, driver, mock_subprocess_process_factory, agentic_test_messages):
         """execute_agentic should use --dangerously-skip-permissions."""
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}\n',
@@ -520,14 +526,14 @@ class TestClaudeCliDriverAgentic:
 
         with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
             events = []
-            async for event in driver.execute_agentic("test prompt", "/tmp"):
+            async for event in driver.execute_agentic(agentic_test_messages, "/tmp"):
                 events.append(event)
 
             mock_exec.assert_called_once()
             args = mock_exec.call_args[0]
             assert "--dangerously-skip-permissions" in args
 
-    async def test_execute_agentic_tracks_tool_calls(self, driver, mock_subprocess_process_factory):
+    async def test_execute_agentic_tracks_tool_calls(self, driver, mock_subprocess_process_factory, agentic_test_messages):
         """execute_agentic should track tool calls in tool_call_history."""
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"path":"test.py"}}]}}\n',
@@ -537,11 +543,53 @@ class TestClaudeCliDriverAgentic:
         mock_process = mock_subprocess_process_factory(stdout_lines=stream_lines, return_code=0)
 
         with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process):
-            async for _ in driver.execute_agentic("test prompt", "/tmp"):
+            async for _ in driver.execute_agentic(agentic_test_messages, "/tmp"):
                 pass
 
             assert len(driver.tool_call_history) == 1
             assert driver.tool_call_history[0].tool_name == "Read"
+
+    async def test_execute_agentic_with_system_prompt(self, driver, mock_subprocess_process_factory, agentic_test_messages):
+        """execute_agentic should use --append-system-prompt when system_prompt is provided."""
+        stream_lines = [
+            b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working with persona..."}]}}\n',
+            b'{"type":"result","session_id":"sess_002","subtype":"success"}\n',
+            b""
+        ]
+        mock_process = mock_subprocess_process_factory(stdout_lines=stream_lines, return_code=0)
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
+            events = []
+            async for event in driver.execute_agentic(
+                agentic_test_messages,
+                "/tmp",
+                system_prompt="You are a senior software engineer."
+            ):
+                events.append(event)
+
+            mock_exec.assert_called_once()
+            args = mock_exec.call_args[0]
+            assert "--append-system-prompt" in args
+            sys_idx = args.index("--append-system-prompt")
+            assert args[sys_idx + 1] == "You are a senior software engineer."
+
+    async def test_execute_agentic_without_system_prompt(self, driver, mock_subprocess_process_factory, agentic_test_messages):
+        """execute_agentic should not use --append-system-prompt when system_prompt is None."""
+        stream_lines = [
+            b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}\n',
+            b'{"type":"result","session_id":"sess_003","subtype":"success"}\n',
+            b""
+        ]
+        mock_process = mock_subprocess_process_factory(stdout_lines=stream_lines, return_code=0)
+
+        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process) as mock_exec:
+            events = []
+            async for event in driver.execute_agentic(agentic_test_messages, "/tmp"):
+                events.append(event)
+
+            mock_exec.assert_called_once()
+            args = mock_exec.call_args[0]
+            assert "--append-system-prompt" not in args
 
 
 class TestClarificationDetection:

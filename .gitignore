@@ -114,6 +114,7 @@ Desktop.ini
 amelia.db
 checkpoints/
 *.ckpt
+review_report.md
 
 # Bundled dashboard (built during release)
 amelia/server/static/*
@@ -134,3 +135,4 @@ site/
 # IDE/Tool config
 .codex/
 .specify/
+.gemini/

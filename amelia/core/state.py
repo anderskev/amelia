@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from amelia.core.types import Issue, Profile
+from amelia.core.types import Design, Issue, Profile
 
 
 TaskStatus = Literal["pending", "in_progress", "completed", "failed"]
@@ -134,6 +134,17 @@ class TaskDAG(BaseModel):
                 ready.append(task)
         return ready
 
+    def get_task(self, task_id: str) -> Task | None:
+        """Get a task by ID.
+
+        Args:
+            task_id: The task ID to find.
+
+        Returns:
+            The task if found, None otherwise.
+        """
+        return next((t for t in self.tasks if t.id == task_id), None)
+
 class ReviewResult(BaseModel):
     """Result from a code review.
 
@@ -166,6 +177,7 @@ class ExecutionState(BaseModel):
     Attributes:
         profile: Active profile configuration.
         issue: The issue being worked on.
+        design: Optional design context from brainstorming or external upload.
         plan: The task execution plan (DAG).
         current_task_id: ID of the currently executing task.
         human_approved: Whether human approval was granted for the plan.
@@ -173,9 +185,11 @@ class ExecutionState(BaseModel):
         code_changes_for_review: Staged code changes for review.
         driver_session_id: Session ID for CLI driver session continuity (works with any driver).
         workflow_status: Status of the workflow (running, completed, failed).
+        agent_history: History of agent actions/messages for context tracking.
     """
     profile: Profile
     issue: Issue | None = None
+    design: Design | None = None
     plan: TaskDAG | None = None
     current_task_id: str | None = None
     human_approved: bool | None = None # Field to store human approval status
@@ -183,3 +197,4 @@ class ExecutionState(BaseModel):
     code_changes_for_review: str | None = None # For local review or specific review contexts
     driver_session_id: str | None = None
     workflow_status: Literal["running", "completed", "failed"] = "running"
+    agent_history: list[str] = []

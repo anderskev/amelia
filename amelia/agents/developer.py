@@ -10,8 +10,9 @@ from loguru import logger
 from pydantic import BaseModel
 
 from amelia.core.constants import ToolName
+from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
 from amelia.core.exceptions import AgenticExecutionError
-from amelia.core.state import AgentMessage, Task
+from amelia.core.state import AgentMessage, ExecutionState, Task
 from amelia.drivers.base import DriverInterface
 
 
@@ -33,13 +34,96 @@ class DeveloperResponse(BaseModel):
     error: str | None = None
 
 
+class DeveloperContextStrategy(ContextStrategy):
+    """Context compilation strategy for the Developer agent.
+
+    Compiles minimal context for task execution, focusing only on the current task
+    from the TaskDAG without issue context or other agents' history.
+    """
+
+    SYSTEM_PROMPT = """You are a senior developer executing tasks following TDD principles.
+Run tests after each change. Follow the task steps exactly."""
+
+    ALLOWED_SECTIONS = {"task", "files", "steps"}
+
+    def compile(self, state: ExecutionState) -> CompiledContext:
+        """Compile ExecutionState into minimal task execution context.
+
+        Args:
+            state: The current execution state.
+
+        Returns:
+            CompiledContext with task-specific sections.
+
+        Raises:
+            ValueError: If no current task is found.
+        """
+        task = self.get_current_task(state)
+        if task is None:
+            raise ValueError("No current task found in execution state")
+
+        sections: list[ContextSection] = []
+
+        # Task section (required)
+        sections.append(
+            ContextSection(
+                name="task",
+                content=task.description,
+                source=f"task:{task.id}",
+            )
+        )
+
+        # Files section (optional, when task has files)
+        if task.files:
+            files_lines = [f"- {file_op.operation}: `{file_op.path}`" for file_op in task.files]
+            sections.append(
+                ContextSection(
+                    name="files",
+                    content="\n".join(files_lines),
+                    source=f"task:{task.id}:files",
+                )
+            )
+
+        # Steps section (optional)
+        if task.steps:
+            steps_lines = []
+            for i, step in enumerate(task.steps, 1):
+                steps_lines.append(f"### Step {i}: {step.description}")
+                if step.code:
+                    steps_lines.append(f"```\n{step.code}\n```")
+                if step.command:
+                    steps_lines.append(f"Run: `{step.command}`")
+                if step.expected_output:
+                    steps_lines.append(f"Expected: {step.expected_output}")
+                steps_lines.append("")  # Blank line between steps
+
+            sections.append(
+                ContextSection(
+                    name="steps",
+                    content="\n".join(steps_lines).rstrip(),
+                    source=f"task:{task.id}:steps",
+                )
+            )
+
+        # Validate sections before returning
+        self.validate_sections(sections)
+
+        return CompiledContext(
+            system_prompt=self.SYSTEM_PROMPT,
+            sections=sections,
+        )
+
+
 class Developer:
     """Agent responsible for executing development tasks following TDD principles.
 
     Attributes:
         driver: LLM driver interface for task execution and tool access.
         execution_mode: Execution mode (structured or agentic).
+        context_strategy: Context compilation strategy class.
     """
+
+    context_strategy: type[ContextStrategy] = DeveloperContextStrategy
 
     def __init__(self, driver: DriverInterface, execution_mode: ExecutionMode = "structured"):
         """Initialize the Developer agent.
@@ -51,30 +135,43 @@ class Developer:
         self.driver = driver
         self.execution_mode = execution_mode
 
-    async def execute_task(self, task: Task, cwd: str | None = None) -> dict[str, Any]:
-        """Execute a single development task.
+    async def execute_current_task(self, state: ExecutionState) -> dict[str, Any]:
+        """Execute the current task from execution state.
 
         Args:
-            task: The task to execute.
-            cwd: Working directory for agentic execution.
+            state: Full execution state containing profile, plan, and current_task_id.
 
         Returns:
-            Dict with status and output.
+            Dict with status, task_id, and output.
 
         Raises:
+            ValueError: If current_task_id not found in plan.
             AgenticExecutionError: If agentic execution fails.
         """
-        if self.execution_mode == "agentic":
-            return await self._execute_agentic(task, cwd or os.getcwd())
-        else:
-            return await self._execute_structured(task)
+        if not state.plan or not state.current_task_id:
+            raise ValueError("State must have plan and current_task_id")
 
-    async def _execute_agentic(self, task: Task, cwd: str) -> dict[str, Any]:
+        task = state.plan.get_task(state.current_task_id)
+        if not task:
+            raise ValueError(f"Task not found: {state.current_task_id}")
+
+        cwd = state.profile.working_dir or os.getcwd()
+
+        if self.execution_mode == "agentic":
+            return await self._execute_agentic(task, cwd, state)
+        else:
+            result = await self._execute_structured(task, state)
+            # Ensure task_id is included for consistency with agentic path
+            result["task_id"] = task.id
+            return result
+
+    async def _execute_agentic(self, task: Task, cwd: str, state: ExecutionState) -> dict[str, Any]:
         """Execute task autonomously with full Claude tool access.
 
         Args:
             task: The task to execute.
             cwd: Working directory for execution.
+            state: Full execution state for context compilation.
 
         Returns:
             Dict with status and output.
@@ -82,47 +179,28 @@ class Developer:
         Raises:
             AgenticExecutionError: If execution fails.
         """
-        prompt = self._build_task_prompt(task)
+        # Use context strategy with full state (no longer creating fake state)
+        strategy = self.context_strategy()
+        context = strategy.compile(state)
+
+        logger.debug(
+            "Compiled context",
+            agent="developer",
+            sections=[s.name for s in context.sections],
+            system_prompt_length=len(context.system_prompt) if context.system_prompt else 0
+        )
+
+        messages = strategy.to_messages(context)
+
         logger.info(f"Starting agentic execution for task {task.id}")
 
-        async for event in self.driver.execute_agentic(prompt, cwd):
+        async for event in self.driver.execute_agentic(messages, cwd, system_prompt=context.system_prompt):
             self._handle_stream_event(event)
 
             if event.type == "error":
                 raise AgenticExecutionError(event.content or "Unknown error")
 
         return {"status": "completed", "task_id": task.id, "output": "Agentic execution completed"}
-
-    def _build_task_prompt(self, task: Task) -> str:
-        """Convert task to a prompt for agentic execution.
-
-        Args:
-            task: The task to convert.
-
-        Returns:
-            Formatted prompt string.
-        """
-        sections = [f"# Task: {task.description}", "", "## Files"]
-
-        for file_op in task.files:
-            sections.append(f"- {file_op.operation}: `{file_op.path}`")
-
-        if task.steps:
-            sections.append("")
-            sections.append("## Steps")
-            for i, step in enumerate(task.steps, 1):
-                sections.append(f"### Step {i}: {step.description}")
-                if step.code:
-                    sections.append(f"```\n{step.code}\n```")
-                if step.command:
-                    sections.append(f"Run: `{step.command}`")
-                if step.expected_output:
-                    sections.append(f"Expected: {step.expected_output}")
-
-        sections.append("")
-        sections.append("Execute this task following TDD principles. Run tests after each change.")
-
-        return "\n".join(sections)
 
     def _handle_stream_event(self, event: Any) -> None:
         """Display streaming event to terminal.
@@ -146,11 +224,12 @@ class Developer:
         elif event.type == "error":
             typer.secho(f"  Error: {event.content}", fg=typer.colors.RED)
 
-    async def _execute_structured(self, task: Task) -> dict[str, Any]:
+    async def _execute_structured(self, task: Task, state: ExecutionState) -> dict[str, Any]:
         """Execute task using structured step-by-step approach.
 
         Args:
             task: The task to execute.
+            state: Full execution state (for future context usage).
 
         Returns:
             Dict with status and output.
@@ -215,10 +294,14 @@ class Developer:
 
             else:
                 logger.info(f"Developer generating response for task: {task.description}")
-                messages = [
-                    AgentMessage(role="system", content="You are a skilled software developer. Execute the given task."),
-                    AgentMessage(role="user", content=f"Task to execute: {task.description}")
-                ]
+                # Use context strategy for consistent message compilation
+                strategy = self.context_strategy()
+                context = strategy.compile(state)
+                # Build messages: prepend system prompt if present, then user messages
+                messages: list[AgentMessage] = []
+                if context.system_prompt:
+                    messages.append(AgentMessage(role="system", content=context.system_prompt))
+                messages.extend(strategy.to_messages(context))
                 llm_response = await self.driver.generate(messages=messages)
                 return {"status": "completed", "output": llm_response}
 

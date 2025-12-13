@@ -124,10 +124,49 @@ Use conventional commit format for the PR title:
 - `test(scope): add or modify tests`
 - `chore(scope): maintenance tasks`
 
-### 6. After Creation
+### 6. Apply Labels
+
+After creating the PR, apply appropriate labels based on the changes. Use `gh pr edit <number> --add-label <label>`.
+
+#### Type Labels (pick one)
+
+| Label | When to Use |
+|-------|-------------|
+| `enhancement` | New features, capabilities, or improvements |
+| `bug` | Bug fixes |
+| `docs` | Documentation-only changes |
+| `breaking-change` | **User-facing** breaking changes requiring migration (not internal refactors) |
+
+#### Area Labels (pick all that apply)
+
+Determine areas by checking which directories have changes:
+
+| Directory | Label |
+|-----------|-------|
+| `amelia/core/`, `amelia/drivers/` | `area:core` |
+| `amelia/agents/` | `area:agents` |
+| `amelia/server/` | `area:server` |
+| `amelia/main.py`, CLI-related | `area:cli` |
+| `dashboard/` | `area:dashboard` |
+
+```bash
+# Example: Apply labels for a feature touching core and agents
+gh pr edit <PR_NUMBER> --add-label enhancement --add-label area:core --add-label area:agents
+```
+
+#### Breaking Change Criteria
+
+Only apply `breaking-change` for **user-facing** changes that require users to modify their:
+- Configuration files
+- CLI invocations
+- API integrations
+
+Do NOT apply for internal refactors (driver interfaces, internal state changes) unless they affect external consumers.
+
+### 7. After Creation
 
 After creating the PR:
-1. Display the PR URL
+1. Display the PR URL with applied labels
 2. Suggest adding reviewers if appropriate
 3. Note if any CI checks need to pass
 
@@ -139,18 +178,22 @@ After creating the PR:
 - Link related issues
 - Note breaking changes prominently
 - Remove empty optional sections
+- Apply type label (enhancement/bug/docs) and all relevant area labels
+- Reserve `breaking-change` for user-facing changes only
 
 **DON'T:**
 - Include irrelevant commits (keep PR focused)
 - Leave placeholder text in the description
 - Skip the testing section
 - Create PRs without running local checks first
+- Apply `breaking-change` for internal API refactors
 
 ## Example Output
 
 ```
 Created PR #42: fix(health): wire websocket_connections to actual count
-URL: https://github.com/owner/repo/pull/42
+URL: https://github.com/anderskev/amelia/pull/42
+Labels: bug, area:server
 
 Suggested reviewers: @teammate1, @teammate2
 ```

@@ -198,8 +198,15 @@ def plan_only_command(
                 typer.echo(f"Error: Design file not found: {design_path}", err=True)
                 raise typer.Exit(code=1) from None
 
+        # Create ExecutionState for the architect
+        state = ExecutionState(
+            profile=active_profile,
+            issue=issue,
+            design=design
+        )
+
         architect = Architect(DriverFactory.get_driver(active_profile.driver))
-        result = await architect.plan(issue, design=design, output_dir=active_profile.plan_output_dir)
+        result = await architect.plan(state)
         
         typer.echo("\n--- GENERATED PLAN ---")
         if result.task_dag and result.task_dag.tasks:
