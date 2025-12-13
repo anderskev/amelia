@@ -344,18 +344,6 @@ state.review_results.append(review_result)
 # If approved → END
 ```
 
-### Local Flow (Deprecated)
-
-> **Note:** The `amelia start-local` command runs the orchestrator directly without a server. This mode is deprecated in favor of the server-based architecture.
-
-```python
-# Direct orchestrator invocation (no server)
-app = create_orchestrator_graph()
-final_state = await app.ainvoke(initial_state)
-# Human approval via CLI prompt
-# No real-time events or dashboard
-```
-
 ## Sequence Diagram
 
 ### Server-Based Architecture (Modern)
@@ -432,40 +420,6 @@ sequenceDiagram
         Service->>WS: broadcast(event)
         WS->>Dashboard: Complete
     end
-```
-
-### Local Flow (Deprecated)
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant CLI
-    participant Orchestrator
-    participant Agents
-    participant Driver
-    participant LLM
-
-    User->>CLI: amelia start-local PROJ-123
-    CLI->>Orchestrator: ainvoke(initial_state)
-
-    Orchestrator->>Agents: Architect.plan(issue)
-    Agents->>Driver: generate(messages, schema)
-    Driver->>LLM: API call
-    LLM-->>Agents: TaskDAG
-    Agents-->>Orchestrator: TaskDAG
-
-    Orchestrator->>User: Display plan (typer.confirm)
-    User-->>Orchestrator: Approved
-
-    loop Until complete
-        Orchestrator->>Agents: Developer.execute_task()
-        Agents-->>Orchestrator: result
-    end
-
-    Orchestrator->>Agents: Reviewer.review()
-    Agents-->>Orchestrator: ReviewResult
-    Orchestrator-->>CLI: Final state
-    CLI-->>User: Complete
 ```
 
 ## Key Types
