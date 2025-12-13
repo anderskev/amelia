@@ -134,3 +134,4 @@ site/
 # IDE/Tool config
 .codex/
 .specify/
+.gemini/
