@@ -144,6 +144,14 @@ export const useWorkflowStore = create<WorkflowState>()(
       addEvent: (event) =>
         set((state) => {
           const existing = state.eventsByWorkflow[event.workflow_id] ?? [];
+
+          // Deduplicate by event ID - prevents duplicates from StrictMode
+          // double-effect invocation causing overlapping WebSocket connections.
+          // O(n) scan acceptable for low-frequency WebSocket events (<10/sec).
+          if (existing.some((e) => e.id === event.id)) {
+            return state;
+          }
+
           const updated = [...existing, event];
 
           // Trim oldest events if exceeding limit (keep most recent)
