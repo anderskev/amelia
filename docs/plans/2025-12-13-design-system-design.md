@@ -480,6 +480,671 @@ slidev-theme-amelia/
 
 ---
 
+## Consulting Presentation Style
+
+The Slidev theme includes a **consulting style** for executive-facing presentations. This style follows the methodology used by top-tier strategy consultancies for stakeholder communication.
+
+> **When to use:** Stakeholder presentations, board decks, investment pitches, strategic recommendations. Use the Amelia aviation style for internal/technical presentations.
+
+### Design Philosophy
+
+1. **Pyramid Principle** (Barbara Minto) — Start with the answer. Present the key takeaway first, then supporting arguments, then evidence. "Think bottom-up, present top-down."
+
+2. **Action Titles** — Every slide title is a complete sentence stating the main insight. Titles alone should tell the complete story.
+
+3. **One Message Per Slide** — Each slide communicates exactly one key point. The action title captures this message.
+
+4. **SCQA Framework** — Structure narratives using Situation-Complication-Question-Answer for executive buy-in.
+
+5. **Zelazny's Chart Rule** — "A chart is a sentence, not a picture of data." Every visualization states its conclusion explicitly.
+
+---
+
+### Consulting Color Palette
+
+Professional blue-based palette for consulting audiences. White backgrounds for projector/print clarity.
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `consulting-bg` | #FFFFFF | Slide background |
+| `consulting-surface` | #F8F9FA | Subtle panels, callout boxes |
+| `consulting-navy` | #051D49 | Primary blue, titles |
+| `consulting-blue` | #2E6B9C | Links, accents |
+| `consulting-bright` | #0077C8 | Highlight color (use sparingly) |
+| `consulting-text` | #333333 | Body text |
+| `consulting-muted` | #666666 | Secondary text |
+| `consulting-border` | #E0E0E0 | Dividers, chart axes |
+| `consulting-positive` | #2E7D32 | Positive data, growth |
+| `consulting-negative` | #C62828 | Negative data, decline |
+| `consulting-neutral` | #9E9E9E | Neutral series data |
+
+**Coolors:** https://coolors.co/ffffff-f8f9fa-051d49-2e6b9c-0077c8-333333-666666
+
+**Color Principles:**
+- **Restrained base palette** — Most data series use neutral grays
+- **Single highlight color** — Reserve `consulting-bright` (#0077C8) for "our recommendation," "target state," or the key data point
+- **Color = meaning** — Never decorative; always functional
+
+---
+
+### Consulting Typography
+
+| Role | Family | Weight | Usage |
+|------|--------|--------|-------|
+| **Action Title** | Georgia | 700 | Slide headlines (complete sentences) |
+| **Subheading** | Barlow Condensed | 600 | Section labels, chart titles |
+| **Body** | Source Sans 3 | 400, 600 | Paragraphs, bullets |
+| **Data** | IBM Plex Mono | 400 | Numbers, percentages, KPIs |
+
+**Action Title Rules:**
+- Complete sentence (subject + verb + object)
+- Maximum 2 lines or 15 words
+- No colons, ellipses, or fragments
+- Should be **debatable** — could someone disagree?
+- Test: Cover the data; does the title still convey the insight?
+
+**Examples:**
+| Bad (Generic) | Good (Action Title) |
+|---------------|---------------------|
+| "Revenue Analysis" | "Three new markets drove 60% of revenue growth" |
+| "Customer Satisfaction Results" | "NPS scores declined 15 points after the pricing change" |
+| "Q3 Performance" | "Q3 exceeded targets despite supply chain disruptions" |
+
+---
+
+### Consulting Slide Grid
+
+Three-zone layout with strict margins and alignment.
+
+```
+┌────────────────────────────────────────────────────────┐
+│  ← 5% margin                              5% margin →  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ ACTION TITLE ZONE (10% height)                   │  │
+│  │ Complete sentence stating the key insight        │  │
+│  ├──────────────────────────────────────────────────┤  │
+│  │                                                  │  │
+│  │                                                  │  │
+│  │             BODY ZONE (78% height)               │  │
+│  │       Charts, content, supporting evidence       │  │
+│  │                                                  │  │
+│  │                                                  │  │
+│  ├──────────────────────────────────────────────────┤  │
+│  │ FOOTER ZONE (5% height)                          │  │
+│  │ Source: [citation]                    Slide 12   │  │
+│  └──────────────────────────────────────────────────┘  │
+│           ↑ 3% bottom margin                           │
+└────────────────────────────────────────────────────────┘
+```
+
+**Spacing:**
+- Margins: 5% horizontal, 3% vertical (approximates 1-inch at 1920×1080)
+- Title zone: 10% of slide height
+- Body zone: 78% of slide height
+- Footer zone: 5% of slide height
+- Internal gutters: 24px between elements
+
+---
+
+### Consulting Slide Layouts
+
+Extended layouts for the Slidev theme package:
+
+```
+layouts/
+├── consulting-action.vue       # Standard action-title slide
+├── consulting-scqa.vue         # SCQA framework (4-panel)
+├── consulting-exec.vue         # Executive summary
+├── consulting-data.vue         # Full-bleed chart
+├── consulting-ghost.vue        # Wireframe planning mode
+├── consulting-pyramid.vue      # Pyramid principle diagram
+├── consulting-comparison.vue   # Side-by-side analysis
+├── consulting-takeaway.vue     # Key insight callout
+├── consulting-waterfall.vue    # Bridge/waterfall chart
+└── consulting-timeline.vue     # Horizontal timeline
+```
+
+#### consulting-action (Default)
+
+Standard consulting slide with action title, body content, and source footer.
+
+**Usage:**
+```md
+---
+layout: consulting-action
+title: "Customer churn increased 23% after removing the free tier"
+source: "Internal analytics, Q3 2024"
+---
+
+<!-- Body content: charts, bullets, etc. -->
+```
+
+**Properties:**
+- `title` (required): Action title as complete sentence
+- `source`: Data source citation for footer
+- `subtitle`: Optional 1-line elaboration below title
+
+#### consulting-scqa
+
+Four-panel SCQA framework for executive narratives.
+
+**Usage:**
+```md
+---
+layout: consulting-scqa
+---
+
+::situation::
+For a decade, Acme Corp led the market with premium pricing and white-glove service.
+
+::complication::
+New entrants now offer 80% of features at 40% of price, capturing price-sensitive segments.
+
+::question::
+How should Acme defend market share while maintaining margins?
+
+::answer::
+Launch a fighter brand targeting the mid-market, preserving the premium tier for enterprise.
+```
+
+**Visual Structure:**
+```
+┌─────────────────┬─────────────────┐
+│   SITUATION     │  COMPLICATION   │
+│   (stable)      │  (change)       │
+├─────────────────┼─────────────────┤
+│   QUESTION      │     ANSWER      │
+│   (problem)     │  (solution)     │
+└─────────────────┴─────────────────┘
+```
+
+#### consulting-exec
+
+Executive summary slide with recommendation box.
+
+**Usage:**
+```md
+---
+layout: consulting-exec
+title: "Executive Summary"
+recommendation: "Proceed with Option B: Acquire TechCo for $450M"
+---
+
+**Key Findings:**
+- Market window closes in 18 months
+- Build option requires 3 years, $600M
+- TechCo valuation is 15% below peers
+
+**Next Steps:**
+1. Board approval by Dec 15
+2. Due diligence kickoff Jan 3
+3. Signing target: Feb 28
+```
+
+**Visual:** Recommendation displayed in highlighted callout box with `consulting-bright` left border.
+
+#### consulting-data
+
+Full-bleed chart slide with minimal chrome. Chart covers 90% of body zone.
+
+**Usage:**
+```md
+---
+layout: consulting-data
+title: "Revenue concentration decreased as we expanded into three new verticals"
+source: "Company financials, 2020-2024"
+chartTitle: "Revenue by segment ($M)"
+---
+
+<!-- Embed chart here -->
+```
+
+**Design:**
+- Action title at top
+- Chart title (Barlow Condensed) above visualization
+- Full-width chart area
+- Source citation in footer
+
+#### consulting-ghost
+
+Wireframe/planning mode for ghost decks. Shows slide structure without final content.
+
+**Usage:**
+```md
+---
+layout: consulting-ghost
+title: "[ACTION TITLE: State the key insight about market opportunity]"
+placeholder: "Chart showing TAM/SAM/SOM breakdown by region"
+notes: "Need Q4 market sizing data from research team"
+---
+```
+
+**Visual:**
+- Dashed borders around content zones
+- Gray placeholder boxes
+- Yellow sticky-note style comments
+- "DRAFT" watermark
+
+#### consulting-pyramid
+
+Visualize the Pyramid Principle hierarchy.
+
+**Usage:**
+```md
+---
+layout: consulting-pyramid
+title: "Three initiatives will reduce costs by $50M annually"
+---
+
+::top::
+Reduce operating costs by $50M through supply chain optimization
+
+::supporting::
+- Consolidate 3 regional DCs into 1 hub (-$20M)
+- Renegotiate carrier contracts (-$18M)
+- Automate order processing (-$12M)
+
+::evidence::
+[Detailed data and analysis for each initiative]
+```
+
+**Visual:**
+```
+          ┌─────────────────┐
+          │   KEY MESSAGE   │
+          │    ($50M)       │
+          └────────┬────────┘
+       ┌───────────┼───────────┐
+       ▼           ▼           ▼
+   ┌───────┐   ┌───────┐   ┌───────┐
+   │ DC    │   │Carrier│   │ Auto  │
+   │ $20M  │   │ $18M  │   │ $12M  │
+   └───────┘   └───────┘   └───────┘
+```
+
+#### consulting-comparison
+
+Side-by-side analysis of options or scenarios.
+
+**Usage:**
+```md
+---
+layout: consulting-comparison
+title: "Option B offers faster time-to-market at comparable cost"
+leftLabel: "Option A: Build"
+rightLabel: "Option B: Buy"
+recommendation: "right"
+---
+
+::left::
+- Timeline: 36 months
+- Cost: $600M
+- Risk: High (execution)
+- Control: Full
+
+::right::
+- Timeline: 6 months
+- Cost: $450M
+- Risk: Medium (integration)
+- Control: Partial
+```
+
+**Visual:** Recommended option highlighted with `consulting-bright` border.
+
+#### consulting-takeaway
+
+Key insight callout slide for transitions or emphasis.
+
+**Usage:**
+```md
+---
+layout: consulting-takeaway
+---
+
+The market will consolidate to 3 players within 5 years.
+
+**Acme must choose: acquire or be acquired.**
+```
+
+**Visual:**
+- Large, centered text
+- Emphasis line in `consulting-bright`
+- Minimal visual elements
+
+---
+
+### Consulting Components
+
+Vue components for consulting presentations:
+
+```
+components/
+├── ActionTitle.vue       # Formatted action title
+├── SourceNote.vue        # Footer source citation
+├── InsightBox.vue        # Highlighted callout
+├── SCQABlock.vue         # Single SCQA quadrant
+├── PyramidDiagram.vue    # Pyramid visualization
+├── GhostPlaceholder.vue  # Wireframe placeholder
+├── DataHighlight.vue     # KPI/metric display
+├── WaterfallBar.vue      # Bridge chart segment
+└── RecommendationBox.vue # Executive recommendation
+```
+
+#### ActionTitle
+
+```vue
+<ActionTitle>
+  Customer churn increased 23% after removing the free tier
+</ActionTitle>
+```
+
+- Font: Georgia, 700
+- Size: 28px (scales with slide)
+- Color: `consulting-navy`
+- Max lines: 2
+
+#### InsightBox
+
+Highlighted callout for key insights or recommendations.
+
+```vue
+<InsightBox type="recommendation">
+  Proceed with Option B: Acquire TechCo for $450M
+</InsightBox>
+```
+
+**Types:**
+- `recommendation` — Blue left border (`consulting-bright`)
+- `warning` — Red left border
+- `insight` — Navy left border
+- `action` — Green left border
+
+#### DataHighlight
+
+Large KPI/metric display for dashboards or summaries.
+
+```vue
+<DataHighlight
+  value="$450M"
+  label="Acquisition cost"
+  change="+15%"
+  changeType="negative"
+/>
+```
+
+---
+
+### Data Visualization Standards (Zelazny)
+
+Following Gene Zelazny's principles from "Say It With Charts":
+
+#### Three Core Principles
+
+| Principle | Rule | Test |
+|-----------|------|------|
+| **Simplicity** | Show minimum data needed | Can you remove a series without losing the point? |
+| **Clarity** | No decoding required | Can a new viewer understand in 5 seconds? |
+| **Message** | Insight is explicit | Does the title state the conclusion? |
+
+#### Chart Selection
+
+| If showing... | Use... |
+|---------------|--------|
+| Trend over time | Line chart |
+| Comparison across categories | Horizontal bar |
+| Part-to-whole | Stacked bar or waterfall |
+| Correlation | Scatter plot |
+| Distribution | Histogram |
+| Flow/process | Sankey or waterfall |
+
+#### Chart Construction Rules
+
+1. **Title as sentence** — Chart title states the insight, not the data type
+   - Bad: "Revenue by Quarter"
+   - Good: "Revenue grew 23% in Q3, reversing two quarters of decline"
+
+2. **Meaningful ordering** — Sort bars by value (not alphabetically) unless time-based
+
+3. **Single highlight** — Use `consulting-bright` for only the key data point; all others in `consulting-neutral`
+
+4. **Direct labeling** — Label data points directly, not via legend when possible
+
+5. **Axis clarity** — Units obvious, no excessive decimal places, sensible scales
+
+6. **Source citation** — Every chart has a source in the footer
+
+#### Color Application in Charts
+
+```
+┌─────────────────────────────────────────────┐
+│                                             │
+│   ████ $120M  ← consulting-bright (our co.)   │
+│   ████ $95M   ← consulting-neutral            │
+│   ████ $82M   ← consulting-neutral            │
+│   ████ $78M   ← consulting-neutral            │
+│   ████ $65M   ← consulting-neutral            │
+│                                             │
+│   Revenue by company, 2024                  │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+### Ghost Deck Workflow
+
+The ghost deck approach enables rapid storyline validation before content creation.
+
+#### Process
+
+1. **Define main message** — What is the single takeaway for the entire deck?
+2. **Build skeleton** — Create blank slides with action titles only
+3. **Review horizontal flow** — Read titles sequentially; do they tell a coherent story?
+4. **Mark data needs** — Note what analysis/data each slide requires
+5. **Validate with stakeholders** — Get buy-in on structure before content work
+6. **Fill content** — Only now create charts, write bullets, finalize design
+
+#### Ghost Deck Slide Example
+
+```md
+---
+layout: consulting-ghost
+title: "[Insight about competitive positioning in enterprise segment]"
+---
+
+::placeholder::
+2×2 matrix: Market share vs. growth rate
+Quadrants: Leaders, Challengers, Niche, Declining
+
+::data-needed::
+- Competitor revenue data (Source: Gartner)
+- Market growth rates by segment (Need from research)
+- Our positioning based on Q3 actuals (Have)
+
+::open-questions::
+- Include all 12 competitors or top 6?
+- Time horizon: 3-year or 5-year CAGR?
+```
+
+#### Ghost Mode Styling
+
+| Element | Style |
+|---------|-------|
+| Slide border | Dashed, 2px, `consulting-border` |
+| Placeholders | Gray box with dotted border |
+| Notes | Yellow background (#FFF9C4), handwriting font |
+| Watermark | "DRAFT" diagonal, 20% opacity |
+| Title brackets | [Action title placeholder text] format |
+
+---
+
+### Consulting Theme Structure
+
+Extended theme package structure:
+
+```
+slidev-theme-amelia/
+├── package.json
+├── styles/
+│   ├── base.css
+│   ├── code.css
+│   ├── amelia.css           # Amelia aviation theme
+│   └── consulting.css         # Consulting theme
+├── layouts/
+│   ├── cover.vue
+│   ├── section.vue
+│   ├── default.vue
+│   ├── two-cols.vue
+│   ├── diagram.vue
+│   ├── quote.vue
+│   ├── diff-view.vue
+│   ├── focus.vue
+│   ├── consulting-action.vue       # ← New
+│   ├── consulting-scqa.vue         # ← New
+│   ├── consulting-exec.vue         # ← New
+│   ├── consulting-data.vue         # ← New
+│   ├── consulting-ghost.vue        # ← New
+│   ├── consulting-pyramid.vue      # ← New
+│   ├── consulting-comparison.vue   # ← New
+│   ├── consulting-takeaway.vue     # ← New
+│   ├── consulting-waterfall.vue    # ← New
+│   └── consulting-timeline.vue     # ← New
+└── components/
+    ├── AmeliaLogo.vue
+    ├── StatusBadge.vue
+    ├── ActionTitle.vue           # ← New
+    ├── SourceNote.vue            # ← New
+    ├── InsightBox.vue            # ← New
+    ├── SCQABlock.vue             # ← New
+    ├── PyramidDiagram.vue        # ← New
+    ├── GhostPlaceholder.vue      # ← New
+    ├── DataHighlight.vue         # ← New
+    └── RecommendationBox.vue     # ← New
+```
+
+### Switching Between Styles
+
+Configure style in presentation frontmatter:
+
+```yaml
+---
+theme: amelia
+style: consulting  # or 'amelia' (default)
+---
+```
+
+Or per-slide:
+
+```md
+---
+layout: consulting-action
+title: "Revenue grew 45% through three strategic initiatives"
+---
+```
+
+---
+
+### Example Consulting Presentation
+
+```md
+---
+theme: amelia
+style: consulting
+title: Strategic Options for Market Expansion
+author: Strategy Team
+date: 2024-12-15
+---
+
+# Strategic Options for Market Expansion
+
+Prepared for: Executive Committee
+
+---
+layout: consulting-exec
+title: Executive Summary
+recommendation: Pursue Option B (Partnership) to enter APAC within 12 months
+---
+
+**Situation:** Acme leads North America but has no APAC presence, missing $2B TAM.
+
+**Complication:** Competitors are establishing APAC footholds; window closing.
+
+**Key Finding:** Partnership offers fastest path (12 months) at moderate risk.
+
+**Next Steps:**
+1. Board approval: Dec 20
+2. Partner shortlist: Jan 15
+3. Term sheet: Feb 28
+
+---
+layout: consulting-scqa
+---
+
+::situation::
+Acme Corp holds 35% market share in North America with strong brand recognition and enterprise relationships.
+
+::complication::
+APAC market ($2B) is growing 25% annually. Three competitors entered in 2024. Without action, Acme will be locked out.
+
+::question::
+How should Acme enter APAC in the next 18 months while managing risk and investment?
+
+::answer::
+Partner with RegionalCo for distribution, combining Acme technology with local relationships and compliance expertise.
+
+---
+layout: consulting-comparison
+title: Partnership offers the best risk-adjusted path to APAC market entry
+leftLabel: Option A: Build
+rightLabel: Option B: Partner
+recommendation: right
+---
+
+::left::
+- **Timeline:** 36 months
+- **Investment:** $150M
+- **Risk:** High (execution, regulatory)
+- **Control:** Full
+
+::right::
+- **Timeline:** 12 months
+- **Investment:** $45M + revenue share
+- **Risk:** Medium (partner dependency)
+- **Control:** Shared
+
+---
+layout: consulting-data
+title: RegionalCo has the strongest distribution network across target markets
+source: Partner analysis, Q4 2024
+chartTitle: Distribution reach by potential partner (stores)
+---
+
+<!-- Bar chart showing partner comparison -->
+
+---
+layout: consulting-takeaway
+---
+
+**The APAC window is closing.**
+
+Partnership with RegionalCo is the fastest, lowest-risk path to establish presence before competitors lock in the market.
+
+---
+layout: consulting-action
+title: Three workstreams will execute the partnership within 6 months
+source: Project plan, v2.1
+---
+
+| Workstream | Lead | Timeline | Key Milestone |
+|------------|------|----------|---------------|
+| Legal/Compliance | J. Smith | Weeks 1-12 | Term sheet signed |
+| Integration | M. Chen | Weeks 8-20 | Systems connected |
+| Go-to-Market | S. Park | Weeks 16-24 | First revenue |
+
+---
+```
+
+---
+
 ## Documentation Theme (VitePress)
 
 ### Theme Structure
@@ -609,15 +1274,20 @@ pnpm build:slides
 | Design spec document | Markdown | `design-system/README.md` |
 | CSS design tokens | CSS variables | `design-system/tokens/colors.css` |
 | JSON design tokens | JSON | `design-system/tokens/colors.json` |
+| Consulting color tokens | CSS variables | `design-system/tokens/consulting-colors.css` |
 | D2 dark theme | .d2 | `design-system/themes/d2/amelia-dark.d2` |
 | D2 light theme | .d2 | `design-system/themes/d2/amelia-light.d2` |
 | Mermaid dark theme | JSON | `design-system/themes/mermaid/amelia-dark.json` |
 | Mermaid light theme | JSON | `design-system/themes/mermaid/amelia-light.json` |
-| Slidev theme | Vue/CSS | `design-system/themes/slidev/` |
+| Slidev theme (Amelia) | Vue/CSS | `design-system/themes/slidev/styles/amelia.css` |
+| Slidev theme (Consulting) | Vue/CSS | `design-system/themes/slidev/styles/consulting.css` |
+| Consulting layouts | Vue | `design-system/themes/slidev/layouts/consulting-*.vue` |
+| Consulting components | Vue | `design-system/themes/slidev/components/` |
 | VitePress theme | Vue/CSS | `design-system/themes/vitepress/` |
 | Logo SVGs | SVG | `design-system/assets/logo/` |
 | Font files | WOFF2 | `design-system/assets/fonts/` |
 | Example diagrams | D2, Mermaid | `design-system/examples/` |
+| Example consulting deck | Slidev | `design-system/examples/consulting-demo.md` |
 | VitePress site | Markdown/Vue | `docs/site/` |
 | Presentations | Slidev | `docs/presentations/` |
 
