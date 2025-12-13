@@ -194,7 +194,7 @@ class Developer:
 
         logger.info(f"Starting agentic execution for task {task.id}")
 
-        async for event in self.driver.execute_agentic(prompt, cwd):
+        async for event in self.driver.execute_agentic(prompt, cwd, system_prompt=context.system_prompt):
             self._handle_stream_event(event)
 
             if event.type == "error":

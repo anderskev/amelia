@@ -129,7 +129,7 @@ class TestDeveloperAgenticExecution:
         """Developer in agentic mode should call driver.execute_agentic."""
         mock_driver = AsyncMock(spec=DriverInterface)
 
-        async def mock_execute_agentic(prompt, cwd, session_id=None):
+        async def mock_execute_agentic(prompt, cwd, session_id=None, system_prompt=None):
             yield ClaudeStreamEvent(type="assistant", content="Working...")
             yield ClaudeStreamEvent(type="result", session_id="sess_001")
 
@@ -150,13 +150,49 @@ class TestDeveloperAgenticExecution:
 
         assert result["status"] == "completed"
 
+    async def test_execute_current_task_agentic_passes_system_prompt(
+        self, mock_task_factory, mock_execution_state_factory, mock_profile_factory
+    ):
+        """Developer in agentic mode should pass system_prompt to driver.execute_agentic."""
+        from amelia.agents.developer import DeveloperContextStrategy
+
+        mock_driver = AsyncMock(spec=DriverInterface)
+        captured_system_prompt = None
+
+        async def mock_execute_agentic(prompt, cwd, session_id=None, system_prompt=None):
+            nonlocal captured_system_prompt
+            captured_system_prompt = system_prompt
+            yield ClaudeStreamEvent(type="assistant", content="Working...")
+            yield ClaudeStreamEvent(type="result", session_id="sess_001")
+
+        mock_driver.execute_agentic = mock_execute_agentic
+
+        task = mock_task_factory(id="1", description="Implement feature")
+        profile = mock_profile_factory(preset="api_single")
+        profile = profile.model_copy(update={"working_dir": "/tmp"})
+        state = mock_execution_state_factory(
+            profile=profile,
+            plan=TaskDAG(tasks=[task], original_issue="Test"),
+            current_task_id=task.id,
+        )
+        developer = Developer(driver=mock_driver, execution_mode="agentic")
+
+        result = await developer.execute_current_task(state)
+
+        # Verify the system prompt was passed to execute_agentic
+        assert result["status"] == "completed"
+        assert captured_system_prompt is not None
+        assert captured_system_prompt == DeveloperContextStrategy.SYSTEM_PROMPT
+        assert "TDD principles" in captured_system_prompt
+        assert "senior developer" in captured_system_prompt
+
     async def test_execute_current_task_agentic_raises_on_error(
         self, mock_task_factory, mock_execution_state_factory, mock_profile_factory
     ):
         """Developer in agentic mode should raise AgenticExecutionError on error event."""
         mock_driver = AsyncMock(spec=DriverInterface)
 
-        async def mock_execute_agentic(prompt, cwd, session_id=None):
+        async def mock_execute_agentic(prompt, cwd, session_id=None, system_prompt=None):
             yield ClaudeStreamEvent(type="error", content="Something went wrong")
 
         mock_driver.execute_agentic = mock_execute_agentic

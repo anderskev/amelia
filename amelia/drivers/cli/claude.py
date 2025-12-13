@@ -467,7 +467,8 @@ class ClaudeCliDriver(CliDriver):
         self,
         prompt: str,
         cwd: str,
-        session_id: str | None = None
+        session_id: str | None = None,
+        system_prompt: str | None = None
     ) -> AsyncIterator[ClaudeStreamEvent]:
         """Execute prompt with full autonomous tool access (YOLO mode).
 
@@ -475,6 +476,7 @@ class ClaudeCliDriver(CliDriver):
             prompt: The task or instruction for Claude.
             cwd: Working directory for Claude Code context.
             session_id: Optional session ID to resume.
+            system_prompt: Optional system prompt to append to Claude's system context.
 
         Yields:
             ClaudeStreamEvent objects including tool executions.
@@ -490,6 +492,9 @@ class ClaudeCliDriver(CliDriver):
         if session_id:
             cmd_args.extend(["--resume", session_id])
             logger.info(f"Resuming agentic session: {session_id}")
+
+        if system_prompt:
+            cmd_args.extend(["--append-system-prompt", system_prompt])
 
         logger.info(f"Starting agentic execution in {cwd}")
 

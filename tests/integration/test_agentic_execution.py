@@ -45,7 +45,7 @@ class TestAgenticExecution:
     async def test_agentic_profile_triggers_agentic_execution(self, agentic_state):
         """Agentic profile should use execute_agentic method."""
 
-        async def mock_execute_agentic(prompt, cwd, session_id=None):
+        async def mock_execute_agentic(prompt, cwd, session_id=None, system_prompt=None):
             yield ClaudeStreamEvent(type="assistant", content="Working...")
             yield ClaudeStreamEvent(type="result", session_id="sess_001")
 
@@ -63,7 +63,7 @@ class TestAgenticExecution:
         """Agentic execution should pass working_dir from profile to execute_agentic."""
         captured_cwd = None
 
-        async def mock_execute_agentic(prompt, cwd, session_id=None):
+        async def mock_execute_agentic(prompt, cwd, session_id=None, system_prompt=None):
             nonlocal captured_cwd
             captured_cwd = cwd
             yield ClaudeStreamEvent(type="result", session_id="sess_001")

@@ -155,7 +155,8 @@ class ApiDriver(DriverInterface):
         self,
         prompt: str,
         cwd: str,
-        session_id: str | None = None
+        session_id: str | None = None,
+        system_prompt: str | None = None
     ) -> AsyncIterator[Any]:
         """Execute prompt with autonomous tool access (agentic mode).
 
@@ -163,6 +164,7 @@ class ApiDriver(DriverInterface):
             prompt: The task or instruction for the model.
             cwd: Working directory for execution context.
             session_id: Optional session ID to resume.
+            system_prompt: Optional system prompt to set the agent's behavior.
 
         Yields:
             Stream events from execution (never yields, always raises).
