@@ -3,7 +3,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import os
 import subprocess
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,10 +11,10 @@ import yaml
 from typer.testing import CliRunner
 
 from amelia.agents.reviewer import ReviewResponse
+from amelia.core.context import CompiledContext, ContextSection
 from amelia.core.state import ExecutionState, ReviewResult, Task, TaskDAG
 from amelia.core.types import Design, Issue, Profile, Settings
 from amelia.drivers.base import DriverInterface
-from amelia.core.context import CompiledContext, ContextSection
 from amelia.trackers.noop import NoopTracker
 
 
@@ -384,7 +384,7 @@ def section_helper():
     """
     class SectionHelper:
         @staticmethod
-        def get(context: CompiledContext, name: str) -> Optional[ContextSection]:
+        def get(context: CompiledContext, name: str) -> ContextSection | None:
             """Get section by name, returns None if not found."""
             return next((s for s in context.sections if s.name == name), None)
 
