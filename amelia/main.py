@@ -4,6 +4,7 @@
 import asyncio
 
 import typer
+from langchain_core.runnables.config import RunnableConfig
 
 from amelia.agents.architect import Architect
 from amelia.client.cli import (
@@ -234,7 +235,6 @@ def review(
                 )
                 
                 # Create config with workflow_id for CLI mode
-                from langchain_core.runnables.config import RunnableConfig
                 config: RunnableConfig = {
                     "configurable": {
                         "thread_id": "LOCAL-REVIEW",

@@ -10,14 +10,11 @@
 
 ---
 
-### Task 1: Task 1
+### Task 1: Test task
 
----
-
-### Task 2: Task 2
-
----
-
-### Task 3: Task 3
+**Commit:**
+```bash
+git commit -m "feat: test task"
+```
 
 ---

@@ -32,7 +32,7 @@ class TestDeveloperExecution:
         )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_current_task(state)
+        result = await developer.execute_current_task(state, workflow_id="test-workflow")
 
         assert result["status"] == "completed"
         mock_driver.execute_tool.assert_called_once_with("run_shell_command", command="echo hello")
@@ -52,7 +52,7 @@ class TestDeveloperExecution:
         )
         developer = Developer(driver=mock_driver)
 
-        await developer.execute_current_task(state)
+        await developer.execute_current_task(state, workflow_id="test-workflow")
 
         mock_driver.execute_tool.assert_called_once()
 
@@ -73,7 +73,7 @@ class TestDeveloperExecution:
         )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_current_task(state)
+        result = await developer.execute_current_task(state, workflow_id="test-workflow")
 
         assert result["status"] == "failed"
         assert "Mocked command failed" in result["output"]
@@ -95,7 +95,7 @@ class TestDeveloperExecution:
         )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_current_task(state)
+        result = await developer.execute_current_task(state, workflow_id="test-workflow")
 
         assert "failed" in result["output"].lower() or "error" in result["output"].lower()
 
@@ -114,7 +114,7 @@ class TestDeveloperExecution:
         )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_current_task(state)
+        result = await developer.execute_current_task(state, workflow_id="test-workflow")
 
         assert result["status"] == "completed"
         mock_driver.generate.assert_called_once()
@@ -136,7 +136,7 @@ class TestDeveloperExecution:
         )
         developer = Developer(driver=mock_driver)
 
-        result = await developer.execute_current_task(state)
+        result = await developer.execute_current_task(state, workflow_id="test-workflow")
 
         assert result["status"] == "completed"
         # Verify generate was called with messages from the strategy
@@ -182,7 +182,7 @@ class TestDeveloperAgenticExecution:
         )
         developer = Developer(driver=mock_driver, execution_mode="agentic")
 
-        result = await developer.execute_current_task(state)
+        result = await developer.execute_current_task(state, workflow_id="test-workflow")
 
         assert result["status"] == "completed"
 
@@ -215,7 +215,7 @@ class TestDeveloperAgenticExecution:
         )
         developer = Developer(driver=mock_driver, execution_mode="agentic")
 
-        result = await developer.execute_current_task(state)
+        result = await developer.execute_current_task(state, workflow_id="test-workflow")
 
         # Verify the system prompt was passed to execute_agentic
         assert result["status"] == "completed"
@@ -248,7 +248,7 @@ class TestDeveloperAgenticExecution:
         developer = Developer(driver=mock_driver, execution_mode="agentic")
 
         with pytest.raises(AgenticExecutionError) as exc_info:
-            await developer.execute_current_task(state)
+            await developer.execute_current_task(state, workflow_id="test-workflow")
 
         assert "Something went wrong" in str(exc_info.value)
 
@@ -266,7 +266,7 @@ class TestDeveloperAgenticExecution:
         )
         developer = Developer(driver=mock_driver, execution_mode="structured")
 
-        result = await developer.execute_current_task(state)
+        result = await developer.execute_current_task(state, workflow_id="test-workflow")
 
         assert result["status"] == "completed"
         mock_driver.generate.assert_called_once()
@@ -282,7 +282,7 @@ class TestDeveloperValidation:
         developer = Developer(driver=mock_driver)
 
         with pytest.raises(ValueError, match="State must have plan and current_task_id"):
-            await developer.execute_current_task(state)
+            await developer.execute_current_task(state, workflow_id="test-workflow")
 
     async def test_raises_when_no_current_task_id(
         self, mock_task_factory, mock_execution_state_factory
@@ -297,7 +297,7 @@ class TestDeveloperValidation:
         developer = Developer(driver=mock_driver)
 
         with pytest.raises(ValueError, match="State must have plan and current_task_id"):
-            await developer.execute_current_task(state)
+            await developer.execute_current_task(state, workflow_id="test-workflow")
 
     async def test_raises_when_task_not_found(
         self, mock_task_factory, mock_execution_state_factory
@@ -312,4 +312,4 @@ class TestDeveloperValidation:
         developer = Developer(driver=mock_driver)
 
         with pytest.raises(ValueError, match="Task not found: nonexistent"):
-            await developer.execute_current_task(state)
+            await developer.execute_current_task(state, workflow_id="test-workflow")

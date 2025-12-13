@@ -57,7 +57,8 @@ class TestCallReviewerNodeStateManagement:
 
         mock_reviewer.review.return_value = mock_review_result_factory()
 
-        await call_reviewer_node(state)
+        config = {"configurable": {"thread_id": "test-workflow"}}
+        await call_reviewer_node(state, config=config)
 
         # Verify reviewer.review was called
         mock_reviewer.review.assert_called_once()
@@ -89,7 +90,8 @@ class TestCallReviewerNodeStateManagement:
 
         mock_reviewer.review.return_value = mock_review_result_factory()
 
-        await call_reviewer_node(state)
+        config = {"configurable": {"thread_id": "test-workflow"}}
+        await call_reviewer_node(state, config=config)
 
         # Get the state passed to review
         call_args = mock_reviewer.review.call_args
@@ -116,7 +118,8 @@ class TestCallReviewerNodeStateManagement:
 
         mock_reviewer.review.return_value = mock_review_result_factory()
 
-        await call_reviewer_node(state)
+        config = {"configurable": {"thread_id": "test-workflow"}}
+        await call_reviewer_node(state, config=config)
 
         # Get the state passed to review
         call_args = mock_reviewer.review.call_args
@@ -145,7 +148,8 @@ class TestCallReviewerNodeStateManagement:
 
         mock_reviewer.review.return_value = mock_review_result_factory()
 
-        await call_reviewer_node(state)
+        config = {"configurable": {"thread_id": "test-workflow"}}
+        await call_reviewer_node(state, config=config)
 
         # Get the state passed to review
         call_args = mock_reviewer.review.call_args
@@ -187,7 +191,8 @@ class TestCallReviewerNodeStateManagement:
         handler_id = logger.add(log_output, format="{message}", level="WARNING")
 
         try:
-            await call_reviewer_node(state)
+            config = {"configurable": {"thread_id": "test-workflow"}}
+            await call_reviewer_node(state, config=config)
 
             # Should have logged a warning
             log_content = log_output.getvalue()

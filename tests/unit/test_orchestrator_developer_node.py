@@ -56,7 +56,8 @@ class TestDeveloperNode:
             mock_developer.execute_current_task.return_value = {"status": "completed", "output": "done"}
             mock_developer_class.return_value = mock_developer
 
-            await call_developer_node(state)
+            config = {"configurable": {"thread_id": "test-workflow"}}
+            await call_developer_node(state, config=config)
 
             mock_developer_class.assert_called_once_with(
                 mock_driver,
@@ -94,7 +95,8 @@ class TestDeveloperNode:
             mock_developer.execute_current_task.return_value = {"status": "completed", "output": "done"}
             mock_developer_class.return_value = mock_developer
 
-            await call_developer_node(state)
+            config = {"configurable": {"thread_id": "test-workflow"}}
+            await call_developer_node(state, config=config)
 
             # Verify execute_current_task was called with state containing current_task_id
             mock_developer.execute_current_task.assert_called_once()
