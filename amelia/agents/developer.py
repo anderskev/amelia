@@ -254,7 +254,12 @@ class Developer:
             stream_event = convert_to_stream_event(event, "developer", workflow_id)
             if stream_event is not None:
                 # Fire-and-forget: emit stream event without blocking
-                asyncio.create_task(self._stream_emitter(stream_event))  # type: ignore[arg-type]
+                emit_task: asyncio.Task[None] = asyncio.create_task(self._stream_emitter(stream_event))  # type: ignore[arg-type]
+                emit_task.add_done_callback(
+                    lambda t: logger.exception("Stream emitter failed", exc_info=t.exception())
+                    if t.exception()
+                    else None
+                )
 
     async def _execute_structured(self, task: Task, state: ExecutionState) -> dict[str, Any]:
         """Execute task using structured step-by-step approach.

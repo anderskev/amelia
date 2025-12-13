@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -111,6 +111,27 @@ class ConnectionManager:
                 # Empty set = subscribed to all
                 self._connections[websocket] = set()
 
+
+    async def _send_to_client(
+        self, ws: WebSocket, payload: dict[str, Any], timeout: float = 5.0
+    ) -> tuple[WebSocket, bool]:
+        """Send payload to a single client with timeout.
+
+        Args:
+            ws: The WebSocket connection to send to.
+            payload: The JSON-serializable payload to send.
+            timeout: Maximum seconds to wait for send (default 5.0).
+
+        Returns:
+            Tuple of (websocket, success) where success is True if sent,
+            False on disconnect/timeout errors.
+        """
+        try:
+            await asyncio.wait_for(ws.send_json(payload), timeout=timeout)
+            return (ws, True)
+        except (WebSocketDisconnect, TimeoutError, ConnectionResetError, ConnectionError):
+            return (ws, False)
+
     async def broadcast(self, event: WorkflowEvent) -> None:
         """Broadcast event to subscribed connections concurrently.
 
@@ -138,15 +159,9 @@ class ConnectionManager:
             "payload": event.model_dump(mode="json"),
         }
 
-        async def send_to_client(ws: WebSocket) -> tuple[WebSocket, bool]:
-            """Send to single client with timeout. Returns (ws, success)."""
-            try:
-                await asyncio.wait_for(ws.send_json(payload), timeout=5.0)
-                return (ws, True)
-            except (WebSocketDisconnect, TimeoutError, ConnectionResetError, ConnectionError):
-                return (ws, False)
-
-        results = await asyncio.gather(*(send_to_client(ws) for ws in targets))
+        results = await asyncio.gather(
+            *(self._send_to_client(ws, payload) for ws in targets)
+        )
 
         # Remove failed connections
         failed = [ws for ws, success in results if not success]
@@ -189,14 +204,9 @@ class ConnectionManager:
             "payload": stream_payload.model_dump(mode="json"),
         }
 
-        async def send_to_client(ws: WebSocket) -> tuple[WebSocket, bool]:
-            try:
-                await asyncio.wait_for(ws.send_json(payload), timeout=5.0)
-                return (ws, True)
-            except (WebSocketDisconnect, TimeoutError, ConnectionResetError, ConnectionError):
-                return (ws, False)
-
-        results = await asyncio.gather(*(send_to_client(ws) for ws in targets))
+        results = await asyncio.gather(
+            *(self._send_to_client(ws, payload) for ws in targets)
+        )
 
         failed = [ws for ws, success in results if not success]
         if failed:
