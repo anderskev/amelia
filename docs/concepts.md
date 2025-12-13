@@ -182,7 +182,7 @@ Trackers provide pluggable backends for fetching issues.
 | Tracker | Source | Requirements |
 |---------|--------|--------------|
 | `jira` | Jira issues | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` |
-| `github` | GitHub issues | `gh` CLI or `GITHUB_TOKEN` |
+| `github` | GitHub issues | `gh` CLI authenticated (`gh auth login`) |
 | `noop` | Manual input | None |
 
 All implement the `BaseTracker` protocol:

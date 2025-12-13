@@ -66,7 +66,7 @@ The `retry` parameter accepts these sub-fields:
 
 | Tracker | Description | Requirements |
 |---------|-------------|--------------|
-| `github` | GitHub Issues | `gh` CLI authenticated or `GITHUB_TOKEN` |
+| `github` | GitHub Issues | `gh` CLI authenticated (`gh auth login`) |
 | `jira` | Jira issues | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` |
 | `none` | No tracker (manual input) | None |
 | `noop` | Alias for `none` | None |

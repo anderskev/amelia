@@ -83,7 +83,7 @@ Default: `"none"`
 | Value | Description | Requirements |
 |-------|-------------|--------------|
 | `jira` | Jira issues | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` env vars |
-| `github` | GitHub issues | `gh` CLI authenticated or `GITHUB_TOKEN` |
+| `github` | GitHub issues | `gh` CLI authenticated (`gh auth login`) |
 | `none` | No tracker | None |
 | `noop` | Alias for `none` | None |
 
@@ -199,9 +199,11 @@ amelia server
 
 ### GitHub Tracker
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GITHUB_TOKEN` | No | GitHub token (alternative to `gh` CLI auth) |
+The GitHub tracker requires the `gh` CLI to be installed and authenticated:
+
+```bash
+gh auth login
+```
 
 ## Validation
 

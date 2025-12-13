@@ -327,7 +327,7 @@ ConfigurationError: Missing required JIRA environment variables: JIRA_BASE_URL
 | Tracker | Required Variables |
 |---------|-------------------|
 | `jira` | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` |
-| `github` | `gh` CLI authenticated (`gh auth login`) or `GITHUB_TOKEN` |
+| `github` | `gh` CLI authenticated (`gh auth login`) |
 | `noop` | None (for testing) |
 
 **Solutions:**
@@ -342,8 +342,6 @@ export JIRA_API_TOKEN=your-api-token
 **For GitHub:**
 ```bash
 gh auth login
-# or
-export GITHUB_TOKEN=ghp_...
 ```
 
 **For testing without real tracker:**
