@@ -480,9 +480,9 @@ slidev-theme-amelia/
 
 ---
 
-## Consulting Presentation Style
+## Executive Presentation Style
 
-The Slidev theme includes a **consulting style** for executive-facing presentations. This style follows the methodology used by top-tier strategy consultancies for stakeholder communication.
+The Slidev theme includes an **executive style** for stakeholder-facing presentations. This style emphasizes clarity, structure, and data-driven storytelling for decision-makers.
 
 > **When to use:** Stakeholder presentations, board decks, investment pitches, strategic recommendations. Use the Amelia aviation style for internal/technical presentations.
 
@@ -500,29 +500,29 @@ The Slidev theme includes a **consulting style** for executive-facing presentati
 
 ---
 
-### Consulting Color Palette
+### Executive Color Palette
 
-Professional blue-based palette for consulting audiences. White backgrounds for projector/print clarity.
+Professional blue-based palette for executive audiences. White backgrounds for projector/print clarity.
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `consulting-bg` | #FFFFFF | Slide background |
-| `consulting-surface` | #F8F9FA | Subtle panels, callout boxes |
-| `consulting-navy` | #051D49 | Primary blue, titles |
-| `consulting-blue` | #2E6B9C | Links, accents |
-| `consulting-bright` | #0077C8 | Highlight color (use sparingly) |
-| `consulting-text` | #333333 | Body text |
-| `consulting-muted` | #666666 | Secondary text |
-| `consulting-border` | #E0E0E0 | Dividers, chart axes |
-| `consulting-positive` | #2E7D32 | Positive data, growth |
-| `consulting-negative` | #C62828 | Negative data, decline |
-| `consulting-neutral` | #9E9E9E | Neutral series data |
+| `exec-bg` | #FFFFFF | Slide background |
+| `exec-surface` | #F8F9FA | Subtle panels, callout boxes |
+| `exec-navy` | #051D49 | Primary blue, titles |
+| `exec-blue` | #2E6B9C | Links, accents |
+| `exec-bright` | #0077C8 | Highlight color (use sparingly) |
+| `exec-text` | #333333 | Body text |
+| `exec-muted` | #666666 | Secondary text |
+| `exec-border` | #E0E0E0 | Dividers, chart axes |
+| `exec-positive` | #2E7D32 | Positive data, growth |
+| `exec-negative` | #C62828 | Negative data, decline |
+| `exec-neutral` | #9E9E9E | Neutral series data |
 
 **Coolors:** https://coolors.co/ffffff-f8f9fa-051d49-2e6b9c-0077c8-333333-666666
 
 **Color Principles:**
 - **Restrained base palette** — Most data series use neutral grays
-- **Single highlight color** — Reserve `consulting-bright` (#0077C8) for "our recommendation," "target state," or the key data point
+- **Single highlight color** — Reserve `exec-bright` (#0077C8) for "our recommendation," "target state," or the key data point
 - **Color = meaning** — Never decorative; always functional
 
 #### Color Budget Rule (McKinsey Three-Color Rule)
@@ -531,9 +531,9 @@ Each slide should use a maximum of **three colors** for data visualization:
 
 | Slot | Purpose | Default Color |
 |------|---------|---------------|
-| **Primary** | Key data point, "our company," recommendation | `consulting-bright` (#0077C8) |
-| **Neutral** | All other data series, comparison items | `consulting-neutral` (#9E9E9E) |
-| **Directional** | Positive/negative change (when showing trends) | `consulting-positive` or `consulting-negative` |
+| **Primary** | Key data point, "our company," recommendation | `exec-bright` (#0077C8) |
+| **Neutral** | All other data series, comparison items | `exec-neutral` (#9E9E9E) |
+| **Directional** | Positive/negative change (when showing trends) | `exec-positive` or `exec-negative` |
 
 **Enforcement:**
 - If you need more than 3 colors, the chart is too complex — split into multiple charts
@@ -542,7 +542,7 @@ Each slide should use a maximum of **three colors** for data visualization:
 
 ---
 
-### Consulting Typography
+### Executive Typography
 
 | Role | Family | Weight | Usage |
 |------|--------|--------|-------|
@@ -567,7 +567,7 @@ Each slide should use a maximum of **three colors** for data visualization:
 
 ---
 
-### Consulting Slide Grid
+### Executive Slide Grid
 
 Three-zone layout with strict margins and alignment.
 
@@ -601,35 +601,35 @@ Three-zone layout with strict margins and alignment.
 
 ---
 
-### Consulting Slide Layouts
+### Executive Slide Layouts
 
 Extended layouts for the Slidev theme package:
 
 ```
 layouts/
-├── consulting-action.vue       # Standard action-title slide
-├── consulting-scqa.vue         # SCQA framework (4-panel)
-├── consulting-exec.vue         # Executive summary
-├── consulting-data.vue         # Full-bleed chart
-├── consulting-ghost.vue        # Wireframe planning mode
-├── consulting-pyramid.vue      # Pyramid principle diagram
-├── consulting-comparison.vue   # Side-by-side analysis
-├── consulting-takeaway.vue     # Key insight callout
-├── consulting-waterfall.vue    # Bridge/waterfall chart
-├── consulting-timeline.vue     # Horizontal timeline
-├── consulting-layercake.vue    # Technology architecture stack
-├── consulting-chevron.vue      # Sequential process flow
-└── consulting-harvey.vue       # Qualitative comparison matrix
+├── exec-action.vue       # Standard action-title slide
+├── exec-scqa.vue         # SCQA framework (4-panel)
+├── exec-exec.vue         # Executive summary
+├── exec-data.vue         # Full-bleed chart
+├── exec-ghost.vue        # Wireframe planning mode
+├── exec-pyramid.vue      # Pyramid principle diagram
+├── exec-comparison.vue   # Side-by-side analysis
+├── exec-takeaway.vue     # Key insight callout
+├── exec-waterfall.vue    # Bridge/waterfall chart
+├── exec-timeline.vue     # Horizontal timeline
+├── exec-layercake.vue    # Technology architecture stack
+├── exec-chevron.vue      # Sequential process flow
+└── exec-harvey.vue       # Qualitative comparison matrix
 ```
 
-#### consulting-action (Default)
+#### exec-action (Default)
 
-Standard consulting slide with action title, body content, and source footer.
+Standard executive slide with action title, body content, and source footer.
 
 **Usage:**
 ```md
 ---
-layout: consulting-action
+layout: exec-action
 title: "Customer churn increased 23% after removing the free tier"
 source: "Internal analytics, Q3 2024"
 ---
@@ -642,14 +642,14 @@ source: "Internal analytics, Q3 2024"
 - `source`: Data source citation for footer
 - `subtitle`: Optional 1-line elaboration below title
 
-#### consulting-scqa
+#### exec-scqa
 
 Four-panel SCQA framework for executive narratives.
 
 **Usage:**
 ```md
 ---
-layout: consulting-scqa
+layout: exec-scqa
 ---
 
 ::situation::
@@ -676,14 +676,14 @@ Launch a fighter brand targeting the mid-market, preserving the premium tier for
 └─────────────────┴─────────────────┘
 ```
 
-#### consulting-exec
+#### exec-exec
 
 Executive summary slide with recommendation box.
 
 **Usage:**
 ```md
 ---
-layout: consulting-exec
+layout: exec-exec
 title: "Executive Summary"
 recommendation: "Proceed with Option B: Acquire TechCo for $450M"
 ---
@@ -699,16 +699,16 @@ recommendation: "Proceed with Option B: Acquire TechCo for $450M"
 3. Signing target: Feb 28
 ```
 
-**Visual:** Recommendation displayed in highlighted callout box with `consulting-bright` left border.
+**Visual:** Recommendation displayed in highlighted callout box with `exec-bright` left border.
 
-#### consulting-data
+#### exec-data
 
 Full-bleed chart slide with minimal chrome. Chart covers 90% of body zone.
 
 **Usage:**
 ```md
 ---
-layout: consulting-data
+layout: exec-data
 title: "Revenue concentration decreased as we expanded into three new verticals"
 source: "Company financials, 2020-2024"
 chartTitle: "Revenue by segment ($M)"
@@ -723,14 +723,14 @@ chartTitle: "Revenue by segment ($M)"
 - Full-width chart area
 - Source citation in footer
 
-#### consulting-ghost
+#### exec-ghost
 
 Wireframe/planning mode for ghost decks. Shows slide structure without final content.
 
 **Usage:**
 ```md
 ---
-layout: consulting-ghost
+layout: exec-ghost
 title: "[ACTION TITLE: State the key insight about market opportunity]"
 placeholder: "Chart showing TAM/SAM/SOM breakdown by region"
 notes: "Need Q4 market sizing data from research team"
@@ -743,14 +743,14 @@ notes: "Need Q4 market sizing data from research team"
 - Yellow sticky-note style comments
 - "DRAFT" watermark
 
-#### consulting-pyramid
+#### exec-pyramid
 
 Visualize the Pyramid Principle hierarchy.
 
 **Usage:**
 ```md
 ---
-layout: consulting-pyramid
+layout: exec-pyramid
 title: "Three initiatives will reduce costs by $50M annually"
 ---
 
@@ -780,14 +780,14 @@ Reduce operating costs by $50M through supply chain optimization
    └───────┘   └───────┘   └───────┘
 ```
 
-#### consulting-comparison
+#### exec-comparison
 
 Side-by-side analysis of options or scenarios.
 
 **Usage:**
 ```md
 ---
-layout: consulting-comparison
+layout: exec-comparison
 title: "Option B offers faster time-to-market at comparable cost"
 leftLabel: "Option A: Build"
 rightLabel: "Option B: Buy"
@@ -807,16 +807,16 @@ recommendation: "right"
 - Control: Partial
 ```
 
-**Visual:** Recommended option highlighted with `consulting-bright` border.
+**Visual:** Recommended option highlighted with `exec-bright` border.
 
-#### consulting-takeaway
+#### exec-takeaway
 
 Key insight callout slide for transitions or emphasis.
 
 **Usage:**
 ```md
 ---
-layout: consulting-takeaway
+layout: exec-takeaway
 ---
 
 The market will consolidate to 3 players within 5 years.
@@ -826,14 +826,14 @@ The market will consolidate to 3 players within 5 years.
 
 **Visual:**
 - Large, centered text
-- Emphasis line in `consulting-bright`
+- Emphasis line in `exec-bright`
 - Minimal visual elements
 
 ---
 
-### Consulting Components
+### Executive Components
 
-Vue components for consulting presentations:
+Vue components for executive presentations:
 
 ```
 components/
@@ -862,7 +862,7 @@ components/
 
 - Font: Georgia, 700
 - Size: 28px (scales with slide)
-- Color: `consulting-navy`
+- Color: `exec-navy`
 - Max lines: 2
 
 #### InsightBox
@@ -876,7 +876,7 @@ Highlighted callout for key insights or recommendations.
 ```
 
 **Types:**
-- `recommendation` — Blue left border (`consulting-bright`)
+- `recommendation` — Blue left border (`exec-bright`)
 - `warning` — Red left border
 - `insight` — Navy left border
 - `action` — Green left border
@@ -915,8 +915,8 @@ Qualitative comparison indicator for matrices (Build vs Buy, vendor comparisons)
 | `full` | ● | Fully meets criteria |
 
 **Styling:**
-- Circle stroke: `consulting-border` (#E0E0E0)
-- Fill color: `consulting-navy` (#051D49)
+- Circle stroke: `exec-border` (#E0E0E0)
+- Fill color: `exec-navy` (#051D49)
 - Always include legend explaining what "Full" means
 
 #### LayerCakeDiagram
@@ -933,10 +933,10 @@ Stacked horizontal bands for visualizing technology architecture layers.
 ```
 
 **Styling:**
-- Default band: `consulting-surface` background, `consulting-border` stroke
-- Highlighted band: `consulting-bright` left border (4px), slightly elevated shadow
+- Default band: `exec-surface` background, `exec-border` stroke
+- Highlighted band: `exec-bright` left border (4px), slightly elevated shadow
 - Labels: Barlow Condensed 600, left-aligned
-- Sublabels: Source Sans 3 400, `consulting-muted`
+- Sublabels: Source Sans 3 400, `exec-muted`
 - Band height: 60-80px, full width
 - Gap between bands: 2px (to show separation)
 
@@ -957,9 +957,9 @@ Arrow-shaped process steps for visualizing sequential workflows (agentic process
 **Styling:**
 - Shape: Chevron/arrow pointing right, interlocking
 - Status colors:
-  - `completed`: `consulting-positive` (#2E7D32)
-  - `active`: `consulting-bright` (#0077C8)
-  - `pending`: `consulting-neutral` (#9E9E9E)
+  - `completed`: `exec-positive` (#2E7D32)
+  - `active`: `exec-bright` (#0077C8)
+  - `pending`: `exec-neutral` (#9E9E9E)
 - Labels: Source Sans 3 600, centered in chevron
 - Height: 48px, width proportional to label
 - Overlap: 12px between chevrons
@@ -979,10 +979,10 @@ Individual segment for bridge/waterfall charts with connectors.
 
 **Styling:**
 - Bar colors:
-  - `start` / `end`: `consulting-navy` (#051D49)
-  - `increase`: `consulting-negative` (#C62828) for costs, `consulting-positive` for revenue
-  - `decrease`: `consulting-positive` (#2E7D32) for cost savings
-- Connector: 1px solid `consulting-border`, horizontal line from bar top to next bar
+  - `start` / `end`: `exec-navy` (#051D49)
+  - `increase`: `exec-negative` (#C62828) for costs, `exec-positive` for revenue
+  - `decrease`: `exec-positive` (#2E7D32) for cost savings
+- Connector: 1px solid `exec-border`, horizontal line from bar top to next bar
 - Value label: IBM Plex Mono, positioned above bar
 - Category label: Source Sans 3, below bar
 - Bar width: 48-64px, gap: 24px
@@ -1025,7 +1025,7 @@ Following Gene Zelazny's principles from "Say It With Charts":
 
 2. **Meaningful ordering** — Sort bars by value (not alphabetically) unless time-based
 
-3. **Single highlight** — Use `consulting-bright` for only the key data point; all others in `consulting-neutral`
+3. **Single highlight** — Use `exec-bright` for only the key data point; all others in `exec-neutral`
 
 4. **Direct labeling** — Label data points directly, not via legend when possible
 
@@ -1039,7 +1039,7 @@ Before finalizing any data visualization, validate against this checklist:
 
 - [ ] **Title is insight** — Action title states the conclusion, not "Revenue by Quarter"
 - [ ] **Sorted meaningfully** — Bars sorted by value (largest first) unless time-based
-- [ ] **Single highlight** — Only ONE data point uses `consulting-bright`; all others neutral
+- [ ] **Single highlight** — Only ONE data point uses `exec-bright`; all others neutral
 - [ ] **Direct labels** — Data values labeled on/near data points, not in separate legend
 - [ ] **No chart junk** — No gridlines, no 3D effects, no background fills, no decorative elements
 - [ ] **Axis clarity** — Units obvious, sensible scale, no excessive decimals
@@ -1065,9 +1065,9 @@ Use Marimekko (Mekko) charts for 2D comparisons showing both segment size AND co
 
 | Element | Specification |
 |---------|---------------|
-| "Our company" segment | `consulting-bright` (#0077C8) |
-| Competitor segments | `consulting-neutral` (#9E9E9E) with varying opacity (90%, 70%, 50%) |
-| Segment borders | 1px `consulting-border` |
+| "Our company" segment | `exec-bright` (#0077C8) |
+| Competitor segments | `exec-neutral` (#9E9E9E) with varying opacity (90%, 70%, 50%) |
+| Segment borders | 1px `exec-border` |
 | Segment labels | Source Sans 3, inside if >15% width, outside otherwise |
 | Width labels | IBM Plex Mono, below x-axis showing segment size |
 
@@ -1078,11 +1078,11 @@ Use Marimekko (Mekko) charts for 2D comparisons showing both segment size AND co
 ```
 ┌─────────────────────────────────────────────┐
 │                                             │
-│   ████ $120M  ← consulting-bright (our co.)   │
-│   ████ $95M   ← consulting-neutral            │
-│   ████ $82M   ← consulting-neutral            │
-│   ████ $78M   ← consulting-neutral            │
-│   ████ $65M   ← consulting-neutral            │
+│   ████ $120M  ← exec-bright (our co.)   │
+│   ████ $95M   ← exec-neutral            │
+│   ████ $82M   ← exec-neutral            │
+│   ████ $78M   ← exec-neutral            │
+│   ████ $65M   ← exec-neutral            │
 │                                             │
 │   Revenue by company, 2024                  │
 └─────────────────────────────────────────────┘
@@ -1136,7 +1136,7 @@ For each slide, ask: "So what?" If the answer isn't obvious from the action titl
 
 ```md
 ---
-layout: consulting-ghost
+layout: exec-ghost
 title: "[Insight about competitive positioning in enterprise segment]"
 ---
 
@@ -1158,7 +1158,7 @@ Quadrants: Leaders, Challengers, Niche, Declining
 
 | Element | Style |
 |---------|-------|
-| Slide border | Dashed, 2px, `consulting-border` |
+| Slide border | Dashed, 2px, `exec-border` |
 | Placeholders | Gray box with dotted border |
 | Notes | Yellow background (#FFF9C4), handwriting font |
 | Watermark | "DRAFT" diagonal, 20% opacity |
@@ -1166,7 +1166,7 @@ Quadrants: Leaders, Challengers, Niche, Declining
 
 ---
 
-### Consulting Theme Structure
+### Executive Theme Structure
 
 Extended theme package structure:
 
@@ -1177,7 +1177,7 @@ slidev-theme-amelia/
 │   ├── base.css
 │   ├── code.css
 │   ├── amelia.css           # Amelia aviation theme
-│   └── consulting.css         # Consulting theme
+│   └── executive.css          # Executive theme
 ├── layouts/
 │   ├── cover.vue
 │   ├── section.vue
@@ -1187,16 +1187,16 @@ slidev-theme-amelia/
 │   ├── quote.vue
 │   ├── diff-view.vue
 │   ├── focus.vue
-│   ├── consulting-action.vue       # ← New
-│   ├── consulting-scqa.vue         # ← New
-│   ├── consulting-exec.vue         # ← New
-│   ├── consulting-data.vue         # ← New
-│   ├── consulting-ghost.vue        # ← New
-│   ├── consulting-pyramid.vue      # ← New
-│   ├── consulting-comparison.vue   # ← New
-│   ├── consulting-takeaway.vue     # ← New
-│   ├── consulting-waterfall.vue    # ← New
-│   └── consulting-timeline.vue     # ← New
+│   ├── exec-action.vue       # ← New
+│   ├── exec-scqa.vue         # ← New
+│   ├── exec-exec.vue         # ← New
+│   ├── exec-data.vue         # ← New
+│   ├── exec-ghost.vue        # ← New
+│   ├── exec-pyramid.vue      # ← New
+│   ├── exec-comparison.vue   # ← New
+│   ├── exec-takeaway.vue     # ← New
+│   ├── exec-waterfall.vue    # ← New
+│   └── exec-timeline.vue     # ← New
 └── components/
     ├── AmeliaLogo.vue
     ├── StatusBadge.vue
@@ -1217,7 +1217,7 @@ Configure style in presentation frontmatter:
 ```yaml
 ---
 theme: amelia
-style: consulting  # or 'amelia' (default)
+style: executive  # or 'amelia' (default)
 ---
 ```
 
@@ -1225,19 +1225,19 @@ Or per-slide:
 
 ```md
 ---
-layout: consulting-action
+layout: exec-action
 title: "Revenue grew 45% through three strategic initiatives"
 ---
 ```
 
 ---
 
-### Example Consulting Presentation
+### Example Executive Presentation
 
 ```md
 ---
 theme: amelia
-style: consulting
+style: executive
 title: Strategic Options for Market Expansion
 author: Strategy Team
 date: 2024-12-15
@@ -1248,7 +1248,7 @@ date: 2024-12-15
 Prepared for: Executive Committee
 
 ---
-layout: consulting-exec
+layout: exec-exec
 title: Executive Summary
 recommendation: Pursue Option B (Partnership) to enter APAC within 12 months
 ---
@@ -1265,7 +1265,7 @@ recommendation: Pursue Option B (Partnership) to enter APAC within 12 months
 3. Term sheet: Feb 28
 
 ---
-layout: consulting-scqa
+layout: exec-scqa
 ---
 
 ::situation::
@@ -1281,7 +1281,7 @@ How should Acme enter APAC in the next 18 months while managing risk and investm
 Partner with RegionalCo for distribution, combining Acme technology with local relationships and compliance expertise.
 
 ---
-layout: consulting-comparison
+layout: exec-comparison
 title: Partnership offers the best risk-adjusted path to APAC market entry
 leftLabel: Option A: Build
 rightLabel: Option B: Partner
@@ -1301,7 +1301,7 @@ recommendation: right
 - **Control:** Shared
 
 ---
-layout: consulting-data
+layout: exec-data
 title: RegionalCo has the strongest distribution network across target markets
 source: Partner analysis, Q4 2024
 chartTitle: Distribution reach by potential partner (stores)
@@ -1310,7 +1310,7 @@ chartTitle: Distribution reach by potential partner (stores)
 <!-- Bar chart showing partner comparison -->
 
 ---
-layout: consulting-takeaway
+layout: exec-takeaway
 ---
 
 **The APAC window is closing.**
@@ -1318,7 +1318,7 @@ layout: consulting-takeaway
 Partnership with RegionalCo is the fastest, lowest-risk path to establish presence before competitors lock in the market.
 
 ---
-layout: consulting-action
+layout: exec-action
 title: Three workstreams will execute the partnership within 6 months
 source: Project plan, v2.1
 ---
@@ -1463,15 +1463,15 @@ pnpm build:slides
 | Design spec document | Markdown | `design-system/README.md` |
 | CSS design tokens | CSS variables | `design-system/tokens/colors.css` |
 | JSON design tokens | JSON | `design-system/tokens/colors.json` |
-| Consulting color tokens | CSS variables | `design-system/tokens/consulting-colors.css` |
+| Executive color tokens | CSS variables | `design-system/tokens/exec-colors.css` |
 | D2 dark theme | .d2 | `design-system/themes/d2/amelia-dark.d2` |
 | D2 light theme | .d2 | `design-system/themes/d2/amelia-light.d2` |
 | Mermaid dark theme | JSON | `design-system/themes/mermaid/amelia-dark.json` |
 | Mermaid light theme | JSON | `design-system/themes/mermaid/amelia-light.json` |
 | Slidev theme (Amelia) | Vue/CSS | `design-system/themes/slidev/styles/amelia.css` |
-| Slidev theme (Consulting) | Vue/CSS | `design-system/themes/slidev/styles/consulting.css` |
-| Consulting layouts (13 total) | Vue | `design-system/themes/slidev/layouts/consulting-*.vue` |
-| Consulting components (13 total) | Vue | `design-system/themes/slidev/components/` |
+| Slidev theme (Executive) | Vue/CSS | `design-system/themes/slidev/styles/executive.css` |
+| Executive layouts (13 total) | Vue | `design-system/themes/slidev/layouts/exec-*.vue` |
+| Executive components (13 total) | Vue | `design-system/themes/slidev/components/` |
 | HarveyBall component | Vue | `design-system/themes/slidev/components/HarveyBall.vue` |
 | LayerCakeDiagram component | Vue | `design-system/themes/slidev/components/LayerCakeDiagram.vue` |
 | ChevronFlow component | Vue | `design-system/themes/slidev/components/ChevronFlow.vue` |
@@ -1480,7 +1480,7 @@ pnpm build:slides
 | Logo SVGs | SVG | `design-system/assets/logo/` |
 | Font files | WOFF2 | `design-system/assets/fonts/` |
 | Example diagrams | D2, Mermaid | `design-system/examples/` |
-| Example consulting deck | Slidev | `design-system/examples/consulting-demo.md` |
+| Example executive deck | Slidev | `design-system/examples/exec-demo.md` |
 | VitePress site | Markdown/Vue | `docs/site/` |
 | Presentations | Slidev | `docs/presentations/` |
 
