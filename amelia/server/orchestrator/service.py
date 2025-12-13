@@ -422,19 +422,24 @@ class OrchestratorService:
         while attempt <= retry_config.max_retries:
             try:
                 await self._run_workflow(workflow_id, state)
-                # Success - reset error tracking
+                # Success - reset error tracking if needed
+                # Re-fetch state to avoid overwriting changes from _sync_plan_from_checkpoint
                 if state.consecutive_errors > 0:
-                    state.consecutive_errors = 0
-                    state.last_error_context = None
-                    await self._repository.update(state)
+                    fresh_state = await self._repository.get(workflow_id)
+                    if fresh_state is not None:
+                        fresh_state.consecutive_errors = 0
+                        fresh_state.last_error_context = None
+                        await self._repository.update(fresh_state)
                 return  # Success
 
             except TRANSIENT_EXCEPTIONS as e:
                 attempt += 1
-                # Update error tracking in ServerExecutionState
-                state.consecutive_errors = attempt
-                state.last_error_context = f"{type(e).__name__}: {str(e)}"
-                await self._repository.update(state)
+                # Re-fetch state to avoid overwriting changes from _sync_plan_from_checkpoint
+                fresh_state = await self._repository.get(workflow_id)
+                if fresh_state is not None:
+                    fresh_state.consecutive_errors = attempt
+                    fresh_state.last_error_context = f"{type(e).__name__}: {str(e)}"
+                    await self._repository.update(fresh_state)
 
                 if attempt > retry_config.max_retries:
                     logger.exception("Workflow failed after retries exhausted", workflow_id=workflow_id)
@@ -465,10 +470,12 @@ class OrchestratorService:
 
             except Exception as e:
                 # Non-transient error - fail immediately
-                # Still track for observability
-                state.consecutive_errors = attempt + 1
-                state.last_error_context = f"{type(e).__name__}: {str(e)}"
-                await self._repository.update(state)
+                # Re-fetch state to avoid overwriting changes from _sync_plan_from_checkpoint
+                fresh_state = await self._repository.get(workflow_id)
+                if fresh_state is not None:
+                    fresh_state.consecutive_errors = attempt + 1
+                    fresh_state.last_error_context = f"{type(e).__name__}: {str(e)}"
+                    await self._repository.update(fresh_state)
 
                 logger.exception("Workflow failed with non-transient error", workflow_id=workflow_id)
                 await self._emit(
