@@ -73,8 +73,15 @@ def mock_issue_proj_123(mock_issue_factory):
     )
 
 @pytest.fixture
-def mock_profile_factory():
-    """Factory fixture for creating test Profile instances with presets."""
+def mock_profile_factory(tmp_path_factory):
+    """Factory fixture for creating test Profile instances with presets.
+
+    Uses tmp_path_factory to create a unique temp directory for plan_output_dir,
+    preventing tests from writing artifacts to docs/plans/.
+    """
+    # Create a shared temp directory for all profiles in this test session
+    base_tmp = tmp_path_factory.mktemp("plans")
+
     def _create(
         preset: str | None = None,
         name: str = "test",
@@ -83,6 +90,10 @@ def mock_profile_factory():
         strategy: str = "single",
         **kwargs
     ) -> Profile:
+        # Use temp directory for plan_output_dir unless explicitly overridden
+        if "plan_output_dir" not in kwargs:
+            kwargs["plan_output_dir"] = str(base_tmp)
+
         if preset == "cli_single":
             return Profile(name="test_cli", driver="cli:claude", tracker="noop", strategy="single", **kwargs)
         elif preset == "api_single":
