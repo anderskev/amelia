@@ -3,7 +3,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import os
 import subprocess
-from typing import Any
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,6 +14,7 @@ from amelia.agents.reviewer import ReviewResponse
 from amelia.core.state import ExecutionState, ReviewResult, Task, TaskDAG
 from amelia.core.types import Design, Issue, Profile, Settings
 from amelia.drivers.base import DriverInterface
+from amelia.core.context import CompiledContext, ContextSection
 from amelia.trackers.noop import NoopTracker
 
 
@@ -383,24 +384,24 @@ def section_helper():
     """
     class SectionHelper:
         @staticmethod
-        def get(context, name):
+        def get(context: CompiledContext, name: str) -> Optional[ContextSection]:
             """Get section by name, returns None if not found."""
             return next((s for s in context.sections if s.name == name), None)
 
         @staticmethod
-        def get_names(context):
+        def get_names(context: CompiledContext) -> set[str]:
             """Get set of all section names."""
             return {s.name for s in context.sections}
 
         @staticmethod
-        def assert_has(context, *names):
+        def assert_has(context: CompiledContext, *names: str) -> None:
             """Assert context has all specified sections."""
             actual = {s.name for s in context.sections}
             for name in names:
                 assert name in actual, f"Expected section '{name}' not found. Available: {actual}"
 
         @staticmethod
-        def assert_missing(context, *names):
+        def assert_missing(context: CompiledContext, *names: str) -> None:
             """Assert context doesn't have specified sections."""
             actual = {s.name for s in context.sections}
             for name in names:
