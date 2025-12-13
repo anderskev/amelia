@@ -72,6 +72,8 @@ Extract from `dashboard/src/styles/globals.css` into portable formats.
 - Status color tokens
 - Chart color tokens
 
+**Note:** Light mode tokens are defined in the design spec but not yet implemented in `dashboard/src/styles/globals.css`. The extracted `colors.css` should include both modes. Dashboard integration of light mode is optional (Task 5.3).
+
 **File: `design-system/tokens/colors.json`**
 - Same tokens in JSON format for JavaScript tooling
 - Structure: `{ dark: {...}, light: {...}, status: {...} }`
@@ -116,46 +118,73 @@ Create diagram themes for D2 and Mermaid that match the aviation aesthetic.
 
 **File: `design-system/themes/d2/amelia-dark.d2`**
 ```d2
+# Amelia Dark Theme
+# Usage: Copy vars block to your diagrams
+
 vars: {
-  d2-config: {
-    theme-overrides: {
-      B1: "#0D1A12"    # background
-      B2: "#1F332E"    # node fill
-      ...
-    }
-  }
+  background: "#0D1A12"
+  surface: "#1F332E"
+  text: "#EFF8E2"
+  accent: "#FFC857"
+  green: "#5B8A72"
+  blue: "#5B9BD5"
+  muted: "#88A896"
 }
+
+# Example usage in diagram nodes:
+# my-node: {
+#   style: {
+#     fill: ${surface}
+#     stroke: ${accent}
+#   }
+# }
 ```
 
 **File: `design-system/themes/d2/amelia-light.d2`**
-- Light mode equivalent
+- Light mode equivalent with inline `vars` definitions
 
 **Acceptance criteria:**
-- [ ] Dark theme matches spec colors
-- [ ] Light theme matches spec colors
-- [ ] Example diagram renders correctly with each theme
+- [ ] Dark theme uses inline `vars` with all spec colors
+- [ ] Light theme uses inline `vars` with all spec colors
+- [ ] Example diagram demonstrates usage of `${var}` references in node styles
 
 #### Task 2.2: Create Mermaid themes
 
-**File: `design-system/themes/mermaid/amelia-dark.json`**
-```json
-{
-  "theme": "base",
-  "themeVariables": {
-    "primaryColor": "#1F332E",
-    "primaryTextColor": "#EFF8E2",
-    ...
-  }
-}
+**File: `design-system/themes/mermaid/amelia-dark.md`**
+```markdown
+# Amelia Dark Theme for Mermaid
+
+Use this frontmatter in your Mermaid diagrams:
+
+\`\`\`yaml
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#1F332E"
+    primaryTextColor: "#EFF8E2"
+    primaryBorderColor: "#FFC857"
+    secondaryColor: "#4A5C54"
+    tertiaryColor: "#0D1A12"
+    lineColor: "#88A896"
+    fontFamily: "Source Sans 3"
+---
+\`\`\`
+
+Or use init directive:
+\`\`\`
+%%{init: { "theme": "base", "themeVariables": { "primaryColor": "#1F332E", "primaryTextColor": "#EFF8E2", "primaryBorderColor": "#FFC857", "secondaryColor": "#4A5C54", "tertiaryColor": "#0D1A12", "lineColor": "#88A896", "fontFamily": "Source Sans 3" } } }%%
+\`\`\`
 ```
 
-**File: `design-system/themes/mermaid/amelia-light.json`**
-- Light mode equivalent
+**File: `design-system/themes/mermaid/amelia-light.md`**
+- Light mode equivalent in Markdown documentation format
 
 **Acceptance criteria:**
-- [ ] Dark theme matches spec colors
-- [ ] Light theme matches spec colors
-- [ ] Flowchart, sequence diagram test cases render correctly
+- [ ] Dark theme Markdown template includes frontmatter and init directive formats
+- [ ] Light theme Markdown template includes both usage patterns
+- [ ] Documentation explains how to use each format
+- [ ] Flowchart, sequence diagram test cases render correctly with both frontmatter and init directive
 
 #### Task 2.3: Create example diagrams
 
@@ -184,27 +213,53 @@ design-system/themes/slidev/
 │   ├── base.css
 │   └── code.css
 ├── layouts/
-└── components/
+├── components/
+└── setup/
+    └── shiki.ts
+```
+
+**File: `design-system/themes/slidev/package.json`**
+```json
+{
+  "name": "slidev-theme-amelia",
+  "version": "1.0.0",
+  "keywords": ["slidev-theme", "slidev"],
+  "engines": {
+    "node": ">=18.0.0",
+    "slidev": ">=0.47.0"
+  },
+  "slidev": {
+    "defaults": {
+      "fonts": {
+        "sans": "Barlow Condensed",
+        "serif": "Source Sans 3",
+        "mono": "IBM Plex Mono"
+      },
+      "colorSchema": "both"
+    }
+  }
+}
 ```
 
 **Acceptance criteria:**
 - [ ] Valid npm package structure
 - [ ] Can be installed as Slidev theme
+- [ ] package.json includes `slidev.defaults` configuration
+- [ ] `colorSchema: "both"` enables dark and light mode support
+- [ ] Keywords include "slidev-theme" for discoverability
 
 #### Task 3.2: Create presentation layouts
 
-**Core Layouts:**
-- `cover.vue` - Title slide with wordmark
-- `section.vue` - Section divider
-- `default.vue` - Content slide
-- `two-cols.vue` - Two-column layout
-- `diagram.vue` - Full-bleed diagram
-- `quote.vue` - Quote slide
-- `diff-view.vue` - Before/after code comparison
-- `focus.vue` - Demo spotlight mode
+**Extend from Slidev built-ins (CSS overrides only):**
+- `cover.vue` - Extend Slidev's default cover
+- `section.vue` - Extend Slidev's section/divider
+- `default.vue` - Extend Slidev's default
+- `two-cols.vue` - Extend Slidev's two-cols
+- `diagram.vue` - Extend Slidev's center layout
+- `quote.vue` - Extend Slidev's statement layout
 
-**Stakeholder Layouts:**
-- `action.vue` - Standard action-title slide
+**Custom layouts (truly unique structure):**
+- `action.vue` - Action title slide
 - `scqa.vue` - SCQA 4-panel framework
 - `summary.vue` - Executive summary with recommendation
 - `data.vue` - Full-bleed chart slide
@@ -212,43 +267,80 @@ design-system/themes/slidev/
 - `pyramid.vue` - Pyramid principle diagram
 - `comparison.vue` - Side-by-side analysis
 - `takeaway.vue` - Key insight callout
-- `waterfall.vue` - Bridge/waterfall chart layout
-- `timeline.vue` - Horizontal timeline
-- `layercake.vue` - Technology stack diagram
-- `chevron.vue` - Sequential process flow
 - `harvey.vue` - Qualitative comparison matrix
 
+**Removed from scope (use other layouts instead):**
+- `diff-view.vue` → Use `two-cols` with custom styling
+- `focus.vue` → Use CSS dim class on any layout
+- `waterfall.vue` → Use `data` layout with waterfall chart
+- `timeline.vue` → Use `data` layout with timeline chart
+- `layercake.vue` → Use `data` layout with layer diagram
+- `chevron.vue` → Use `data` layout with chevron flow
+
 **Acceptance criteria:**
-- [ ] Each layout matches spec design
+- [ ] 6 extended layouts override CSS only (no structural changes)
+- [ ] 9 custom layouts implement unique structures
 - [ ] All layouts support both dark and light mode via `class: dark` or `class: light`
 - [ ] Bebas Neue for display, Barlow Condensed for headings
 
 #### Task 3.3: Create shared components
 
-**Components:**
-- `AmeliaLogo.vue` - Logo component with color variants
-- `StatusBadge.vue` - Status indicator badges
-- `ActionTitle.vue` - Formatted action title
-- `SourceNote.vue` - Footer source citation
-- `InsightBox.vue` - Highlighted callout box
-- `SCQABlock.vue` - Single SCQA quadrant
-- `PyramidDiagram.vue` - Pyramid visualization
-- `GhostPlaceholder.vue` - Wireframe placeholder
-- `DataHighlight.vue` - KPI/metric display
-- `RecommendationBox.vue` - Executive recommendation
-- `HarveyBall.vue` - Qualitative comparison indicator
-- `LayerCakeDiagram.vue` - Technology stack visualization
+**Keep as Vue components (specialized visualizations):**
+- `PyramidDiagram.vue` - Unique pyramid visualization
+- `SCQABlock.vue` - SCQA framework quadrant
+- `HarveyBall.vue` - Qualitative comparison indicators
+- `LayerCakeDiagram.vue` - Architecture layer stacking
 - `ChevronFlow.vue` - Sequential process arrows
-- `WaterfallBar.vue` - Bridge chart segment
+- `WaterfallBar.vue` - Waterfall chart segments
+- `RecommendationBox.vue` - Executive recommendation styling
+
+**Replace with CSS utilities or SVG assets (not Vue components):**
+- `AmeliaLogo.vue` → Use SVG asset in `public/logo/`
+- `StatusBadge.vue` → Tailwind utility classes
+- `ActionTitle.vue` → Typography CSS utilities
+- `SourceNote.vue` → `text-xs text-muted-foreground` class
+- `InsightBox.vue` → CSS border-left styling
+- `DataHighlight.vue` → Card composition with CSS
+- `GhostPlaceholder.vue` → `border-dashed` CSS utility
 
 **Acceptance criteria:**
+- [ ] 7 Vue components for specialized visualizations
 - [ ] Components reusable across layouts
 - [ ] Props typed with TypeScript
 - [ ] Match spec styling exactly
+- [ ] Non-component alternatives documented in theme README
 
 #### Task 3.4: Create Shiki code theme
 
-Configure code highlighting to use aviation colors:
+Configure code highlighting to use aviation colors.
+
+**File: `design-system/themes/slidev/setup/shiki.ts`**
+```typescript
+import { defineShikiSetup } from '@slidev/types'
+
+export default defineShikiSetup(() => {
+  return {
+    themes: {
+      dark: {
+        name: 'amelia-dark',
+        colors: {
+          'editor.background': '#0D1A12',
+          'editor.foreground': '#EFF8E2',
+        },
+        tokenColors: [
+          { scope: ['keyword', 'storage'], settings: { foreground: '#FFC857' } },
+          { scope: ['string'], settings: { foreground: '#5B8A72' } },
+          { scope: ['entity.name.function'], settings: { foreground: '#5B9BD5' } },
+          { scope: ['comment'], settings: { foreground: '#88A896' } },
+        ]
+      },
+      light: 'min-light',
+    }
+  }
+})
+```
+
+**Color mapping:**
 - Keywords: Gold #FFC857
 - Strings: Green #5B8A72
 - Functions: Blue #5B9BD5
@@ -256,17 +348,19 @@ Configure code highlighting to use aviation colors:
 - Variables: Foreground #EFF8E2
 
 **Acceptance criteria:**
-- [ ] Code blocks render with correct colors
+- [ ] Shiki setup file created in `setup/shiki.ts`
+- [ ] Code blocks render with correct colors in dark mode
+- [ ] Light mode uses `min-light` built-in theme
 - [ ] Works in both dark and light modes
 
 #### Task 3.5: Create example presentation
 
 **File: `design-system/examples/slides-demo.md`**
-- Demo of all layouts (both core and stakeholder)
+- Demo of all layouts (extended and custom)
 - Shows both dark and light mode usage
 
 **Acceptance criteria:**
-- [ ] All layouts demonstrated
+- [ ] All 15 layouts demonstrated (6 extended + 9 custom)
 - [ ] Can build and export to PDF/HTML
 
 ---
@@ -389,6 +483,26 @@ flowchart TD
 4. **Phase 4** (VitePress) - Can run in parallel with Phase 3
 5. **Phase 5** (Deployment) - After documentation site exists
 
+### Recommended Parallel Execution Batches
+
+| Batch | Agents | Tasks | Dependencies |
+|-------|--------|-------|--------------|
+| 1 | 1 | Task 1.1 (directory structure) | None |
+| 2 | 3 | Tasks 1.2, 1.3, 1.4 (tokens, typography, logos) | After Batch 1 |
+| 3 | 4 | Tasks 2.1, 2.2, 3.1, 4.1 (theme initializations) | After Batch 2 |
+| 4 | 5 | Tasks 3.2-3.4, 4.2, 4.3 (layouts, components, VitePress) | After Batch 3 |
+| 5 | 5 | Tasks 2.3, 3.5, 5.1, 5.2, 5.3 (examples, deployment) | After Batch 4 |
+
+**Maximum concurrent agents:** 5
+**Estimated time savings vs sequential:** 60-65%
+
+For Batch 4, assign specific layout files to each agent to avoid file conflicts:
+- Agent 1: Core extended layouts (cover, section, default, two-cols, diagram, quote)
+- Agent 2: Custom layouts part 1 (action, scqa, summary, data, ghost)
+- Agent 3: Custom layouts part 2 (pyramid, comparison, takeaway, harvey) + Shiki theme
+- Agent 4: All 7 visualization components
+- Agent 5: VitePress theming (4.2 + 4.3)
+
 ---
 
 ## Parallelization Opportunities
@@ -416,6 +530,45 @@ These task groups can run in parallel:
 
 ---
 
+## Testing Strategy
+
+This is a design system with static assets (CSS, JSON, Vue templates). Traditional unit testing (TDD) is not the appropriate paradigm. Instead, use:
+
+### Build Validation
+- Slidev theme builds without errors: `pnpm build`
+- VitePress generates static site: `vitepress build`
+- CSS tokens parse correctly (no syntax errors)
+- JSON token files are valid JSON
+
+### Visual QA Checklist
+For each deliverable, verify against the design spec:
+- [ ] Colors match OKLCH values in spec
+- [ ] Typography uses correct font families
+- [ ] Layouts render correctly in both dark and light modes
+- [ ] Animations function as specified
+
+### Example Gallery
+Create working examples that serve as acceptance tests:
+- `design-system/examples/slides-demo.md` - All layouts demonstrated
+- `design-system/examples/diagram-d2.d2` - D2 theme applied
+- `design-system/examples/diagram-mermaid.md` - Mermaid theme applied
+
+### Component Tests (Vitest - for interactive components only)
+For the 7 custom visualization components, write behavioral tests:
+
+```typescript
+// Example: HarveyBall.test.ts
+describe('HarveyBall', () => {
+  it('renders correct fill level for fill="half"')
+  it('applies correct size class for size="md"')
+  it('throws error for invalid fill value')
+})
+```
+
+Only test components with logic (PyramidDiagram, HarveyBall, ChevronFlow, etc.). Do not write unit tests for pure CSS styling.
+
+---
+
 ## Success Criteria
 
 The design system is complete when:
@@ -434,7 +587,7 @@ The design system is complete when:
 |-------|-------|-----------------|
 | Phase 1 | 4 | ~8 files |
 | Phase 2 | 3 | ~6 files |
-| Phase 3 | 5 | ~35 files |
+| Phase 3 | 5 | ~20 files (reduced from ~35) |
 | Phase 4 | 3 | ~15 files |
 | Phase 5 | 3 | ~5 files |
-| **Total** | **18** | **~69 files** |
+| **Total** | **18** | **~54 files** (reduced from ~69) |
