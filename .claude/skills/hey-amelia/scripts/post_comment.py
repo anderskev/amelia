@@ -36,7 +36,7 @@ def load_config() -> dict:
     if app_id and private_key_path and installation_id:
         return {
             "app_id": app_id,
-            "private_key_path": private_key_path,
+            "private_key_path": os.path.expanduser(private_key_path),
             "installation_id": installation_id,
         }
 
