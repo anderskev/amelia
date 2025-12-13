@@ -79,3 +79,14 @@ def test_execution_state_design_defaults_to_none():
     state = ExecutionState(profile=profile)
 
     assert state.design is None
+
+
+def test_mock_execution_state_factory_accepts_design(
+    mock_execution_state_factory, mock_design_factory
+):
+    """mock_execution_state_factory should accept design parameter."""
+    design = mock_design_factory(title="Factory Design")
+    state = mock_execution_state_factory(design=design)
+
+    assert state.design is not None
+    assert state.design.title == "Factory Design"

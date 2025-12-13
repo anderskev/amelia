@@ -164,6 +164,7 @@ def mock_execution_state_factory(mock_profile_factory, mock_issue_factory):
         issue: Issue | None = None,
         plan: TaskDAG | None = None,
         code_changes_for_review: str | None = None,
+        design: Design | None = None,
         **kwargs
     ) -> ExecutionState:
         if profile is None:
@@ -175,6 +176,7 @@ def mock_execution_state_factory(mock_profile_factory, mock_issue_factory):
             issue=issue,
             plan=plan,
             code_changes_for_review=code_changes_for_review,
+            design=design,
             **kwargs
         )
     return _create
