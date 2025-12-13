@@ -41,9 +41,9 @@ gh api repos/{owner}/{repo}/milestones --jq '.[].title'
 
 ### Step 2: Compose Issue
 
-Format issues using GitHub Markdown:
+Follow the official templates at `.github/ISSUE_TEMPLATE/`. Format issues using GitHub Markdown.
 
-**Bug report:**
+**Bug report** (auto-applies: `bug`, `needs-triage`):
 ```markdown
 ## Description
 
@@ -63,13 +63,20 @@ What should happen.
 
 What actually happens.
 
+## Affected Area
+
+- [ ] Core
+- [ ] CLI
+- [ ] Dashboard
+- [ ] Server
+
 ## Environment
 
 - OS: macOS 14.0
 - Version: 1.2.3
 ```
 
-**Feature request:**
+**Feature request** (auto-applies: `enhancement`, `needs-triage`):
 ```markdown
 ## Summary
 
@@ -82,9 +89,40 @@ Why this feature is needed.
 ## Proposed Solution
 
 How it could be implemented.
+
+## Affected Area
+
+- [ ] Core
+- [ ] CLI
+- [ ] Dashboard
+- [ ] Server
 ```
 
-### Step 3: Create Issue
+### Step 3: Apply Labels
+
+Use labels from [CONTRIBUTING.md](../../../CONTRIBUTING.md#labels):
+
+| Category | Labels | Purpose |
+|----------|--------|---------|
+| Type | `bug`, `enhancement`, `breaking-change`, `docs` | What kind of work |
+| Priority | `critical`, `high`, `low` | Internal triage |
+| Status | `needs-triage`, `accepted`, `blocked` | Workflow state |
+| Contributor | `good first issue`, `help wanted` | Guide contributors |
+| Area | `area:core`, `area:agents`, `area:dashboard`, `area:cli`, `area:server` | Which component |
+
+**Example label combinations:**
+```bash
+# Bug with area and priority
+--labels "bug,area:cli,critical,needs-triage"
+
+# Feature for good first issue
+--labels "enhancement,area:dashboard,good first issue,needs-triage"
+
+# Breaking change
+--labels "enhancement,breaking-change,area:core,high"
+```
+
+### Step 4: Create Issue
 
 ```bash
 uv run python .claude/skills/hey-amelia/scripts/create_issue.py \
@@ -100,18 +138,18 @@ uv run python .claude/skills/hey-amelia/scripts/create_issue.py \
   --repo "$REPO" \
   --title "Bug: Login fails silently" \
   --body "Description here" \
-  --labels "bug,high-priority" \
+  --labels "bug,area:server,high,needs-triage" \
   --assignees "developer1,developer2"
 ```
 
-With milestone:
+With milestone (milestones represent release versions like `v1.2.0`):
 
 ```bash
 uv run python .claude/skills/hey-amelia/scripts/create_issue.py \
   --repo "$REPO" \
   --title "Add dark mode support" \
   --body "Feature request for dark mode" \
-  --labels "enhancement" \
+  --labels "enhancement,area:dashboard,needs-triage" \
   --milestone 3
 ```
 
@@ -144,15 +182,19 @@ The /api/process endpoint returns HTTP 500 when the input is empty.
 
 ## Expected Behavior
 
-Should return 400 Bad Request with validation error." \
-  --labels "bug"
+Should return 400 Bad Request with validation error.
+
+## Affected Area
+
+- [x] Server" \
+  --labels "bug,area:server,needs-triage"
 ```
 
 **Creating a follow-up from code review:**
 ```bash
 uv run python .claude/skills/hey-amelia/scripts/create_issue.py \
   --repo "acme/project" \
-  --title "Tech debt: Refactor auth module" \
+  --title "Refactor auth module" \
   --body "Identified during PR #42 review.
 
 The auth module has grown complex and should be split into:
@@ -161,7 +203,7 @@ The auth module has grown complex and should be split into:
 - AuthMiddleware
 
 See discussion: #42 (comment)" \
-  --labels "tech-debt,refactor"
+  --labels "enhancement,area:core,needs-triage"
 ```
 
 **Creating a feature request with milestone:**
@@ -177,8 +219,12 @@ Users need to export their data to CSV format.
 
 - Export all visible columns
 - Include headers
-- Handle special characters properly" \
-  --labels "enhancement" \
+- Handle special characters properly
+
+## Affected Area
+
+- [x] Dashboard" \
+  --labels "enhancement,area:dashboard,needs-triage" \
   --milestone 5
 ```
 

@@ -44,37 +44,56 @@ git push -u origin "$BRANCH"
 
 ### Step 2: Compose PR Description
 
-Format PR descriptions using GitHub Markdown:
+Use the official PR template from `.github/PULL_REQUEST_TEMPLATE.md`. Format PR descriptions using GitHub Markdown.
 
-**Standard PR:**
+**Full template (recommended for significant changes):**
 ```markdown
 ## Summary
 
-Brief description of what this PR does.
+<!-- 1-3 bullet points describing what this PR does -->
+- Brief description of what this PR does
+
+## Motivation
+
+<!-- Why is this change needed? Link issues with closing keywords -->
+Fixes #123.
 
 ## Changes
 
-- Change 1
-- Change 2
+### Added
+- New feature or file
 
-## Testing
+### Changed
+- Modified behavior
 
-- How to test these changes
+### Fixed
+- Bug that was resolved
+
+## Test Plan
+
+- [ ] Manual testing step 1
+- [ ] Manual testing step 2
+
+## Checklist
+
+- [ ] Tests pass locally (`uv run pytest`)
+- [ ] Linting passes (`uv run ruff check`)
+- [ ] Type checking passes (`uv run mypy amelia`)
 ```
 
-**Bug fix:**
+**Simplified template (for small fixes):**
 ```markdown
 ## Summary
 
+- One-line description
+
+## Motivation
+
 Fixes #123.
 
-## Root Cause
+## Test Plan
 
-Description of the issue.
-
-## Solution
-
-How it was fixed.
+- [ ] Verified the fix locally
 ```
 
 ### Step 3: Create PR
@@ -142,15 +161,36 @@ uv run python .claude/skills/hey-amelia/scripts/create_pr.py \
   --repo "acme/project" \
   --head "feature/add-auth" \
   --base "main" \
-  --title "Add user authentication" \
-  --body "## Summary
+  --title "feat(auth): add user authentication" \
+  --body "$(cat <<'EOF'
+## Summary
 
-Implements JWT-based authentication.
+- Implements JWT-based authentication for API endpoints
+
+## Motivation
+
+Closes #123. Users need secure authentication to access protected resources.
 
 ## Changes
-- Added auth middleware
-- Added login/logout endpoints
-- Added user session management"
+
+### Added
+- Auth middleware for JWT validation
+- Login/logout endpoints
+- User session management
+
+## Test Plan
+
+- [ ] Test login with valid credentials
+- [ ] Test login with invalid credentials
+- [ ] Test protected endpoint access
+
+## Checklist
+
+- [ ] Tests pass locally
+- [ ] Linting passes
+- [ ] Type checking passes
+EOF
+)"
 ```
 
 **Creating a hotfix PR:**
@@ -159,8 +199,21 @@ uv run python .claude/skills/hey-amelia/scripts/create_pr.py \
   --repo "acme/project" \
   --head "hotfix/fix-crash" \
   --base "main" \
-  --title "Fix null pointer crash in checkout" \
-  --body "Fixes #456. Adds null check before accessing user cart."
+  --title "fix(checkout): handle null cart in checkout" \
+  --body "$(cat <<'EOF'
+## Summary
+
+- Adds null check before accessing user cart
+
+## Motivation
+
+Fixes #456.
+
+## Test Plan
+
+- [ ] Verified checkout works with empty cart
+EOF
+)"
 ```
 
 ## Related

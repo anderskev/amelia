@@ -113,21 +113,31 @@ uv run python .claude/skills/hey-amelia/scripts/create_branch.py \
   --repo "$REPO" \
   --branch "feature/my-feature"
 
-# 2. Commit files to the branch
+# 2. Commit files to the branch (use Conventional Commits format)
+#    See CONTRIBUTING.md for commit message guidelines
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "$REPO" \
   --branch "feature/my-feature" \
-  --message "Add my feature" \
+  --message "feat(core): add my feature" \
   --files "src/feature.py"
 
-# 3. Create PR
+# 3. Create PR (use official PR template)
+#    See .github/PULL_REQUEST_TEMPLATE.md for template
 uv run python .claude/skills/hey-amelia/scripts/create_pr.py \
   --repo "$REPO" \
   --head "feature/my-feature" \
   --base "main" \
-  --title "Add my feature" \
-  --body "Description of changes"
+  --title "feat(core): add my feature" \
+  --body "## Summary
+
+- Add my feature
+
+## Motivation
+
+Closes #123."
 ```
+
+**Note:** All bot contributions should follow the same standards as human contributions. See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for full guidelines.
 
 ## Related
 

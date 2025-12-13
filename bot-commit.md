@@ -18,7 +18,7 @@ BRANCH=$(git branch --show-current)
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "$REPO" \
   --branch "$BRANCH" \
-  --message "Add new feature" \
+  --message "feat(core): add new feature" \
   --files "src/feature.py,src/tests/test_feature.py"
 ```
 
@@ -41,13 +41,30 @@ BRANCH=$(git branch --show-current)
 git status --short
 ```
 
-### Step 2: Commit Files
+### Step 2: Compose Commit Message
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format. See [CONTRIBUTING.md](../../../CONTRIBUTING.md#commit-messages) for full guidelines.
+
+**Format:**
+```
+type(scope): description
+
+[optional body]
+
+[optional footer: Fixes #123]
+```
+
+**Common types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `ci`
+
+**Common scopes:** `server`, `cli`, `dashboard`, `skills`, `commands`
+
+### Step 3: Commit Files
 
 ```bash
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "{owner}/{repo}" \
   --branch "{branch-name}" \
-  --message "Commit message" \
+  --message "type(scope): description" \
   --files "path/to/file1.py,path/to/file2.py"
 ```
 
@@ -59,7 +76,7 @@ Use `--create-branch` to create the branch if it doesn't exist:
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "$REPO" \
   --branch "feature/new-feature" \
-  --message "Initial commit for new feature" \
+  --message "feat(core): initial commit for new feature" \
   --files "src/new_feature.py" \
   --create-branch
 ```
@@ -72,7 +89,7 @@ Override the default author information:
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "$REPO" \
   --branch "$BRANCH" \
-  --message "Fix bug" \
+  --message "fix(api): resolve null pointer bug" \
   --files "src/bugfix.py" \
   --author-name "Custom Bot" \
   --author-email "bot@example.com"
@@ -110,7 +127,7 @@ This approach allows atomic multi-file commits.
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "acme/project" \
   --branch "main" \
-  --message "Update README" \
+  --message "docs: update README" \
   --files "README.md"
 ```
 
@@ -119,11 +136,13 @@ uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "acme/project" \
   --branch "feature/auth" \
-  --message "Implement authentication
+  --message "feat(server): implement authentication
 
 - Add auth middleware
 - Add login endpoint
-- Add tests" \
+- Add tests
+
+Closes #42" \
   --files "src/auth.py,src/routes/login.py,tests/test_auth.py"
 ```
 
@@ -132,7 +151,7 @@ uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "acme/project" \
   --branch "feature/dark-mode" \
-  --message "Add dark mode theme" \
+  --message "feat(dashboard): add dark mode theme" \
   --files "src/themes/dark.css,src/components/ThemeToggle.tsx" \
   --create-branch
 ```
@@ -145,21 +164,27 @@ Typical workflow for making changes:
 # 1. Make local changes
 echo "new content" > src/feature.py
 
-# 2. Commit to a new branch
+# 2. Commit to a new branch (use Conventional Commits format)
 uv run python .claude/skills/hey-amelia/scripts/commit_files.py \
   --repo "$REPO" \
   --branch "feature/my-feature" \
-  --message "Add my feature" \
+  --message "feat(core): add my feature" \
   --files "src/feature.py" \
   --create-branch
 
-# 3. Create PR
+# 3. Create PR (see bot-create-pr.md for PR description template)
 uv run python .claude/skills/hey-amelia/scripts/create_pr.py \
   --repo "$REPO" \
   --head "feature/my-feature" \
   --base "main" \
-  --title "Add my feature" \
-  --body "Description of changes"
+  --title "feat(core): add my feature" \
+  --body "## Summary
+
+- Add my feature
+
+## Motivation
+
+Closes #123."
 ```
 
 ## Related
