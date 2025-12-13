@@ -221,7 +221,9 @@ class Architect:
     async def plan(
         self,
         state: ExecutionState,
-        output_dir: str | None = None
+        output_dir: str | None = None,
+        *,
+        workflow_id: str,
     ) -> PlanOutput:
         """Generate a development plan from an issue and optional design.
 
@@ -232,6 +234,7 @@ class Architect:
             state: The execution state containing the issue and optional design.
             output_dir: Directory path where the markdown plan will be saved.
                 If None, uses profile's plan_output_dir from state.
+            workflow_id: Workflow ID for stream events (required).
 
         Returns:
             PlanOutput containing the task DAG and path to the saved markdown file.
@@ -268,10 +271,6 @@ class Architect:
 
         # Emit completion event
         if self._stream_emitter is not None:
-            # Get workflow_id from state (fallback to issue ID if not available)
-            default_id = state.issue.id if state.issue else "unknown"
-            workflow_id = getattr(state, "workflow_id", default_id)
-
             event = StreamEvent(
                 type=StreamEventType.AGENT_OUTPUT,
                 content=f"Generated plan with {len(task_dag.tasks)} tasks",

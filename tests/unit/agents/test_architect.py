@@ -425,3 +425,51 @@ class TestArchitectStreamEmitter:
         # Verify the event contains correct count
         event = mock_emitter.call_args.args[0]
         assert "3 tasks" in event.content
+
+    async def test_architect_uses_provided_workflow_id(
+        self, mock_driver, mock_execution_state_factory
+    ):
+        """Test that architect uses provided workflow_id instead of falling back."""
+        from unittest.mock import AsyncMock
+        issue = Issue(id="TEST-123", title="Test", description="Test issue")
+        state = mock_execution_state_factory(issue=issue)
+
+        mock_driver.generate.return_value = TaskListResponse(tasks=[
+            Task(id="1", description="Task 1", dependencies=[], files=[], steps=[]),
+        ])
+        mock_emitter = AsyncMock()
+
+        architect = Architect(driver=mock_driver, stream_emitter=mock_emitter)
+        await architect.plan(state, workflow_id="custom-workflow-id-123")
+
+        # Verify the emitted event uses the provided workflow_id
+        event = mock_emitter.call_args.args[0]
+        assert event.workflow_id == "custom-workflow-id-123"
+
+class TestArchitectWorkflowIdRequired:
+    """Test that workflow_id is required for Architect.plan()."""
+
+    async def test_plan_requires_workflow_id(
+        self,
+        mock_driver: MagicMock,
+        mock_execution_state_factory,
+        mock_issue_factory,
+        mock_task_response,
+    ) -> None:
+        """Test that plan() requires workflow_id parameter."""
+        from unittest.mock import AsyncMock
+
+        issue = mock_issue_factory(id="TEST-123")
+        state = mock_execution_state_factory(issue=issue)
+        mock_driver.generate.return_value = mock_task_response
+        mock_emitter = AsyncMock()
+
+        architect = Architect(driver=mock_driver, stream_emitter=mock_emitter)
+
+        # Should work with workflow_id provided
+        result = await architect.plan(state, workflow_id="required-workflow-id")
+        assert result.task_dag is not None
+
+        # Verify emitter received the provided workflow_id
+        event = mock_emitter.call_args.args[0]
+        assert event.workflow_id == "required-workflow-id"
