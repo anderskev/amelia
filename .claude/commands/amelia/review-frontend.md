@@ -114,8 +114,8 @@ Check for:
 Review files matching: `vite.config.*`, `webpack.config.*`, `*.config.ts`
 
 Check for:
-- WebSocket proxy uses `http://` target (not `ws://`) for upgrade handling
-- Proxy config includes `changeOrigin: true` for proper CORS
+- WebSocket proxy uses `http://` target with `ws: true` for upgrade handling (Vite's http-proxy handles upgrades)
+- Proxy config includes `changeOrigin: true` for proper CORS handling
 - HMR config points to correct port
 - Build output paths are correct
 

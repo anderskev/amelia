@@ -62,7 +62,7 @@ If changes involve LLM-powered agents, orchestrators, or AI workflows, use the `
 | F8: Control Flow | Custom routing logic | Framework defaults only |
 | F9: Error Handling | Errors fed to LLM context | `logger.error()` without retry |
 | F10: Agent Focus | 3-10 steps, single responsibility | God agent with 20+ tools |
-| F12: Stateless Reducer | Immutable updates, `frozen=True` on event models | `state.field = value`, mutable Pydantic models |
+| F12: Stateless Reducer | Immutable updates, `frozen=True` on event models | `state.field = value`, mutable event models (state models may be mutable when validated) |
 
 **Testing:**
 - Tests actually test logic (not mocks)?

@@ -72,8 +72,8 @@ Review all changed `.py` files for general Python quality:
 - Re-raising with `from` to preserve stack trace
 
 **Database & Queries:**
-- Query parameters validated (LIMIT/OFFSET ≤ 0 returns early or raises)
-- No SQLite quirks exploitable (e.g., LIMIT -1 = no limit)
+- Query parameters validated (LIMIT < 0 raises or returns early; LIMIT 0 is valid for empty results)
+- No SQLite quirks exploitable (e.g., LIMIT -1 = no limit in SQLite)
 - Connection/session cleanup in error paths
 
 **Code Quality:**
@@ -137,7 +137,7 @@ Additional checks:
 
 **Fixtures:**
 - Shared fixtures in `conftest.py`
-- No fixture duplication across test files → centralize in root conftest
+- Small fixture duplication (≤3 instances, ~3 lines) is acceptable; centralize when duplication exceeds threshold or logic is non-trivial
 - Factory fixtures (`make_foo()`) for variations, not static fixtures
 
 **Assertions:**
@@ -149,7 +149,7 @@ Additional checks:
 **DRY Patterns:**
 - Repetitive tests use `@pytest.mark.parametrize` instead of copy-paste
 - Use `AsyncMock` built-in tracking (`.await_count`, `.call_args`) instead of manual counters
-- Extract common setup to fixtures, not repeated in each test
+- Small setup duplication (≤3 instances, ~3 lines) is acceptable; extract to fixtures when duplication exceeds threshold or logic is non-trivial
 
 ## Step 4: Post-Fix Verification
 
