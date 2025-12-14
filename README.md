@@ -4,34 +4,6 @@
 
 See the [**Roadmap**](docs/roadmap.md) for where we're headed and [**Current Status**](#current-status) for where we are.
 
-**Core Philosophy:** Amelia is built with the assumption that LLMs will continually improve. We prefer prompts over code, delegation over hardcoding, and flexible architectures—so as models get smarter, Amelia automatically improves without requiring changes.
-
-## What is Amelia?
-
-Amelia is an agentic coding orchestrator. Or perhaps it is not. The committee has not yet ruled on this matter, and the relevant forms remain in transit
-between departments.
-
-The Facts, Such As They Are:
-
-- I use Amelia every day. This does not mean it works.
-- It works for me. This does not mean it is safe.
-- It is an experiment. This does not prevent it from being a tool.
-- It is a tool. This does not prevent it from being an experiment.
-
-The architect plans. The developer executes. The reviewer reviews. The loop continues until approval is granted or the heat death of the universe,
-whichever comes first. No one recalls who wrote the original requirements.
-
-**Official Disclaimer:**
-
-You may use Amelia. You may not use Amelia. Both choices lead to the same corridor, which leads to another corridor. The exit sign is always visible but
-somehow never closer.
-
-If Amelia works for you, this is not a guarantee.
-If Amelia fails for you, this is also not a guarantee.
-The only guarantee is that there are no guarantees, and even this is subject to revision pending review.
-
-_The trial begins tomorrow. It has always been beginning tomorrow._
-
 ## Prerequisites
 
 - **Python 3.12+** - Required for type hints and async features
