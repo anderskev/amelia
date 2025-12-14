@@ -433,6 +433,26 @@ def section_helper() -> Any:
 
 
 @pytest.fixture
+def reviewer_state_with_task(
+    mock_execution_state_factory: Callable[..., ExecutionState],
+    mock_task_factory: Callable[..., Task],
+) -> Callable[..., ExecutionState]:
+    """Factory fixture for creating ExecutionState with a task and TaskDAG for reviewer tests.
+
+    Returns a callable that creates state with:
+    - A single task with id="1"
+    - A TaskDAG containing that task
+    - Customizable issue, workflow_id, profile via kwargs
+    """
+    def _create(**kwargs: Any) -> ExecutionState:
+        state = mock_execution_state_factory(**kwargs)
+        task = mock_task_factory(id="1", description="Test task")
+        state.plan = TaskDAG(tasks=[task], original_issue="TEST-123")
+        return state
+    return _create
+
+
+@pytest.fixture
 def developer_test_context(mock_task_factory: Callable[..., Task], mock_execution_state_factory: Callable[..., ExecutionState]) -> Callable[..., tuple[AsyncMock, ExecutionState]]:
     """Factory fixture for creating Developer test contexts with mock driver and state.
 

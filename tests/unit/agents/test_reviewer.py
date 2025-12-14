@@ -19,28 +19,13 @@ class TestReviewerStreamEmitter:
     async def test_reviewer_emits_agent_output_after_review(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., ExecutionState],
+        reviewer_state_with_task: Callable[..., ExecutionState],
         mock_issue_factory: Callable[..., Any],
         mock_review_response_factory: Callable[..., Any],
     ) -> None:
         """Test that Reviewer emits AGENT_OUTPUT event after completing review."""
         issue = mock_issue_factory(id="TEST-123", title="Test", description="Test")
-
-        state = mock_execution_state_factory(
-            issue=issue,
-            current_task_id="1",
-        )
-
-        # Add a task to the plan for review context
-        from amelia.core.state import Task, TaskDAG
-        task = Task(
-            id="1",
-            description="Test task",
-            dependencies=[],
-            files=[],
-            steps=[],
-        )
-        state.plan = TaskDAG(tasks=[task], original_issue="TEST-123")
+        state = reviewer_state_with_task(issue=issue, current_task_id="1")
 
         # Mock driver to return approved review
         mock_driver.generate.return_value = mock_review_response_factory(
@@ -77,18 +62,14 @@ class TestReviewerStreamEmitter:
     async def test_reviewer_emits_changes_requested_event(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., ExecutionState],
+        reviewer_state_with_task: Callable[..., ExecutionState],
         mock_review_response_factory: Callable[..., Any],
     ) -> None:
         """Test that Reviewer emits event with 'Changes requested' when not approved."""
-        state = mock_execution_state_factory(
+        state = reviewer_state_with_task(
             workflow_id="test-workflow-456",
             current_task_id="1",
         )
-
-        from amelia.core.state import Task, TaskDAG
-        task = Task(id="1", description="Test task", dependencies=[], files=[], steps=[])
-        state.plan = TaskDAG(tasks=[task], original_issue="TEST-123")
 
         # Mock driver to return rejected review
         mock_driver.generate.return_value = mock_review_response_factory(
@@ -113,18 +94,14 @@ class TestReviewerStreamEmitter:
     async def test_reviewer_does_not_emit_when_no_emitter_configured(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., ExecutionState],
+        reviewer_state_with_task: Callable[..., ExecutionState],
         mock_review_response_factory: Callable[..., Any],
     ) -> None:
         """Test that Reviewer does not crash when no emitter is configured."""
-        state = mock_execution_state_factory(
+        state = reviewer_state_with_task(
             workflow_id="test-workflow-789",
             current_task_id="1",
         )
-
-        from amelia.core.state import Task, TaskDAG
-        task = Task(id="1", description="Test task", dependencies=[], files=[], steps=[])
-        state.plan = TaskDAG(tasks=[task], original_issue="TEST-123")
 
         mock_driver.generate.return_value = mock_review_response_factory(approved=True)
 
@@ -139,22 +116,18 @@ class TestReviewerStreamEmitter:
     async def test_reviewer_emits_for_competitive_review(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., ExecutionState],
+        reviewer_state_with_task: Callable[..., ExecutionState],
         mock_profile_factory: Callable[..., Any],
         mock_review_response_factory: Callable[..., Any],
     ) -> None:
         """Test that Reviewer emits event for competitive review strategy."""
         # Create profile with competitive strategy
         profile = mock_profile_factory(strategy="competitive")
-        state = mock_execution_state_factory(
+        state = reviewer_state_with_task(
             profile=profile,
             workflow_id="test-workflow-competitive",
             current_task_id="1",
         )
-
-        from amelia.core.state import Task, TaskDAG
-        task = Task(id="1", description="Test task", dependencies=[], files=[], steps=[])
-        state.plan = TaskDAG(tasks=[task], original_issue="TEST-123")
 
         # Mock driver to return approved reviews for all personas
         mock_driver.generate.return_value = mock_review_response_factory(
