@@ -78,7 +78,7 @@
   --sidebar-accent: oklch(25% 0.03 150);
   --sidebar-accent-foreground: oklch(95% 0.02 120);
   --sidebar-border: oklch(30% 0.02 150 / 0.15);
-  --sidebar-ring: oklch(0.62 0.214 259);      /* #3B82F6 - Blue ring */
+  --sidebar-ring: oklch(62% 0.214 259);       /* #3B82F6 - Blue ring */
 
   /* Chart colors for data visualization */
   --chart-1: oklch(82% 0.16 85);              /* Gold */
@@ -148,7 +148,7 @@
     --sidebar-accent: oklch(90% 0.02 85);
     --sidebar-accent-foreground: oklch(20% 0.04 150);
     --sidebar-border: oklch(25% 0.03 150 / 0.1);
-    --sidebar-ring: oklch(0.62 0.214 259);      /* #3B82F6 - Blue ring */
+    --sidebar-ring: oklch(62% 0.214 259);       /* #3B82F6 - Blue ring */
 
     /* Chart colors for data visualization (light mode) */
     --chart-1: oklch(45% 0.12 240);           /* Blue */
@@ -217,7 +217,7 @@
   --sidebar-accent: oklch(90% 0.02 85);
   --sidebar-accent-foreground: oklch(20% 0.04 150);
   --sidebar-border: oklch(25% 0.03 150 / 0.1);
-  --sidebar-ring: oklch(0.62 0.214 259);      /* #3B82F6 - Blue ring */
+  --sidebar-ring: oklch(62% 0.214 259);       /* #3B82F6 - Blue ring */
 
   /* Chart colors for data visualization (light mode) */
   --chart-1: oklch(45% 0.12 240);           /* Blue */
