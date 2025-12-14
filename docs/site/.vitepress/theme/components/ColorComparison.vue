@@ -64,16 +64,18 @@ const copyToClipboard = async (text: string, index: number, side: 'dark' | 'ligh
 
       <!-- Dark mode swatch -->
       <div class="cell-swatch">
-        <div
+        <button
+          type="button"
           class="swatch-container"
           :style="{ backgroundColor: color.dark.hex }"
           :title="`Click to copy ${color.dark.hex}`"
+          :aria-label="`Copy ${color.dark.hex} to clipboard`"
           @click="copyToClipboard(color.dark.hex, index, 'dark')"
         >
           <div v-if="copiedIndex === index && copiedSide === 'dark'" class="copied-feedback">
             Copied!
           </div>
-        </div>
+        </button>
         <div class="swatch-details">
           <span class="hex-value">{{ color.dark.hex }}</span>
           <span v-if="color.dark.oklch" class="oklch-value">{{ color.dark.oklch }}</span>
@@ -82,16 +84,18 @@ const copyToClipboard = async (text: string, index: number, side: 'dark' | 'ligh
 
       <!-- Light mode swatch -->
       <div class="cell-swatch">
-        <div
+        <button
+          type="button"
           class="swatch-container"
           :style="{ backgroundColor: color.light.hex }"
           :title="`Click to copy ${color.light.hex}`"
+          :aria-label="`Copy ${color.light.hex} to clipboard`"
           @click="copyToClipboard(color.light.hex, index, 'light')"
         >
           <div v-if="copiedIndex === index && copiedSide === 'light'" class="copied-feedback">
             Copied!
           </div>
-        </div>
+        </button>
         <div class="swatch-details">
           <span class="hex-value">{{ color.light.hex }}</span>
           <span v-if="color.light.oklch" class="oklch-value">{{ color.light.oklch }}</span>
@@ -196,6 +200,8 @@ const copyToClipboard = async (text: string, index: number, side: 'dark' | 'ligh
   border: 1px solid var(--shadow-color-soft);
   box-shadow: 0 2px 4px var(--shadow-color-subtle);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  padding: 0;
+  font: inherit;
 }
 
 .swatch-container:hover {
