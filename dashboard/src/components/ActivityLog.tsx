@@ -175,11 +175,11 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
           </p>
         ) : (
           <div className="relative z-0 space-y-0">
-            {logEntries.map((entry, index) => (
+            {logEntries.map((entry) => (
               entry.kind === 'workflow' ? (
                 <ActivityLogItem key={entry.event.id} event={entry.event} />
               ) : (
-                <StreamLogEntry key={`stream-${entry.event.timestamp}-${index}`} event={entry.event} />
+                <StreamLogEntry key={entry.event.id} event={entry.event} />
               )
             ))}
 
