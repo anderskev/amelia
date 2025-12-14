@@ -826,6 +826,12 @@ class OrchestratorService:
         """
         for node_name, output in chunk.items():
             if node_name in STAGE_NODES:
+                # Update current_stage in workflow state
+                state = await self._repository.get(workflow_id)
+                if state is not None:
+                    state.current_stage = node_name
+                    await self._repository.update(state)
+
                 # Emit both started and completed for each node update
                 # (astream "updates" mode gives us the result after completion)
                 await self._emit(

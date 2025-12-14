@@ -93,6 +93,13 @@ For each task, provide:
   5. Commit (include commit message)
 - commit_message: Conventional commit message (e.g., "feat: add auth middleware")
 
+CRITICAL - Shell command restrictions:
+- Each command must be a SINGLE command - NO command chaining
+- NEVER use: && || ; | > >> < ` $( ${ or newlines in commands
+- WRONG: "cd src && npm test" or "npm install && npm run build"
+- CORRECT: Create separate steps for each command
+- If a command needs to run in a specific directory, use the full path or create separate cd step
+
 Each step should be 2-5 minutes of work. Include complete code, not placeholders."""
 
     def get_task_generation_user_prompt(self) -> str:
@@ -105,7 +112,7 @@ Each step should be 2-5 minutes of work. Include complete code, not placeholders
             User prompt string for task generation.
         """
         return """Create a detailed implementation plan with bite-sized TDD tasks.
-Ensure exact file paths, complete code in steps, and commands with expected output."""
+Ensure exact file paths, complete code in steps, and single-command shell instructions (no && or chaining)."""
 
     def _format_design_section(self, design: Design) -> str:
         """Format Design into structured markdown for context.
