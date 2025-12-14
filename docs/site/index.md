@@ -15,28 +15,9 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/anderskev/amelia
-
-features:
-  - title: Multi-Agent Orchestration
-    details: Architect plans, Developer executes, Reviewer validates. Coordinated through LangGraph with human approval gates.
-    link: /architecture/overview
-  - title: Driver Abstraction
-    details: Switch between API calls (api:openai) and CLI wrappers (cli:claude) without code changes. Enterprise SSO compatible.
-    link: /guide/configuration
-  - title: Real-Time Dashboard
-    details: Web UI with workflow visualization, activity logs, and approval controls via WebSocket.
-    link: /guide/usage#dashboard
-  - title: Design System
-    details: Dark-first design tokens, diagram themes, and presentation templates for consistent project artifacts.
-    link: /design-system/
-  - title: Ideas & Research
-    details: Exploratory designs created through brainstorming sessions. Transparency into what we're considering.
-    link: /ideas/
-  - title: 12-Factor Agents
-    details: Built following the 12-Factor Agents methodology for production-ready agentic systems.
-    link: /reference/12-factor-compliance
-
 ---
+
+<TerminalHero />
 
 ## Quick Start
 

@@ -59,6 +59,15 @@
   --vp-c-bg-soft: rgba(26, 47, 35, 0.08);
   --vp-c-divider: rgba(26, 47, 35, 0.15);
   --vp-c-gutter: rgba(26, 47, 35, 0.1);
+
+  /* Terminal Hero - inverted theme (light site → dark terminal) */
+  --terminal-bg: #0D1A12;            /* Deep forest background */
+  --terminal-text: #EFF8E2;          /* Light cream text */
+  --terminal-text-dim: #88A896;      /* Muted green */
+  --terminal-accent: #FFC857;        /* Gold accent */
+  --terminal-success: #5B8A72;       /* Brighter green */
+  --terminal-chrome: #2B3D35;        /* Darker forest chrome */
+  --terminal-border: #4A5C54;        /* Subtle forest border */
 }
 
 /**
@@ -115,6 +124,15 @@
   --vp-c-bg-soft: rgba(47, 61, 53, 0.3);
   --vp-c-divider: rgba(47, 61, 53, 0.2);
   --vp-c-gutter: rgba(47, 61, 53, 0.15);
+
+  /* Terminal Hero - inverted theme (dark site → light terminal) */
+  --terminal-bg: #FDF8F0;            /* Cream/warm background */
+  --terminal-text: #1A2F23;          /* Dark forest green text */
+  --terminal-text-dim: #5C7263;      /* Muted green */
+  --terminal-accent: #2E6B9C;        /* Professional blue accent */
+  --terminal-success: #3D7552;       /* Green */
+  --terminal-chrome: #F5F1E8;        /* Light cream chrome */
+  --terminal-border: #B8AE9C;        /* Subtle border */
 }
 
 /**

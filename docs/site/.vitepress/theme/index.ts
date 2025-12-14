@@ -22,6 +22,7 @@ import ColorSwatch from './components/ColorSwatch.vue'
 import ColorPalette from './components/ColorPalette.vue'
 import ColorComparison from './components/ColorComparison.vue'
 import AnimatedWorkflowHero from './components/AnimatedWorkflowHero.vue'
+import TerminalHero from './components/TerminalHero.vue'
 
 export default {
   extends: DefaultTheme,
@@ -37,5 +38,6 @@ export default {
     app.component('ColorPalette', ColorPalette)
     app.component('ColorComparison', ColorComparison)
     app.component('AnimatedWorkflowHero', AnimatedWorkflowHero)
+    app.component('TerminalHero', TerminalHero)
   }
 } satisfies Theme
