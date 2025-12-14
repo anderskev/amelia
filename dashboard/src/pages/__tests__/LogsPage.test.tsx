@@ -21,6 +21,7 @@ const createStreamEvent = (
   subtype: StreamEventType,
   overrides?: Partial<StreamEvent>
 ): StreamEvent => ({
+  id: `stream-${crypto.randomUUID()}`,
   subtype,
   content: subtype === StreamEventType.CLAUDE_THINKING ? 'Test thinking content' : null,
   timestamp: new Date().toISOString(),
