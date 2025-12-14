@@ -1,5 +1,7 @@
 # Amelia: Agentic Orchestrator
 
+![Amelia Terminal](docs/design/terminal_screen.jpg)
+
 [Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is a local agentic coding system that orchestrates software development tasks through multiple AI agents with specialized roles.
 
 See the [**Roadmap**](docs/roadmap.md) for where we're headed and [**Current Status**](#current-status) for where we are.
@@ -16,8 +18,6 @@ See the [**Roadmap**](docs/roadmap.md) for where we're headed and [**Current Sta
 ## Quick Start
 
 Use Amelia in any existing Git repository to automate development tasks.
-
-![Amelia Terminal](docs/design/terminal_screen.jpg)
 
 ![Amelia Dashboard Design Mock](docs/design/desktop_screen.jpg)
 
