@@ -5,6 +5,7 @@
 
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -229,6 +230,7 @@ class TestArchitect:
         mock_issue_factory: Callable[..., Issue],
         mock_design_factory: Callable[..., Design],
         mock_task_response: TaskListResponse,
+        tmp_path: Path,
     ) -> None:
         """Test plan() reads design from state, not from parameter."""
         issue = mock_issue_factory(title="Build feature", description="Feature desc")
@@ -239,7 +241,7 @@ class TestArchitect:
         mock_driver.generate.return_value = mock_task_response
 
         architect = Architect(driver=mock_driver)
-        result = await architect.plan(state, workflow_id="test-workflow-123")
+        result = await architect.plan(state, output_dir=str(tmp_path), workflow_id="test-workflow-123")
 
         # Verify plan was generated (driver was called)
         assert result.task_dag is not None
