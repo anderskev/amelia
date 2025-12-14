@@ -21,13 +21,14 @@ import './custom.css'
 import ColorSwatch from './components/ColorSwatch.vue'
 import ColorPalette from './components/ColorPalette.vue'
 import ColorComparison from './components/ColorComparison.vue'
+import AnimatedWorkflowHero from './components/AnimatedWorkflowHero.vue'
 
 export default {
   extends: DefaultTheme,
   Layout: () => {
     return h(DefaultTheme.Layout, null, {
-      // Custom layout slots can be added here
-      // https://vitepress.dev/guide/extending-default-theme#layout-slots
+      // Inject animated workflow diagram into the hero image slot
+      'home-hero-image': () => h(AnimatedWorkflowHero)
     })
   },
   enhanceApp({ app, router, siteData }) {
@@ -35,5 +36,6 @@ export default {
     app.component('ColorSwatch', ColorSwatch)
     app.component('ColorPalette', ColorPalette)
     app.component('ColorComparison', ColorComparison)
+    app.component('AnimatedWorkflowHero', AnimatedWorkflowHero)
   }
 } satisfies Theme
