@@ -2,79 +2,77 @@
 layout: home
 
 hero:
-  name: "Amelia Design System"
-  text: "Dark-First Design"
-  tagline: A unified design system for the Amelia AI orchestrator with dark-first theming optimized for extended developer sessions. Built by hey-amelia bot.
+  name: "Amelia"
+  text: "Agentic Coding Orchestrator"
+  tagline: A local AI orchestrator that coordinates specialized agents through a LangGraph state machine. Built for developers who want AI assistance with full control.
   actions:
     - theme: brand
       text: Get Started
-      link: /guide/getting-started
+      link: /guide/usage
+    - theme: alt
+      text: Architecture
+      link: /architecture/overview
     - theme: alt
       text: View on GitHub
       link: https://github.com/anderskev/amelia
 
 features:
-  - title: Design Tokens
-    details: OKLCH color palette with dark and light modes, modular typography scale, and comprehensive spacing system.
-    link: /guide/color-system
-  - title: Diagram Themes
-    details: Consistent styling for D2 and Mermaid diagrams with cohesive theming.
-    link: /guide/diagrams
-  - title: Presentation Theme
-    details: Slidev theme for stakeholder presentations with projector-optimized light mode.
-    link: /guide/presentations
-  - title: Documentation
-    details: VitePress theme for beautiful, accessible documentation with professional aesthetics.
-  - title: Dark-First Design
-    details: Optimized for extended developer sessions with reduced eye strain and professional aesthetics.
-  - title: Accessible
-    details: WCAG 2.1 AA compliant contrast ratios ensuring readability for all users.
+  - title: Multi-Agent Orchestration
+    details: Architect plans, Developer executes, Reviewer validates. Coordinated through LangGraph with human approval gates.
+    link: /architecture/overview
+  - title: Driver Abstraction
+    details: Switch between API calls (api:openai) and CLI wrappers (cli:claude) without code changes. Enterprise SSO compatible.
+    link: /guide/configuration
+  - title: Real-Time Dashboard
+    details: Web UI with workflow visualization, activity logs, and approval controls via WebSocket.
+    link: /guide/usage#dashboard
+  - title: Design System
+    details: Dark-first design tokens, diagram themes, and presentation templates for consistent project artifacts.
+    link: /design-system/
+  - title: Ideas & Research
+    details: Exploratory designs created through brainstorming sessions. Transparency into what we're considering.
+    link: /ideas/
+  - title: 12-Factor Agents
+    details: Built following the 12-Factor Agents methodology for production-ready agentic systems.
+    link: /reference/12-factor-compliance
+
 ---
 
-## Why Amelia Design System?
-
-The Amelia Design System was built by [hey-amelia](https://github.com/apps/hey-amelia), an AI-powered GitHub bot. It provides a cohesive visual language across Amelia project artifacts—from documentation and diagrams to presentations and dashboards. Built on design tokens, it ensures consistency while maintaining flexibility.
-
-### Key Principles
-
-1. **Dark-First** - Optimized for extended developer sessions with reduced eye strain
-2. **Light Mode for Presentations** - Projector-friendly alternative for stakeholder meetings
-3. **OKLCH Colors** - Perceptually uniform color space for better color transitions
-4. **Accessible** - WCAG 2.1 AA compliant contrast ratios
-
-### Quick Start
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/anderskev/amelia.git
+# Install amelia globally
+uv tool install git+https://github.com/anderskev/amelia.git
 
-# Navigate to design system
-cd amelia/design-system
+# Configure in your project
+cat > settings.amelia.yaml << 'EOF'
+active_profile: dev
+profiles:
+  dev:
+    driver: api:openai
+    tracker: github
+EOF
+
+# Generate a plan for an issue
+amelia plan-only 123
+
+# Or run the full workflow
+amelia start 123
 ```
 
-Import color tokens in your CSS:
+## How It Works
 
-```css
-@import 'design-system/tokens/colors.css';
+| Agent | Role | Output |
+|-------|------|--------|
+| **Architect** | Plans the work | TaskDAG with ordered tasks |
+| **Developer** | Executes tasks | Code changes via tools |
+| **Reviewer** | Validates changes | Approval or feedback |
 
-.my-element {
-  background: var(--background);
-  color: var(--foreground);
-  border-color: var(--accent);
-}
-```
+The orchestrator loops Developer → Reviewer until changes are approved.
 
-Import typography tokens:
+## Learn More
 
-```css
-@import 'design-system/tokens/typography.css';
-
-h1 {
-  font-family: var(--font-heading);
-  font-size: var(--font-size-4xl);
-}
-```
-
-### Ready to dive in?
-
-[Get Started](/guide/getting-started) with the Amelia Design System.
+- [Usage Guide](/guide/usage) - CLI commands and API reference
+- [Architecture](/architecture/overview) - Technical deep dive
+- [Configuration](/guide/configuration) - Profile and driver setup
+- [Roadmap](/reference/roadmap) - Where we're headed

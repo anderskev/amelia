@@ -9,15 +9,15 @@ import { defineConfig } from 'vitepress'
 /**
  * VitePress Configuration
  *
- * Configures the Amelia Design System documentation site with:
- * - Custom theme
- * - Navigation structure
- * - Search functionality
+ * Configures the Amelia documentation site with:
+ * - Project-wide documentation
+ * - Design system reference
+ * - Ideas/brainstorming section
  * - Dark/light mode support
  */
 export default defineConfig({
-  title: 'Amelia Design System',
-  description: 'Design system for the Amelia AI orchestrator',
+  title: 'Amelia',
+  description: 'Documentation for the Amelia agentic coding orchestrator',
 
   // Base path for deployment
   base: '/amelia/',
@@ -32,8 +32,19 @@ export default defineConfig({
 
     // Navigation menu
     nav: [
-      { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'API', link: '/api/tokens' },
+      { text: 'Guide', link: '/guide/usage' },
+      { text: 'Architecture', link: '/architecture/overview' },
+      { text: 'Design System', link: '/design-system/' },
+      { text: 'Ideas', link: '/ideas/' },
+      {
+        text: 'Reference',
+        items: [
+          { text: 'Roadmap', link: '/reference/roadmap' },
+          { text: 'Benchmarking', link: '/reference/benchmarking' },
+          { text: '12-Factor Compliance', link: '/reference/12-factor-compliance' },
+          { text: 'Context Engineering', link: '/reference/context-engineering-gaps' }
+        ]
+      },
       {
         text: 'Resources',
         items: [
@@ -47,32 +58,71 @@ export default defineConfig({
     sidebar: {
       '/guide/': [
         {
-          text: 'Introduction',
+          text: 'User Guide',
           items: [
-            { text: 'Getting Started', link: '/guide/getting-started' },
-            { text: 'Installation', link: '/guide/getting-started#installation' }
+            { text: 'Usage', link: '/guide/usage' },
+            { text: 'Configuration', link: '/guide/configuration' },
+            { text: 'Troubleshooting', link: '/guide/troubleshooting' }
           ]
-        },
+        }
+      ],
+      '/architecture/': [
         {
-          text: 'Design Tokens',
+          text: 'Architecture',
           items: [
-            { text: 'Color System', link: '/guide/color-system' },
-            { text: 'Typography', link: '/guide/typography' }
+            { text: 'Overview', link: '/architecture/overview' },
+            { text: 'Concepts', link: '/architecture/concepts' },
+            { text: 'Data Model', link: '/architecture/data-model' }
+          ]
+        }
+      ],
+      '/design-system/': [
+        {
+          text: 'Design System',
+          items: [
+            { text: 'Getting Started', link: '/design-system/' },
+            { text: 'Color System', link: '/design-system/color-system' },
+            { text: 'Typography', link: '/design-system/typography' }
           ]
         },
         {
           text: 'Themes',
           items: [
-            { text: 'Diagrams', link: '/guide/diagrams' },
-            { text: 'Presentations', link: '/guide/presentations' }
+            { text: 'Diagrams', link: '/design-system/diagrams' },
+            { text: 'Presentations', link: '/design-system/presentations' }
+          ]
+        },
+        {
+          text: 'API',
+          items: [
+            { text: 'Design Tokens', link: '/design-system/tokens' }
           ]
         }
       ],
-      '/api/': [
+      '/ideas/': [
         {
-          text: 'API Reference',
+          text: 'Ideas & Explorations',
           items: [
-            { text: 'Design Tokens', link: '/api/tokens' }
+            { text: 'Overview', link: '/ideas/' },
+            { text: 'Session Continuity', link: '/ideas/session-continuity' },
+            { text: 'CAPEX Tracking', link: '/ideas/capex-tracking' },
+            { text: 'Knowledge Library', link: '/ideas/knowledge-library' },
+            { text: 'AWS AgentCore', link: '/ideas/aws-agentcore' },
+            { text: 'Debate Mode', link: '/ideas/debate-mode' },
+            { text: 'Spec Builder', link: '/ideas/spec-builder' },
+            { text: 'Context Compiler', link: '/ideas/context-compiler' },
+            { text: 'Planning Workflows', link: '/ideas/planning-workflows' }
+          ]
+        }
+      ],
+      '/reference/': [
+        {
+          text: 'Reference',
+          items: [
+            { text: 'Roadmap', link: '/reference/roadmap' },
+            { text: 'Benchmarking', link: '/reference/benchmarking' },
+            { text: '12-Factor Compliance', link: '/reference/12-factor-compliance' },
+            { text: 'Context Engineering', link: '/reference/context-engineering-gaps' }
           ]
         }
       ]
@@ -111,15 +161,12 @@ export default defineConfig({
       dark: 'github-dark'
     },
     lineNumbers: true,
-    // Map d2 code blocks to YAML highlighting (similar syntax)
-    // D2 is a diagramming language (https://d2lang.com) with YAML-like syntax
     languageAlias: {
       'd2': 'yaml'
     }
   },
 
   // Head configuration
-  // Note: VitePress does NOT auto-prepend base path to head URLs - must include manually
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/amelia/logo/amelia-gold.svg' }],
     ['link', { rel: 'stylesheet', href: '/amelia/fonts/fonts.css' }]
