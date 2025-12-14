@@ -293,3 +293,92 @@
   margin-bottom: 1rem;
   margin-top: 2rem;
 }
+
+/**
+ * Component: Enhanced Hero "Get Started" Button
+ * -------------------------------------------------------------------------- */
+
+/* Make the hero brand button larger and more commanding */
+.VPHero .actions .VPButton.brand {
+  /* Increased size */
+  padding: 1rem 2.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+
+  /* Subtle glow/shadow effect */
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.1),
+    0 0 24px var(--vp-c-brand-soft);
+
+  /* Smooth transitions */
+  transition: all 0.3s ease;
+
+  /* Position context for arrow pseudo-element */
+  position: relative;
+
+  /* Add space for the arrow */
+  padding-right: 3rem;
+}
+
+/* Enhanced hover state */
+.VPHero .actions .VPButton.brand:hover {
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.15),
+    0 0 32px var(--vp-c-brand-soft);
+  transform: translateY(-2px);
+}
+
+/* Enhanced active state */
+.VPHero .actions .VPButton.brand:active {
+  transform: translateY(0);
+}
+
+/* SVG arrow icon via ::after pseudo-element */
+.VPHero .actions .VPButton.brand::after {
+  content: '';
+  position: absolute;
+  right: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+
+  /* SVG arrow as background image */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+
+  /* Inherit button text color */
+  filter: brightness(0) saturate(100%) invert(var(--arrow-invert, 0%));
+
+  /* Smooth transition on hover */
+  transition: transform 0.3s ease;
+}
+
+/* Arrow animation on hover - subtle shift to the right */
+.VPHero .actions .VPButton.brand:hover::after {
+  transform: translateY(-50%) translateX(4px);
+}
+
+/* Color adjustments for arrow in light mode (dark blue button = white arrow) */
+html:not(.dark) .VPHero .actions .VPButton.brand::after {
+  --arrow-invert: 100%;
+}
+
+/* Color adjustments for arrow in dark mode (gold button = dark arrow) */
+.dark .VPHero .actions .VPButton.brand::after {
+  --arrow-invert: 0%;
+}
+
+/**
+ * Component: Hero Image (Mobile)
+ * -------------------------------------------------------------------------- */
+
+/* Hide hero image container on mobile/tablet - diagram is too complex */
+@media (max-width: 1024px) {
+  .VPHero .image-container,
+  .VPHero .image {
+    display: none;
+  }
+}

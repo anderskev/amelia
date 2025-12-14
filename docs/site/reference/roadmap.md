@@ -2,7 +2,7 @@
 
 > **Vision:** Complete end-to-end workflow control without ever opening GitHub, Jira, or any tracker web UI—with agents that maintain context across sessions and verify their own work. Built on the assumption that LLMs will continually improve, so Amelia automatically gets better as models advance.
 >
-> **Architecture:** Aligned with the [12-Factor Agents](https://github.com/humanlayer/12-factor-agents) methodology for building reliable LLM-powered software. See also [Context Engineering Gaps](/reference/context-engineering-gaps) for agentic context management requirements.
+> **Architecture:** Aligned with the [12-Factor Agents](https://github.com/humanlayer/12-factor-agents) methodology for building reliable LLM-powered software. See also [Context Engineering Gaps](/ideas/research/context-engineering-gaps) for agentic context management requirements.
 
 ## Design Principles
 
@@ -56,9 +56,9 @@ A browser-based dashboard that provides visibility into workflow state, enables 
 - **F11 (Trigger from Anywhere)**: WebSocket events enable async notification to any connected client
 
 **Context Engineering:**
-- [Gap 1: Context Compiler](/reference/context-engineering-gaps#gap-1-context-compiler) - Add infrastructure for fresh context projection per LLM call
-- [Gap 3: Prompt Prefix Stability](/reference/context-engineering-gaps#gap-3-prompt-prefix-stability-for-cache-optimization) - Design prompts for cache reuse
-- [Gap 5: Agent Scope Isolation](/reference/context-engineering-gaps#gap-5-agent-scope-isolation) - Minimal default context per agent
+- [Gap 1: Context Compiler](/ideas/research/context-engineering-gaps#gap-1-context-compiler) - Add infrastructure for fresh context projection per LLM call
+- [Gap 3: Prompt Prefix Stability](/ideas/research/context-engineering-gaps#gap-3-prompt-prefix-stability-for-cache-optimization) - Design prompts for cache reuse
+- [Gap 5: Agent Scope Isolation](/ideas/research/context-engineering-gaps#gap-5-agent-scope-isolation) - Minimal default context per agent
 
 ---
 
@@ -80,10 +80,10 @@ Long-running agents fail across context windows because each session starts fres
 - **F3 (Own Context Window)**: Progress artifacts provide structured context for new sessions
 
 **Context Engineering:**
-- [Gap 2: Schema-Driven Summarization](/reference/context-engineering-gaps#gap-2-schema-driven-summarization) - Compact context preserving semantic structure
-- [Gap 4: Tiered Memory Architecture](/reference/context-engineering-gaps#gap-4-tiered-memory-architecture) - Working Context / Sessions / Memory / Artifacts hierarchy
-- [Gap 6: Session Memory Retrieval](/reference/context-engineering-gaps#gap-6-session-memory-retrieval) - On-demand access to relevant history
-- [Gap 7: Artifact Handle System](/reference/context-engineering-gaps#gap-7-artifact-handle-system) - Reference large objects by pointer
+- [Gap 2: Schema-Driven Summarization](/ideas/research/context-engineering-gaps#gap-2-schema-driven-summarization) - Compact context preserving semantic structure
+- [Gap 4: Tiered Memory Architecture](/ideas/research/context-engineering-gaps#gap-4-tiered-memory-architecture) - Working Context / Sessions / Memory / Artifacts hierarchy
+- [Gap 6: Session Memory Retrieval](/ideas/research/context-engineering-gaps#gap-6-session-memory-retrieval) - On-demand access to relevant history
+- [Gap 7: Artifact Handle System](/ideas/research/context-engineering-gaps#gap-7-artifact-handle-system) - Reference large objects by pointer
 
 See [Session Continuity Design](/ideas/session-continuity) for detailed specification.
 
@@ -472,9 +472,9 @@ def developer_node(state: State) -> State:
   - CI pipeline status
 - Include in Architect context for informed planning
 
-See [12-Factor Agents Compliance Analysis](/reference/12-factor-compliance) for detailed factor-by-factor assessment.
+See [12-Factor Agents Compliance Analysis](/ideas/research/12-factor-compliance) for detailed factor-by-factor assessment.
 
-See [Context Engineering Gaps](/reference/context-engineering-gaps) for agentic context management requirements that should be addressed in Phases 2-3.
+See [Context Engineering Gaps](/ideas/research/context-engineering-gaps) for agentic context management requirements that should be addressed in Phases 2-3.
 
 ---
 

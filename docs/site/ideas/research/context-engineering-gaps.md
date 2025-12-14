@@ -459,6 +459,6 @@ graph TD
 
 - [Agentic Context Engineering Principles](source: video analysis)
 - [12-Factor Agents Methodology](https://github.com/humanlayer/12-factor-agents)
-- [Amelia 12-Factor Compliance Analysis](/reference/12-factor-compliance)
+- [Amelia 12-Factor Compliance Analysis](/ideas/research/12-factor-compliance)
 - [Amelia Roadmap](/reference/roadmap)
 - [Amelia Architecture](/architecture/overview)

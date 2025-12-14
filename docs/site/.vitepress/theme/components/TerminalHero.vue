@@ -354,7 +354,8 @@ onUnmounted(() => {
   background: var(--terminal-bg);
   padding: 24px;
   color: var(--terminal-text);
-  min-height: 400px;
+  height: 480px;
+  overflow-y: auto;
 }
 
 .terminal-line {
@@ -517,7 +518,7 @@ onUnmounted(() => {
 
   .terminal-body {
     padding: 16px;
-    min-height: 300px;
+    height: 380px;
   }
 
   .terminal-chrome {

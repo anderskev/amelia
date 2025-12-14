@@ -209,8 +209,8 @@ See [Configuration Reference](https://anderskev.github.io/amelia/guide/configura
 - [Concepts: Understanding Agentic AI](https://anderskev.github.io/amelia/architecture/concepts) - How agents, drivers, and orchestration work
 - [Architecture & Data Flow](https://anderskev.github.io/amelia/architecture/overview) - Technical deep dive with diagrams
 - [Roadmap](https://anderskev.github.io/amelia/reference/roadmap) - Detailed development phases and vision
-- [Benchmarking LLM Agents](https://anderskev.github.io/amelia/reference/benchmarking) - How to systematically evaluate and iterate on agents
-- [12-Factor Agents Compliance](https://anderskev.github.io/amelia/reference/12-factor-compliance) - How Amelia aligns with the 12-Factor Agents methodology
+- [Benchmarking LLM Agents](https://anderskev.github.io/amelia/ideas/research/benchmarking) - How to systematically evaluate and iterate on agents
+- [12-Factor Agents Compliance](https://anderskev.github.io/amelia/ideas/research/12-factor-compliance) - How Amelia aligns with the 12-Factor Agents methodology
 - [Ideas & Brainstorming](https://anderskev.github.io/amelia/ideas/) - Design explorations created using the superpowers:brainstorming skill
 
 > **Note:** `docs/plans/` contains temporary planning documents for in-progress work. These should be deleted once their corresponding plans are executed and merged.

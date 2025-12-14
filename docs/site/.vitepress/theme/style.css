@@ -238,6 +238,15 @@ html:not(.dark) {
   --vp-home-hero-image-filter: blur(40px);
 }
 
+/* Light mode hero gradient - terracotta to professional blue for visual interest */
+html:not(.dark) {
+  --vp-home-hero-name-background: linear-gradient(
+    120deg,
+    oklch(50% 0.15 30) 30%,
+    #2E6B9C
+  );
+}
+
 /**
  * Component: Home Hero Layout Adjustments
  * Make space for the animated workflow diagram

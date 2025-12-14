@@ -36,22 +36,7 @@ export default defineConfig({
       { text: 'Architecture', link: '/architecture/overview' },
       { text: 'Design System', link: '/design-system/' },
       { text: 'Ideas', link: '/ideas/' },
-      {
-        text: 'Reference',
-        items: [
-          { text: 'Roadmap', link: '/reference/roadmap' },
-          { text: 'Benchmarking', link: '/reference/benchmarking' },
-          { text: '12-Factor Compliance', link: '/reference/12-factor-compliance' },
-          { text: 'Context Engineering', link: '/reference/context-engineering-gaps' }
-        ]
-      },
-      {
-        text: 'Resources',
-        items: [
-          { text: 'GitHub', link: 'https://github.com/anderskev/amelia' },
-          { text: 'License', link: 'https://github.com/anderskev/amelia/blob/main/LICENSE' }
-        ]
-      }
+      { text: 'Roadmap', link: '/reference/roadmap' }
     ],
 
     // Sidebar navigation
@@ -110,19 +95,15 @@ export default defineConfig({
             { text: 'AWS AgentCore', link: '/ideas/aws-agentcore' },
             { text: 'Debate Mode', link: '/ideas/debate-mode' },
             { text: 'Spec Builder', link: '/ideas/spec-builder' },
-            { text: 'Context Compiler', link: '/ideas/context-compiler' },
             { text: 'Planning Workflows', link: '/ideas/planning-workflows' }
           ]
-        }
-      ],
-      '/reference/': [
+        },
         {
-          text: 'Reference',
+          text: 'Research',
           items: [
-            { text: 'Roadmap', link: '/reference/roadmap' },
-            { text: 'Benchmarking', link: '/reference/benchmarking' },
-            { text: '12-Factor Compliance', link: '/reference/12-factor-compliance' },
-            { text: 'Context Engineering', link: '/reference/context-engineering-gaps' }
+            { text: 'Benchmarking', link: '/ideas/research/benchmarking' },
+            { text: '12-Factor Compliance', link: '/ideas/research/12-factor-compliance' },
+            { text: 'Context Engineering', link: '/ideas/research/context-engineering-gaps' }
           ]
         }
       ]
@@ -135,8 +116,8 @@ export default defineConfig({
 
     // Footer
     footer: {
-      message: 'Built by hey-amelia bot. Released under the MPL-2.0 License.',
-      copyright: 'Copyright © 2024-2025 @anderskev'
+      message: 'Built by hey-amelia bot. Released under the <a href="https://github.com/anderskev/amelia/blob/main/LICENSE">MPL-2.0 License</a>.',
+      copyright: 'Copyright © 2024-2025 <a href="https://anderskev.com">@anderskev</a>'
     },
 
     // Search configuration

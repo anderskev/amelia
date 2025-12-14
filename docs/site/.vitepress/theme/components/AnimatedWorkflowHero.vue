@@ -336,4 +336,11 @@ const isApproved = () => currentAgent.value === 'approved'
     transition: none !important;
   }
 }
+
+/* Hide on mobile/tablet - too complex for small screens */
+@media (max-width: 1024px) {
+  .workflow-hero {
+    display: none;
+  }
+}
 </style>

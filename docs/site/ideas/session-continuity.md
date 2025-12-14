@@ -1363,6 +1363,6 @@ Phase 1 ──────► Phase 2 ──────► Phase 3
 ## References
 
 - [Roadmap - Phase 3](/reference/roadmap#phase-3-session-continuity-planned)
-- [Context Engineering Gaps](/reference/context-engineering-gaps)
-- [12-Factor Agents Compliance](/reference/12-factor-compliance)
+- [Context Engineering Gaps](/ideas/research/context-engineering-gaps)
+- [12-Factor Agents Compliance](/ideas/research/12-factor-compliance)
 - [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)

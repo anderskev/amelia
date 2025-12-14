@@ -154,13 +154,13 @@ class AgentMessage:
 #### Roadmap Alignment
 
 **Addressed in Phases 2 & 3**:
-- Phase 2 adds [Context Compiler infrastructure](/reference/context-engineering-gaps#gap-1-context-compiler) - fresh context projection per LLM call
-- Phase 2 implements [Prompt Prefix Stability](/reference/context-engineering-gaps#gap-3-prompt-prefix-stability-for-cache-optimization) - stable prefixes for cache optimization
-- Phase 2 adds [Agent Scope Isolation](/reference/context-engineering-gaps#gap-5-agent-scope-isolation) - minimal default context per agent
-- Phase 3 implements [Schema-Driven Summarization](/reference/context-engineering-gaps#gap-2-schema-driven-summarization) - compact context preserving semantics
-- Phase 3 adds [Tiered Memory Architecture](/reference/context-engineering-gaps#gap-4-tiered-memory-architecture) - Working Context/Sessions/Memory/Artifacts hierarchy
-- Phase 3 implements [Session Memory Retrieval](/reference/context-engineering-gaps#gap-6-session-memory-retrieval) - on-demand access to relevant history
-- Phase 3 adds [Artifact Handle System](/reference/context-engineering-gaps#gap-7-artifact-handle-system) - reference large objects by pointer
+- Phase 2 adds [Context Compiler infrastructure](/ideas/research/context-engineering-gaps#gap-1-context-compiler) - fresh context projection per LLM call
+- Phase 2 implements [Prompt Prefix Stability](/ideas/research/context-engineering-gaps#gap-3-prompt-prefix-stability-for-cache-optimization) - stable prefixes for cache optimization
+- Phase 2 adds [Agent Scope Isolation](/ideas/research/context-engineering-gaps#gap-5-agent-scope-isolation) - minimal default context per agent
+- Phase 3 implements [Schema-Driven Summarization](/ideas/research/context-engineering-gaps#gap-2-schema-driven-summarization) - compact context preserving semantics
+- Phase 3 adds [Tiered Memory Architecture](/ideas/research/context-engineering-gaps#gap-4-tiered-memory-architecture) - Working Context/Sessions/Memory/Artifacts hierarchy
+- Phase 3 implements [Session Memory Retrieval](/ideas/research/context-engineering-gaps#gap-6-session-memory-retrieval) - on-demand access to relevant history
+- Phase 3 adds [Artifact Handle System](/ideas/research/context-engineering-gaps#gap-7-artifact-handle-system) - reference large objects by pointer
 
 These Phase 2 & 3 improvements directly implement F3 principles from the 12-Factor Agents methodology.
 
@@ -240,7 +240,7 @@ thread = Thread(
 **Addressed in Phases 2 & 3**:
 - Phase 2: SQLite persistence for unified state storage
 - Phase 3: `amelia-progress.json` as single source of truth, Git-reconstructible
-- Phase 3: [Tiered Memory Architecture](/reference/context-engineering-gaps#gap-4-tiered-memory-architecture) unifies state across tiers
+- Phase 3: [Tiered Memory Architecture](/ideas/research/context-engineering-gaps#gap-4-tiered-memory-architecture) unifies state across tiers
 
 **Not fully addressed**: Elimination of dual state systems (LangGraph checkpoints vs SQLite)
 
@@ -605,15 +605,15 @@ context = {
 
 ## Context Engineering Integration
 
-The roadmap explicitly integrates context engineering principles from [Context Engineering Gaps](/reference/context-engineering-gaps) into Phases 2 and 3:
+The roadmap explicitly integrates context engineering principles from [Context Engineering Gaps](/ideas/research/context-engineering-gaps) into Phases 2 and 3:
 
 ### Phase 2: Context Compiler Infrastructure
 
 Phase 2 addresses the following context engineering gaps:
 
-- **[Gap 1: Context Compiler](/reference/context-engineering-gaps#gap-1-context-compiler)** - Every LLM call becomes a freshly computed projection against durable state, not dragging full message history
-- **[Gap 3: Prompt Prefix Stability](/reference/context-engineering-gaps#gap-3-prompt-prefix-stability-for-cache-optimization)** - Stable prompt prefixes enable cache reuse, reducing latency and costs by 10x
-- **[Gap 5: Agent Scope Isolation](/reference/context-engineering-gaps#gap-5-agent-scope-isolation)** - Each agent receives minimal default context, must actively request additional information
+- **[Gap 1: Context Compiler](/ideas/research/context-engineering-gaps#gap-1-context-compiler)** - Every LLM call becomes a freshly computed projection against durable state, not dragging full message history
+- **[Gap 3: Prompt Prefix Stability](/ideas/research/context-engineering-gaps#gap-3-prompt-prefix-stability-for-cache-optimization)** - Stable prompt prefixes enable cache reuse, reducing latency and costs by 10x
+- **[Gap 5: Agent Scope Isolation](/ideas/research/context-engineering-gaps#gap-5-agent-scope-isolation)** - Each agent receives minimal default context, must actively request additional information
 
 These directly implement **Factor 3 (Own Your Context Window)** principles.
 
@@ -621,10 +621,10 @@ These directly implement **Factor 3 (Own Your Context Window)** principles.
 
 Phase 3 addresses the following context engineering gaps:
 
-- **[Gap 2: Schema-Driven Summarization](/reference/context-engineering-gaps#gap-2-schema-driven-summarization)** - Compact context preserving semantic structure, avoiding "glossy soup"
-- **[Gap 4: Tiered Memory Architecture](/reference/context-engineering-gaps#gap-4-tiered-memory-architecture)** - Working Context, Sessions, Memory, Artifacts hierarchy mirroring Cache/RAM/Disk
-- **[Gap 6: Session Memory Retrieval](/reference/context-engineering-gaps#gap-6-session-memory-retrieval)** - On-demand retrieval from searchable history instead of pinning everything
-- **[Gap 7: Artifact Handle System](/reference/context-engineering-gaps#gap-7-artifact-handle-system)** - Reference large objects by pointer rather than embedding content
+- **[Gap 2: Schema-Driven Summarization](/ideas/research/context-engineering-gaps#gap-2-schema-driven-summarization)** - Compact context preserving semantic structure, avoiding "glossy soup"
+- **[Gap 4: Tiered Memory Architecture](/ideas/research/context-engineering-gaps#gap-4-tiered-memory-architecture)** - Working Context, Sessions, Memory, Artifacts hierarchy mirroring Cache/RAM/Disk
+- **[Gap 6: Session Memory Retrieval](/ideas/research/context-engineering-gaps#gap-6-session-memory-retrieval)** - On-demand retrieval from searchable history instead of pinning everything
+- **[Gap 7: Artifact Handle System](/ideas/research/context-engineering-gaps#gap-7-artifact-handle-system)** - Reference large objects by pointer rather than embedding content
 
 These further strengthen **Factor 3 (Own Your Context Window)** and enable **Factor 5 (Unified State)** through tiered architecture.
 
