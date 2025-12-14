@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+import os
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -60,7 +61,7 @@ class ArchitectContextStrategy(ContextStrategy):
     SYSTEM_PROMPT = """You are a senior software architect creating implementation plans.
 You analyze issues and produce structured task DAGs with clear dependencies."""
 
-    ALLOWED_SECTIONS = {"issue", "design"}
+    ALLOWED_SECTIONS = {"issue", "design", "codebase"}
 
     def get_task_generation_system_prompt(self) -> str:
         """Get the detailed system prompt for task DAG generation.
@@ -154,6 +155,64 @@ Ensure exact file paths, complete code in steps, and single-command shell instru
 
         return "\n\n".join(parts)
 
+    def _scan_codebase(self, working_dir: str, max_files: int = 500) -> str:
+        """Scan the codebase directory and return a file tree structure.
+
+        Args:
+            working_dir: Path to the working directory to scan.
+            max_files: Maximum number of files to include (default 500).
+
+        Returns:
+            Formatted string with file tree structure.
+        """
+        # Common directories and files to ignore
+        ignore_dirs = {
+            ".git", ".svn", ".hg",
+            "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+            "node_modules", ".venv", "venv", "env",
+            "dist", "build", ".next", ".nuxt",
+            "coverage", ".coverage", "htmlcov",
+            ".idea", ".vscode",
+            "eggs", "*.egg-info",
+        }
+        ignore_files = {".DS_Store", "Thumbs.db", ".gitignore"}
+
+        files: list[str] = []
+        root_path = Path(working_dir)
+
+        for dirpath, dirnames, filenames in os.walk(root_path):
+            # Filter out ignored directories (modifies dirnames in-place)
+            dirnames[:] = [d for d in dirnames if d not in ignore_dirs and not d.endswith(".egg-info")]
+
+            rel_dir = Path(dirpath).relative_to(root_path)
+
+            for filename in filenames:
+                if filename in ignore_files:
+                    continue
+                if len(files) >= max_files:
+                    break
+
+                rel_path = rel_dir / filename if str(rel_dir) != "." else Path(filename)
+                files.append(str(rel_path))
+
+            if len(files) >= max_files:
+                break
+
+        # Sort files for consistent output
+        files.sort()
+
+        if not files:
+            return "No files found in working directory."
+
+        # Format as a simple file list
+        file_list = "\n".join(f"- {f}" for f in files)
+        header = f"## File Structure ({len(files)} files)\n\n"
+
+        if len(files) >= max_files:
+            header += f"(Truncated to first {max_files} files)\n\n"
+
+        return header + file_list
+
     def compile(self, state: ExecutionState) -> CompiledContext:
         """Compile ExecutionState into context for planning.
 
@@ -189,6 +248,17 @@ Ensure exact file paths, complete code in steps, and single-command shell instru
                     name="design",
                     content=design_content,
                     source="state.design",
+                )
+            )
+
+        # Codebase section (optional - when working_dir is set)
+        if state.profile.working_dir:
+            codebase_content = self._scan_codebase(state.profile.working_dir)
+            sections.append(
+                ContextSection(
+                    name="codebase",
+                    content=codebase_content,
+                    source="state.profile.working_dir",
                 )
             )
 

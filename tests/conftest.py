@@ -299,17 +299,20 @@ def mock_subprocess_process_factory() -> Callable[..., AsyncMock]:
     Factory fixture for creating mock subprocess processes.
 
     Returns a callable that creates a mock process with configurable:
-    - stdout_lines: List of bytes for stdout.readline() responses
+    - stdout_lines: List of bytes for stdout (joined with newlines for read())
     - stderr_output: Bytes for stderr.read() response
     - return_code: Process return code
 
     Example usage:
         def test_example(mock_subprocess_process_factory):
             mock_process = mock_subprocess_process_factory(
-                stdout_lines=[b"output line\\n", b""],
+                stdout_lines=[b"output line", b"another line"],
                 stderr_output=b"",
                 return_code=0
             )
+
+    Note: The Claude CLI driver uses chunked reading via read() instead of readline().
+    This fixture joins stdout_lines with newlines and returns them via read().
     """
     def _create_mock_process(
         stdout_lines: list[bytes] | None = None,
@@ -319,12 +322,32 @@ def mock_subprocess_process_factory() -> Callable[..., AsyncMock]:
         if stdout_lines is None:
             stdout_lines = [b""]
 
+        # Join lines with newlines to simulate what Claude CLI outputs
+        # Filter out empty trailing bytes (used to signal end of readline())
+        filtered_lines = [line for line in stdout_lines if line]
+        stdout_data = b"\n".join(filtered_lines)
+
+        # Track position in stdout data for read()
+        read_position = [0]
+
+        async def mock_read(n: int = -1) -> bytes:
+            """Simulate read() by returning data in chunks."""
+            if read_position[0] >= len(stdout_data):
+                return b""
+            if n == -1:
+                chunk = stdout_data[read_position[0]:]
+                read_position[0] = len(stdout_data)
+            else:
+                chunk = stdout_data[read_position[0]:read_position[0] + n]
+                read_position[0] += n
+            return chunk
+
         mock_process = AsyncMock()
         # stdin: write() and close() are sync, drain() is async
         mock_process.stdin = MagicMock()
         mock_process.stdin.drain = AsyncMock()
-        # stdout.readline() returns bytes sequentially
-        mock_process.stdout.readline = AsyncMock(side_effect=stdout_lines)
+        # stdout.read() returns data in chunks (for chunked line reading)
+        mock_process.stdout.read = mock_read
         # stderr.read() returns all stderr at once
         mock_process.stderr.read = AsyncMock(return_value=stderr_output)
         mock_process.returncode = return_code
