@@ -14,7 +14,6 @@ These documents are created using the [superpowers:brainstorming](https://github
 | [AWS AgentCore](./aws-agentcore) | Deploy Amelia to AWS for parallel cloud execution | Draft |
 | [Debate Mode](./debate-mode) | Multi-agent deliberation for design decisions | Draft |
 | [Spec Builder](./spec-builder) | Document-assisted technical design tool | Draft |
-| [Context Compiler](./context-compiler) | Intelligent context assembly for LLM prompts | Draft |
 | [Planning Workflows](./planning-workflows) | Variations on the planning workflow | Draft |
 
 ## Lifecycle
