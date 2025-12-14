@@ -48,6 +48,7 @@ class TestAPIResponseSchemas:
 
         repository.get = AsyncMock(return_value=workflow_state)
         repository.save = AsyncMock()
+        repository.get_recent_events = AsyncMock(return_value=[])
         return repository
 
     @pytest.fixture

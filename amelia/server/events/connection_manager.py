@@ -10,6 +10,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 from fastapi import WebSocket, WebSocketDisconnect
+from loguru import logger
 
 from amelia.core.types import StreamEvent
 from amelia.server.models.events import StreamEventPayload, WorkflowEvent
@@ -151,6 +152,14 @@ class ConnectionManager:
                 if not subscribed_ids or event.workflow_id in subscribed_ids:
                     targets.append(ws)
 
+        logger.debug(
+            "broadcast_targets",
+            event_type=event.event_type.value,
+            workflow_id=event.workflow_id,
+            target_count=len(targets),
+            total_connections=len(self._connections),
+        )
+
         if not targets:
             return
 
@@ -165,6 +174,13 @@ class ConnectionManager:
 
         # Remove failed connections
         failed = [ws for ws, success in results if not success]
+        succeeded = len(targets) - len(failed)
+        logger.debug(
+            "broadcast_complete",
+            event_type=event.event_type.value,
+            succeeded=succeeded,
+            failed=len(failed),
+        )
         if failed:
             async with self._lock:
                 for ws in failed:
