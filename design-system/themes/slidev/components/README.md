@@ -1,6 +1,6 @@
 # Slidev Visualization Components
 
-McKinsey-style consulting visualization components for the Amelia Slidev theme. All components use Amelia design tokens and support both dark and light modes.
+Professional consulting visualization components for the Amelia Slidev theme. All components use Amelia design tokens and support both dark and light modes.
 
 ## Components
 

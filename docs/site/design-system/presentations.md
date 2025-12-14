@@ -8,7 +8,7 @@ The Amelia Slidev theme provides:
 
 - **Professional aesthetics** with dark/light mode support
 - **15+ custom slide layouts** for different presentation needs
-- **7 visualization components** for McKinsey-style consulting decks
+- **7 visualization components** for professional consulting decks
 - **Automatic design token integration** for consistent branding
 - **Full TypeScript support** with type-safe props
 

@@ -10,7 +10,7 @@
  *
  * A highlighted callout box with colored left border for drawing attention
  * to key recommendations, warnings, insights, or action items in presentations.
- * Follows McKinsey-style consulting communication patterns.
+ * Follows professional consulting communication patterns.
  *
  * @example
  * ```vue
