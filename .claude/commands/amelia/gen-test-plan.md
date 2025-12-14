@@ -53,7 +53,7 @@ Generate a manual test plan for the current PR that will be auto-posted as a PR 
 
 ```bash
 # 1. Install Python dependencies
-cd <project-root>
+cd {project_directory}
 uv sync
 
 # 2. Start the backend server (if needed)
