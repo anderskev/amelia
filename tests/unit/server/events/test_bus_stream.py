@@ -36,22 +36,19 @@ async def test_emit_stream_broadcasts_to_connection_manager(
     event_bus: EventBus, sample_stream_event: StreamEvent
 ):
     """emit_stream() should call connection_manager.broadcast_stream()."""
-    broadcast_called = asyncio.Event()
-
     # Create mock connection manager
     mock_manager = AsyncMock()
-
-    async def mock_broadcast_stream(event: StreamEvent) -> None:
-        broadcast_called.set()
-
-    mock_manager.broadcast_stream = mock_broadcast_stream
+    mock_manager.broadcast_stream = AsyncMock()
     event_bus.set_connection_manager(mock_manager)
 
     # Emit stream event
     event_bus.emit_stream(sample_stream_event)
 
-    # Wait for broadcast with timeout
-    await asyncio.wait_for(broadcast_called.wait(), timeout=1.0)
+    # Wait for background tasks to complete
+    await event_bus.cleanup()
+
+    # Verify broadcast was called with exact event
+    mock_manager.broadcast_stream.assert_awaited_once_with(sample_stream_event)
 
 
 async def test_emit_stream_does_not_call_subscribers(
@@ -74,8 +71,8 @@ async def test_emit_stream_does_not_call_subscribers(
     # Emit stream event
     event_bus.emit_stream(sample_stream_event)
 
-    # Wait a bit to ensure subscriber would have been called if it was going to be
-    await asyncio.sleep(0.05)
+    # Wait for all pending broadcast tasks to complete
+    await event_bus.cleanup()
 
     # Regular subscribers should NOT be called for stream events
     assert not subscriber_called
@@ -104,6 +101,9 @@ async def test_emit_stream_tracks_broadcast_tasks(
 
     # Task should be tracked
     assert len(event_bus._broadcast_tasks) > 0
+
+    # Clean up background task to prevent leaking into other tests
+    await asyncio.wait_for(event_bus.cleanup(), timeout=1.0)
 
 
 async def test_emit_stream_without_connection_manager(
@@ -165,11 +165,11 @@ async def test_emit_stream_handles_broadcast_exception(
     # Emit stream event - should not raise
     event_bus.emit_stream(sample_stream_event)
 
-    # Wait a bit for the background task to complete and handle the exception
-    await asyncio.sleep(0.05)
+    # Cleanup should complete without raising despite the broadcast exception
+    await event_bus.cleanup()
 
-    # Exception should be logged but not raised
-    # Task should eventually be removed from tracking
+    # Task tracking should be cleared (exception handled internally)
+    assert len(event_bus._broadcast_tasks) == 0
 
 
 async def test_emit_stream_multiple_events(

@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from amelia.agents.developer import Developer
-from amelia.core.state import ExecutionState, Task, TaskDAG
+from amelia.core.state import ExecutionState
 from amelia.core.types import StreamEvent, StreamEventType
 from amelia.drivers.cli.claude import ClaudeStreamEvent
 
@@ -27,8 +27,7 @@ class TestDeveloperStreamEmitter:
 
     async def test_developer_emits_stream_events_during_agentic_execution(
         self,
-        mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., ExecutionState],
+        developer_test_context: Callable[..., tuple[AsyncMock, ExecutionState]],
         mock_issue_factory: Callable[..., Any],
         mock_stream_emitter: AsyncMock,
         async_iterator_mock_factory: Callable[[list[Any]], Any],
@@ -37,21 +36,10 @@ class TestDeveloperStreamEmitter:
         # Create issue for workflow_id fallback
         issue = mock_issue_factory(id="TEST-123", title="Test", description="Test")
 
-        # Set up state with a task
-        state = mock_execution_state_factory(
-            issue=issue,
-            current_task_id="1",
-        )
-
-        # Add a task to the plan
-        task = Task(
-            id="1",
-            description="Test task",
-            dependencies=[],
-            files=[],
-            steps=[],
-        )
-        state.plan = TaskDAG(tasks=[task], original_issue="TEST-123")
+        # Create driver and state with task and TaskDAG
+        mock_driver, state = developer_test_context(task_desc="Test task")
+        state.issue = issue
+        state.plan.original_issue = "TEST-123"
 
         # Mock driver to return streaming events
         mock_events = [
@@ -91,27 +79,17 @@ class TestDeveloperStreamEmitter:
 
     async def test_developer_does_not_emit_when_no_emitter_configured(
         self,
-        mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., ExecutionState],
+        developer_test_context: Callable[..., tuple[AsyncMock, ExecutionState]],
         mock_issue_factory: Callable[..., Any],
         async_iterator_mock_factory: Callable[[list[Any]], Any],
     ) -> None:
         """Test that Developer does not crash when no emitter is configured."""
         issue = mock_issue_factory(id="TEST-456", title="Test", description="Test")
 
-        state = mock_execution_state_factory(
-            issue=issue,
-            current_task_id="1",
-        )
-
-        task = Task(
-            id="1",
-            description="Test task",
-            dependencies=[],
-            files=[],
-            steps=[],
-        )
-        state.plan = TaskDAG(tasks=[task], original_issue="TEST-456")
+        # Create driver and state with task and TaskDAG
+        mock_driver, state = developer_test_context(task_desc="Test task")
+        state.issue = issue
+        state.plan.original_issue = "TEST-456"
 
         mock_events = [
             ClaudeStreamEvent(type="assistant", content="Working..."),
@@ -132,8 +110,7 @@ class TestDeveloperStreamEmitter:
 
     async def test_developer_converts_claude_events_to_stream_events(
         self,
-        mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., ExecutionState],
+        developer_test_context: Callable[..., tuple[AsyncMock, ExecutionState]],
         mock_issue_factory: Callable[..., Any],
         mock_stream_emitter: AsyncMock,
         async_iterator_mock_factory: Callable[[list[Any]], Any],
@@ -141,19 +118,10 @@ class TestDeveloperStreamEmitter:
         """Test that Developer converts ClaudeStreamEvents to StreamEvents correctly."""
         issue = mock_issue_factory(id="TEST-789", title="Test", description="Test")
 
-        state = mock_execution_state_factory(
-            issue=issue,
-            current_task_id="1",
-        )
-
-        task = Task(
-            id="1",
-            description="Test task",
-            dependencies=[],
-            files=[],
-            steps=[],
-        )
-        state.plan = TaskDAG(tasks=[task], original_issue="TEST-789")
+        # Create driver and state with task and TaskDAG
+        mock_driver, state = developer_test_context(task_desc="Test task")
+        state.issue = issue
+        state.plan.original_issue = "TEST-789"
 
         # Test each event type conversion
         mock_events = [
@@ -181,15 +149,15 @@ class TestDeveloperStreamEmitter:
 
         # Find assistant event
         thinking_events = [e for e in emitted_events if e.type == StreamEventType.CLAUDE_THINKING]
-        assert len(thinking_events) >= 1
+        assert len(thinking_events) == 1
         assert thinking_events[0].content == "Analyzing code..."
 
         # Find tool_use event
         tool_events = [e for e in emitted_events if e.type == StreamEventType.CLAUDE_TOOL_CALL]
-        assert len(tool_events) >= 1
+        assert len(tool_events) == 1
         assert tool_events[0].tool_name == "bash"
         assert tool_events[0].tool_input == {"command": "pytest"}
 
         # Find result event
         result_events = [e for e in emitted_events if e.type == StreamEventType.CLAUDE_TOOL_RESULT]
-        assert len(result_events) >= 1
+        assert len(result_events) == 1
