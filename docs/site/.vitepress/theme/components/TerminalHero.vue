@@ -145,7 +145,9 @@ const startAnimation = async () => {
 
   // Restart animation cleanly
   executeStep.value = 0
-  startAnimation()
+  if (animationActive) {
+    startAnimation()
+  }
 }
 
 const sleep = (ms: number): Promise<void> => {

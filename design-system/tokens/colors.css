@@ -89,9 +89,22 @@
 }
 
 /*
+ * ============================================================================
  * LIGHT MODE (Secondary) - Daytime Theme
- * Clean, warm, professional aesthetic for daytime use
- * Triggered by system preference or .light class on root element
+ * ============================================================================
+ *
+ * Clean, warm, professional aesthetic for daytime use.
+ *
+ * IMPORTANT - INTENTIONAL DUPLICATION:
+ * Light mode tokens appear in TWO places below:
+ *   1. @media (prefers-color-scheme: light) - Auto-applied based on OS setting
+ *   2. .light class selector - Manual override regardless of OS preference
+ *
+ * This duplication is necessary due to CSS limitations - media queries and
+ * class selectors cannot share a single declaration block in pure CSS.
+ *
+ * ⚠️  WARNING: When updating light mode colors, you MUST update BOTH blocks!
+ * ============================================================================
  */
 @media (prefers-color-scheme: light) {
   :root {
@@ -162,6 +175,8 @@
 /*
  * LIGHT MODE (Class-based override)
  * Apply .light class to root element to force light mode regardless of system preference
+ *
+ * ⚠️  KEEP IN SYNC: These tokens must match the @media query above!
  */
 .light {
   /* Core backgrounds */

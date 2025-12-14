@@ -60,6 +60,10 @@
   --vp-c-divider: rgba(26, 47, 35, 0.15);
   --vp-c-gutter: rgba(26, 47, 35, 0.1);
 
+  /* Heading colors - Terracotta (light mode) */
+  --vp-c-heading-1: oklch(50% 0.15 30);   /* Deep terracotta */
+  --vp-c-heading-2: oklch(55% 0.13 35);   /* Lighter terracotta */
+
   /* Terminal Hero - inverted theme (light site → dark terminal) */
   --terminal-bg: #0D1A12;            /* Deep forest background */
   --terminal-text: #EFF8E2;          /* Light cream text */
@@ -125,6 +129,10 @@
   --vp-c-divider: rgba(47, 61, 53, 0.2);
   --vp-c-gutter: rgba(47, 61, 53, 0.15);
 
+  /* Heading colors - Coral (dark mode) */
+  --vp-c-heading-1: oklch(72% 0.14 35);   /* Warm coral */
+  --vp-c-heading-2: oklch(68% 0.12 40);   /* Slightly muted coral */
+
   /* Terminal Hero - inverted theme (dark site → light terminal) */
   --terminal-bg: #FDF8F0;            /* Cream/warm background */
   --terminal-text: #1A2F23;          /* Dark forest green text */
@@ -163,6 +171,19 @@
 .vp-doc h1 {
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+/* Heading colors - Coral/Terracotta for visual excitement */
+.vp-doc h1,
+.vp-doc h2 {
+  color: var(--vp-c-heading-1);
+}
+
+.vp-doc h3,
+.vp-doc h4,
+.vp-doc h5,
+.vp-doc h6 {
+  color: var(--vp-c-heading-2);
 }
 
 /* Nav title with Bebas Neue display font */

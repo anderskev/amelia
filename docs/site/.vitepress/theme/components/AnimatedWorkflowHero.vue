@@ -13,6 +13,7 @@ type AgentState = 'architect' | 'developer' | 'reviewer' | 'approved'
 const currentAgent = ref<AgentState>('architect')
 const cycleCount = ref(0)
 let animationInterval: ReturnType<typeof setInterval> | null = null
+let animationTimeout: ReturnType<typeof setTimeout> | null = null
 
 const agents = [
   { id: 'architect', label: 'Architect', sublabel: 'plans' },
@@ -36,7 +37,7 @@ onMounted(() => {
           currentAgent.value = 'approved'
           cycleCount.value = 0
           // Reset to architect after showing approved
-          setTimeout(() => {
+          animationTimeout = setTimeout(() => {
             currentAgent.value = 'architect'
           }, 1500)
         } else {
@@ -55,6 +56,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (animationInterval) {
     clearInterval(animationInterval)
+  }
+  if (animationTimeout) {
+    clearTimeout(animationTimeout)
   }
 })
 

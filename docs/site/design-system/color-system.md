@@ -26,6 +26,34 @@ The Amelia Design System features dual themes designed for professional environm
   ]"
 />
 
+## Heading Colors
+
+Coral/Terracotta headings add visual excitement while complementing the forest green palette:
+
+<ColorComparison
+  title="Heading Colors"
+  :colors="[
+    { name: '--vp-c-heading-1', dark: { hex: '#E8846E', oklch: 'oklch(72% 0.14 35)' }, light: { hex: '#A85035', oklch: 'oklch(50% 0.15 30)' }, usage: 'H1, H2 headings' },
+    { name: '--vp-c-heading-2', dark: { hex: '#D9846E', oklch: 'oklch(68% 0.12 40)' }, light: { hex: '#B8634A', oklch: 'oklch(55% 0.13 35)' }, usage: 'H3-H6 headings' }
+  ]"
+/>
+
+**Example Usage:**
+
+```css
+.vp-doc h1,
+.vp-doc h2 {
+  color: var(--vp-c-heading-1);
+}
+
+.vp-doc h3,
+.vp-doc h4,
+.vp-doc h5,
+.vp-doc h6 {
+  color: var(--vp-c-heading-2);
+}
+```
+
 **Example Usage:**
 
 ```css
