@@ -180,9 +180,9 @@ export default function LogsPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredEvents.map((event, index) => (
+            {filteredEvents.map((event) => (
               <StreamLogItem
-                key={`${event.workflow_id}-${event.timestamp}-${index}`}
+                key={event.id}
                 event={event}
               />
             ))}
