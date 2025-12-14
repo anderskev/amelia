@@ -17,4 +17,12 @@ describe('formatTime', () => {
   it('returns "-" for malformed date', () => {
     expect(formatTime('not-a-date')).toBe('-');
   });
+
+  it('returns "-" for null', () => {
+    expect(formatTime(null)).toBe('-');
+  });
+
+  it('returns "-" for undefined', () => {
+    expect(formatTime(undefined)).toBe('-');
+  });
 });

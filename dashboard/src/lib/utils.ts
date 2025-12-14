@@ -43,7 +43,10 @@ export function cn(...inputs: ClassValue[]) {
  * formatTime('invalid') // => '-'
  * ```
  */
-export function formatTime(isoString: string): string {
+export function formatTime(isoString: string | null | undefined): string {
+  if (!isoString) {
+    return '-';
+  }
   const date = new Date(isoString);
   if (!Number.isFinite(date.getTime())) {
     return '-';
