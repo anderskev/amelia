@@ -102,98 +102,23 @@ flowchart TB
 
 ## Component Breakdown
 
-### Core Layer (`amelia/core/`)
+| Layer | Location | Purpose | Key Abstractions |
+|-------|----------|---------|------------------|
+| **Core** | `amelia/core/` | LangGraph orchestrator, state management, shared types | `ExecutionState`, `TaskDAG`, `Profile`, `Issue` |
+| **Agents** | `amelia/agents/` | Specialized AI agents for planning, execution, and review | `Architect`, `Developer`, `Reviewer` |
+| **Drivers** | `amelia/drivers/` | LLM abstraction supporting API and CLI backends | `DriverInterface`, `DriverFactory` |
+| **Trackers** | `amelia/trackers/` | Issue source abstraction for different platforms | `BaseTracker` (Jira, GitHub, NoOp) |
+| **Tools** | `amelia/tools/` | Secure command and file operations with 4-layer security | `SafeShellExecutor`, `SafeFileWriter` |
+| **Client** | `amelia/client/` | CLI commands and REST client for server communication | `AmeliaClient`, Typer commands |
+| **Server** | `amelia/server/` | FastAPI backend with WebSocket events, SQLite persistence | `OrchestratorService`, `EventBus`, `WorkflowRepository` |
 
-| File | Purpose |
-|------|---------|
-| `orchestrator.py` | LangGraph state machine, defines nodes (agent calls) and edges (transitions), conditional routing |
-| `state.py` | Pydantic models: `ExecutionState`, `Task`, `TaskDAG`, `TaskStep`, `FileOperation`, `ReviewResult`, `AgentMessage` |
-| `types.py` | Shared types: `Profile`, `Issue`, `Settings`, `Design`, `RetryConfig` |
-| `constants.py` | Security constants: `BLOCKED_COMMANDS`, `DANGEROUS_PATTERNS`, `STRICT_MODE_ALLOWED_COMMANDS` |
-| `exceptions.py` | Exception hierarchy: `AmeliaError`, `ConfigurationError`, `SecurityError` and subclasses |
-
-### Agents Layer (`amelia/agents/`)
-
-| File | Purpose |
-|------|---------|
-| `architect.py` | Generates TaskDAG from Issue + optional Design using TDD-structured output, saves markdown plan |
-| `developer.py` | Executes tasks in `structured` or `agentic` mode (shell commands, file writes, LLM generation) |
-| `reviewer.py` | Reviews code with `single` or `competitive` strategy (parallel personas: Security, Performance, Usability) |
-
-### Drivers Layer (`amelia/drivers/`)
-
-| File | Purpose |
-|------|---------|
-| `base.py` | `DriverInterface` protocol: `generate()`, `execute_tool()`, `execute_agentic()` |
-| `factory.py` | `DriverFactory.get_driver(key)` - returns driver from `"api:openai"` or `"cli:claude"` |
-| `api/openai.py` | OpenAI via pydantic-ai for structured outputs (no agentic mode support) |
-| `cli/base.py` | `CliDriver` base class with sequential execution (Semaphore), retry logic |
-| `cli/claude.py` | Claude CLI wrapper with full agentic mode, session resumption, streaming events |
-
-### Trackers Layer (`amelia/trackers/`)
-
-| File | Purpose |
-|------|---------|
-| `base.py` | `BaseTracker` protocol with `get_issue(issue_id) -> Issue` |
-| `jira.py` | Jira REST API v3 integration via HTTPX (requires `JIRA_*` env vars) |
-| `github.py` | GitHub integration via `gh` CLI (requires `gh auth login`) |
-| `noop.py` | No-op tracker returning placeholder issues for testing/local dev |
-| `factory.py` | `create_tracker(profile)` factory based on `profile.tracker` |
-
-### Tools Layer (`amelia/tools/`)
-
-| File | Purpose |
-|------|---------|
-| `safe_shell.py` | `SafeShellExecutor` with 4-layer security validation (blocklist, patterns, allowlist) |
-| `safe_file.py` | `SafeFileWriter` with path traversal protection and symlink escape detection |
-| `shell_executor.py` | Backward-compatible wrapper delegating to `SafeShellExecutor` and `SafeFileWriter` |
-
-### Client Layer (`amelia/client/`)
-
-| File | Purpose |
-|------|---------|
-| `api.py` | `AmeliaClient` REST client with typed errors (`WorkflowConflictError`, `RateLimitError`) |
-| `cli.py` | CLI commands: `start`, `approve`, `reject`, `status`, `cancel` via REST API |
-| `git.py` | `get_worktree_context()` for detecting current git worktree path/name |
-
-### Server Layer (`amelia/server/`)
-
-| File/Directory | Purpose |
-|----------------|---------|
-| `main.py` | FastAPI application with lifespan management, static file serving for dashboard |
-| `cli.py` | `amelia server` command launcher with uvicorn |
-| `config.py` | `ServerConfig` with `AMELIA_*` environment variables |
-| `routes/workflows.py` | REST endpoints: create, list, get, approve, reject, cancel workflows |
-| `routes/websocket.py` | WebSocket endpoint `/ws/events` for real-time event streaming |
-| `routes/health.py` | Health probes: `/api/health/live`, `/api/health/ready`, `/api/health` |
-| `orchestrator/service.py` | `OrchestratorService` managing concurrent workflow execution with checkpointing |
-| `database/connection.py` | Async SQLite wrapper with WAL mode, schema initialization |
-| `database/repository.py` | `WorkflowRepository` for CRUD operations on workflows, events, tokens |
-| `events/bus.py` | `EventBus` for pub/sub pattern, broadcasting to subscribers |
-| `events/connection_manager.py` | `ConnectionManager` for WebSocket client subscriptions and broadcasting |
-| `lifecycle/server.py` | Server startup/shutdown orchestration |
-| `lifecycle/retention.py` | `LogRetentionService` for cleaning old events |
-| `models/` | Pydantic schemas: `CreateWorkflowRequest`, `WorkflowEvent`, `TokenUsage`, etc. |
-
-### Utilities (`amelia/utils/`)
-
-| File | Purpose |
-|------|---------|
-| `design_parser.py` | LLM-powered parser converting markdown design docs to structured `Design` objects |
-
-### Configuration (`amelia/`)
-
-| File | Purpose |
-|------|---------|
-| `config.py` | `load_settings()` from `settings.amelia.yaml`, `validate_profile()` |
-| `logging.py` | Loguru configuration with custom colors, `log_server_startup()` banner |
-| `main.py` | Typer CLI app entry point with command registration |
+See [File Structure Reference](#file-structure-reference) for detailed file listings.
 
 ## Data Flow: `amelia start PROJ-123`
 
-Amelia supports two execution modes: **Server-based** (modern, recommended) and **Local** (deprecated).
+Amelia uses a server-based execution architecture.
 
-### Server-Based Flow (Modern)
+### Server-Based Flow
 
 This is the production architecture where CLI commands communicate with a background server via REST API.
 
@@ -346,7 +271,7 @@ state.review_results.append(review_result)
 
 ## Sequence Diagram
 
-### Server-Based Architecture (Modern)
+### Server-Based Architecture
 
 ```mermaid
 sequenceDiagram

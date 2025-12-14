@@ -34,7 +34,6 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/usage' },
       { text: 'Architecture', link: '/architecture/overview' },
-      { text: 'Design System', link: '/design-system/' },
       { text: 'Ideas', link: '/ideas/' },
       { text: 'Roadmap', link: '/reference/roadmap' }
     ],
@@ -63,23 +62,82 @@ export default defineConfig({
       ],
       '/design-system/': [
         {
+          text: 'Ideas & Explorations',
+          items: [
+            { text: 'Overview', link: '/ideas/' },
+            { text: 'Session Continuity', link: '/ideas/session-continuity' },
+            { text: 'CAPEX Tracking', link: '/ideas/capex-tracking' },
+            { text: 'Knowledge Library', link: '/ideas/knowledge-library' },
+            { text: 'AWS AgentCore', link: '/ideas/aws-agentcore' },
+            { text: 'Debate Mode', link: '/ideas/debate-mode' },
+            { text: 'Spec Builder', link: '/ideas/spec-builder' },
+            { text: 'Planning Workflows', link: '/ideas/planning-workflows' }
+          ]
+        },
+        {
+          text: 'Research',
+          items: [
+            { text: 'Benchmarking', link: '/ideas/research/benchmarking' },
+            { text: '12-Factor Compliance', link: '/ideas/research/12-factor-compliance' },
+            { text: 'Context Engineering', link: '/ideas/research/context-engineering-gaps' }
+          ]
+        },
+        {
+          text: 'Reference',
+          items: [
+            { text: 'Roadmap', link: '/reference/roadmap' }
+          ]
+        },
+        {
           text: 'Design System',
+          collapsed: true,
           items: [
             { text: 'Getting Started', link: '/design-system/' },
             { text: 'Color System', link: '/design-system/color-system' },
-            { text: 'Typography', link: '/design-system/typography' }
-          ]
-        },
-        {
-          text: 'Themes',
-          items: [
+            { text: 'Typography', link: '/design-system/typography' },
             { text: 'Diagrams', link: '/design-system/diagrams' },
-            { text: 'Presentations', link: '/design-system/presentations' }
+            { text: 'Presentations', link: '/design-system/presentations' },
+            { text: 'Design Tokens', link: '/design-system/tokens' }
+          ]
+        }
+      ],
+      '/reference/': [
+        {
+          text: 'Ideas & Explorations',
+          items: [
+            { text: 'Overview', link: '/ideas/' },
+            { text: 'Session Continuity', link: '/ideas/session-continuity' },
+            { text: 'CAPEX Tracking', link: '/ideas/capex-tracking' },
+            { text: 'Knowledge Library', link: '/ideas/knowledge-library' },
+            { text: 'AWS AgentCore', link: '/ideas/aws-agentcore' },
+            { text: 'Debate Mode', link: '/ideas/debate-mode' },
+            { text: 'Spec Builder', link: '/ideas/spec-builder' },
+            { text: 'Planning Workflows', link: '/ideas/planning-workflows' }
           ]
         },
         {
-          text: 'API',
+          text: 'Research',
           items: [
+            { text: 'Benchmarking', link: '/ideas/research/benchmarking' },
+            { text: '12-Factor Compliance', link: '/ideas/research/12-factor-compliance' },
+            { text: 'Context Engineering', link: '/ideas/research/context-engineering-gaps' }
+          ]
+        },
+        {
+          text: 'Reference',
+          items: [
+            { text: 'Roadmap', link: '/reference/roadmap' }
+          ]
+        },
+        {
+          text: 'Design System',
+          collapsed: true,
+          items: [
+            { text: 'Getting Started', link: '/design-system/' },
+            { text: 'Color System', link: '/design-system/color-system' },
+            { text: 'Typography', link: '/design-system/typography' },
+            { text: 'Diagrams', link: '/design-system/diagrams' },
+            { text: 'Presentations', link: '/design-system/presentations' },
             { text: 'Design Tokens', link: '/design-system/tokens' }
           ]
         }
@@ -104,6 +162,24 @@ export default defineConfig({
             { text: 'Benchmarking', link: '/ideas/research/benchmarking' },
             { text: '12-Factor Compliance', link: '/ideas/research/12-factor-compliance' },
             { text: 'Context Engineering', link: '/ideas/research/context-engineering-gaps' }
+          ]
+        },
+        {
+          text: 'Reference',
+          items: [
+            { text: 'Roadmap', link: '/reference/roadmap' }
+          ]
+        },
+        {
+          text: 'Design System',
+          collapsed: true,
+          items: [
+            { text: 'Getting Started', link: '/design-system/' },
+            { text: 'Color System', link: '/design-system/color-system' },
+            { text: 'Typography', link: '/design-system/typography' },
+            { text: 'Diagrams', link: '/design-system/diagrams' },
+            { text: 'Presentations', link: '/design-system/presentations' },
+            { text: 'Design Tokens', link: '/design-system/tokens' }
           ]
         }
       ]
