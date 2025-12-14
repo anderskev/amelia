@@ -134,6 +134,7 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
         <div className="flex items-center gap-3">
           {/* Live mode toggle */}
           <button
+            type="button"
             onClick={() => setLiveMode(!liveMode)}
             className={cn(
               'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors',
