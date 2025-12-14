@@ -64,6 +64,8 @@ const eventTypeColors: Record<StreamEventType, string> = {
 function StreamLogItem({ event }: { event: StreamEvent }) {
   return (
     <div
+      data-testid={`event-${event.id}`}
+      data-event-type={event.subtype}
       className={cn(
         'flex items-start gap-3 px-3 py-2 rounded border',
         eventTypeColors[event.subtype]
@@ -145,7 +147,7 @@ export default function LogsPage() {
             onChange={(e) =>
               setTypeFilter(e.target.value as StreamEventType | 'all')
             }
-            className="bg-background border rounded px-2 py-1 text-sm"
+            className="bg-background border rounded px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
           >
             <option value="all">All Events</option>
             <option value={StreamEventType.CLAUDE_THINKING}>Thinking</option>

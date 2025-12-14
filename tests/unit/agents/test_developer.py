@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from amelia.agents.developer import Developer
-from amelia.core.state import ExecutionState
+from amelia.core.state import ExecutionState, Task, TaskDAG
 from amelia.core.types import StreamEvent, StreamEventType
 from amelia.drivers.cli.claude import ClaudeStreamEvent
 
@@ -44,7 +44,6 @@ class TestDeveloperStreamEmitter:
         )
 
         # Add a task to the plan
-        from amelia.core.state import Task, TaskDAG
         task = Task(
             id="1",
             description="Test task",
@@ -105,7 +104,6 @@ class TestDeveloperStreamEmitter:
             current_task_id="1",
         )
 
-        from amelia.core.state import Task, TaskDAG
         task = Task(
             id="1",
             description="Test task",
@@ -148,7 +146,6 @@ class TestDeveloperStreamEmitter:
             current_task_id="1",
         )
 
-        from amelia.core.state import Task, TaskDAG
         task = Task(
             id="1",
             description="Test task",

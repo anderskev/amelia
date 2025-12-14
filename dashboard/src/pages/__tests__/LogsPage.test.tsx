@@ -130,10 +130,11 @@ describe('LogsPage', () => {
     useStreamStore.setState({ events });
     const { container } = renderWithRouter(<LogsPage />);
 
-    // Check that icons are rendered (lucide icons render as SVG elements)
-    // We verify by checking for the presence of event items with specific styling
-    const eventItems = container.querySelectorAll('[class*="border"]');
-    expect(eventItems.length).toBeGreaterThanOrEqual(4);
+    // Lucide icons render with predictable class names (lucide-{icon-name})
+    expect(container.querySelector('.lucide-brain')).toBeInTheDocument();
+    expect(container.querySelector('.lucide-wrench')).toBeInTheDocument();
+    expect(container.querySelector('.lucide-circle-check-big')).toBeInTheDocument();
+    expect(container.querySelector('.lucide-message-square')).toBeInTheDocument();
   });
 
   it('shows agent name in event item', () => {
@@ -179,7 +180,7 @@ describe('LogsPage', () => {
     expect(screen.getByText(/execute_command/i)).toBeInTheDocument();
   });
 
-  it('shows different background colors for different event types', () => {
+  it('renders all event types with correct data attributes', () => {
     const events: StreamEvent[] = [
       createStreamEvent(StreamEventType.CLAUDE_THINKING, {
         content: 'Thinking',
@@ -194,10 +195,10 @@ describe('LogsPage', () => {
     useStreamStore.setState({ events });
     const { container } = renderWithRouter(<LogsPage />);
 
-    // Check for different color classes
-    expect(container.querySelector('[class*="yellow"]')).toBeInTheDocument(); // thinking
-    expect(container.querySelector('[class*="blue"]')).toBeInTheDocument(); // tool_call
-    expect(container.querySelector('[class*="green"]')).toBeInTheDocument(); // tool_result
-    expect(container.querySelector('[class*="purple"]')).toBeInTheDocument(); // agent_output
+    // Verify each event type is rendered with stable data-event-type attribute
+    expect(container.querySelector('[data-event-type="claude_thinking"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-event-type="claude_tool_call"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-event-type="claude_tool_result"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-event-type="agent_output"]')).toBeInTheDocument();
   });
 });

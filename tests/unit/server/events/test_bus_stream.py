@@ -11,6 +11,7 @@ import pytest
 
 from amelia.core.types import StreamEvent, StreamEventType
 from amelia.server.events.bus import EventBus
+from amelia.server.models.events import WorkflowEvent
 
 
 @pytest.fixture
@@ -59,7 +60,7 @@ async def test_emit_stream_does_not_call_subscribers(
     """emit_stream() should NOT call regular WorkflowEvent subscribers."""
     subscriber_called = False
 
-    def subscriber(event):
+    def subscriber(event: WorkflowEvent) -> None:
         nonlocal subscriber_called
         subscriber_called = True
 

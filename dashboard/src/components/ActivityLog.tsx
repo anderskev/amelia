@@ -106,11 +106,13 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
       entries.push(...workflowStreamEvents.map(event => ({ kind: 'stream' as const, event })));
     }
 
-    // Sort all entries by timestamp
+    // Sort all entries by timestamp, with id as secondary sort for stability
     return entries.sort((a, b) => {
       const timeA = new Date(a.event.timestamp).getTime();
       const timeB = new Date(b.event.timestamp).getTime();
-      return timeA - timeB;
+      const timeDiff = timeA - timeB;
+      if (timeDiff !== 0) return timeDiff;
+      return a.event.id.localeCompare(b.event.id);
     });
   }, [workflowEvents, streamEvents, liveMode, workflowId]);
 
@@ -178,9 +180,9 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
           <div className="relative z-0 space-y-0">
             {logEntries.map((entry) => (
               entry.kind === 'workflow' ? (
-                <ActivityLogItem key={entry.event.id} event={entry.event} />
+                <ActivityLogItem key={`workflow-${entry.event.id}`} event={entry.event} />
               ) : (
-                <StreamLogEntry key={entry.event.id} event={entry.event} />
+                <StreamLogEntry key={`stream-${entry.event.id}`} event={entry.event} />
               )
             ))}
 
