@@ -100,14 +100,15 @@ class TestDeveloperExecution:
         call_args = mock_driver.generate.call_args
         messages = call_args.kwargs["messages"]
 
-        # Should have system message from DeveloperContextStrategy
-        assert len(messages) >= 1
+        # Should have exactly 2 messages: system message and user message
+        assert len(messages) == 2
         assert messages[0].role == "system"
         assert messages[0].content == DeveloperContextStrategy.SYSTEM_PROMPT
 
         # Should have user message with task content
         task_desc = "Implement the foo feature"
-        assert any(msg.role == "user" and task_desc in msg.content for msg in messages)
+        assert messages[1].role == "user"
+        assert task_desc in messages[1].content
 
 
 class TestDeveloperAgenticExecution:

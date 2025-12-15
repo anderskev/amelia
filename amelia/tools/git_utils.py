@@ -16,6 +16,7 @@ async def _run_git_command(
     command: str,
     repo_path: Path | None = None,
     check: bool = True,
+    timeout: float = 60.0,
 ) -> str:
     """Run a git command and return stdout.
 
@@ -23,12 +24,13 @@ async def _run_git_command(
         command: Git command to run (e.g., "git rev-parse HEAD")
         repo_path: Repository path (defaults to current directory)
         check: If True, raise RuntimeError on non-zero exit code
+        timeout: Maximum time in seconds to wait for command (default: 60.0)
 
     Returns:
         Command stdout as string
 
     Raises:
-        RuntimeError: If command fails and check=True
+        RuntimeError: If command fails and check=True, or if timeout occurs
     """
     cwd = repo_path or Path.cwd()
 
@@ -39,7 +41,21 @@ async def _run_git_command(
         cwd=cwd,
     )
 
-    stdout, stderr = await process.communicate()
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(),
+            timeout=timeout,
+        )
+    except TimeoutError as e:
+        # Kill the process if it's still running
+        try:
+            process.kill()
+            await process.wait()
+        except ProcessLookupError:
+            pass  # Process already terminated
+        raise RuntimeError(
+            f"Git command timed out after {timeout} seconds: {command}"
+        ) from e
 
     if check and process.returncode != 0:
         stderr_text = stderr.decode().strip()

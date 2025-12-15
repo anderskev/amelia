@@ -91,8 +91,8 @@ async def test_take_git_snapshot_captures_head_and_dirty_files(git_repo: Path) -
     assert snapshot.head_commit.isalnum()
 
     # Should capture dirty files (untracked and modified)
-    assert "dirty2.txt" in snapshot.dirty_files or "?? dirty2.txt" in str(snapshot.dirty_files)
-    # Note: git status --porcelain format includes status prefix
+    # dirty_files is a tuple of filenames without status prefixes
+    assert "dirty2.txt" in snapshot.dirty_files
 
     # No stash should be created (we just track)
     assert snapshot.stash_ref is None

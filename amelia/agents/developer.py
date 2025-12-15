@@ -4,10 +4,12 @@
 import asyncio
 import os
 import re
+import shlex
 import shutil
 import time
+from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import typer
 from loguru import logger
@@ -306,7 +308,7 @@ class Developer:
         # Command action checks
         if step.action_type == "command" and step.command:
             # Extract first word (executable name) from command
-            executable = step.command.split()[0]
+            executable = shlex.split(step.command)[0]
 
             # Check if executable is available
             if not shutil.which(executable):
@@ -953,7 +955,8 @@ class Developer:
             stream_event = convert_to_stream_event(event, "developer", workflow_id)
             if stream_event is not None:
                 # Fire-and-forget: emit stream event without blocking
-                emit_task: asyncio.Task[None] = asyncio.create_task(self._stream_emitter(stream_event))  # type: ignore[arg-type]
+                emit_coro = cast(Coroutine[Any, Any, None], self._stream_emitter(stream_event))
+                emit_task: asyncio.Task[None] = asyncio.create_task(emit_coro)
                 emit_task.add_done_callback(
                     lambda t: logger.exception("Stream emitter failed", exc_info=t.exception())
                     if t.exception()

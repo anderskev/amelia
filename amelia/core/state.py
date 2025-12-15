@@ -1,8 +1,9 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+import operator
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -27,6 +28,11 @@ BatchStatus = Literal["complete", "blocked", "partial"]
 # Constants for output truncation
 MAX_OUTPUT_LINES = 100
 MAX_OUTPUT_CHARS = 4000
+
+
+def merge_sets(left: set[str], right: set[str]) -> set[str]:
+    """LangGraph reducer for set union."""
+    return left | right
 
 
 def truncate_output(output: str | None) -> str | None:
@@ -463,14 +469,14 @@ class ExecutionState(BaseModel):
     code_changes_for_review: str | None = None
     driver_session_id: str | None = None
     workflow_status: Literal["running", "completed", "failed", "aborted"] = "running"
-    agent_history: list[str] = Field(default_factory=list)
+    agent_history: Annotated[list[str], operator.add] = Field(default_factory=list)
 
     # New execution plan (coexists with task_dag during migration)
     execution_plan: ExecutionPlan | None = None
 
     # Batch tracking
     current_batch_index: int = 0
-    batch_results: list[BatchResult] = Field(default_factory=list)
+    batch_results: Annotated[list[BatchResult], operator.add] = Field(default_factory=list)
 
     # Developer status
     developer_status: DeveloperStatus = DeveloperStatus.EXECUTING
@@ -480,10 +486,10 @@ class ExecutionState(BaseModel):
     blocker_resolution: str | None = None
 
     # Approval tracking
-    batch_approvals: list[BatchApproval] = Field(default_factory=list)
+    batch_approvals: Annotated[list[BatchApproval], operator.add] = Field(default_factory=list)
 
     # Skip tracking (for cascade handling)
-    skipped_step_ids: set[str] = Field(default_factory=set)
+    skipped_step_ids: Annotated[set[str], merge_sets] = Field(default_factory=set)
 
     # Git state for revert capability
     git_snapshot_before_batch: GitSnapshot | None = None

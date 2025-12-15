@@ -28,6 +28,10 @@ from amelia.drivers.factory import DriverFactory
 from amelia.tools.git_utils import revert_to_git_snapshot
 
 
+# TODO: Integrate trust level logic into batch execution flow
+# This function is currently unused but will be called from call_developer_node
+# to determine whether to route to batch_approval_node based on trust_level.
+# See ExecutionBatch.risk_summary and Profile.trust_level for context.
 def should_checkpoint(batch: ExecutionBatch, profile: Profile) -> bool:
     """Determine if we should pause for human approval.
 
@@ -490,27 +494,6 @@ async def call_developer_node(
         "developer_status": developer_status,
     }
 
-# Define a conditional edge to decide if more tasks need to be run
-def should_continue_developer(state: ExecutionState) -> Literal["continue", "end"]:
-    """Determine whether to continue the developer loop.
-
-    Args:
-        state: Current execution state containing the plan and task status.
-
-    Returns:
-        'continue' if there are ready tasks to execute.
-        'end' if no plan exists, all tasks are completed, or pending tasks are blocked.
-    """
-    if not state.plan:
-        return "end"
-
-    # Check for ready tasks, not just pending tasks.
-    # This prevents infinite loops when tasks are blocked by failed dependencies.
-    ready_tasks = state.plan.get_ready_tasks()
-    if ready_tasks:
-        return "continue"
-    return "end"
-
 def should_continue_review_loop(state: ExecutionState) -> Literal["re_evaluate", "end"]:
     """Determine if review loop should continue based on last review.
 
@@ -544,7 +527,7 @@ def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
     """
     return "approve" if state.human_approved else "reject"
 
-def route_after_developer(state: ExecutionState) -> str:
+def route_after_developer(state: ExecutionState) -> Literal["reviewer", "batch_approval", "blocker_resolution", "developer"]:
     """Route based on Developer status.
 
     Args:
@@ -566,7 +549,7 @@ def route_after_developer(state: ExecutionState) -> str:
     else:  # EXECUTING or default
         return "developer"
 
-def route_batch_approval(state: ExecutionState) -> str:
+def route_batch_approval(state: ExecutionState) -> Literal["developer", "__end__"]:
     """Route based on batch approval status.
 
     Args:
@@ -579,9 +562,9 @@ def route_batch_approval(state: ExecutionState) -> str:
     """
     if state.human_approved:
         return "developer"
-    return END
+    return END  # type: ignore[return-value]
 
-def route_blocker_resolution(state: ExecutionState) -> str:
+def route_blocker_resolution(state: ExecutionState) -> Literal["developer", "__end__"]:
     """Route based on blocker resolution outcome.
 
     Args:
@@ -593,7 +576,7 @@ def route_blocker_resolution(state: ExecutionState) -> str:
         - 'developer' otherwise (continue after fix/skip)
     """
     if state.workflow_status == "aborted":
-        return END
+        return END  # type: ignore[return-value]
     return "developer"
 
 def create_orchestrator_graph(
