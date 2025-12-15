@@ -20,6 +20,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { ActivityLog } from '@/components/ActivityLog';
 import { JobQueue } from '@/components/JobQueue';
+import { ApprovalControls } from '@/components/ApprovalControls';
 import { getActiveWorkflow } from '@/utils/workflow';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
 import { buildPipeline } from '@/utils/pipeline';
@@ -90,6 +91,13 @@ export default function WorkflowsPage() {
         </PageHeader.Center>
         {detail && (
           <PageHeader.Right>
+            {detail.status === 'blocked' && (
+              <ApprovalControls
+                workflowId={detail.id}
+                planSummary={detail.plan ? `Plan with ${detail.plan.tasks.length} tasks` : 'No plan generated'}
+                status="pending"
+              />
+            )}
             <StatusBadge status={detail.status} />
           </PageHeader.Right>
         )}
