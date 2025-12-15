@@ -109,30 +109,7 @@ AMELIA_SETTINGS=/path/to/your/project/settings.amelia.yaml uv run amelia plan-on
 
 ## How It Works
 
-### Agent Roles
-
-| Agent | Input | Output | Example |
-|-------|-------|--------|---------|
-| **Architect** | Issue description + codebase context | TaskDAG (ordered tasks with dependencies) | "Add login feature" → 5 tasks: create model, add routes, write tests... |
-| **Developer** | Single task from TaskDAG | Code changes via shell/git tools | Executes `git checkout -b`, writes files, runs tests |
-| **Reviewer** | Git diff of changes | Approval or rejection with feedback | "Missing input validation in login handler" |
-
-### Why Drivers?
-
-Enterprise environments often prohibit direct API calls to external LLMs. The driver abstraction lets you:
-
-- **`api:openai`** - Direct API calls via pydantic-ai (fastest, requires API key)
-- **`cli:claude`** - Wraps Claude CLI (works with enterprise SSO, no API key needed)
-
-Switch drivers without code changes:
-
-```yaml
-profiles:
-  work:
-    driver: cli:claude  # Uses approved enterprise CLI
-  home:
-    driver: api:openai  # Direct API access
-```
+Amelia coordinates three agents: **Architect** (planning), **Developer** (execution), and **Reviewer** (code review). See [Architecture](https://anderskev.github.io/amelia/architecture/overview) for the full data flow and [Concepts](https://anderskev.github.io/amelia/architecture/concepts) for how agents and drivers work.
 
 ## CLI Commands
 
