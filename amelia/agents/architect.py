@@ -9,7 +9,15 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
-from amelia.core.state import AgentMessage, ExecutionState, Task, TaskDAG
+from amelia.core.state import (
+    AgentMessage,
+    ExecutionBatch,
+    ExecutionPlan,
+    ExecutionState,
+    RiskLevel,
+    Task,
+    TaskDAG,
+)
 from amelia.core.types import Design, Issue, StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import DriverInterface
 
@@ -36,6 +44,18 @@ class PlanOutput(BaseModel):
 
     task_dag: TaskDAG
     markdown_path: Path
+
+
+class ExecutionPlanOutput(BaseModel):
+    """Structured output for execution plan generation.
+
+    Attributes:
+        plan: The generated execution plan with batched steps.
+        reasoning: Explanation of batching decisions and approach.
+    """
+
+    plan: ExecutionPlan
+    reasoning: str
 
 
 def _slugify(text: str) -> str:
@@ -114,6 +134,97 @@ Each step should be 2-5 minutes of work. Include complete code, not placeholders
         """
         return """Create a detailed implementation plan with bite-sized TDD tasks.
 Ensure exact file paths, complete code in steps, and single-command shell instructions (no && or chaining)."""
+
+    def get_execution_plan_system_prompt(self) -> str:
+        """Get system prompt for ExecutionPlan generation.
+
+        This prompt provides comprehensive guidance for generating ExecutionPlan objects
+        with batched execution, risk assessment, and TDD approach.
+
+        Returns:
+            Detailed system prompt string for ExecutionPlan generation.
+        """
+        return """You are an expert software architect creating structured execution plans.
+
+Your role is to break down development work into batched, executable steps with clear risk assessment.
+
+# Step Granularity
+- Each PlanStep should be 2-5 minutes of work
+- Break larger operations into smaller, verifiable steps
+- Include explicit validation steps after risky operations
+
+# Risk Assessment
+Assign risk_level to each step based on these criteria:
+
+- **low**: File writes, read operations, simple commands, fully reversible actions
+  Examples: writing tests, running linters, reading files, creating backups
+
+- **medium**: Database operations, configuration changes, network calls, partially reversible
+  Examples: schema migrations, config updates, dependency installations
+
+- **high**: Destructive operations, production deploys, irreversible actions
+  Examples: deleting data, production pushes, dropping tables, force operations
+
+# Batching Rules
+Group semantically related steps into ExecutionBatch objects:
+
+- **Max batch sizes**:
+  - low risk: 5 steps maximum
+  - medium risk: 3 steps maximum
+  - high risk: 1 step only (immediate checkpoint)
+
+- Each batch should represent a meaningful checkpoint
+- Group by feature/component, not arbitrarily
+- Batches execute atomically - plan accordingly
+
+# TDD Approach
+When tdd_approach=True, follow this pattern for each feature:
+
+1. Write the failing test (action_type="code", is_test_step=True)
+2. Run test to verify it fails (action_type="command", validates_step=<test_step_id>)
+3. Write minimal implementation (action_type="code")
+4. Run test to verify it passes (action_type="command", validates_step=<impl_step_id>)
+5. Commit changes (action_type="command")
+
+Mark test steps with is_test_step=True and link validation steps using validates_step.
+
+# Fallback Commands
+For commands that commonly fail, provide alternatives in fallback_commands:
+
+- Package managers: try alternative registries or mirrors
+- Build tools: try with/without cache, different flags
+- Test runners: try with verbose output, specific test files
+
+Examples:
+- Primary: "npm install", Fallback: ("npm install --legacy-peer-deps", "yarn install")
+- Primary: "pytest", Fallback: ("pytest -v", "python -m pytest")
+
+# Command Validation
+- Set expect_exit_code (default 0)
+- Optionally set expected_output_pattern for stdout regex (ANSI codes stripped)
+- Use validation_command for complex success checks
+
+# Dependencies
+- Use depends_on to specify step IDs that must complete first
+- Dependencies must form a valid DAG (no cycles)
+- System will skip dependent steps if dependencies fail
+
+Generate complete ExecutionPlan objects with properly batched steps following these guidelines."""
+
+    def get_execution_plan_user_prompt(self) -> str:
+        """Get user prompt for ExecutionPlan generation.
+
+        This prompt instructs the LLM to generate an ExecutionPlan with the
+        proper structure and batching.
+
+        Returns:
+            User prompt string for ExecutionPlan generation.
+        """
+        return """Create a complete ExecutionPlan with batched steps.
+
+Follow TDD approach, assess risk levels accurately, batch steps appropriately (max 5/3/1 by risk), and provide fallback commands for failure-prone operations.
+
+Ensure each step is 2-5 minutes, includes proper dependencies, and validation steps are linked to what they validate."""
 
     def _format_design_section(self, design: Design) -> str:
         """Format Design into structured markdown for context.
@@ -367,6 +478,53 @@ class Architect:
 
         return PlanOutput(task_dag=task_dag, markdown_path=markdown_path)
 
+    async def generate_execution_plan(
+        self,
+        issue: Issue,
+        state: ExecutionState,
+    ) -> ExecutionPlan:
+        """Generate batched execution plan for an issue.
+
+        Uses the new ExecutionPlan format with batched steps, risk assessment,
+        and TDD approach. Validates and splits batches to enforce size limits.
+
+        Args:
+            issue: The issue to generate a plan for.
+            state: The current execution state containing context.
+
+        Returns:
+            Validated ExecutionPlan with properly sized batches.
+        """
+        # Compile context using strategy
+        strategy = self.context_strategy()
+        compiled_context = strategy.compile(state)
+
+        # Get execution plan prompts from strategy
+        system_prompt = strategy.get_execution_plan_system_prompt()
+        user_prompt = strategy.get_execution_plan_user_prompt()
+
+        # Convert compiled context to messages
+        base_messages = strategy.to_messages(compiled_context)
+
+        # Prepend execution plan system prompt and append user prompt
+        messages = [
+            AgentMessage(role="system", content=system_prompt),
+            *base_messages,
+            AgentMessage(role="user", content=user_prompt),
+        ]
+
+        # Call driver with ExecutionPlanOutput schema
+        response = await self.driver.generate(messages=messages, schema=ExecutionPlanOutput)
+
+        # Validate and split batches to enforce risk limits
+        validated_plan, warnings = validate_and_split_batches(response.plan)
+
+        # Log any warnings from batch validation
+        for warning in warnings:
+            logger.warning(warning, agent="architect")
+
+        return validated_plan
+
     async def _generate_task_dag(
         self,
         compiled_context: CompiledContext,
@@ -513,3 +671,92 @@ class Architect:
             lines.append("")
 
         return "\n".join(lines)
+
+
+def validate_and_split_batches(plan: ExecutionPlan) -> tuple[ExecutionPlan, list[str]]:
+    """Validate Architect batches and split if needed.
+
+    Enforces maximum batch sizes based on risk level:
+    - Low risk: max 5 steps
+    - Medium risk: max 3 steps
+    - High risk: max 1 step (always isolated)
+
+    Args:
+        plan: The execution plan to validate.
+
+    Returns:
+        Tuple of (validated_plan, warnings).
+        - validated_plan: Plan with batches split if needed, batch numbers renumbered.
+        - warnings: List of warning messages for batches that were split.
+    """
+    # Risk level limits
+    RISK_LIMITS: dict[RiskLevel, int] = {
+        "low": 5,
+        "medium": 3,
+        "high": 1,
+    }
+
+    warnings: list[str] = []
+    new_batches: list[ExecutionBatch] = []
+
+    for batch in plan.batches:
+        # Get the maximum allowed size for this batch's risk level
+        max_size = RISK_LIMITS[batch.risk_summary]
+
+        # If batch is within limits, keep it as-is
+        if len(batch.steps) <= max_size:
+            new_batches.append(batch)
+            continue
+
+        # Batch needs splitting
+        warnings.append(
+            f"Batch {batch.batch_number} exceeded size limit for {batch.risk_summary} risk "
+            f"({len(batch.steps)} steps > {max_size} max). Split into multiple batches."
+        )
+
+        # Split the batch into chunks
+        steps_list = list(batch.steps)
+        for i in range(0, len(steps_list), max_size):
+            chunk = steps_list[i:i + max_size]
+
+            # Determine the risk summary for this chunk
+            # If any step is high-risk, the chunk is high-risk
+            # Otherwise, use the highest risk level in the chunk
+            chunk_risks = {step.risk_level for step in chunk}
+            chunk_risk: RiskLevel
+            if "high" in chunk_risks:
+                chunk_risk = "high"
+            elif "medium" in chunk_risks:
+                chunk_risk = "medium"
+            else:
+                chunk_risk = "low"
+
+            # Create a new batch for this chunk
+            new_batch = ExecutionBatch(
+                batch_number=0,  # Will be renumbered later
+                steps=tuple(chunk),
+                risk_summary=chunk_risk,
+                description=batch.description,
+            )
+            new_batches.append(new_batch)
+
+    # Renumber all batches sequentially
+    renumbered_batches = []
+    for i, batch in enumerate(new_batches, start=1):
+        renumbered_batch = ExecutionBatch(
+            batch_number=i,
+            steps=batch.steps,
+            risk_summary=batch.risk_summary,
+            description=batch.description,
+        )
+        renumbered_batches.append(renumbered_batch)
+
+    # Create the validated plan
+    validated_plan = ExecutionPlan(
+        goal=plan.goal,
+        batches=tuple(renumbered_batches),
+        total_estimated_minutes=plan.total_estimated_minutes,
+        tdd_approach=plan.tdd_approach,
+    )
+
+    return validated_plan, warnings

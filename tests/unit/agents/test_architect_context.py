@@ -309,3 +309,64 @@ class TestArchitectContextStrategy:
     def test_codebase_section_allowed_in_allowed_sections(self, strategy):
         """Test that 'codebase' is in ALLOWED_SECTIONS."""
         assert "codebase" in ArchitectContextStrategy.ALLOWED_SECTIONS
+
+    def test_execution_plan_system_prompt_includes_risk_level_definitions(self, strategy):
+        """Test that execution plan system prompt includes risk level definitions."""
+        prompt = strategy.get_execution_plan_system_prompt()
+
+        # Should define all three risk levels with examples
+        assert "low" in prompt.lower()
+        assert "medium" in prompt.lower()
+        assert "high" in prompt.lower()
+
+        # Should mention characteristics of each risk level
+        assert "file writes" in prompt.lower() or "reversible" in prompt.lower()
+        assert "database" in prompt.lower() or "config" in prompt.lower()
+        assert "destructive" in prompt.lower() or "irreversible" in prompt.lower()
+
+    def test_execution_plan_system_prompt_includes_batch_size_limits(self, strategy):
+        """Test that execution plan system prompt mentions batch size limits."""
+        prompt = strategy.get_execution_plan_system_prompt()
+
+        # Should mention max batch sizes for different risk levels
+        # low=5, medium=3, high=1
+        assert "5" in prompt or "five" in prompt.lower()
+        assert "3" in prompt or "three" in prompt.lower()
+        # Should mention batching concept
+        assert "batch" in prompt.lower()
+
+    def test_execution_plan_system_prompt_includes_tdd_guidance(self, strategy):
+        """Test that execution plan system prompt includes TDD approach guidance."""
+        prompt = strategy.get_execution_plan_system_prompt()
+
+        # Should mention TDD concepts
+        assert "tdd" in prompt.lower() or "test-driven" in prompt.lower() or "test first" in prompt.lower()
+        # Should mention the typical TDD flow
+        assert "test" in prompt.lower()
+        assert "fail" in prompt.lower() or "failing" in prompt.lower()
+        assert "implement" in prompt.lower()
+        assert "pass" in prompt.lower()
+
+    def test_execution_plan_system_prompt_includes_step_granularity_guidance(self, strategy):
+        """Test that execution plan system prompt includes step granularity guidance."""
+        prompt = strategy.get_execution_plan_system_prompt()
+
+        # Should mention 2-5 minute step granularity
+        assert "2" in prompt
+        assert "5" in prompt
+        assert "minute" in prompt.lower() or "min" in prompt.lower()
+
+    def test_execution_plan_system_prompt_includes_fallback_command_guidance(self, strategy):
+        """Test that execution plan system prompt includes fallback command guidance."""
+        prompt = strategy.get_execution_plan_system_prompt()
+
+        # Should mention fallback commands or alternatives
+        assert "fallback" in prompt.lower() or "alternative" in prompt.lower()
+
+    def test_execution_plan_user_prompt_is_concise_instruction(self, strategy):
+        """Test that execution plan user prompt is a concise instruction."""
+        prompt = strategy.get_execution_plan_user_prompt()
+
+        # Should be a clear instruction to create an execution plan
+        assert len(prompt) > 0
+        assert "execution plan" in prompt.lower() or "plan" in prompt.lower()
