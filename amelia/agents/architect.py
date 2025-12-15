@@ -519,6 +519,14 @@ class Architect:
         # Call driver with ExecutionPlanOutput schema
         response = await self.driver.generate(messages=messages, schema=ExecutionPlanOutput)
 
+        # Log reasoning for audit trail
+        logger.info(
+            "Execution plan generated",
+            agent="architect",
+            reasoning=response.reasoning,
+            batch_count=len(response.plan.batches),
+        )
+
         # Validate and split batches to enforce risk limits
         validated_plan, warnings = validate_and_split_batches(response.plan)
 
