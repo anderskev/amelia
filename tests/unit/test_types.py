@@ -3,15 +3,12 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for core types."""
 
-from amelia.core.types import ExecutionMode, Profile, RetryConfig
-
-
-def test_execution_mode_literal_values():
-    """ExecutionMode should accept 'structured' and 'agentic'."""
-    mode1: ExecutionMode = "structured"
-    mode2: ExecutionMode = "agentic"
-    assert mode1 == "structured"
-    assert mode2 == "agentic"
+from amelia.core.types import (
+    DeveloperStatus,
+    Profile,
+    RetryConfig,
+    TrustLevel,
+)
 
 
 def test_profile_execution_mode_default():
@@ -55,3 +52,24 @@ class TestProfileRetryConfig:
         assert profile.retry.max_retries == 5
         assert profile.retry.base_delay == 2.0
         assert profile.retry.max_delay == 120.0
+
+
+class TestDeveloperStatus:
+    """Test DeveloperStatus enum."""
+
+    def test_enum_values(self):
+        """DeveloperStatus has expected values."""
+        assert DeveloperStatus.EXECUTING == "executing"
+        assert DeveloperStatus.BATCH_COMPLETE == "batch_complete"
+        assert DeveloperStatus.BLOCKED == "blocked"
+        assert DeveloperStatus.ALL_DONE == "all_done"
+
+
+class TestTrustLevel:
+    """Test TrustLevel enum."""
+
+    def test_enum_values(self):
+        """TrustLevel has expected values."""
+        assert TrustLevel.PARANOID == "paranoid"
+        assert TrustLevel.STANDARD == "standard"
+        assert TrustLevel.AUTONOMOUS == "autonomous"
