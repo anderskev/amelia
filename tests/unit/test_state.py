@@ -631,3 +631,29 @@ class TestProfileTrustLevel:
         restored = Profile.model_validate(data)
         assert restored.trust_level == TrustLevel.AUTONOMOUS
         assert restored.batch_checkpoint_enabled is False
+
+
+
+class TestMergeSets:
+    """Tests for merge_sets LangGraph reducer."""
+
+    def test_merge_set_with_set(self):
+        """merge_sets handles in-memory node returns (sets)."""
+        from amelia.core.state import merge_sets
+
+        result = merge_sets({"a", "b"}, {"c", "d"})
+        assert result == {"a", "b", "c", "d"}
+
+    def test_merge_set_with_list(self):
+        """merge_sets handles JSON-serialized input (lists)."""
+        from amelia.core.state import merge_sets
+
+        result = merge_sets({"a", "b"}, ["c", "d"])
+        assert result == {"a", "b", "c", "d"}
+
+    def test_merge_empty_set_with_empty_list(self):
+        """merge_sets handles initial state from JSON (the original bug)."""
+        from amelia.core.state import merge_sets
+
+        result = merge_sets(set(), [])
+        assert result == set()
