@@ -957,11 +957,12 @@ class Developer:
                 # Fire-and-forget: emit stream event without blocking
                 emit_coro = cast(Coroutine[Any, Any, None], self._stream_emitter(stream_event))
                 emit_task: asyncio.Task[None] = asyncio.create_task(emit_coro)
-                emit_task.add_done_callback(
-                    lambda t: logger.exception("Stream emitter failed", exc_info=t.exception())
-                    if t.exception()
-                    else None
-                )
+
+                def _log_emit_error(t: asyncio.Task[None]) -> None:
+                    if (exc := t.exception()) is not None:
+                        logger.exception("Stream emitter failed", exc_info=exc)
+
+                emit_task.add_done_callback(_log_emit_error)
 
     async def _execute_structured(self, task: Task, state: ExecutionState) -> dict[str, Any]:
         """Execute task using structured step-by-step approach.

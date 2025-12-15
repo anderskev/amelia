@@ -291,23 +291,26 @@ Ensure each step is 2-5 minutes, includes proper dependencies, and validation st
         files: list[str] = []
         root_path = Path(working_dir)
 
-        for dirpath, dirnames, filenames in os.walk(root_path):
-            # Filter out ignored directories (modifies dirnames in-place)
-            dirnames[:] = [d for d in dirnames if d not in ignore_dirs and not d.endswith(".egg-info")]
+        try:
+            for dirpath, dirnames, filenames in os.walk(root_path):
+                # Filter out ignored directories (modifies dirnames in-place)
+                dirnames[:] = [d for d in dirnames if d not in ignore_dirs and not d.endswith(".egg-info")]
 
-            rel_dir = Path(dirpath).relative_to(root_path)
+                rel_dir = Path(dirpath).relative_to(root_path)
 
-            for filename in filenames:
-                if filename in ignore_files:
-                    continue
+                for filename in filenames:
+                    if filename in ignore_files:
+                        continue
+                    if len(files) >= max_files:
+                        break
+
+                    rel_path = rel_dir / filename if str(rel_dir) != "." else Path(filename)
+                    files.append(str(rel_path))
+
                 if len(files) >= max_files:
                     break
-
-                rel_path = rel_dir / filename if str(rel_dir) != "." else Path(filename)
-                files.append(str(rel_path))
-
-            if len(files) >= max_files:
-                break
+        except OSError as e:
+            logger.warning(f"Error scanning codebase: {e}")
 
         # Sort files for consistent output
         files.sort()

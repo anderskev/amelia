@@ -77,7 +77,6 @@ def git_repo(tmp_path: Path) -> Generator[Path, None, None]:
         yield tmp_path
 
 
-@pytest.mark.asyncio
 async def test_take_git_snapshot_captures_head_and_dirty_files(git_repo: Path) -> None:
     """Test that snapshot captures HEAD commit and dirty files."""
     # Create some dirty files
@@ -98,7 +97,6 @@ async def test_take_git_snapshot_captures_head_and_dirty_files(git_repo: Path) -
     assert snapshot.stash_ref is None
 
 
-@pytest.mark.asyncio
 async def test_take_git_snapshot_no_dirty_files(git_repo: Path) -> None:
     """Test snapshot works when repo is clean."""
     snapshot = await take_git_snapshot(repo_path=git_repo)
@@ -110,7 +108,6 @@ async def test_take_git_snapshot_no_dirty_files(git_repo: Path) -> None:
     assert len(snapshot.dirty_files) == 0
 
 
-@pytest.mark.asyncio
 async def test_revert_restores_batch_changed_files(git_repo: Path) -> None:
     """Test that revert restores files changed during the batch."""
     # Take snapshot
@@ -130,7 +127,6 @@ async def test_revert_restores_batch_changed_files(git_repo: Path) -> None:
     # (revert doesn't delete untracked files, only restores tracked ones)
 
 
-@pytest.mark.asyncio
 async def test_revert_preserves_user_manual_changes(git_repo: Path) -> None:
     """Test that dirty files from before batch are NOT reverted."""
     # Create user's manual changes BEFORE taking snapshot
@@ -156,7 +152,6 @@ async def test_revert_preserves_user_manual_changes(git_repo: Path) -> None:
     assert (git_repo / "user_file.txt").exists()
 
 
-@pytest.mark.asyncio
 async def test_get_batch_changed_files(git_repo: Path) -> None:
     """Test getting files changed since snapshot."""
     # Take snapshot
@@ -176,7 +171,6 @@ async def test_get_batch_changed_files(git_repo: Path) -> None:
     # Note: untracked files won't show in git diff, only in git status
 
 
-@pytest.mark.asyncio
 async def test_revert_with_no_changes(git_repo: Path) -> None:
     """Test that revert handles case with no changes gracefully."""
     # Take snapshot
@@ -191,7 +185,6 @@ async def test_revert_with_no_changes(git_repo: Path) -> None:
     assert (git_repo / "file.txt").read_text() == "initial content"
 
 
-@pytest.mark.asyncio
 async def test_get_batch_changed_files_with_deleted_file(git_repo: Path) -> None:
     """Test that deleted files are included in changed files."""
     # Take snapshot

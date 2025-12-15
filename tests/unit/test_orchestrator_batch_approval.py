@@ -6,8 +6,6 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-import pytest
-
 from amelia.core.orchestrator import batch_approval_node
 from amelia.core.state import BatchApproval, ExecutionState
 
@@ -15,7 +13,6 @@ from amelia.core.state import BatchApproval, ExecutionState
 class TestBatchApprovalNode:
     """Tests for batch_approval_node function."""
 
-    @pytest.mark.asyncio
     async def test_approved_path_records_approval_correctly(
         self,
         mock_execution_state_factory: Callable[..., ExecutionState],
@@ -45,7 +42,6 @@ class TestBatchApprovalNode:
         # Verify human_approved is reset
         assert result["human_approved"] is None
 
-    @pytest.mark.asyncio
     async def test_rejected_path_records_disapproval(
         self,
         mock_execution_state_factory: Callable[..., ExecutionState],
@@ -73,7 +69,6 @@ class TestBatchApprovalNode:
         # Verify human_approved is reset
         assert result["human_approved"] is None
 
-    @pytest.mark.asyncio
     async def test_feedback_is_captured_when_provided(
         self,
         mock_execution_state_factory: Callable[..., ExecutionState],
@@ -97,12 +92,11 @@ class TestBatchApprovalNode:
         assert approval.batch_number == 2
         assert approval.approved is False
 
-    @pytest.mark.asyncio
-    async def test_appends_to_existing_batch_approvals(
+    async def test_returns_single_item_list_for_reducer(
         self,
         mock_execution_state_factory: Callable[..., ExecutionState],
     ) -> None:
-        """Test that new approval is appended to existing batch_approvals list."""
+        """Test that node returns single-item list; reducer handles merge."""
         # Arrange
         existing_approval = BatchApproval(
             batch_number=0,
@@ -119,10 +113,9 @@ class TestBatchApprovalNode:
         # Act
         result = await batch_approval_node(state)
 
-        # Assert
+        # Assert - node returns single-item list, reducer merges with existing
         approvals = result["batch_approvals"]
-        assert len(approvals) == 2
-        assert approvals[0] == existing_approval  # Original approval preserved
-        assert approvals[1].batch_number == 1
-        assert approvals[1].approved is False
+        assert len(approvals) == 1  # Only the new approval
+        assert approvals[0].batch_number == 1
+        assert approvals[0].approved is False
 

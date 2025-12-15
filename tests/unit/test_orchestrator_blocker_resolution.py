@@ -162,7 +162,7 @@ class TestBlockerResolutionNode:
         self,
         mock_execution_state_factory: Callable[..., ExecutionState],
     ) -> None:
-        """Skip should add to existing skipped_step_ids, not replace them."""
+        """Skip should return single-item set; reducer merges with existing."""
         blocker = BlockerReport(
             step_id="step-6",
             step_description="Test step",
@@ -181,9 +181,8 @@ class TestBlockerResolutionNode:
         result = await blocker_resolution_node(state)
 
         assert "skipped_step_ids" in result
-        # Should include both existing and new skipped steps
-        expected_skipped = {"step-1", "step-2", "step-6"}
-        assert result["skipped_step_ids"] == expected_skipped
+        # Node returns single-item set; reducer will merge with existing
+        assert result["skipped_step_ids"] == {"step-6"}
 
     async def test_abort_revert_without_snapshot_still_aborts(
         self,

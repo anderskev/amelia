@@ -8,7 +8,7 @@ Implements the core workflow: Issue → Architect (plan) → Human Approval →
 Developer (execute) ↔ Reviewer (review) → Done. Provides node functions for
 the state machine and the create_orchestrator_graph() factory.
 """
-import subprocess
+import asyncio
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -193,10 +193,7 @@ async def batch_approval_node(state: ExecutionState) -> dict[str, Any]:
         approved_at=datetime.now(UTC),
     )
 
-    # Append to existing batch_approvals
-    updated_approvals = list(state.batch_approvals)
-    updated_approvals.append(approval)
-
+    # Return single-item list - reducer will handle append via operator.add
     # Log the batch approval
     logger.info(
         "Batch approval recorded",
@@ -207,7 +204,7 @@ async def batch_approval_node(state: ExecutionState) -> dict[str, Any]:
 
     # Return partial state with updated approvals and reset human_approved
     return {
-        "batch_approvals": updated_approvals,
+        "batch_approvals": [approval],
         "human_approved": None,
     }
 
@@ -242,17 +239,14 @@ async def blocker_resolution_node(state: ExecutionState) -> dict[str, Any]:
 
     # Handle skip resolution
     if resolution == "skip":
-        updated_skipped = set(state.skipped_step_ids)
-        updated_skipped.add(blocker.step_id)
-
         logger.info(
             "Blocker resolved by skipping step",
             step_id=blocker.step_id,
-            total_skipped=len(updated_skipped),
+            total_skipped=len(state.skipped_step_ids) + 1,
         )
 
         return {
-            "skipped_step_ids": updated_skipped,
+            "skipped_step_ids": {blocker.step_id},
             "current_blocker": None,
             "blocker_resolution": None,
         }
@@ -322,16 +316,16 @@ async def get_code_changes_for_review(state: ExecutionState) -> str:
         return state.code_changes_for_review
 
     try:
-        result = subprocess.run(
-            ["git", "diff", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=False
+        proc = await asyncio.create_subprocess_exec(
+            "git", "diff", "HEAD",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-        if result.returncode == 0:
-            return result.stdout
+        stdout, stderr = await proc.communicate()
+        if proc.returncode == 0:
+            return stdout.decode()
         else:
-            return f"Error getting git diff: {result.stderr}"
+            return f"Error getting git diff: {stderr.decode()}"
     except Exception as e:
         return f"Failed to execute git diff: {str(e)}"
 
@@ -562,7 +556,7 @@ def route_batch_approval(state: ExecutionState) -> Literal["developer", "__end__
     """
     if state.human_approved:
         return "developer"
-    return END  # type: ignore[return-value]
+    return "__end__"
 
 def route_blocker_resolution(state: ExecutionState) -> Literal["developer", "__end__"]:
     """Route based on blocker resolution outcome.
@@ -576,7 +570,7 @@ def route_blocker_resolution(state: ExecutionState) -> Literal["developer", "__e
         - 'developer' otherwise (continue after fix/skip)
     """
     if state.workflow_status == "aborted":
-        return END  # type: ignore[return-value]
+        return "__end__"
     return "developer"
 
 def create_orchestrator_graph(
