@@ -244,21 +244,22 @@ class BlockerReport(BaseModel):
 When a step is skipped or fails, all dependent steps are automatically marked for skip:
 
 ```python
-def get_cascade_skips(step_id: str, plan: ExecutionPlan, skip_reasons: dict[str, str]) -> dict[str, str]:
+def get_cascade_skips(step_id: str, plan: ExecutionPlan) -> dict[str, str]:
     """Find all steps that depend on a skipped/failed step.
 
     Returns dict of step_id -> skip reason.
     """
-    skips = {step_id: skip_reasons.get(step_id, "skipped by user")}
+    skips = {step_id: "skipped by user"}
+    all_steps = [step for batch in plan.batches for step in batch.steps]
 
-    for batch in plan.batches:
-        for step in batch.steps:
-            if any(dep in skips for dep in step.depends_on):
+    # Iterate until no new skips found (handles transitive dependencies)
+    changed = True
+    while changed:
+        changed = False
+        for step in all_steps:
+            if step.id not in skips and any(dep in skips for dep in step.depends_on):
                 skips[step.id] = f"dependency {step.depends_on[0]} was skipped"
-
-    # Recurse until no new skips found
-    if len(skips) > len(skip_reasons):
-        return get_cascade_skips(step_id, plan, skips)
+                changed = True
 
     return skips
 ```
