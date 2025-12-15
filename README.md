@@ -109,7 +109,7 @@ AMELIA_SETTINGS=/path/to/your/project/settings.amelia.yaml uv run amelia plan-on
 
 ## How It Works
 
-Amelia coordinates three agents: **Architect** (planning), **Developer** (execution), and **Reviewer** (code review). See [Architecture](https://anderskev.github.io/amelia/architecture/overview) for the full data flow and [Concepts](https://anderskev.github.io/amelia/architecture/concepts) for how agents and drivers work.
+Amelia orchestrates configurable AI agents through a workflow graph. See [Architecture](https://anderskev.github.io/amelia/architecture/overview) for data flow and [Concepts](https://anderskev.github.io/amelia/architecture/concepts) for how agents and drivers work.
 
 ## CLI Commands
 
