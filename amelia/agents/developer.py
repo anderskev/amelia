@@ -18,20 +18,26 @@ from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
 from amelia.core.exceptions import AgenticExecutionError
 from amelia.core.state import (
     AgentMessage,
+    BatchResult,
+    BlockerReport,
+    BlockerType,
+    ExecutionBatch,
     ExecutionPlan,
     ExecutionState,
     PlanStep,
     StepResult,
     Task,
 )
-from amelia.core.types import StreamEmitter
+from amelia.core.types import DeveloperStatus, StreamEmitter
 from amelia.core.utils import strip_ansi
 from amelia.drivers.base import DriverInterface
 from amelia.drivers.cli.claude import convert_to_stream_event
+from amelia.tools.git_utils import take_git_snapshot
 from amelia.tools.shell_executor import run_shell_command, write_file
 
 
-DeveloperStatus = Literal["completed", "failed", "in_progress"]
+# Legacy status for execute_current_task (to be deprecated)
+LegacyDeveloperStatus = Literal["completed", "failed", "in_progress"]
 ExecutionMode = Literal["structured", "agentic"]
 
 
@@ -492,6 +498,350 @@ class Developer:
                 executed_command=None,
                 duration_seconds=duration,
             )
+
+    async def _execute_batch(
+        self,
+        batch: ExecutionBatch,
+        state: ExecutionState,
+    ) -> BatchResult:
+        """Execute a batch with LLM judgment.
+
+        Uses tiered pre-validation to balance cost vs safety:
+        - Low-risk steps: filesystem checks only (no LLM)
+        - High-risk steps: LLM semantic review before execution
+        - On any failure: report blocker immediately
+
+        Flow:
+        1. Take git snapshot for potential rollback
+        2. For each step:
+           a. Check cascade skips (dependency on skipped step)
+           b. Pre-validate step (filesystem + LLM for high-risk)
+           c. Execute step with fallbacks
+        3. Return BatchResult
+
+        Args:
+            batch: The execution batch containing steps to execute.
+            state: Current execution state with skipped_step_ids and other context.
+
+        Returns:
+            BatchResult with status "complete" or "blocked".
+        """
+        # 1. Take git snapshot for potential rollback
+        _git_snapshot = await take_git_snapshot()
+        logger.debug(
+            "Git snapshot taken before batch execution",
+            batch_number=batch.batch_number,
+            head_commit=_git_snapshot.head_commit,
+        )
+
+        completed_steps: list[StepResult] = []
+
+        for step in batch.steps:
+            # 2a. Check cascade skips - if any dependency was skipped, skip this step too
+            skipped_deps = [
+                dep for dep in step.depends_on if dep in state.skipped_step_ids
+            ]
+            if skipped_deps:
+                logger.info(
+                    "Step skipped due to dependency",
+                    step_id=step.id,
+                    skipped_dependency=skipped_deps[0],
+                )
+                completed_steps.append(
+                    StepResult(
+                        step_id=step.id,
+                        status="skipped",
+                        error=f"Dependency {skipped_deps[0]} was skipped",
+                    )
+                )
+                continue
+
+            # 2b. Pre-validate step based on risk level
+            validation = await self._pre_validate_step(step, state)
+            if not validation.ok:
+                logger.warning(
+                    "Step pre-validation failed",
+                    step_id=step.id,
+                    issue=validation.issue,
+                )
+                # Determine blocker type based on validation failure
+                blocker_type: BlockerType = "validation_failed"
+                if validation.issue and "not found" in validation.issue.lower():
+                    blocker_type = "unexpected_state"
+
+                return BatchResult(
+                    batch_number=batch.batch_number,
+                    status="blocked",
+                    completed_steps=tuple(completed_steps),
+                    blocker=BlockerReport(
+                        step_id=step.id,
+                        step_description=step.description,
+                        blocker_type=blocker_type,
+                        error_message=validation.issue or "Pre-validation failed",
+                        attempted_actions=validation.attempted,
+                        suggested_resolutions=validation.suggestions,
+                    ),
+                )
+
+            # 2c. Execute step with fallback handling
+            result = await self._execute_step_with_fallbacks(step, state)
+
+            if result.status == "failed":
+                logger.warning(
+                    "Step execution failed",
+                    step_id=step.id,
+                    error=result.error,
+                )
+                # Determine blocker type based on action type
+                blocker_type = (
+                    "command_failed"
+                    if step.action_type == "command"
+                    else "validation_failed"
+                )
+
+                return BatchResult(
+                    batch_number=batch.batch_number,
+                    status="blocked",
+                    completed_steps=tuple(completed_steps),
+                    blocker=BlockerReport(
+                        step_id=step.id,
+                        step_description=step.description,
+                        blocker_type=blocker_type,
+                        error_message=result.error or "Step execution failed",
+                        attempted_actions=(
+                            (result.executed_command,) if result.executed_command else ()
+                        ),
+                        suggested_resolutions=(),
+                    ),
+                )
+
+            completed_steps.append(result)
+            logger.info(
+                "Step completed successfully",
+                step_id=step.id,
+                duration_seconds=result.duration_seconds,
+            )
+
+        # All steps completed successfully
+        logger.info(
+            "Batch completed successfully",
+            batch_number=batch.batch_number,
+            steps_completed=len(completed_steps),
+        )
+
+        return BatchResult(
+            batch_number=batch.batch_number,
+            status="complete",
+            completed_steps=tuple(completed_steps),
+            blocker=None,
+        )
+
+    async def _recover_from_blocker(
+        self,
+        state: ExecutionState,
+    ) -> BatchResult:
+        """Continue execution after human resolves blocker.
+
+        Called when human has provided a fix instruction (blocker_resolution).
+        Resumes execution from the blocked step, preserving any already-completed
+        steps from the current batch.
+
+        Args:
+            state: Current execution state with current_blocker and blocker_resolution.
+
+        Returns:
+            BatchResult with status "complete" or "blocked".
+
+        Raises:
+            ValueError: If no execution plan, current blocker, or batch result exists.
+        """
+        if not state.execution_plan:
+            raise ValueError("No execution plan in state")
+        if not state.current_blocker:
+            raise ValueError("No current blocker in state")
+
+        # Get current batch
+        batch = state.execution_plan.batches[state.current_batch_index]
+
+        # Get the blocked step ID
+        blocked_step_id = state.current_blocker.step_id
+
+        # Find previously completed steps from the partial batch result
+        previously_completed: list[StepResult] = []
+        if state.batch_results:
+            last_result = state.batch_results[-1]
+            if last_result.batch_number == batch.batch_number:
+                previously_completed = list(last_result.completed_steps)
+
+        # Take git snapshot (in case we need to rollback after recovery attempt)
+        _git_snapshot = await take_git_snapshot()
+        logger.debug(
+            "Git snapshot taken before recovery",
+            batch_number=batch.batch_number,
+            blocked_step_id=blocked_step_id,
+        )
+
+        completed_steps: list[StepResult] = list(previously_completed)
+        found_blocked_step = False
+
+        for step in batch.steps:
+            # Skip already completed steps
+            if any(s.step_id == step.id for s in previously_completed):
+                continue
+
+            # Mark that we've found the blocked step (start executing from here)
+            if step.id == blocked_step_id:
+                found_blocked_step = True
+
+            # Skip steps before the blocked step (shouldn't happen but safety check)
+            if not found_blocked_step:
+                continue
+
+            # Check cascade skips
+            skipped_deps = [
+                dep for dep in step.depends_on if dep in state.skipped_step_ids
+            ]
+            if skipped_deps:
+                logger.info(
+                    "Step skipped during recovery due to dependency",
+                    step_id=step.id,
+                    skipped_dependency=skipped_deps[0],
+                )
+                completed_steps.append(
+                    StepResult(
+                        step_id=step.id,
+                        status="skipped",
+                        error=f"Dependency {skipped_deps[0]} was skipped",
+                    )
+                )
+                continue
+
+            # Pre-validate step
+            validation = await self._pre_validate_step(step, state)
+            if not validation.ok:
+                logger.warning(
+                    "Step pre-validation failed during recovery",
+                    step_id=step.id,
+                    issue=validation.issue,
+                )
+                blocker_type: BlockerType = "validation_failed"
+                if validation.issue and "not found" in validation.issue.lower():
+                    blocker_type = "unexpected_state"
+
+                return BatchResult(
+                    batch_number=batch.batch_number,
+                    status="blocked",
+                    completed_steps=tuple(completed_steps),
+                    blocker=BlockerReport(
+                        step_id=step.id,
+                        step_description=step.description,
+                        blocker_type=blocker_type,
+                        error_message=validation.issue or "Pre-validation failed",
+                        attempted_actions=validation.attempted,
+                        suggested_resolutions=validation.suggestions,
+                    ),
+                )
+
+            # Execute step
+            result = await self._execute_step_with_fallbacks(step, state)
+
+            if result.status == "failed":
+                logger.warning(
+                    "Step execution failed during recovery",
+                    step_id=step.id,
+                    error=result.error,
+                )
+                blocker_type = (
+                    "command_failed"
+                    if step.action_type == "command"
+                    else "validation_failed"
+                )
+
+                return BatchResult(
+                    batch_number=batch.batch_number,
+                    status="blocked",
+                    completed_steps=tuple(completed_steps),
+                    blocker=BlockerReport(
+                        step_id=step.id,
+                        step_description=step.description,
+                        blocker_type=blocker_type,
+                        error_message=result.error or "Step execution failed",
+                        attempted_actions=(
+                            (result.executed_command,) if result.executed_command else ()
+                        ),
+                        suggested_resolutions=(),
+                    ),
+                )
+
+            completed_steps.append(result)
+            logger.info(
+                "Step completed successfully during recovery",
+                step_id=step.id,
+            )
+
+        # All remaining steps completed
+        logger.info(
+            "Recovery completed successfully",
+            batch_number=batch.batch_number,
+            steps_completed=len(completed_steps),
+        )
+
+        return BatchResult(
+            batch_number=batch.batch_number,
+            status="complete",
+            completed_steps=tuple(completed_steps),
+            blocker=None,
+        )
+
+    async def run(self, state: ExecutionState) -> dict[str, Any]:
+        """Main execution - follows plan with judgment.
+
+        This is the new intelligent execution method that replaces the
+        execute_current_task method for ExecutionPlan-based workflows.
+
+        Args:
+            state: Full execution state with execution_plan, current_batch_index, etc.
+
+        Returns:
+            Dict with developer_status and related state updates:
+            - ALL_DONE: All batches completed
+            - BATCH_COMPLETE: Current batch finished, ready for checkpoint
+            - BLOCKED: Execution blocked, needs human help
+
+        Raises:
+            ValueError: If no execution plan in state.
+        """
+        plan = state.execution_plan
+        if not plan:
+            raise ValueError("No execution plan in state")
+
+        current_batch_idx = state.current_batch_index
+
+        # All batches complete?
+        if current_batch_idx >= len(plan.batches):
+            return {"developer_status": DeveloperStatus.ALL_DONE}
+
+        # Check if we're recovering from a blocker
+        if state.blocker_resolution and state.blocker_resolution not in ("skip", "abort"):
+            result = await self._recover_from_blocker(state)
+        else:
+            batch = plan.batches[current_batch_idx]
+            result = await self._execute_batch(batch, state)
+
+        if result.status == "blocked":
+            return {
+                "current_blocker": result.blocker,
+                "developer_status": DeveloperStatus.BLOCKED,
+                "batch_results": [result],
+            }
+
+        # Batch complete - checkpoint
+        return {
+            "batch_results": [result],
+            "current_batch_index": current_batch_idx + 1,
+            "developer_status": DeveloperStatus.BATCH_COMPLETE,
+            "blocker_resolution": None,  # Clear any previous resolution
+        }
 
     async def execute_current_task(
         self,
