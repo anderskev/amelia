@@ -435,6 +435,7 @@ class ExecutionState(BaseModel):
         plan: The task execution plan (DAG).
         current_task_id: ID of the currently executing task.
         human_approved: Whether human approval was granted for the plan.
+        human_feedback: Optional feedback from human during approval.
         last_review: Most recent review result (only latest matters for decisions).
         code_changes_for_review: Staged code changes for review.
         driver_session_id: Session ID for CLI driver session continuity (works with any driver).
@@ -457,6 +458,7 @@ class ExecutionState(BaseModel):
     plan: TaskDAG | None = None
     current_task_id: str | None = None
     human_approved: bool | None = None
+    human_feedback: str | None = None
     last_review: ReviewResult | None = None
     code_changes_for_review: str | None = None
     driver_session_id: str | None = None

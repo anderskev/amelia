@@ -9,6 +9,7 @@ Developer (execute) ↔ Reviewer (review) → Done. Provides node functions for
 the state machine and the create_orchestrator_graph() factory.
 """
 import subprocess
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 import typer
@@ -21,9 +22,10 @@ from loguru import logger
 from amelia.agents.architect import Architect
 from amelia.agents.developer import Developer
 from amelia.agents.reviewer import Reviewer
-from amelia.core.state import ExecutionState, TaskDAG
-from amelia.core.types import StreamEmitter
+from amelia.core.state import BatchApproval, ExecutionState, TaskDAG
+from amelia.core.types import DeveloperStatus, StreamEmitter
 from amelia.drivers.factory import DriverFactory
+from amelia.tools.git_utils import revert_to_git_snapshot
 
 
 def _extract_config_params(config: RunnableConfig | None) -> tuple[StreamEmitter | None, str]:
@@ -133,6 +135,141 @@ async def human_approval_node(
     )
 
     return {"human_approved": approved}
+
+async def batch_approval_node(state: ExecutionState) -> dict[str, Any]:
+    """Human reviews completed batch. Graph interrupts before this node.
+
+    This node records the human approval decision for a batch.
+    The graph should be configured to interrupt before this node,
+    allowing the human to review batch results and set human_approved.
+
+    Args:
+        state: Current execution state with human_approved already set from resume.
+
+    Returns:
+        Partial state dict with batch_approvals and reset human_approved.
+    """
+    # Create BatchApproval record from state
+    approval = BatchApproval(
+        batch_number=state.current_batch_index,
+        approved=state.human_approved or False,
+        feedback=getattr(state, "human_feedback", None),
+        approved_at=datetime.now(UTC),
+    )
+
+    # Append to existing batch_approvals
+    updated_approvals = list(state.batch_approvals)
+    updated_approvals.append(approval)
+
+    # Log the batch approval
+    logger.info(
+        "Batch approval recorded",
+        batch_number=approval.batch_number,
+        approved=approval.approved,
+        has_feedback=approval.feedback is not None,
+    )
+
+    # Return partial state with updated approvals and reset human_approved
+    return {
+        "batch_approvals": updated_approvals,
+        "human_approved": None,
+    }
+
+async def blocker_resolution_node(state: ExecutionState) -> dict[str, Any]:
+    """Human resolves blocker. Graph interrupts before this node.
+
+    Handles different resolution types based on state.blocker_resolution:
+    1. "skip" → Mark step as skipped, return skipped_step_ids with the blocked step added
+    2. "abort" → Keep changes, return workflow_status: "aborted"
+    3. "abort_revert" → Revert batch using git, return workflow_status: "aborted"
+    4. Anything else → Treat as fix instruction, pass to Developer by clearing blocker
+
+    Args:
+        state: Current execution state containing blocker and resolution.
+
+    Returns:
+        Partial state dict with appropriate fields based on resolution type.
+    """
+    resolution = state.blocker_resolution
+    blocker = state.current_blocker
+
+    if not blocker:
+        logger.warning("blocker_resolution_node called with no current_blocker")
+        return {}
+
+    logger.info(
+        "Processing blocker resolution",
+        step_id=blocker.step_id,
+        resolution=resolution,
+        blocker_type=blocker.blocker_type,
+    )
+
+    # Handle skip resolution
+    if resolution == "skip":
+        updated_skipped = set(state.skipped_step_ids)
+        updated_skipped.add(blocker.step_id)
+
+        logger.info(
+            "Blocker resolved by skipping step",
+            step_id=blocker.step_id,
+            total_skipped=len(updated_skipped),
+        )
+
+        return {
+            "skipped_step_ids": updated_skipped,
+            "current_blocker": None,
+            "blocker_resolution": None,
+        }
+
+    # Handle abort resolution (keep changes)
+    if resolution == "abort":
+        logger.info(
+            "Blocker resolved by aborting workflow (keeping changes)",
+            step_id=blocker.step_id,
+        )
+
+        return {
+            "workflow_status": "aborted",
+            "current_blocker": None,
+            "blocker_resolution": None,
+        }
+
+    # Handle abort with revert resolution
+    if resolution == "abort_revert":
+        logger.info(
+            "Blocker resolved by aborting workflow with revert",
+            step_id=blocker.step_id,
+            has_snapshot=state.git_snapshot_before_batch is not None,
+        )
+
+        # Revert if snapshot exists
+        if state.git_snapshot_before_batch:
+            try:
+                await revert_to_git_snapshot(state.git_snapshot_before_batch, None)
+                logger.info("Successfully reverted batch changes")
+            except Exception as e:
+                logger.error(f"Failed to revert batch changes: {e}")
+        else:
+            logger.warning("No git snapshot available for revert")
+
+        return {
+            "workflow_status": "aborted",
+            "current_blocker": None,
+            "blocker_resolution": None,
+        }
+
+    # Any other resolution (including None/empty) is treated as a fix instruction
+    # Clear the blocker and let Developer handle it
+    logger.info(
+        "Blocker resolved with fix instruction",
+        step_id=blocker.step_id,
+        instruction=resolution or "(empty - retry)",
+    )
+
+    return {
+        "current_blocker": None,
+        "blocker_resolution": None,
+    }
 
 async def get_code_changes_for_review(state: ExecutionState) -> str:
     """Retrieves code changes for review.
@@ -362,6 +499,28 @@ def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
         'approve' if human_approved is True, 'reject' otherwise.
     """
     return "approve" if state.human_approved else "reject"
+
+def route_after_developer(state: ExecutionState) -> str:
+    """Route based on Developer status.
+
+    Args:
+        state: Current execution state containing developer_status.
+
+    Returns:
+        Route string based on developer_status:
+        - 'reviewer' if ALL_DONE (all batches completed)
+        - 'batch_approval' if BATCH_COMPLETE (batch finished, needs approval)
+        - 'blocker_resolution' if BLOCKED (execution blocked, needs human help)
+        - 'developer' if EXECUTING (continue executing steps)
+    """
+    if state.developer_status == DeveloperStatus.ALL_DONE:
+        return "reviewer"
+    elif state.developer_status == DeveloperStatus.BATCH_COMPLETE:
+        return "batch_approval"
+    elif state.developer_status == DeveloperStatus.BLOCKED:
+        return "blocker_resolution"
+    else:  # EXECUTING or default
+        return "developer"
 
 def create_orchestrator_graph(
     checkpoint_saver: BaseCheckpointSaver[Any] | None = None,
