@@ -229,9 +229,10 @@ class TestDeveloperFilesystemChecks:
 
     async def test_command_with_env_vars_validates_correctly(self):
         """Commands with environment variables should validate the actual executable."""
-        from amelia.agents.developer import Developer, ValidationResult
+        from unittest.mock import patch
+
+        from amelia.agents.developer import Developer
         from amelia.core.state import PlanStep
-        from unittest.mock import Mock, patch
 
         mock_driver = AsyncMock(spec=DriverInterface)
         developer = Developer(driver=mock_driver)
@@ -285,9 +286,10 @@ class TestDeveloperFilesystemChecks:
 
     async def test_command_with_env_vars_fails_when_executable_missing(self):
         """Commands with env vars should fail if the actual executable doesn't exist."""
+        from unittest.mock import patch
+
         from amelia.agents.developer import Developer
         from amelia.core.state import PlanStep
-        from unittest.mock import patch
 
         mock_driver = AsyncMock(spec=DriverInterface)
         developer = Developer(driver=mock_driver)
