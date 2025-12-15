@@ -156,7 +156,9 @@ For full documentation, visit **[anderskev.github.io/amelia](https://anderskev.g
 
 ## Current Status
 
-**What works:**
+> [!WARNING]
+> This is an experimental project. Set expectations accordingly.
+
 - Full orchestrator loop with human approval gates (CLI and web dashboard)
 - CLI driver (Claude CLI wrapper) with structured outputs, streaming, and agentic execution
 - Local code review with competitive strategy
@@ -164,32 +166,3 @@ For full documentation, visit **[anderskev.github.io/amelia](https://anderskev.g
 - Real tool execution in Developer agent (shell commands, file writes)
 - FastAPI server with SQLite persistence and WebSocket event streaming
 - Web dashboard with workflow visualization, real-time activity log, and approval controls
-
-**Limitations:**
-
-> [!WARNING]
-> This is an experimental project. Set expectations accordingly.
-
-**Web Dashboard (early access):**
-- Core pages implemented: Workflows (with canvas visualization), Workflow Detail, History
-- Logs page still shows "Coming soon" placeholder
-- Real-time updates via WebSocket with connection status indicator
-- Approval controls functional (approve/reject plans from browser)
-- Not yet battle-tested in production workflows
-
-**API Driver (OpenAI):**
-- No agentic execution support (structured mode only)
-- API key validation is incomplete
-- Less tested than CLI driver
-
-**Orchestrator:**
-- Failed tasks permanently block all dependent tasks (no retry or skip mechanism)
-- `RetryConfig` is defined but not actually used anywhere
-- Server crash recovery is a placeholder (interrupted workflows not recovered)
-- Workflow detail API missing token usage and event history
-
-**Not Implemented:**
-- Checkpoint resumption after interruption
-- Session continuity across runs
-- Task prioritization (all ready tasks treated equally)
-- Structured error categories or retry strategies
