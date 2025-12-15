@@ -198,3 +198,145 @@ async def test_get_batch_changed_files_with_deleted_file(git_repo: Path) -> None
 
     # Should include deleted file
     assert "file.txt" in changed
+
+
+async def test_revert_handles_filenames_with_shell_metacharacters(git_repo: Path) -> None:
+    """Test that filenames with shell metacharacters are properly escaped.
+
+    This test verifies protection against shell injection attacks.
+    Without proper escaping, a filename like "test; rm -rf /" could execute
+    arbitrary commands.
+    """
+    git_env = _get_isolated_git_env()
+
+    # Create a file with a dangerous filename that contains shell metacharacters
+    # Using semicolon which would allow command chaining in unescaped context
+    dangerous_name = "test; echo pwned > pwned.txt"
+    dangerous_file = git_repo / dangerous_name
+    dangerous_file.write_text("initial content")
+
+    # Commit the file
+    subprocess.run(
+        ["git", "add", dangerous_name],
+        cwd=git_repo,
+        check=True,
+        env=git_env,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Add file with dangerous name"],
+        cwd=git_repo,
+        check=True,
+        env=git_env,
+        capture_output=True,
+    )
+
+    # Take snapshot
+    snapshot = await take_git_snapshot(repo_path=git_repo)
+
+    # Modify the file
+    dangerous_file.write_text("modified content")
+
+    # Revert - this should properly escape the filename and NOT execute "echo pwned"
+    await revert_to_git_snapshot(snapshot, repo_path=git_repo)
+
+    # The file should be restored to original content
+    assert dangerous_file.read_text() == "initial content"
+
+    # Most importantly: the injected command should NOT have executed
+    # If shell injection occurred, "pwned.txt" would exist
+    assert not (git_repo / "pwned.txt").exists(), (
+        "Shell injection detected: command in filename was executed"
+    )
+
+
+async def test_get_batch_changed_files_handles_special_characters_in_filenames(
+    git_repo: Path,
+) -> None:
+    """Test that filenames with special characters are properly handled in diff.
+
+    This verifies that shell metacharacters in filenames don't cause
+    command injection when checking for changed files.
+    """
+    git_env = _get_isolated_git_env()
+
+    # Create files with various shell metacharacters
+    special_names = [
+        "file with spaces.txt",
+        "file;semicolon.txt",
+        "file&ampersand.txt",
+        "file|pipe.txt",
+        "file$(command).txt",
+        "file`backtick`.txt",
+    ]
+
+    for name in special_names:
+        file_path = git_repo / name
+        file_path.write_text("content")
+        subprocess.run(
+            ["git", "add", name],
+            cwd=git_repo,
+            check=True,
+            env=git_env,
+            capture_output=True,
+        )
+
+    subprocess.run(
+        ["git", "commit", "-m", "Add files with special names"],
+        cwd=git_repo,
+        check=True,
+        env=git_env,
+        capture_output=True,
+    )
+
+    # Take snapshot
+    snapshot = await take_git_snapshot(repo_path=git_repo)
+
+    # Modify one of the files
+    (git_repo / special_names[0]).write_text("modified")
+
+    # Get changed files - should not cause shell injection
+    changed = await get_batch_changed_files(snapshot, repo_path=git_repo)
+
+    # Should detect the changed file
+    assert special_names[0] in changed
+
+
+async def test_revert_handles_filenames_with_dollar_signs(git_repo: Path) -> None:
+    """Test that filenames with dollar signs (command substitution) are escaped.
+
+    Without proper escaping, $(...) or `...` in filenames could execute commands.
+    """
+    git_env = _get_isolated_git_env()
+
+    # Create file with command substitution syntax in name
+    dangerous_name = "file$(echo danger).txt"
+    dangerous_file = git_repo / dangerous_name
+    dangerous_file.write_text("original")
+
+    subprocess.run(
+        ["git", "add", dangerous_name],
+        cwd=git_repo,
+        check=True,
+        env=git_env,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "Add file with dollar sign"],
+        cwd=git_repo,
+        check=True,
+        env=git_env,
+        capture_output=True,
+    )
+
+    # Take snapshot
+    snapshot = await take_git_snapshot(repo_path=git_repo)
+
+    # Modify the file
+    dangerous_file.write_text("modified")
+
+    # Revert should properly escape the filename
+    await revert_to_git_snapshot(snapshot, repo_path=git_repo)
+
+    # File should be restored
+    assert dangerous_file.read_text() == "original"

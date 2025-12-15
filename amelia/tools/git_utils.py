@@ -7,6 +7,7 @@ Provides batch-level rollback capability for the intelligent execution model.
 """
 
 import asyncio
+import shlex
 from pathlib import Path
 
 from amelia.core.state import GitSnapshot
@@ -125,7 +126,7 @@ async def get_batch_changed_files(
     # Get all files that differ from the snapshot HEAD
     # This includes modified, added, and deleted files
     diff_output = await _run_git_command(
-        f"git diff --name-only {snapshot.head_commit}",
+        f"git diff --name-only {shlex.quote(snapshot.head_commit)}",
         repo_path,
         check=False,  # Don't fail if no changes
     )
@@ -185,13 +186,13 @@ async def revert_to_git_snapshot(
         # Check if file existed in snapshot commit
         try:
             await _run_git_command(
-                f"git cat-file -e {snapshot.head_commit}:{file}",
+                f"git cat-file -e {shlex.quote(snapshot.head_commit)}:{shlex.quote(file)}",
                 repo_path,
                 check=True,
             )
             # File existed - restore it
             await _run_git_command(
-                f"git checkout {snapshot.head_commit} -- {file}",
+                f"git checkout {shlex.quote(snapshot.head_commit)} -- {shlex.quote(file)}",
                 repo_path,
             )
         except RuntimeError:

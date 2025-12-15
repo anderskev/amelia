@@ -307,8 +307,21 @@ class Developer:
 
         # Command action checks
         if step.action_type == "command" and step.command:
-            # Extract first word (executable name) from command
-            executable = shlex.split(step.command)[0]
+            # Extract executable name from command, skipping environment variables
+            # Environment variables follow the pattern: KEY=VALUE
+            tokens = shlex.split(step.command)
+            executable = None
+            for token in tokens:
+                # Skip environment variable assignments (pattern: KEY=VALUE)
+                if not re.match(r'^\w+=', token):
+                    executable = token
+                    break
+
+            if executable is None:
+                return ValidationResult(
+                    ok=False,
+                    issue="No executable found in command",
+                )
 
             # Check if executable is available
             if not shutil.which(executable):

@@ -224,6 +224,89 @@ class TestDeveloperAgenticExecution:
         mock_driver.generate.assert_called_once()
 
 
+class TestDeveloperFilesystemChecks:
+    """Tests for Developer._filesystem_checks() command validation."""
+
+    async def test_command_with_env_vars_validates_correctly(self):
+        """Commands with environment variables should validate the actual executable."""
+        from amelia.agents.developer import Developer, ValidationResult
+        from amelia.core.state import PlanStep
+        from unittest.mock import Mock, patch
+
+        mock_driver = AsyncMock(spec=DriverInterface)
+        developer = Developer(driver=mock_driver)
+
+        # Test case 1: NODE_ENV=test npm test
+        step1 = PlanStep(
+            id="1",
+            description="Run tests with NODE_ENV",
+            action_type="command",
+            command="NODE_ENV=test npm test",
+            cwd="/tmp"
+        )
+
+        with patch('shutil.which') as mock_which:
+            # npm should exist, NODE_ENV=test should not
+            mock_which.side_effect = lambda cmd: "/usr/bin/npm" if cmd == "npm" else None
+            result1 = await developer._filesystem_checks(step1)
+            assert result1.ok is True
+            # Verify it checked npm, not NODE_ENV=test
+            mock_which.assert_called_with("npm")
+
+        # Test case 2: FOO=bar BAZ=qux python script.py
+        step2 = PlanStep(
+            id="2",
+            description="Run python script with env vars",
+            action_type="command",
+            command="FOO=bar BAZ=qux python script.py",
+            cwd="/tmp"
+        )
+
+        with patch('shutil.which') as mock_which:
+            mock_which.side_effect = lambda cmd: "/usr/bin/python" if cmd == "python" else None
+            result2 = await developer._filesystem_checks(step2)
+            assert result2.ok is True
+            mock_which.assert_called_with("python")
+
+        # Test case 3: Regular command without env vars should still work
+        step3 = PlanStep(
+            id="3",
+            description="Run pytest",
+            action_type="command",
+            command="pytest tests/",
+            cwd="/tmp"
+        )
+
+        with patch('shutil.which') as mock_which:
+            mock_which.side_effect = lambda cmd: "/usr/bin/pytest" if cmd == "pytest" else None
+            result3 = await developer._filesystem_checks(step3)
+            assert result3.ok is True
+            mock_which.assert_called_with("pytest")
+
+    async def test_command_with_env_vars_fails_when_executable_missing(self):
+        """Commands with env vars should fail if the actual executable doesn't exist."""
+        from amelia.agents.developer import Developer
+        from amelia.core.state import PlanStep
+        from unittest.mock import patch
+
+        mock_driver = AsyncMock(spec=DriverInterface)
+        developer = Developer(driver=mock_driver)
+
+        step = PlanStep(
+            id="1",
+            description="Run nonexistent command with env var",
+            action_type="command",
+            command="NODE_ENV=test nonexistent_cmd test",
+            cwd="/tmp"
+        )
+
+        with patch('shutil.which') as mock_which:
+            mock_which.return_value = None  # Command not found
+            result = await developer._filesystem_checks(step)
+            assert result.ok is False
+            assert "Command not found: nonexistent_cmd" in result.issue
+
+
 class TestDeveloperValidation:
     """Tests for execute_current_task validation."""
 
