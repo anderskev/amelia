@@ -290,7 +290,13 @@ class Developer:
         if step.action_type == "command" and step.command:
             # Extract executable name from command, skipping environment variables
             # Environment variables follow the pattern: KEY=VALUE
-            tokens = shlex.split(step.command)
+            try:
+                tokens = shlex.split(step.command)
+            except ValueError as e:
+                return ValidationResult(
+                    ok=False,
+                    issue=f"Invalid command syntax: {e}",
+                )
             executable = None
             for token in tokens:
                 # Skip environment variable assignments (pattern: KEY=VALUE)
@@ -411,13 +417,22 @@ class Developer:
 
             elif step.action_type == "command":
                 # Execute command, trying fallbacks if primary fails
-                commands_to_try = [step.command] + list(step.fallback_commands)
+                commands_to_try = [cmd for cmd in [step.command] + list(step.fallback_commands) if cmd]
+
+                if not commands_to_try:
+                    duration = time.time() - start_time
+                    return StepResult(
+                        step_id=step.id,
+                        status="failed",
+                        output=None,
+                        error="No command specified for command action",
+                        executed_command=None,
+                        duration_seconds=duration,
+                    )
+
                 last_error = None
 
                 for cmd in commands_to_try:
-                    if not cmd:
-                        continue
-
                     try:
                         output = await run_shell_command(cmd)
                         duration = time.time() - start_time
@@ -441,7 +456,7 @@ class Developer:
                     status="failed",
                     output=None,
                     error=last_error,
-                    executed_command=commands_to_try[-1] if commands_to_try else None,
+                    executed_command=commands_to_try[-1],
                     duration_seconds=duration,
                 )
 

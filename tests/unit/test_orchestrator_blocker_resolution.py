@@ -93,8 +93,11 @@ class TestBlockerResolutionNode:
             git_snapshot_before_batch=snapshot,
         )
 
-        with patch("amelia.core.orchestrator.revert_to_git_snapshot") as mock_revert:
-            mock_revert.return_value = AsyncMock()
+        with patch(
+            "amelia.core.orchestrator.revert_to_git_snapshot",
+            new_callable=AsyncMock,
+        ) as mock_revert:
+            mock_revert.return_value = None
 
             result = await blocker_resolution_node(state)
 
@@ -204,8 +207,11 @@ class TestBlockerResolutionNode:
             git_snapshot_before_batch=None,
         )
 
-        with patch("amelia.core.orchestrator.revert_to_git_snapshot") as mock_revert:
-            mock_revert.return_value = AsyncMock()
+        with patch(
+            "amelia.core.orchestrator.revert_to_git_snapshot",
+            new_callable=AsyncMock,
+        ) as mock_revert:
+            mock_revert.return_value = None
 
             result = await blocker_resolution_node(state)
 
@@ -217,3 +223,4 @@ class TestBlockerResolutionNode:
 
             # Should clear the blocker
             assert result.get("current_blocker") is None
+            assert result.get("blocker_resolution") is None

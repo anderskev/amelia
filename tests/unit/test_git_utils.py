@@ -91,6 +91,7 @@ async def test_take_git_snapshot_captures_head_and_dirty_files(git_repo: Path) -
 
     # Should capture dirty files (untracked and modified)
     # dirty_files is a tuple of filenames without status prefixes
+    assert "dirty1.txt" in snapshot.dirty_files
     assert "dirty2.txt" in snapshot.dirty_files
 
     # No stash should be created (we just track)

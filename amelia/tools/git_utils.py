@@ -88,16 +88,17 @@ async def take_git_snapshot(repo_path: Path | None = None) -> GitSnapshot:
     head_commit = await _run_git_command("git rev-parse HEAD", repo_path)
 
     # Get dirty files (both modified and untracked)
-    status_output = await _run_git_command("git status --porcelain", repo_path)
+    # Use -z for null-separated output to handle filenames with spaces/special chars
+    status_output = await _run_git_command("git status --porcelain -z", repo_path)
 
-    # Parse porcelain output - each line is: "XY filename"
+    # Parse null-separated output - each entry is: "XY filename\0"
     # where XY is status (M=modified, ??=untracked, etc.)
     dirty_files = []
     if status_output:
-        for line in status_output.split("\n"):
-            if line.strip():
+        for entry in status_output.split("\0"):
+            if entry:
                 # Extract filename (skip 3 chars: 2 for status + 1 for space)
-                filename = line[3:] if len(line) > 3 else line
+                filename = entry[3:] if len(entry) > 3 else entry
                 dirty_files.append(filename)
 
     return GitSnapshot(
