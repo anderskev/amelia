@@ -34,7 +34,7 @@ def merge_sets(left: set[str], right: set[str] | list[str]) -> set[str]:
     """LangGraph reducer for set union.
 
     Accepts both set and list for right because:
-    - Node returns pass sets in-memory
+    - Node returns provide sets in-memory
     - Initial state and checkpoint restore pass lists (JSON has no set type)
     """
     if isinstance(right, list):
