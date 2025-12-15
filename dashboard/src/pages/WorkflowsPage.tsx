@@ -21,7 +21,7 @@ import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { ActivityLog } from '@/components/ActivityLog';
 import { JobQueue } from '@/components/JobQueue';
 import { getActiveWorkflow } from '@/utils/workflow';
-import { useElapsedTime } from '@/hooks';
+import { useElapsedTime, useAutoRevalidation } from '@/hooks';
 import { buildPipeline } from '@/utils/pipeline';
 import type { workflowsLoader } from '@/loaders/workflows';
 
@@ -46,6 +46,9 @@ export default function WorkflowsPage() {
   const { workflows, detail } = useLoaderData<typeof workflowsLoader>();
   const navigate = useNavigate();
   const params = useParams<{ id?: string }>();
+
+  // Auto-revalidate when any workflow's status changes (approval events, completion, etc.)
+  useAutoRevalidation();
 
   // Determine which workflow is displayed
   const activeWorkflow = getActiveWorkflow(workflows);
