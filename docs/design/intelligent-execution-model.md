@@ -239,14 +239,15 @@ def get_cascade_skips(step_id: str, plan: ExecutionPlan, skip_reasons: dict[str,
     """
     skips = {step_id: skip_reasons.get(step_id, "skipped by user")}
 
-    for batch in plan.batches:
-        for step in batch.steps:
-            if any(dep in skips for dep in step.depends_on):
-                skips[step.id] = f"dependency {step.depends_on[0]} was skipped"
-
-    # Recurse until no new skips found
-    if len(skips) > len(skip_reasons):
-        return get_cascade_skips(step_id, plan, skips)
+    # Iterate until no new skips found (avoids recursion issues)
+    changed = True
+    while changed:
+        changed = False
+        for batch in plan.batches:
+            for step in batch.steps:
+                if step.id not in skips and any(dep in skips for dep in step.depends_on):
+                    skips[step.id] = f"dependency {step.depends_on[0]} was skipped"
+                    changed = True
 
     return skips
 ```
