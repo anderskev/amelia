@@ -15,7 +15,6 @@ from pytest import TempPathFactory
 from typer.testing import CliRunner
 
 from amelia.agents.reviewer import ReviewResponse
-from amelia.core.context import CompiledContext, ContextSection
 from amelia.core.state import ExecutionState, ReviewResult, Severity, Task, TaskDAG, TaskStatus
 from amelia.core.types import (
     Design,
@@ -29,7 +28,6 @@ from amelia.core.types import (
     TrackerType,
 )
 from amelia.drivers.base import DriverInterface
-from amelia.trackers.noop import NoopTracker
 
 
 class AsyncIteratorMock:
@@ -78,15 +76,6 @@ def mock_issue_factory() -> Callable[..., Issue]:
 
 
 @pytest.fixture
-def mock_issue_proj_123(mock_issue_factory: Callable[..., Issue]) -> Issue:
-    return mock_issue_factory(
-        id="PROJ-123",
-        title="Implement user authentication feature",
-        description="As a user, I want to log in and out securely. This involves creating a login endpoint, a user model, and integrating with an authentication system. Requires email/password fields.",
-        status="open"
-    )
-
-@pytest.fixture
 def mock_profile_factory(tmp_path_factory: TempPathFactory) -> Callable[..., Profile]:
     """Factory fixture for creating test Profile instances with presets.
 
@@ -116,16 +105,6 @@ def mock_profile_factory(tmp_path_factory: TempPathFactory) -> Callable[..., Pro
             return Profile(name="test_comp", driver="api:openai", tracker="noop", strategy="competitive", **kwargs)
         return Profile(name=name, driver=driver, tracker=tracker, strategy=strategy, **kwargs)
     return _create
-
-
-@pytest.fixture
-def mock_profile_work(mock_profile_factory: Callable[..., Profile]) -> Profile:
-    return mock_profile_factory(name="work", driver="cli:claude", tracker="jira", strategy="single")
-
-
-@pytest.fixture
-def mock_profile_home(mock_profile_factory: Callable[..., Profile]) -> Profile:
-    return mock_profile_factory(name="home", driver="api:openai", tracker="github", strategy="competitive")
 
 
 @pytest.fixture
@@ -207,10 +186,6 @@ def mock_execution_state_factory(mock_profile_factory: Callable[..., Profile], m
         )
     return _create
 
-
-@pytest.fixture
-def mock_noop_tracker() -> NoopTracker:
-    return NoopTracker()
 
 @pytest.fixture
 def mock_driver() -> MagicMock:
@@ -409,53 +384,6 @@ def git_repo_with_changes(tmp_path: Path) -> Path:
 def cli_runner() -> CliRunner:
     """Typer CLI test runner for command testing."""
     return CliRunner()
-
-
-@pytest.fixture
-def section_helper() -> Any:
-    """Helper for extracting and validating context sections.
-
-    Provides utility methods for working with CompiledContext sections:
-    - get(context, name): Extract a section by name, returns None if not found
-    - get_names(context): Get set of all section names
-    - assert_has(context, *names): Assert context has all specified sections
-    - assert_missing(context, *names): Assert context doesn't have specified sections
-
-    Example usage:
-        def test_example(section_helper):
-            context = strategy.compile(state)
-            task_section = section_helper.get(context, "task")
-            assert task_section is not None
-
-            section_helper.assert_has(context, "task", "files")
-            section_helper.assert_missing(context, "issue")
-    """
-    class SectionHelper:
-        @staticmethod
-        def get(context: CompiledContext, name: str) -> ContextSection | None:
-            """Get section by name, returns None if not found."""
-            return next((s for s in context.sections if s.name == name), None)
-
-        @staticmethod
-        def get_names(context: CompiledContext) -> set[str]:
-            """Get set of all section names."""
-            return {s.name for s in context.sections}
-
-        @staticmethod
-        def assert_has(context: CompiledContext, *names: str) -> None:
-            """Assert context has all specified sections."""
-            actual = {s.name for s in context.sections}
-            for name in names:
-                assert name in actual, f"Expected section '{name}' not found. Available: {actual}"
-
-        @staticmethod
-        def assert_missing(context: CompiledContext, *names: str) -> None:
-            """Assert context doesn't have specified sections."""
-            actual = {s.name for s in context.sections}
-            for name in names:
-                assert name not in actual, f"Section '{name}' should not be present. Found: {actual}"
-
-    return SectionHelper()
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ import shutil
 import time
 from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import typer
 from loguru import logger
@@ -30,17 +30,12 @@ from amelia.core.state import (
     StepResult,
     Task,
 )
-from amelia.core.types import DeveloperStatus, StreamEmitter
+from amelia.core.types import DeveloperStatus, ExecutionMode, StreamEmitter
 from amelia.core.utils import strip_ansi
 from amelia.drivers.base import DriverInterface
 from amelia.drivers.cli.claude import convert_to_stream_event
 from amelia.tools.git_utils import take_git_snapshot
 from amelia.tools.shell_executor import run_shell_command, write_file
-
-
-# Legacy status for execute_current_task (to be deprecated)
-LegacyDeveloperStatus = Literal["completed", "failed", "in_progress"]
-ExecutionMode = Literal["structured", "agentic"]
 
 
 def validate_command_result(
@@ -140,20 +135,6 @@ class ValidationResult(BaseModel):
     issue: str | None = None
     attempted: tuple[str, ...] = ()
     suggestions: tuple[str, ...] = ()
-
-
-class DeveloperResponse(BaseModel):
-    """Schema for Developer agent's task execution output.
-
-    Attributes:
-        status: Execution status (completed, failed, or in_progress).
-        output: Human-readable description of what was accomplished.
-        error: Error message if status is failed, None otherwise.
-    """
-
-    status: DeveloperStatus
-    output: str
-    error: str | None = None
 
 
 class DeveloperContextStrategy(ContextStrategy):
