@@ -5,6 +5,7 @@ This document provides a technical deep dive into Amelia's architecture, compone
 ## System Overview
 
 ```mermaid
+%%{init: { "theme": "base", "themeVariables": { "primaryColor": "#1F332E", "primaryTextColor": "#EFF8E2", "primaryBorderColor": "#FFC857", "lineColor": "#5B9BD5", "fontFamily": "Source Sans 3, sans-serif" }}}%%
 flowchart TB
     subgraph CLI["CLI Commands"]
         start[start]
@@ -15,6 +16,7 @@ flowchart TB
         server[server]
         plan[plan-only]
         review[review]
+        dev[dev]
     end
 
     subgraph Client["Client Layer"]
@@ -30,28 +32,37 @@ flowchart TB
 
     subgraph Database["Database"]
         sqlite[(SQLite)]
-        workflows[workflows]
-        events[events]
-        tokens[token_usage]
     end
 
     subgraph Dashboard["Dashboard"]
         react[React UI]
+        subgraph FlowViz["Flow Visualization"]
+            batchnode[BatchNode]
+            stepnode[StepNode]
+            checkpoint[CheckpointMarker]
+        end
     end
 
     subgraph Trackers["Trackers"]
         jira[Jira]
         github[GitHub]
-        noop[NoOp]
     end
 
-    subgraph Core["Orchestrator"]
-        orch[LangGraph]
+    subgraph Core["LangGraph Orchestrator"]
+        orch[StateGraph]
+        subgraph Nodes["Graph Nodes"]
+            architect_n[architect_node]
+            approval_n[human_approval_node]
+            developer_n[developer_node]
+            batch_n[batch_approval_node]
+            blocker_n[blocker_resolution_node]
+            reviewer_n[reviewer_node]
+        end
     end
 
     subgraph Agents["Agents"]
         arch[Architect]
-        dev[Developer]
+        developer[Developer]
         rev[Reviewer]
     end
 
@@ -63,6 +74,7 @@ flowchart TB
     subgraph Tools["Tools"]
         shell[SafeShell]
         file[SafeFile]
+        gitsnapshot[GitSnapshot]
     end
 
     CLI --> Client
@@ -73,31 +85,38 @@ flowchart TB
     Server -->|Events| websocket
     websocket --> Dashboard
     orch --> Trackers
-    orch --> arch & dev & rev
-    arch & dev & rev --> Drivers
+    orch --> Nodes
+    architect_n --> arch
+    developer_n --> developer
+    reviewer_n --> rev
+    arch & developer & rev --> Drivers
     Drivers --> Tools
 
-    classDef cliStyle fill:#e3f2fd,stroke:#1976d2
-    classDef clientStyle fill:#e1f5fe,stroke:#0288d1
-    classDef serverStyle fill:#f3e5f5,stroke:#7b1fa2
-    classDef dbStyle fill:#fafafa,stroke:#616161
-    classDef dashStyle fill:#fff8e1,stroke:#ffa000
-    classDef coreStyle fill:#f3e5f5,stroke:#7b1fa2
-    classDef agentStyle fill:#e8f5e9,stroke:#388e3c
-    classDef driverStyle fill:#fff3e0,stroke:#f57c00
-    classDef trackerStyle fill:#fce4ec,stroke:#c2185b
-    classDef toolStyle fill:#eceff1,stroke:#546e7a
+    classDef cliStyle fill:#1F332E,stroke:#FFC857,color:#EFF8E2
+    classDef clientStyle fill:#1F332E,stroke:#5B9BD5,color:#EFF8E2
+    classDef serverStyle fill:#1F332E,stroke:#5B8A72,color:#EFF8E2
+    classDef dbStyle fill:#0D1A12,stroke:#5B9BD5,color:#EFF8E2
+    classDef dashStyle fill:#1F332E,stroke:#FFC857,color:#EFF8E2
+    classDef coreStyle fill:#2B3D35,stroke:#FFC857,color:#EFF8E2
+    classDef nodeStyle fill:#2B3D35,stroke:#5B8A72,color:#EFF8E2
+    classDef agentStyle fill:#5B8A72,stroke:#4A7260,color:#EFF8E2
+    classDef driverStyle fill:#FFC857,stroke:#E5B350,color:#0D1A12
+    classDef trackerStyle fill:#2B3D35,stroke:#5B9BD5,color:#EFF8E2
+    classDef toolStyle fill:#2B3D35,stroke:#4A5C54,color:#EFF8E2
+    classDef flowStyle fill:#1F332E,stroke:#5B8A72,color:#EFF8E2
 
-    class start,approve,reject,status,cancel,server,plan,review cliStyle
+    class start,approve,reject,status,cancel,server,plan,review,dev cliStyle
     class apiclient,gitctx clientStyle
     class fastapi,websocket,orchsvc serverStyle
-    class sqlite,workflows,events,tokens dbStyle
+    class sqlite dbStyle
     class react dashStyle
+    class batchnode,stepnode,checkpoint flowStyle
     class orch coreStyle
-    class arch,dev,rev agentStyle
+    class architect_n,approval_n,developer_n,batch_n,blocker_n,reviewer_n nodeStyle
+    class arch,developer,rev agentStyle
     class api,claude driverStyle
-    class jira,github,noop trackerStyle
-    class shell,file toolStyle
+    class jira,github trackerStyle
+    class shell,file,gitsnapshot toolStyle
 ```
 
 ## Component Breakdown
@@ -107,7 +126,7 @@ flowchart TB
 | **Core** | `amelia/core/` | LangGraph orchestrator, state management, shared types | `ExecutionState`, `TaskDAG`, `Profile`, `Issue` |
 | **Agents** | `amelia/agents/` | Specialized AI agents for planning, execution, and review | `Architect`, `Developer`, `Reviewer` |
 | **Drivers** | `amelia/drivers/` | LLM abstraction supporting API and CLI backends | `DriverInterface`, `DriverFactory` |
-| **Trackers** | `amelia/trackers/` | Issue source abstraction for different platforms | `BaseTracker` (Jira, GitHub, NoOp) |
+| **Trackers** | `amelia/trackers/` | Issue source abstraction for different platforms | `BaseTracker` (Jira, GitHub) |
 | **Tools** | `amelia/tools/` | Secure command and file operations with 4-layer security | `SafeShellExecutor`, `SafeFileWriter` |
 | **Client** | `amelia/client/` | CLI commands and REST client for server communication | `AmeliaClient`, Typer commands |
 | **Server** | `amelia/server/` | FastAPI backend with WebSocket events, SQLite persistence | `OrchestratorService`, `EventBus`, `WorkflowRepository` |
@@ -271,7 +290,7 @@ state.review_results.append(review_result)
 
 ## Sequence Diagram
 
-### Server-Based Architecture
+### Server-Based Architecture with Batch Checkpoints
 
 ```mermaid
 sequenceDiagram
@@ -284,7 +303,9 @@ sequenceDiagram
     participant WS as WebSocket
     participant Dashboard
     participant Orchestrator as LangGraph
-    participant Agents as Architect/Developer/Reviewer
+    participant Architect
+    participant Developer
+    participant Reviewer
     participant Driver
     participant LLM
 
@@ -301,48 +322,69 @@ sequenceDiagram
     Note over Service,Orchestrator: Background execution begins
 
     Service->>Orchestrator: ainvoke(initial_state)
-    Orchestrator->>Agents: Architect.plan(issue)
-    Agents->>Driver: generate(messages, schema)
+    Orchestrator->>Architect: plan(issue)
+    Architect->>Driver: generate(messages, schema)
     Driver->>LLM: API call
-    LLM-->>Driver: TaskDAG JSON
-    Driver-->>Agents: parsed TaskDAG
-    Agents-->>Orchestrator: TaskDAG
+    LLM-->>Driver: ExecutionPlan JSON
+    Driver-->>Architect: parsed ExecutionPlan
+    Architect-->>Orchestrator: ExecutionPlan with batches
 
-    Orchestrator->>Service: emit(APPROVAL_REQUIRED)
-    Service->>DB: INSERT event
-    Service->>WS: broadcast(event)
-    WS->>Dashboard: event update
+    Orchestrator->>Orchestrator: interrupt before human_approval_node
+    Service->>WS: emit(APPROVAL_REQUIRED)
+    WS->>Dashboard: Plan displayed
 
-    Note over User,Dashboard: Plan displayed in dashboard
-
-    User->>CLI: amelia approve
-    CLI->>Client: approve_workflow(id)
-    Client->>Server: POST /api/workflows/{id}/approve
+    User->>Dashboard: Approve plan
+    Dashboard->>Server: POST /api/workflows/{id}/approve
     Server->>Service: approve_workflow()
     Service->>Orchestrator: resume with approval
 
-    loop Until all tasks complete
-        Orchestrator->>Agents: Developer.execute_task(task)
-        Agents->>Driver: execute_tool() or execute_agentic()
-        Driver-->>Agents: result
-        Agents-->>Orchestrator: task completed
-        Orchestrator->>Service: emit(STAGE_COMPLETED)
-        Service->>WS: broadcast(event)
+    loop For each batch
+        Orchestrator->>Developer: run(state) - execute batch
+        Developer->>Driver: execute steps
+        Driver->>LLM: Execute step
+        LLM-->>Driver: Step result
+        Driver-->>Developer: BatchResult
+
+        alt Step blocked
+            Developer-->>Orchestrator: status: BLOCKED
+            Orchestrator->>Orchestrator: interrupt before blocker_resolution_node
+            Service->>WS: emit(SYSTEM_ERROR - blocker)
+            WS->>Dashboard: Show blocker
+            User->>Dashboard: Choose resolution (skip/fix/abort)
+            Dashboard->>Server: POST /api/workflows/{id}/blocker/resolve
+            alt Abort
+                Orchestrator->>Orchestrator: END
+            else Skip or Fix
+                Service->>Orchestrator: resume
+                Orchestrator->>Developer: continue with resolution
+            end
+        else Batch complete
+            Developer-->>Orchestrator: status: BATCH_COMPLETE
+
+            alt Checkpoint required (trust level)
+                Orchestrator->>Orchestrator: interrupt before batch_approval_node
+                Service->>WS: emit(APPROVAL_REQUIRED - batch)
+                WS->>Dashboard: Show batch results
+                User->>Dashboard: Approve batch
+                Dashboard->>Server: POST /api/workflows/{id}/batches/{n}/approve
+                Service->>Orchestrator: resume
+            end
+        end
     end
 
-    Orchestrator->>Agents: Reviewer.review(state, changes)
-    Agents->>Driver: generate(messages, schema)
+    Developer-->>Orchestrator: status: ALL_DONE
+    Orchestrator->>Reviewer: review(state, changes)
+    Reviewer->>Driver: generate(messages, schema)
     Driver->>LLM: API call
     LLM-->>Driver: ReviewResponse JSON
-    Driver-->>Agents: ReviewResult
-    Agents-->>Orchestrator: ReviewResult
+    Driver-->>Reviewer: ReviewResult
+    Reviewer-->>Orchestrator: ReviewResult
 
     alt Not Approved
-        Orchestrator->>Agents: Developer (loop back for fixes)
+        Orchestrator->>Developer: loop back for fixes
     else Approved
-        Orchestrator->>Service: emit(WORKFLOW_COMPLETED)
-        Service->>DB: UPDATE workflow status
-        Service->>WS: broadcast(event)
+        Orchestrator->>Orchestrator: END
+        Service->>WS: emit(WORKFLOW_COMPLETED)
         WS->>Dashboard: Complete
     end
 ```
@@ -357,12 +399,35 @@ sequenceDiagram
 class Profile(BaseModel):
     name: str
     driver: DriverType                             # "api:openai" | "cli:claude" | "cli" | "api"
-    tracker: TrackerType = "none"                  # "jira" | "github" | "none" | "noop"
+    tracker: TrackerType = "none"                  # "jira" | "github" | "none"
     strategy: StrategyType = "single"              # "single" | "competitive"
     execution_mode: ExecutionMode = "structured"   # "structured" | "agentic"
     plan_output_dir: str = "docs/plans"
     working_dir: str | None = None
     retry: RetryConfig = Field(default_factory=RetryConfig)
+    trust_level: TrustLevel = TrustLevel.STANDARD  # NEW: "paranoid" | "standard" | "autonomous"
+    batch_checkpoint_enabled: bool = True          # NEW: Enable/disable batch checkpoints
+```
+
+#### TrustLevel
+
+```python
+class TrustLevel(StrEnum):
+    """How much autonomy the Developer gets."""
+    PARANOID = "paranoid"    # Approve every batch
+    STANDARD = "standard"    # Approve batches (default)
+    AUTONOMOUS = "autonomous" # Auto-approve low/medium, stop only for high-risk
+```
+
+#### DeveloperStatus
+
+```python
+class DeveloperStatus(StrEnum):
+    """Developer agent execution status."""
+    EXECUTING = "executing"       # Actively executing batch
+    BATCH_COMPLETE = "batch_complete"  # Batch done, ready for checkpoint
+    BLOCKED = "blocked"           # Blocked, needs human intervention
+    ALL_DONE = "all_done"         # All batches completed
 ```
 
 #### RetryConfig
@@ -421,51 +486,111 @@ class Design(BaseModel):
 
 ### Task Types
 
-#### TaskStep
+#### PlanStep
 
 ```python
-class TaskStep(BaseModel):
-    description: str
-    code: str | None = None          # Code to write
-    command: str | None = None       # Shell command to run
-    expected_output: str | None = None
-```
+class PlanStep(BaseModel):
+    """Atomic unit of work (frozen, immutable)."""
+    model_config = ConfigDict(frozen=True)
 
-#### FileOperation
-
-```python
-class FileOperation(BaseModel):
-    operation: Literal["create", "modify", "test"]
-    path: str
-    line_range: str | None = None
-```
-
-#### Task
-
-```python
-class Task(BaseModel):
     id: str
     description: str
-    status: TaskStatus = "pending"   # "pending" | "in_progress" | "completed" | "failed"
-    dependencies: list[str] = Field(default_factory=list)
-    files: list[FileOperation] = Field(default_factory=list)
-    steps: list[TaskStep] = Field(default_factory=list)
-    commit_message: str | None = None
+    action_type: ActionType  # "code" | "command" | "validation" | "manual"
+    file_path: str | None = None
+    code_change: str | None = None
+    command: str | None = None
+    cwd: str | None = None
+    fallback_commands: tuple[str, ...] = ()
+    expect_exit_code: int = 0
+    expected_output_pattern: str | None = None
+    validation_command: str | None = None
+    risk_level: RiskLevel = "medium"  # "low" | "medium" | "high"
+    estimated_minutes: int = 2
+    requires_human_judgment: bool = False
+    depends_on: tuple[str, ...] = ()
+    is_test_step: bool = False
+    validates_step: str | None = None
 ```
 
-#### TaskDAG
+#### ExecutionBatch
 
 ```python
-class TaskDAG(BaseModel):
-    tasks: list[Task]
-    original_issue: str
+class ExecutionBatch(BaseModel):
+    """Group of steps executed before checkpoint (frozen)."""
+    model_config = ConfigDict(frozen=True)
 
-    @field_validator("tasks")
-    def validate_task_graph(cls, tasks):
-        # Validates dependencies exist and detects cycles
+    batch_number: int
+    steps: tuple[PlanStep, ...]
+    risk_summary: RiskLevel  # "low" | "medium" | "high"
+    description: str = ""
+```
 
-    def get_ready_tasks(self) -> list[Task]:
-        # Returns pending tasks with all dependencies completed
+#### ExecutionPlan
+
+```python
+class ExecutionPlan(BaseModel):
+    """Complete plan with batches (frozen)."""
+    model_config = ConfigDict(frozen=True)
+
+    goal: str
+    batches: tuple[ExecutionBatch, ...]
+    total_estimated_minutes: int
+    tdd_approach: bool = True
+```
+
+### Blocker & Result Types
+
+#### BlockerReport
+
+```python
+class BlockerReport(BaseModel):
+    """Captured when execution blocks (frozen)."""
+    model_config = ConfigDict(frozen=True)
+
+    step_id: str
+    step_description: str
+    blocker_type: BlockerType  # command_failed | validation_failed | needs_judgment | ...
+    error_message: str
+    attempted_actions: tuple[str, ...]
+    suggested_resolutions: tuple[str, ...]
+```
+
+#### BatchResult
+
+```python
+class BatchResult(BaseModel):
+    """Result of batch execution (frozen)."""
+    model_config = ConfigDict(frozen=True)
+
+    batch_number: int
+    status: BatchStatus  # "complete" | "blocked" | "partial"
+    completed_steps: tuple[StepResult, ...]
+    blocker: BlockerReport | None = None
+```
+
+#### BatchApproval
+
+```python
+class BatchApproval(BaseModel):
+    """Human approval decision for a batch (frozen)."""
+    model_config = ConfigDict(frozen=True)
+
+    batch_number: int
+    approved: bool
+    feedback: str | None = None
+    approved_at: datetime
+```
+
+#### GitSnapshot
+
+```python
+class GitSnapshot(BaseModel):
+    """Git state before batch for revert capability (frozen)."""
+    model_config = ConfigDict(frozen=True)
+
+    head_commit: str
+    dirty_files: tuple[str, ...] = ()
+    stash_ref: str | None = None
 ```
 
 ### State Types
@@ -476,14 +601,23 @@ class TaskDAG(BaseModel):
 class ExecutionState(BaseModel):
     profile: Profile
     issue: Issue | None = None
-    plan: TaskDAG | None = None
-    current_task_id: str | None = None
+    design: Design | None = None
+    execution_plan: ExecutionPlan | None = None      # NEW: Batched execution plan
+    current_batch_index: int = 0                     # NEW: Current batch (0-based)
+    batch_results: Annotated[list[BatchResult], operator.add] = []  # NEW: Completed batches
+    developer_status: DeveloperStatus = DeveloperStatus.EXECUTING   # NEW: Agent status
+    current_blocker: BlockerReport | None = None     # NEW: Active blocker
+    blocker_resolution: str | None = None            # NEW: Human's resolution
+    batch_approvals: Annotated[list[BatchApproval], operator.add] = []  # NEW: Approval history
+    skipped_step_ids: Annotated[set[str], merge_sets] = set()  # NEW: Skipped steps
+    git_snapshot_before_batch: GitSnapshot | None = None  # NEW: For revert
     human_approved: bool | None = None
-    review_results: list[ReviewResult] = Field(default_factory=list)
-    messages: list[AgentMessage] = Field(default_factory=list)
+    human_feedback: str | None = None
+    last_review: ReviewResult | None = None
     code_changes_for_review: str | None = None
-    claude_session_id: str | None = None           # For CLI driver session resumption
-    workflow_status: Literal["running", "completed", "failed"] = "running"
+    driver_session_id: str | None = None
+    workflow_status: Literal["running", "completed", "failed", "aborted"] = "running"
+    plan_only: bool = False                          # NEW: Stop after planning
 ```
 
 #### ReviewResult
@@ -567,10 +701,54 @@ The LangGraph state machine consists of these nodes:
 
 | Node | Function | Next |
 |------|----------|------|
-| `architect_node` | Calls `Architect.plan()` | `human_approval_node` |
-| `human_approval_node` | Prompts user via typer | Developer (approved) or END (rejected) |
-| `developer_node` | Calls `Developer.execute_task()` for ready tasks | Loop (pending tasks) or `reviewer_node` (all complete) |
+| `architect_node` | Calls `Architect.plan()` to generate `ExecutionPlan` with batches | `human_approval_node` |
+| `human_approval_node` | Plan approval gate (LangGraph interrupt) | `developer_node` (approved) or END (rejected) |
+| `developer_node` | Executes current batch via `Developer.run()` | `batch_approval_node` (checkpoint), `blocker_resolution_node` (blocked), or `reviewer_node` (all done) |
+| `batch_approval_node` | Batch checkpoint gate (trust-level dependent) | `developer_node` (approved) or END (rejected) |
+| `blocker_resolution_node` | Handles blocked execution (skip/fix/abort) | `developer_node` (skip/fix) or END (abort) |
 | `reviewer_node` | Calls `Reviewer.review()` | `developer_node` (not approved) or END (approved) |
+
+### Orchestrator Flow
+
+```mermaid
+%%{init: { "theme": "base", "themeVariables": { "primaryColor": "#1F332E", "primaryTextColor": "#EFF8E2", "primaryBorderColor": "#FFC857", "lineColor": "#5B9BD5", "fontFamily": "Source Sans 3, sans-serif" }}}%%
+flowchart LR
+    Start([Issue]) --> Architect[Architect<br/>Plan Generation]
+    Architect --> HumanApproval{Human<br/>Approval}
+
+    HumanApproval -->|Rejected| End1([Cancelled])
+    HumanApproval -->|Approved| Developer[Developer<br/>Execute Batch]
+
+    Developer --> StatusCheck{Developer<br/>Status?}
+
+    StatusCheck -->|BATCH_COMPLETE| CheckpointCheck{Checkpoint<br/>Required?}
+    CheckpointCheck -->|Yes| BatchApproval{Batch<br/>Approval}
+    CheckpointCheck -->|No| Developer
+    BatchApproval -->|Approved| Developer
+    BatchApproval -->|Rejected| End2([Cancelled])
+
+    StatusCheck -->|BLOCKED| BlockerRes[Blocker<br/>Resolution]
+    BlockerRes -->|Skip/Fix| Developer
+    BlockerRes -->|Abort| End3([Aborted])
+
+    StatusCheck -->|ALL_DONE| Reviewer[Reviewer<br/>Code Review]
+
+    Reviewer --> ReviewCheck{Approved?}
+    ReviewCheck -->|No| Developer
+    ReviewCheck -->|Yes| Done([Completed])
+
+    classDef startEnd fill:#5B8A72,stroke:#FFC857,color:#EFF8E2,stroke-width:3px
+    classDef agent fill:#5B8A72,stroke:#4A7260,color:#EFF8E2,stroke-width:2px
+    classDef gate fill:#FFC857,stroke:#E5B350,color:#0D1A12,stroke-width:3px
+    classDef blocker fill:#A33D2E,stroke:#8B3224,color:#EFF8E2,stroke-width:2px
+    classDef cancelled fill:#2B3D35,stroke:#A33D2E,color:#EFF8E2,stroke-width:2px
+
+    class Start,Done startEnd
+    class Architect,Developer,Reviewer agent
+    class HumanApproval,BatchApproval,StatusCheck,CheckpointCheck,ReviewCheck gate
+    class BlockerRes blocker
+    class End1,End2,End3 cancelled
+```
 
 ## Conditional Edges
 
@@ -581,11 +759,31 @@ def route_after_approval(state):
         return "developer_node"
     return END
 
-# From developer_node
+# From developer_node (batch execution model)
 def route_after_developer(state):
-    if has_pending_tasks(state.plan):
-        return "developer_node"  # Loop
-    return "reviewer_node"
+    match state.developer_status:
+        case DeveloperStatus.EXECUTING:
+            return "developer_node"  # Continue current batch
+        case DeveloperStatus.BATCH_COMPLETE:
+            if should_checkpoint(state):
+                return "batch_approval_node"
+            return "developer_node"  # Skip checkpoint, next batch
+        case DeveloperStatus.BLOCKED:
+            return "blocker_resolution_node"
+        case DeveloperStatus.ALL_DONE:
+            return "reviewer_node"
+
+# From batch_approval_node
+def route_batch_approval(state):
+    if state.human_approved:
+        return "developer_node"  # Next batch
+    return END  # Rejected
+
+# From blocker_resolution_node
+def route_blocker_resolution(state):
+    if state.blocker_resolution in ("abort", "abort_revert"):
+        return END
+    return "developer_node"  # Skip or fix
 
 # From reviewer_node
 def route_after_review(state):
@@ -737,6 +935,95 @@ The `LogRetentionService` runs during graceful shutdown:
 - Deletes events older than `AMELIA_LOG_RETENTION_DAYS` (default: 30)
 - Enforces `AMELIA_LOG_RETENTION_MAX_EVENTS` per workflow (default: 100,000)
 
+## API Endpoints
+
+### Workflow Management
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/workflows` | Create new workflow |
+| GET | `/api/workflows` | List workflows (with filtering) |
+| GET | `/api/workflows/active` | List active workflows |
+| GET | `/api/workflows/{id}` | Get workflow details |
+| POST | `/api/workflows/{id}/approve` | Approve plan |
+| POST | `/api/workflows/{id}/reject` | Reject plan |
+| POST | `/api/workflows/{id}/cancel` | Cancel workflow |
+
+### Batch Execution (New)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/workflows/{id}/batches/{n}/approve` | Approve completed batch |
+| POST | `/api/workflows/{id}/blocker/resolve` | Resolve execution blocker |
+
+### Request Models
+
+#### CreateWorkflowRequest
+```python
+class CreateWorkflowRequest(BaseModel):
+    issue_id: str
+    worktree_path: str
+    worktree_name: str | None = None
+    profile: str | None = None
+    plan_only: bool = False  # NEW: Stop after planning
+```
+
+#### BlockerResolutionRequest
+```python
+class BlockerResolutionRequest(BaseModel):
+    action: Literal["skip", "retry", "abort", "abort_revert", "fix"]
+    feedback: str | None = None  # Fix instructions if action="fix"
+```
+
+### Response Models
+
+#### WorkflowDetailResponse (Enhanced)
+```python
+class WorkflowDetailResponse(BaseModel):
+    id: str
+    issue_id: str
+    worktree_path: str
+    status: str
+    started_at: datetime | None
+    completed_at: datetime | None
+    # Batch execution fields (NEW)
+    execution_plan: dict | None = None
+    current_batch_index: int = 0
+    batch_results: list[dict] = []
+    developer_status: str | None = None
+    current_blocker: dict | None = None
+    batch_approvals: list[dict] = []
+```
+
+### Error Codes
+
+| Code | Exception | Description |
+|------|-----------|-------------|
+| 400 | `InvalidWorktreeError` | Invalid worktree path |
+| 404 | `WorkflowNotFoundError` | Workflow not found |
+| 409 | `WorkflowConflictError` | Workflow already active for worktree |
+| 422 | `InvalidStateError` | Workflow not in correct state for action |
+| 429 | `ConcurrencyLimitError` | Max concurrent workflows reached |
+
+### WebSocket Events
+
+Connect to `/ws/events/{workflow_id}` for real-time updates:
+
+```typescript
+// Event types
+type EventType =
+  | "workflow_started"
+  | "workflow_completed"
+  | "workflow_failed"
+  | "workflow_cancelled"
+  | "stage_started"
+  | "stage_completed"
+  | "approval_required"
+  | "approval_granted"
+  | "approval_rejected"
+  | "system_error";  // Includes blocker notifications
+```
+
 ## Key Design Decisions
 
 ### Why the Driver Abstraction?
@@ -842,13 +1129,13 @@ amelia/
 │   ├── base.py               # BaseTracker protocol
 │   ├── factory.py            # create_tracker()
 │   ├── github.py             # GitHub via gh CLI
-│   ├── jira.py               # Jira REST API
-│   └── noop.py               # Placeholder tracker
+│   └── jira.py               # Jira REST API
 ├── tools/
 │   ├── __init__.py
 │   ├── safe_file.py          # SafeFileWriter with path traversal protection
 │   ├── safe_shell.py         # SafeShellExecutor with 4-layer security
-│   └── shell_executor.py     # Backward-compat wrappers
+│   ├── shell_executor.py     # Backward-compat wrappers
+│   └── git_snapshot.py       # GitSnapshot for batch revert capability
 ├── utils/
 │   ├── __init__.py
 │   └── design_parser.py      # LLM-powered Design document parser
@@ -861,7 +1148,14 @@ dashboard/                    # React + TypeScript frontend
 ├── src/
 │   ├── api/
 │   │   └── client.ts         # TypeScript API client
-│   ├── components/           # React components
+│   ├── components/
+│   │   ├── flow/
+│   │   │   ├── BatchNode.tsx       # Batch container node for React Flow
+│   │   │   ├── StepNode.tsx        # Individual step node
+│   │   │   └── CheckpointMarker.tsx # Checkpoint approval marker
+│   │   ├── BatchStepCanvas.tsx     # React Flow visualization of execution plan
+│   │   ├── BlockerResolutionDialog.tsx  # Blocker resolution UI
+│   │   └── AgentProgressBar.tsx    # Agent stage progress indicator
 │   ├── hooks/                # Custom React hooks
 │   ├── pages/                # Route pages
 │   └── stores/               # Zustand state stores
