@@ -1,6 +1,6 @@
 # Architecture & Data Flow
 
-This document provides a technical deep dive into Amelia's architecture, component interactions, and data flow.
+This document provides a technical overview of Amelia's architecture, component interactions, and data flow.
 
 ## System Overview
 
@@ -123,174 +123,35 @@ flowchart TB
 
 | Layer | Location | Purpose | Key Abstractions |
 |-------|----------|---------|------------------|
-| **Core** | `amelia/core/` | LangGraph orchestrator, state management, shared types | `ExecutionState`, `TaskDAG`, `Profile`, `Issue` |
-| **Agents** | `amelia/agents/` | Specialized AI agents for planning, execution, and review | `Architect`, `Developer`, `Reviewer` |
-| **Drivers** | `amelia/drivers/` | LLM abstraction supporting API and CLI backends | `DriverInterface`, `DriverFactory` |
-| **Trackers** | `amelia/trackers/` | Issue source abstraction for different platforms | `BaseTracker` (Jira, GitHub) |
-| **Tools** | `amelia/tools/` | Secure command and file operations with 4-layer security | `SafeShellExecutor`, `SafeFileWriter` |
-| **Client** | `amelia/client/` | CLI commands and REST client for server communication | `AmeliaClient`, Typer commands |
-| **Server** | `amelia/server/` | FastAPI backend with WebSocket events, SQLite persistence | `OrchestratorService`, `EventBus`, `WorkflowRepository` |
-
-See [File Structure Reference](#file-structure-reference) for detailed file listings.
+| **Core** | [`amelia/core/`](https://github.com/anderskev/amelia/tree/main/amelia/core) | LangGraph orchestrator, state management, shared types | `ExecutionState`, `TaskDAG`, `Profile`, `Issue` |
+| **Agents** | [`amelia/agents/`](https://github.com/anderskev/amelia/tree/main/amelia/agents) | Specialized AI agents for planning, execution, and review | `Architect`, `Developer`, `Reviewer` |
+| **Drivers** | [`amelia/drivers/`](https://github.com/anderskev/amelia/tree/main/amelia/drivers) | LLM abstraction supporting API and CLI backends | `DriverInterface`, `DriverFactory` |
+| **Trackers** | [`amelia/trackers/`](https://github.com/anderskev/amelia/tree/main/amelia/trackers) | Issue source abstraction for different platforms | `BaseTracker` (Jira, GitHub) |
+| **Tools** | [`amelia/tools/`](https://github.com/anderskev/amelia/tree/main/amelia/tools) | Secure command and file operations with 4-layer security | `SafeShellExecutor`, `SafeFileWriter` |
+| **Client** | [`amelia/client/`](https://github.com/anderskev/amelia/tree/main/amelia/client) | CLI commands and REST client for server communication | `AmeliaClient`, Typer commands |
+| **Server** | [`amelia/server/`](https://github.com/anderskev/amelia/tree/main/amelia/server) | FastAPI backend with WebSocket events, SQLite persistence | `OrchestratorService`, `EventBus`, `WorkflowRepository` |
 
 ## Data Flow: `amelia start PROJ-123`
 
-Amelia uses a server-based execution architecture.
+Amelia uses a server-based execution architecture where CLI commands communicate with a background server via REST API.
 
-### Server-Based Flow
+### Flow Steps
 
-This is the production architecture where CLI commands communicate with a background server via REST API.
+1. **CLI → Client**: Detects git worktree context and creates an `AmeliaClient` to send workflow requests
+   → See [`client/cli.py`](https://github.com/anderskev/amelia/blob/main/amelia/client/cli.py)
 
-#### 1. CLI → Client (`client/cli.py`)
+2. **Server → OrchestratorService**: Validates worktree, checks concurrency limits (one per worktree, max 5 global), creates workflow record, and starts background execution
+   → See [`server/orchestrator/service.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/orchestrator/service.py)
 
-```python
-# Detect git worktree context
-worktree_path, worktree_name = get_worktree_context()
+3. **Workflow Execution**: Loads settings, creates tracker, initializes `ExecutionState`, and runs the LangGraph state machine with SQLite checkpointing
+   → See [`core/orchestrator.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/orchestrator.py)
 
-# Create API client
-client = AmeliaClient(base_url="http://localhost:8420")
+4. **Real-Time Events**: Emits `WorkflowEvent`s via `EventBus`, broadcasts through WebSocket to the Dashboard
+   → See [`server/events/`](https://github.com/anderskev/amelia/tree/main/amelia/server/events)
 
-# Send create workflow request
-response = await client.create_workflow(
-    issue_id="PROJ-123",
-    worktree_path=worktree_path,
-    profile="work"
-)
-# Returns: CreateWorkflowResponse(id="uuid", status="pending")
-```
+5. **Human Approval Gate**: Workflow blocks at `human_approval_node` using LangGraph interrupt until user approves/rejects via CLI or Dashboard
 
-#### 2. Server → OrchestratorService (`server/orchestrator/service.py`)
-
-```python
-# Validate worktree (exists, is directory, has .git)
-validate_worktree(worktree_path)
-
-# Check concurrency limits (one per worktree, max 5 global)
-if worktree_path in active_workflows:
-    raise WorkflowConflictError(active_workflow_id)
-
-# Create workflow record in database
-workflow = await repository.create_workflow(...)
-
-# Start workflow in background task
-asyncio.create_task(run_workflow_with_retry(workflow_id))
-```
-
-#### 3. Workflow Execution (LangGraph)
-
-```python
-# Load settings and create tracker
-settings = load_settings()
-profile = settings.profiles[profile_name]
-tracker = create_tracker(profile)
-issue = tracker.get_issue("PROJ-123")
-
-# Initialize state
-initial_state = ExecutionState(profile=profile, issue=issue)
-
-# Run with SQLite checkpointing
-checkpointer = AsyncSqliteSaver(db_path)
-app = create_orchestrator_graph().compile(checkpointer=checkpointer)
-final_state = await app.ainvoke(initial_state, config={"thread_id": workflow_id})
-```
-
-#### 4. Real-Time Events → WebSocket → Dashboard
-
-```python
-# Emit events at each stage
-await event_bus.publish(WorkflowEvent(
-    workflow_id=workflow_id,
-    event_type=EventType.STAGE_STARTED,
-    agent="architect",
-    message="Generating implementation plan"
-))
-
-# WebSocket broadcasts to subscribed clients
-await connection_manager.broadcast(event, workflow_id)
-
-# Dashboard receives and displays updates
-```
-
-#### 5. Human Approval Gate
-
-```python
-# Workflow blocks at human_approval_node
-await event_bus.publish(WorkflowEvent(
-    event_type=EventType.APPROVAL_REQUIRED,
-    message="Plan ready for review"
-))
-
-# User runs: amelia approve
-await client.approve_workflow(workflow_id)
-
-# Server resumes workflow
-await orchestrator_service.approve_workflow(workflow_id)
-```
-
-### Orchestrator Nodes (LangGraph)
-
-#### Node: `architect_node`
-
-```python
-# Get driver for LLM communication
-driver = DriverFactory.get_driver(profile.driver)
-
-# Generate plan with structured output (TDD-focused)
-architect = Architect(driver)
-plan_output = await architect.plan(issue, design=optional_design)
-# Returns: PlanOutput(task_dag=TaskDAG, markdown_path=Path)
-
-# Update state
-state.plan = plan_output.task_dag
-```
-
-#### Node: `human_approval_node`
-
-```python
-# In server mode: emit event and block (LangGraph interrupt)
-if server_mode:
-    emit_event(EventType.APPROVAL_REQUIRED)
-    return interrupt(state)  # Blocks until approve/reject
-
-# In CLI mode: prompt user directly
-approved = typer.confirm("Approve this plan?")
-state.human_approved = approved
-```
-
-#### Node: `developer_node` (may loop)
-
-```python
-# Find tasks with met dependencies
-ready_tasks = state.plan.get_ready_tasks()
-
-# Execute tasks (structured or agentic mode)
-developer = Developer(driver, execution_mode=profile.execution_mode)
-for task in ready_tasks:
-    result = await developer.execute_task(task, cwd=worktree_path)
-    task.status = "completed" if result["status"] == "completed" else "failed"
-
-# Loop back if pending tasks remain, else proceed to reviewer
-```
-
-#### Node: `reviewer_node`
-
-```python
-# Get code changes
-code_changes = state.code_changes_for_review or get_git_diff("HEAD")
-
-# Run review (single or competitive strategy)
-reviewer = Reviewer(driver)
-review_result = await reviewer.review(state, code_changes)
-# Competitive: parallel Security/Performance/Usability reviews, aggregated
-
-state.review_results.append(review_result)
-# If not approved → back to developer_node for fixes
-# If approved → END
-```
-
-## Sequence Diagram
-
-### Server-Based Architecture with Batch Checkpoints
+### Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -391,309 +252,46 @@ sequenceDiagram
 
 ## Key Types
 
+All types are defined as frozen Pydantic models for immutability.
+
 ### Configuration Types
 
-#### Profile
+| Type | Purpose | Source |
+|------|---------|--------|
+| `Profile` | Workflow configuration (driver, tracker, strategy, trust level) | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
+| `TrustLevel` | Developer autonomy level: `paranoid`, `standard`, `autonomous` | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
+| `DeveloperStatus` | Execution state: `executing`, `batch_complete`, `blocked`, `all_done` | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
+| `RetryConfig` | Retry settings (max retries, delays) | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
+| `ServerConfig` | Server settings with `AMELIA_*` env var support | [`server/config.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/config.py) |
 
-```python
-class Profile(BaseModel):
-    name: str
-    driver: DriverType                             # "api:openai" | "cli:claude" | "cli" | "api"
-    tracker: TrackerType = "none"                  # "jira" | "github" | "none"
-    strategy: StrategyType = "single"              # "single" | "competitive"
-    execution_mode: ExecutionMode = "structured"   # "structured" | "agentic"
-    plan_output_dir: str = "docs/plans"
-    working_dir: str | None = None
-    retry: RetryConfig = Field(default_factory=RetryConfig)
-    trust_level: TrustLevel = TrustLevel.STANDARD  # NEW: "paranoid" | "standard" | "autonomous"
-    batch_checkpoint_enabled: bool = True          # NEW: Enable/disable batch checkpoints
-```
+### Domain & Task Types
 
-#### TrustLevel
+| Type | Purpose | Source |
+|------|---------|--------|
+| `Issue` | Issue from tracker (id, title, description, status) | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
+| `Design` | Parsed design document (goal, architecture, tech stack) | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
+| `PlanStep` | Atomic unit of work (action type, risk level, dependencies) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
+| `ExecutionBatch` | Group of steps executed before checkpoint | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
+| `ExecutionPlan` | Complete plan with batches and TDD approach | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
 
-```python
-class TrustLevel(StrEnum):
-    """How much autonomy the Developer gets."""
-    PARANOID = "paranoid"    # Approve every batch
-    STANDARD = "standard"    # Approve batches (default)
-    AUTONOMOUS = "autonomous" # Auto-approve low/medium, stop only for high-risk
-```
+### Result & State Types
 
-#### DeveloperStatus
-
-```python
-class DeveloperStatus(StrEnum):
-    """Developer agent execution status."""
-    EXECUTING = "executing"       # Actively executing batch
-    BATCH_COMPLETE = "batch_complete"  # Batch done, ready for checkpoint
-    BLOCKED = "blocked"           # Blocked, needs human intervention
-    ALL_DONE = "all_done"         # All batches completed
-```
-
-#### RetryConfig
-
-```python
-class RetryConfig(BaseModel):
-    max_retries: int = Field(default=3, ge=0, le=10)
-    base_delay: float = Field(default=1.0, ge=0.1, le=30.0)
-    max_delay: float = Field(default=60.0, ge=1.0, le=300.0)
-```
-
-#### ServerConfig
-
-```python
-class ServerConfig(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="AMELIA_")
-
-    host: str = "127.0.0.1"
-    port: int = Field(default=8420, ge=1, le=65535)
-    database_path: Path = Path("~/.amelia/amelia.db")
-    log_retention_days: int = 30
-    log_retention_max_events: int = 100_000
-    websocket_idle_timeout_seconds: float = 300.0
-    workflow_start_timeout_seconds: float = 60.0
-    max_concurrent: int = 5
-```
-
-### Domain Types
-
-#### Issue
-
-```python
-class Issue(BaseModel):
-    id: str
-    title: str
-    description: str
-    status: str = "open"
-```
-
-#### Design
-
-```python
-class Design(BaseModel):
-    title: str
-    goal: str
-    architecture: str
-    tech_stack: list[str]
-    components: list[str]
-    data_flow: str | None = None
-    error_handling: str | None = None
-    testing_strategy: str | None = None
-    relevant_files: list[str] = Field(default_factory=list)
-    conventions: str | None = None
-    raw_content: str
-```
-
-### Task Types
-
-#### PlanStep
-
-```python
-class PlanStep(BaseModel):
-    """Atomic unit of work (frozen, immutable)."""
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    description: str
-    action_type: ActionType  # "code" | "command" | "validation" | "manual"
-    file_path: str | None = None
-    code_change: str | None = None
-    command: str | None = None
-    cwd: str | None = None
-    fallback_commands: tuple[str, ...] = ()
-    expect_exit_code: int = 0
-    expected_output_pattern: str | None = None
-    validation_command: str | None = None
-    risk_level: RiskLevel = "medium"  # "low" | "medium" | "high"
-    estimated_minutes: int = 2
-    requires_human_judgment: bool = False
-    depends_on: tuple[str, ...] = ()
-    is_test_step: bool = False
-    validates_step: str | None = None
-```
-
-#### ExecutionBatch
-
-```python
-class ExecutionBatch(BaseModel):
-    """Group of steps executed before checkpoint (frozen)."""
-    model_config = ConfigDict(frozen=True)
-
-    batch_number: int
-    steps: tuple[PlanStep, ...]
-    risk_summary: RiskLevel  # "low" | "medium" | "high"
-    description: str = ""
-```
-
-#### ExecutionPlan
-
-```python
-class ExecutionPlan(BaseModel):
-    """Complete plan with batches (frozen)."""
-    model_config = ConfigDict(frozen=True)
-
-    goal: str
-    batches: tuple[ExecutionBatch, ...]
-    total_estimated_minutes: int
-    tdd_approach: bool = True
-```
-
-### Blocker & Result Types
-
-#### BlockerReport
-
-```python
-class BlockerReport(BaseModel):
-    """Captured when execution blocks (frozen)."""
-    model_config = ConfigDict(frozen=True)
-
-    step_id: str
-    step_description: str
-    blocker_type: BlockerType  # command_failed | validation_failed | needs_judgment | ...
-    error_message: str
-    attempted_actions: tuple[str, ...]
-    suggested_resolutions: tuple[str, ...]
-```
-
-#### BatchResult
-
-```python
-class BatchResult(BaseModel):
-    """Result of batch execution (frozen)."""
-    model_config = ConfigDict(frozen=True)
-
-    batch_number: int
-    status: BatchStatus  # "complete" | "blocked" | "partial"
-    completed_steps: tuple[StepResult, ...]
-    blocker: BlockerReport | None = None
-```
-
-#### BatchApproval
-
-```python
-class BatchApproval(BaseModel):
-    """Human approval decision for a batch (frozen)."""
-    model_config = ConfigDict(frozen=True)
-
-    batch_number: int
-    approved: bool
-    feedback: str | None = None
-    approved_at: datetime
-```
-
-#### GitSnapshot
-
-```python
-class GitSnapshot(BaseModel):
-    """Git state before batch for revert capability (frozen)."""
-    model_config = ConfigDict(frozen=True)
-
-    head_commit: str
-    dirty_files: tuple[str, ...] = ()
-    stash_ref: str | None = None
-```
-
-### State Types
-
-#### ExecutionState
-
-```python
-class ExecutionState(BaseModel):
-    profile: Profile
-    issue: Issue | None = None
-    design: Design | None = None
-    execution_plan: ExecutionPlan | None = None      # NEW: Batched execution plan
-    current_batch_index: int = 0                     # NEW: Current batch (0-based)
-    batch_results: Annotated[list[BatchResult], operator.add] = []  # NEW: Completed batches
-    developer_status: DeveloperStatus = DeveloperStatus.EXECUTING   # NEW: Agent status
-    current_blocker: BlockerReport | None = None     # NEW: Active blocker
-    blocker_resolution: str | None = None            # NEW: Human's resolution
-    batch_approvals: Annotated[list[BatchApproval], operator.add] = []  # NEW: Approval history
-    skipped_step_ids: Annotated[set[str], merge_sets] = set()  # NEW: Skipped steps
-    git_snapshot_before_batch: GitSnapshot | None = None  # NEW: For revert
-    human_approved: bool | None = None
-    human_feedback: str | None = None
-    last_review: ReviewResult | None = None
-    code_changes_for_review: str | None = None
-    driver_session_id: str | None = None
-    workflow_status: Literal["running", "completed", "failed", "aborted"] = "running"
-    plan_only: bool = False                          # NEW: Stop after planning
-```
-
-#### ReviewResult
-
-```python
-class ReviewResult(BaseModel):
-    reviewer_persona: str          # "General", "Security", "Performance", "Usability"
-    approved: bool
-    comments: list[str]
-    severity: Severity             # "low" | "medium" | "high" | "critical"
-```
-
-#### AgentMessage
-
-```python
-class AgentMessage(BaseModel):
-    role: str                      # "system" | "assistant" | "user"
-    content: str
-    tool_calls: list[Any] | None = None
-```
+| Type | Purpose | Source |
+|------|---------|--------|
+| `BlockerReport` | Captured when execution blocks (type, error, suggestions) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
+| `BatchResult` | Result of batch execution (status, completed steps, blocker) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
+| `BatchApproval` | Human approval decision for a batch | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
+| `GitSnapshot` | Git state before batch for revert capability | [`tools/git_snapshot.py`](https://github.com/anderskev/amelia/blob/main/amelia/tools/git_snapshot.py) |
+| `ExecutionState` | Complete workflow state (LangGraph state object) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
+| `ReviewResult` | Code review result (persona, approved, comments, severity) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
 
 ### Server Types
 
-#### WorkflowEvent
-
-```python
-class WorkflowEvent(BaseModel):
-    id: str                        # UUID
-    workflow_id: str
-    sequence: int                  # Monotonic counter for ordering
-    timestamp: datetime
-    agent: str                     # "architect" | "developer" | "reviewer" | "system"
-    event_type: EventType          # See EventType enum below
-    message: str
-    data: dict[str, Any] | None = None
-    correlation_id: str | None = None
-```
-
-#### EventType (Enum)
-
-```python
-class EventType(str, Enum):
-    WORKFLOW_STARTED = "workflow_started"
-    WORKFLOW_COMPLETED = "workflow_completed"
-    WORKFLOW_FAILED = "workflow_failed"
-    WORKFLOW_CANCELLED = "workflow_cancelled"
-    STAGE_STARTED = "stage_started"
-    STAGE_COMPLETED = "stage_completed"
-    APPROVAL_REQUIRED = "approval_required"
-    APPROVAL_GRANTED = "approval_granted"
-    APPROVAL_REJECTED = "approval_rejected"
-    FILE_CREATED = "file_created"
-    FILE_MODIFIED = "file_modified"
-    FILE_DELETED = "file_deleted"
-    REVIEW_REQUESTED = "review_requested"
-    REVIEW_COMPLETED = "review_completed"
-    REVISION_REQUESTED = "revision_requested"
-    SYSTEM_ERROR = "system_error"
-    SYSTEM_WARNING = "system_warning"
-```
-
-#### TokenUsage
-
-```python
-class TokenUsage(BaseModel):
-    id: str
-    workflow_id: str
-    agent: str
-    model: str = "claude-sonnet-4-20250514"
-    input_tokens: int
-    output_tokens: int
-    cache_read_tokens: int = 0
-    cache_creation_tokens: int = 0
-    cost_usd: float | None = None
-    timestamp: datetime
-```
+| Type | Purpose | Source |
+|------|---------|--------|
+| `WorkflowEvent` | Event with type, agent, message, and correlation ID | [`server/models/events.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/models/events.py) |
+| `EventType` | 17 event types (workflow lifecycle, file ops, review cycles) | [`server/models/events.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/models/events.py) |
+| `TokenUsage` | Token tracking per agent/model with cost calculation | [`server/models/tokens.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/models/tokens.py) |
 
 ## Orchestrator Nodes
 
@@ -707,6 +305,8 @@ The LangGraph state machine consists of these nodes:
 | `batch_approval_node` | Batch checkpoint gate (trust-level dependent) | `developer_node` (approved) or END (rejected) |
 | `blocker_resolution_node` | Handles blocked execution (skip/fix/abort) | `developer_node` (skip/fix) or END (abort) |
 | `reviewer_node` | Calls `Reviewer.review()` | `developer_node` (not approved) or END (approved) |
+
+→ See [`core/orchestrator.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/orchestrator.py) for node implementations and conditional edge routing.
 
 ### Orchestrator Flow
 
@@ -750,53 +350,11 @@ flowchart LR
     class End1,End2,End3 cancelled
 ```
 
-## Conditional Edges
-
-```python
-# From human_approval_node
-def route_after_approval(state):
-    if state.human_approved:
-        return "developer_node"
-    return END
-
-# From developer_node (batch execution model)
-def route_after_developer(state):
-    match state.developer_status:
-        case DeveloperStatus.EXECUTING:
-            return "developer_node"  # Continue current batch
-        case DeveloperStatus.BATCH_COMPLETE:
-            if should_checkpoint(state):
-                return "batch_approval_node"
-            return "developer_node"  # Skip checkpoint, next batch
-        case DeveloperStatus.BLOCKED:
-            return "blocker_resolution_node"
-        case DeveloperStatus.ALL_DONE:
-            return "reviewer_node"
-
-# From batch_approval_node
-def route_batch_approval(state):
-    if state.human_approved:
-        return "developer_node"  # Next batch
-    return END  # Rejected
-
-# From blocker_resolution_node
-def route_blocker_resolution(state):
-    if state.blocker_resolution in ("abort", "abort_revert"):
-        return END
-    return "developer_node"  # Skip or fix
-
-# From reviewer_node
-def route_after_review(state):
-    if state.review_results[-1].approved:
-        return END
-    return "developer_node"  # Fix issues
-```
-
 ## Security Architecture
 
 ### Command Execution Security
 
-The `SafeShellExecutor` (`amelia/tools/safe_shell.py`) implements a 4-layer security model:
+The [`SafeShellExecutor`](https://github.com/anderskev/amelia/blob/main/amelia/tools/safe_shell.py) implements a 4-layer security model:
 
 | Layer | Check | Purpose |
 |-------|-------|---------|
@@ -805,36 +363,14 @@ The `SafeShellExecutor` (`amelia/tools/safe_shell.py`) implements a 4-layer secu
 | 3. Dangerous Patterns | Regex detection of `rm -rf /`, `curl \| sh`, etc. | Prevents destructive commands |
 | 4. Strict Allowlist | Optional whitelist of ~50 safe commands | High-security mode |
 
-```python
-# Example: Command blocked at layer 1
-await executor.execute("cat file.txt | grep error")  # ShellInjectionError
-
-# Example: Command blocked at layer 2
-await executor.execute("sudo apt install foo")  # BlockedCommandError
-
-# Example: Strict mode
-executor = SafeShellExecutor(strict_mode=True)
-await executor.execute("git status")  # OK (in allowlist)
-await executor.execute("curl https://...")  # CommandNotAllowedError
-```
-
 ### File Write Security
 
-The `SafeFileWriter` (`amelia/tools/safe_file.py`) protects against path traversal:
+The [`SafeFileWriter`](https://github.com/anderskev/amelia/blob/main/amelia/tools/safe_file.py) protects against path traversal:
 
 - **Path Resolution**: All paths resolved to absolute before validation
 - **Directory Restriction**: Writes only allowed within specified directories (default: cwd)
-- **Symlink Detection**: Detects and blocks symlink escape attacks at every path component
+- **Symlink Detection**: Blocks symlink escape attacks at every path component
 - **Parent Creation**: Auto-creates parent directories within allowed bounds
-
-```python
-# Example: Path traversal blocked
-await writer.write("../../../etc/passwd", content)  # PathTraversalError
-
-# Example: Symlink escape blocked
-# If /tmp/escape -> /etc, then:
-await writer.write("/allowed/tmp/escape/passwd", content)  # PathTraversalError
-```
 
 ### Exception Hierarchy
 
@@ -850,11 +386,11 @@ AmeliaError (base)
 └── AgenticExecutionError       # Agentic mode failures
 ```
 
+→ See [`core/exceptions.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/exceptions.py)
+
 ## Observability
 
 ### Event System
-
-Amelia uses an event-driven architecture for real-time observability:
 
 ```
 Orchestrator → EventBus → WebSocket → Dashboard
@@ -863,49 +399,16 @@ Orchestrator → EventBus → WebSocket → Dashboard
 ```
 
 **Event Types**: 17 distinct event types covering workflow lifecycle, file operations, and review cycles.
+→ See [`server/models/events.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/models/events.py)
 
 ### Database Schema
 
-```sql
--- Workflow state persistence
-CREATE TABLE workflows (
-    id TEXT PRIMARY KEY,
-    issue_id TEXT NOT NULL,
-    worktree_path TEXT NOT NULL,
-    status TEXT DEFAULT 'pending',  -- pending/running/completed/failed/cancelled
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP,
-    failure_reason TEXT,
-    state_json TEXT NOT NULL
-);
+SQLite database with three main tables:
+- **workflows**: Workflow state persistence (id, issue_id, worktree_path, status, state_json)
+- **events**: Append-only event log with monotonic ordering and correlation IDs
+- **token_usage**: Token tracking per agent/model with cost calculation
 
--- Append-only event log
-CREATE TABLE events (
-    id TEXT PRIMARY KEY,
-    workflow_id TEXT REFERENCES workflows(id),
-    sequence INTEGER NOT NULL,      -- Monotonic ordering
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    agent TEXT NOT NULL,
-    event_type TEXT NOT NULL,
-    message TEXT NOT NULL,
-    data_json TEXT,
-    correlation_id TEXT             -- Links related events
-);
-
--- Token usage tracking
-CREATE TABLE token_usage (
-    id TEXT PRIMARY KEY,
-    workflow_id TEXT REFERENCES workflows(id),
-    agent TEXT NOT NULL,
-    model TEXT DEFAULT 'claude-sonnet-4-20250514',
-    input_tokens INTEGER NOT NULL,
-    output_tokens INTEGER NOT NULL,
-    cache_read_tokens INTEGER DEFAULT 0,
-    cache_creation_tokens INTEGER DEFAULT 0,
-    cost_usd REAL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+→ See [`server/database/connection.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/database/connection.py)
 
 ### Health Endpoints
 
@@ -915,25 +418,13 @@ CREATE TABLE token_usage (
 | `GET /api/health/ready` | Kubernetes readiness probe |
 | `GET /api/health` | Detailed health with metrics (uptime, memory, CPU, active workflows) |
 
-### Logging
+### Logging & Retention
 
-Loguru-based logging with custom Amelia dashboard colors:
-
-```python
-from loguru import logger
-
-logger.debug("Low-level details")    # Sage muted
-logger.info("General information")   # Blue
-logger.success("Operation succeeded") # Sage green
-logger.warning("Potential issue")    # Gold
-logger.error("Error occurred")       # Rust red
-```
-
-### Log Retention
-
-The `LogRetentionService` runs during graceful shutdown:
-- Deletes events older than `AMELIA_LOG_RETENTION_DAYS` (default: 30)
-- Enforces `AMELIA_LOG_RETENTION_MAX_EVENTS` per workflow (default: 100,000)
+- **Loguru-based logging** with custom Amelia dashboard colors
+  → See [`logging.py`](https://github.com/anderskev/amelia/blob/main/amelia/logging.py)
+- **LogRetentionService** runs during graceful shutdown:
+  - Deletes events older than `AMELIA_LOG_RETENTION_DAYS` (default: 30)
+  - Enforces `AMELIA_LOG_RETENTION_MAX_EVENTS` per workflow (default: 100,000)
 
 ## API Endpoints
 
@@ -949,51 +440,14 @@ The `LogRetentionService` runs during graceful shutdown:
 | POST | `/api/workflows/{id}/reject` | Reject plan |
 | POST | `/api/workflows/{id}/cancel` | Cancel workflow |
 
-### Batch Execution (New)
+### Batch Execution
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | POST | `/api/workflows/{id}/batches/{n}/approve` | Approve completed batch |
 | POST | `/api/workflows/{id}/blocker/resolve` | Resolve execution blocker |
 
-### Request Models
-
-#### CreateWorkflowRequest
-```python
-class CreateWorkflowRequest(BaseModel):
-    issue_id: str
-    worktree_path: str
-    worktree_name: str | None = None
-    profile: str | None = None
-    plan_only: bool = False  # NEW: Stop after planning
-```
-
-#### BlockerResolutionRequest
-```python
-class BlockerResolutionRequest(BaseModel):
-    action: Literal["skip", "retry", "abort", "abort_revert", "fix"]
-    feedback: str | None = None  # Fix instructions if action="fix"
-```
-
-### Response Models
-
-#### WorkflowDetailResponse (Enhanced)
-```python
-class WorkflowDetailResponse(BaseModel):
-    id: str
-    issue_id: str
-    worktree_path: str
-    status: str
-    started_at: datetime | None
-    completed_at: datetime | None
-    # Batch execution fields (NEW)
-    execution_plan: dict | None = None
-    current_batch_index: int = 0
-    batch_results: list[dict] = []
-    developer_status: str | None = None
-    current_blocker: dict | None = None
-    batch_approvals: list[dict] = []
-```
+→ See request/response models in [`server/models/`](https://github.com/anderskev/amelia/tree/main/amelia/server/models)
 
 ### Error Codes
 
@@ -1007,22 +461,9 @@ class WorkflowDetailResponse(BaseModel):
 
 ### WebSocket Events
 
-Connect to `/ws/events/{workflow_id}` for real-time updates:
+Connect to `/ws/events/{workflow_id}` for real-time updates. Events include: `workflow_started`, `workflow_completed`, `workflow_failed`, `workflow_cancelled`, `stage_started`, `stage_completed`, `approval_required`, `approval_granted`, `approval_rejected`, `system_error` (includes blocker notifications).
 
-```typescript
-// Event types
-type EventType =
-  | "workflow_started"
-  | "workflow_completed"
-  | "workflow_failed"
-  | "workflow_cancelled"
-  | "stage_started"
-  | "stage_completed"
-  | "approval_required"
-  | "approval_granted"
-  | "approval_rejected"
-  | "system_error";  // Includes blocker notifications
-```
+→ See [`server/routes/websocket.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/routes/websocket.py)
 
 ## Key Design Decisions
 
@@ -1065,100 +506,51 @@ Enterprise environments often prohibit direct API calls due to data retention po
 ```
 amelia/
 ├── agents/
-│   ├── __init__.py
 │   ├── architect.py          # TaskDAG generation with TDD focus
 │   ├── developer.py          # Task execution (structured/agentic modes)
 │   └── reviewer.py           # Code review (single/competitive strategies)
 ├── client/
-│   ├── __init__.py
 │   ├── api.py                # AmeliaClient REST client
 │   ├── cli.py                # CLI commands: start, approve, reject, status, cancel
 │   └── git.py                # get_worktree_context() for git detection
 ├── core/
-│   ├── __init__.py
 │   ├── constants.py          # Security constants: blocked commands, patterns
 │   ├── exceptions.py         # AmeliaError hierarchy
 │   ├── orchestrator.py       # LangGraph state machine
 │   ├── state.py              # ExecutionState, TaskDAG, Task, etc.
 │   └── types.py              # Profile, Issue, Settings, Design, RetryConfig
 ├── drivers/
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── openai.py         # OpenAI via pydantic-ai
-│   ├── cli/
-│   │   ├── __init__.py
-│   │   ├── base.py           # CliDriver base with retry logic
-│   │   └── claude.py         # Claude CLI wrapper with agentic mode
-│   ├── __init__.py
+│   ├── api/openai.py         # OpenAI via pydantic-ai
+│   ├── cli/claude.py         # Claude CLI wrapper with agentic mode
 │   ├── base.py               # DriverInterface protocol
 │   └── factory.py            # DriverFactory
 ├── server/
-│   ├── database/
-│   │   ├── __init__.py
-│   │   ├── connection.py     # Async SQLite wrapper, schema init
-│   │   └── repository.py     # WorkflowRepository CRUD operations
-│   ├── events/
-│   │   ├── __init__.py
-│   │   ├── bus.py            # EventBus pub/sub
-│   │   └── connection_manager.py  # WebSocket client management
-│   ├── lifecycle/
-│   │   ├── __init__.py
-│   │   ├── retention.py      # LogRetentionService
-│   │   └── server.py         # Server startup/shutdown
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── events.py         # WorkflowEvent, EventType
-│   │   ├── requests.py       # CreateWorkflowRequest, RejectRequest
-│   │   ├── responses.py      # WorkflowResponse, ActionResponse
-│   │   └── tokens.py         # TokenUsage
-│   ├── orchestrator/
-│   │   ├── __init__.py
-│   │   └── service.py        # OrchestratorService
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── health.py         # Health check endpoints
-│   │   ├── websocket.py      # /ws/events WebSocket handler
-│   │   └── workflows.py      # /api/workflows REST endpoints
-│   ├── __init__.py
-│   ├── cli.py                # amelia server command
-│   ├── config.py             # ServerConfig with AMELIA_* env vars
-│   ├── dev.py                # amelia dev command (server + dashboard)
-│   └── main.py               # FastAPI application
+│   ├── database/             # SQLite wrapper and repository
+│   ├── events/               # EventBus and WebSocket management
+│   ├── lifecycle/            # Server startup/shutdown, log retention
+│   ├── models/               # Request/response Pydantic models
+│   ├── orchestrator/         # OrchestratorService
+│   ├── routes/               # REST and WebSocket endpoints
+│   └── config.py             # ServerConfig with AMELIA_* env vars
 ├── trackers/
-│   ├── __init__.py
-│   ├── base.py               # BaseTracker protocol
-│   ├── factory.py            # create_tracker()
 │   ├── github.py             # GitHub via gh CLI
 │   └── jira.py               # Jira REST API
 ├── tools/
-│   ├── __init__.py
 │   ├── safe_file.py          # SafeFileWriter with path traversal protection
 │   ├── safe_shell.py         # SafeShellExecutor with 4-layer security
-│   ├── shell_executor.py     # Backward-compat wrappers
 │   └── git_snapshot.py       # GitSnapshot for batch revert capability
-├── utils/
-│   ├── __init__.py
-│   └── design_parser.py      # LLM-powered Design document parser
-├── __init__.py
-├── config.py                 # load_settings(), validate_profile()
-├── logging.py                # Loguru configuration
-└── main.py                   # Typer CLI entry point
+└── config.py                 # load_settings(), validate_profile()
 
 dashboard/                    # React + TypeScript frontend
 ├── src/
-│   ├── api/
-│   │   └── client.ts         # TypeScript API client
+│   ├── api/client.ts         # TypeScript API client
 │   ├── components/
-│   │   ├── flow/
-│   │   │   ├── BatchNode.tsx       # Batch container node for React Flow
-│   │   │   ├── StepNode.tsx        # Individual step node
-│   │   │   └── CheckpointMarker.tsx # Checkpoint approval marker
-│   │   ├── BatchStepCanvas.tsx     # React Flow visualization of execution plan
-│   │   ├── BlockerResolutionDialog.tsx  # Blocker resolution UI
-│   │   └── AgentProgressBar.tsx    # Agent stage progress indicator
+│   │   ├── flow/             # React Flow nodes (BatchNode, StepNode, CheckpointMarker)
+│   │   └── ...               # BatchStepCanvas, BlockerResolutionDialog, etc.
 │   ├── hooks/                # Custom React hooks
 │   ├── pages/                # Route pages
 │   └── stores/               # Zustand state stores
-├── package.json
 └── vite.config.ts
 ```
+
+→ [Browse full source on GitHub](https://github.com/anderskev/amelia)
