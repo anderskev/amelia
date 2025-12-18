@@ -300,7 +300,7 @@ All types are defined as frozen Pydantic models for immutability.
 |------|---------|--------|
 | `Profile` | Workflow configuration (driver, tracker, strategy, trust level) | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
 | `TrustLevel` | Developer autonomy level: `paranoid`, `standard`, `autonomous` | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
-| `DeveloperStatus` | Execution state: `executing`, `batch_complete`, `blocked`, `all_done` | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
+| `DeveloperStatus` | Execution state: `executing`, `batch_complete`, `blocked`, `all_done` | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
 | `RetryConfig` | Retry settings (max retries, delays) | [`core/types.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/types.py) |
 | `ServerConfig` | Server settings with `AMELIA_*` env var support | [`server/config.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/config.py) |
 
@@ -321,7 +321,7 @@ All types are defined as frozen Pydantic models for immutability.
 | `BlockerReport` | Captured when execution blocks (type, error, suggestions) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
 | `BatchResult` | Result of batch execution (status, completed steps, blocker) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
 | `BatchApproval` | Human approval decision for a batch | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
-| `GitSnapshot` | Git state before batch for revert capability | [`tools/git_snapshot.py`](https://github.com/anderskev/amelia/blob/main/amelia/tools/git_snapshot.py) |
+| `GitSnapshot` | Git state before batch for revert capability | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
 | `ExecutionState` | Complete workflow state (LangGraph state object) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
 | `ReviewResult` | Code review result (persona, approved, comments, severity) | [`core/state.py`](https://github.com/anderskev/amelia/blob/main/amelia/core/state.py) |
 
@@ -485,12 +485,14 @@ SQLite database with three main tables:
 | POST | `/api/workflows/{id}/reject` | Reject plan |
 | POST | `/api/workflows/{id}/cancel` | Cancel workflow |
 
-### Batch Execution
+### Batch Execution (In Progress)
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | POST | `/api/workflows/{id}/batches/{n}/approve` | Approve completed batch |
 | POST | `/api/workflows/{id}/blocker/resolve` | Resolve execution blocker |
+
+> **Note:** These endpoints are part of the planned batched execution model and are not yet implemented.
 
 → See request/response models in [`server/models/`](https://github.com/anderskev/amelia/tree/main/amelia/server/models)
 
@@ -506,7 +508,24 @@ SQLite database with three main tables:
 
 ### WebSocket Events
 
-Connect to `/ws/events/{workflow_id}` for real-time updates. Events include: `workflow_started`, `workflow_completed`, `workflow_failed`, `workflow_cancelled`, `stage_started`, `stage_completed`, `approval_required`, `approval_granted`, `approval_rejected`, `system_error` (includes blocker notifications).
+Connect to `/ws/events` (optionally with `?since=<event_id>` for backfill on reconnect). The WebSocket uses a subscription-based protocol:
+
+**Client → Server:**
+```json
+{"type": "subscribe", "workflow_id": "<uuid>"}
+{"type": "unsubscribe", "workflow_id": "<uuid>"}
+{"type": "subscribe_all"}
+{"type": "pong"}
+```
+
+**Server → Client:**
+```json
+{"type": "event", "payload": <WorkflowEvent>}
+{"type": "ping"}
+{"type": "backfill_complete", "count": 15}
+```
+
+**Event types:** `workflow_started`, `workflow_completed`, `workflow_failed`, `workflow_cancelled`, `stage_started`, `stage_completed`, `approval_required`, `approval_granted`, `approval_rejected`, `system_error` (includes blocker notifications).
 
 → See [`server/routes/websocket.py`](https://github.com/anderskev/amelia/blob/main/amelia/server/routes/websocket.py)
 
