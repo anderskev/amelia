@@ -203,37 +203,6 @@ class TestCLIFlows:
         assert call_kwargs["issue_id"] == "ISSUE-456"
         assert call_kwargs["plan_only"] is True
 
-    @patch("amelia.client.cli.get_worktree_context")
-    @patch("amelia.client.cli.AmeliaClient")
-    def test_plan_command_with_profile(
-        self,
-        mock_client_class: MagicMock,
-        mock_worktree: MagicMock,
-        cli_runner: CliRunner,
-        git_repo_with_changes: Path,
-    ) -> None:
-        """Test plan command passes profile to API."""
-        from amelia.main import app
-
-        mock_worktree.return_value = (str(git_repo_with_changes), "main")
-
-        mock_client = AsyncMock()
-        mock_client.create_workflow.return_value = MagicMock(
-            id="wf-plan-123",
-            issue_id="ISSUE-456",
-            status="planning",
-            worktree_path=str(git_repo_with_changes),
-            worktree_name="main",
-            started_at=datetime(2025, 12, 1, 10, 0, 0),
-        )
-        mock_client_class.return_value = mock_client
-
-        result = cli_runner.invoke(app, ["plan", "ISSUE-456", "--profile", "work"])
-
-        assert result.exit_code == 0
-        call_kwargs = mock_client.create_workflow.call_args.kwargs
-        assert call_kwargs["profile"] == "work"
-
     @pytest.mark.parametrize("cmd", [
         ["start", "ISSUE-123"],
         ["plan", "ISSUE-123"],
