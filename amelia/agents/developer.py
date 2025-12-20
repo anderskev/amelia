@@ -1,25 +1,17 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
-import asyncio
-import os
 import re
 import shlex
 import shutil
 import time
-from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
-import typer
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 
-from amelia.core.constants import ToolName
-from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
-from amelia.core.exceptions import AgenticExecutionError
 from amelia.core.state import (
-    AgentMessage,
     BatchResult,
     BlockerReport,
     BlockerType,
@@ -28,12 +20,10 @@ from amelia.core.state import (
     ExecutionState,
     PlanStep,
     StepResult,
-    Task,
 )
 from amelia.core.types import DeveloperStatus, ExecutionMode, StreamEmitter
 from amelia.core.utils import strip_ansi
 from amelia.drivers.base import DriverInterface
-from amelia.drivers.cli.claude import convert_to_stream_event
 from amelia.tools.git_utils import take_git_snapshot
 from amelia.tools.shell_executor import run_shell_command, write_file
 
@@ -137,96 +127,13 @@ class ValidationResult(BaseModel):
     suggestions: tuple[str, ...] = ()
 
 
-class DeveloperContextStrategy(ContextStrategy):
-    """Context compilation strategy for the Developer agent.
-
-    Compiles minimal context for task execution, focusing only on the current task
-    from the TaskDAG without issue context or other agents' history.
-    """
-
-    SYSTEM_PROMPT = """You are a senior developer executing tasks following TDD principles.
-Run tests after each change. Follow the task steps exactly."""
-
-    ALLOWED_SECTIONS = {"task", "files", "steps"}
-
-    def compile(self, state: ExecutionState) -> CompiledContext:
-        """Compile ExecutionState into minimal task execution context.
-
-        Args:
-            state: The current execution state.
-
-        Returns:
-            CompiledContext with task-specific sections.
-
-        Raises:
-            ValueError: If no current task is found.
-        """
-        task = self.get_current_task(state)
-        if task is None:
-            raise ValueError("No current task found in execution state")
-
-        sections: list[ContextSection] = []
-
-        # Task section (required)
-        sections.append(
-            ContextSection(
-                name="task",
-                content=task.description,
-                source=f"task:{task.id}",
-            )
-        )
-
-        # Files section (optional, when task has files)
-        if task.files:
-            files_lines = [f"- {file_op.operation}: `{file_op.path}`" for file_op in task.files]
-            sections.append(
-                ContextSection(
-                    name="files",
-                    content="\n".join(files_lines),
-                    source=f"task:{task.id}:files",
-                )
-            )
-
-        # Steps section (optional)
-        if task.steps:
-            steps_lines = []
-            for i, step in enumerate(task.steps, 1):
-                steps_lines.append(f"### Step {i}: {step.description}")
-                if step.code:
-                    steps_lines.append(f"```\n{step.code}\n```")
-                if step.command:
-                    steps_lines.append(f"Run: `{step.command}`")
-                if step.expected_output:
-                    steps_lines.append(f"Expected: {step.expected_output}")
-                steps_lines.append("")  # Blank line between steps
-
-            sections.append(
-                ContextSection(
-                    name="steps",
-                    content="\n".join(steps_lines).rstrip(),
-                    source=f"task:{task.id}:steps",
-                )
-            )
-
-        # Validate sections before returning
-        self.validate_sections(sections)
-
-        return CompiledContext(
-            system_prompt=self.SYSTEM_PROMPT,
-            sections=sections,
-        )
-
-
 class Developer:
     """Agent responsible for executing development tasks following TDD principles.
 
     Attributes:
         driver: LLM driver interface for task execution and tool access.
         execution_mode: Execution mode (structured or agentic).
-        context_strategy: Context compilation strategy class.
     """
-
-    context_strategy: type[ContextStrategy] = DeveloperContextStrategy
 
     def __init__(
         self,
@@ -362,6 +269,47 @@ class Developer:
         # - For now, just return filesystem check result
         return fs_result
 
+    def _resolve_working_dir(self, step: PlanStep, state: ExecutionState) -> str | None:
+        """Resolve the working directory for step execution.
+
+        Priority:
+        1. step.cwd (relative to repo root, resolved to absolute)
+        2. state.profile.working_dir
+        3. None (use current directory)
+
+        Args:
+            step: The plan step being executed.
+            state: The current execution state.
+
+        Returns:
+            Absolute path to working directory, or None for current directory.
+        """
+        if step.cwd:
+            # step.cwd is relative to repo root (working_dir)
+            base = state.profile.working_dir or "."
+            return str(Path(base) / step.cwd)
+        return state.profile.working_dir
+
+    def _resolve_file_path(self, file_path: str, working_dir: str | None) -> str:
+        """Resolve a file path relative to working directory.
+
+        If file_path is absolute, return as-is.
+        If relative, resolve against working_dir.
+
+        Args:
+            file_path: The file path to resolve.
+            working_dir: The working directory, or None.
+
+        Returns:
+            Resolved file path.
+        """
+        path = Path(file_path)
+        if path.is_absolute():
+            return file_path
+        if working_dir:
+            return str(Path(working_dir) / file_path)
+        return file_path
+
     async def _execute_step_with_fallbacks(
         self,
         step: PlanStep,
@@ -378,19 +326,33 @@ class Developer:
         """
         start_time = time.time()
 
+        # Resolve working directory for this step
+        working_dir = self._resolve_working_dir(step, state)
+        logger.debug(
+            "Executing step",
+            step_id=step.id,
+            action_type=step.action_type,
+            working_dir=working_dir or "cwd",
+        )
+
         try:
             if step.action_type == "code":
                 # Execute code change (write to file)
                 if not step.file_path or not step.code_change:
                     raise ValueError("Code action requires file_path and code_change")
 
-                await write_file(step.file_path, step.code_change)
-                output = f"Wrote code to {step.file_path}"
+                # Resolve file path relative to working directory
+                resolved_path = self._resolve_file_path(step.file_path, working_dir)
+                await write_file(resolved_path, step.code_change)
+                output = f"Wrote code to {resolved_path}"
 
                 # If validation command exists, run it and validate result
                 if step.validation_command:
                     try:
-                        validation_output = await run_shell_command(step.validation_command)
+                        validation_output = await run_shell_command(
+                            step.validation_command,
+                            cwd=working_dir,
+                        )
                         output += f"\nValidation: {validation_output}"
                         # For validation commands, we assume exit code 0 means success
                         # The run_shell_command will raise RuntimeError if command fails
@@ -434,7 +396,7 @@ class Developer:
 
                 for cmd in commands_to_try:
                     try:
-                        output = await run_shell_command(cmd)
+                        output = await run_shell_command(cmd, cwd=working_dir)
                         duration = time.time() - start_time
                         return StepResult(
                             step_id=step.id,
@@ -466,7 +428,10 @@ class Developer:
                     raise ValueError("Validation action requires validation_command")
 
                 try:
-                    output = await run_shell_command(step.validation_command)
+                    output = await run_shell_command(
+                        step.validation_command,
+                        cwd=working_dir,
+                    )
                     duration = time.time() - start_time
                     return StepResult(
                         step_id=step.id,
@@ -500,6 +465,11 @@ class Developer:
                 )
 
         except Exception as e:
+            logger.exception(
+                "Unexpected error executing step",
+                step_id=step.id,
+                action_type=step.action_type,
+            )
             duration = time.time() - start_time
             return StepResult(
                 step_id=step.id,
@@ -538,11 +508,13 @@ class Developer:
             BatchResult with status "complete" or "blocked".
         """
         # 1. Take git snapshot for potential rollback
-        _git_snapshot = await take_git_snapshot()
+        repo_path = Path(state.profile.working_dir) if state.profile.working_dir else None
+        _git_snapshot = await take_git_snapshot(repo_path)
         logger.debug(
             "Git snapshot taken before batch execution",
             batch_number=batch.batch_number,
             head_commit=_git_snapshot.head_commit,
+            repo_path=str(repo_path) if repo_path else "cwd",
         )
 
         completed_steps: list[StepResult] = []
@@ -599,9 +571,12 @@ class Developer:
 
             if result.status == "failed":
                 logger.warning(
-                    "Step execution failed",
+                    f"Step execution failed: {step.id} - {result.error}",
                     step_id=step.id,
+                    action_type=step.action_type,
                     error=result.error,
+                    executed_command=result.executed_command,
+                    working_dir=state.profile.working_dir or "cwd",
                 )
                 # Determine blocker type based on action type
                 blocker_type = (
@@ -685,11 +660,13 @@ class Developer:
                 previously_completed = list(last_result.completed_steps)
 
         # Take git snapshot (in case we need to rollback after recovery attempt)
-        _git_snapshot = await take_git_snapshot()
+        repo_path = Path(state.profile.working_dir) if state.profile.working_dir else None
+        _git_snapshot = await take_git_snapshot(repo_path)
         logger.debug(
             "Git snapshot taken before recovery",
             batch_number=batch.batch_number,
             blocked_step_id=blocked_step_id,
+            repo_path=str(repo_path) if repo_path else "cwd",
         )
 
         completed_steps: list[StepResult] = list(previously_completed)
@@ -853,212 +830,3 @@ class Developer:
             "developer_status": DeveloperStatus.BATCH_COMPLETE,
             "blocker_resolution": None,  # Clear any previous resolution
         }
-
-    async def execute_current_task(
-        self,
-        state: ExecutionState,
-        *,
-        workflow_id: str,
-    ) -> dict[str, Any]:
-        """Execute the current task from execution state.
-
-        Args:
-            state: Full execution state containing profile, plan, and current_task_id.
-            workflow_id: Workflow ID for stream events (required).
-
-        Returns:
-            Dict with status, task_id, and output.
-
-        Raises:
-            ValueError: If current_task_id not found in plan.
-            AgenticExecutionError: If agentic execution fails.
-        """
-        if not state.plan or not state.current_task_id:
-            raise ValueError("State must have plan and current_task_id")
-
-        task = state.plan.get_task(state.current_task_id)
-        if not task:
-            raise ValueError(f"Task not found: {state.current_task_id}")
-
-        cwd = state.profile.working_dir or os.getcwd()
-
-        if self.execution_mode == "agentic":
-            return await self._execute_agentic(task, cwd, state, workflow_id=workflow_id)
-        else:
-            result = await self._execute_structured(task, state)
-            # Ensure task_id is included for consistency with agentic path
-            result["task_id"] = task.id
-            return result
-
-    async def _execute_agentic(
-        self,
-        task: Task,
-        cwd: str,
-        state: ExecutionState,
-        *,
-        workflow_id: str,
-    ) -> dict[str, Any]:
-        """Execute task autonomously with full Claude tool access.
-
-        Args:
-            task: The task to execute.
-            cwd: Working directory for execution.
-            state: Full execution state for context compilation.
-            workflow_id: Workflow ID for stream events (required).
-
-        Returns:
-            Dict with status and output.
-
-        Raises:
-            AgenticExecutionError: If execution fails.
-        """
-        # Use context strategy with full state (no longer creating fake state)
-        strategy = self.context_strategy()
-        context = strategy.compile(state)
-
-        logger.debug(
-            "Compiled context",
-            agent="developer",
-            sections=[s.name for s in context.sections],
-            system_prompt_length=len(context.system_prompt) if context.system_prompt else 0
-        )
-
-        messages = strategy.to_messages(context)
-
-        logger.info(f"Starting agentic execution for task {task.id}")
-
-        async for event in self.driver.execute_agentic(messages, cwd, system_prompt=context.system_prompt):
-            self._handle_stream_event(event, workflow_id)
-
-            if event.type == "error":
-                raise AgenticExecutionError(event.content or "Unknown error")
-
-        return {"status": "completed", "task_id": task.id, "output": "Agentic execution completed"}
-
-    def _handle_stream_event(self, event: Any, workflow_id: str) -> None:
-        """Display streaming event to terminal and emit via callback.
-
-        Args:
-            event: Stream event to display.
-            workflow_id: Current workflow ID.
-        """
-        # Terminal display (existing logic)
-        if event.type == "tool_use":
-            typer.secho(f"  -> {event.tool_name}", fg=typer.colors.CYAN)
-            if event.tool_input:
-                preview = str(event.tool_input)[:100]
-                suffix = "..." if len(str(event.tool_input)) > 100 else ""
-                typer.echo(f"    {preview}{suffix}")
-
-        elif event.type == "result":
-            typer.secho("  Done", fg=typer.colors.GREEN)
-
-        elif event.type == "assistant" and event.content:
-            typer.echo(f"  {event.content[:200]}")
-
-        elif event.type == "error":
-            typer.secho(f"  Error: {event.content}", fg=typer.colors.RED)
-
-        # Emit via callback if configured
-        if self._stream_emitter is not None:
-            stream_event = convert_to_stream_event(event, "developer", workflow_id)
-            if stream_event is not None:
-                # Fire-and-forget: emit stream event without blocking
-                emit_coro = cast(Coroutine[Any, Any, None], self._stream_emitter(stream_event))
-                emit_task: asyncio.Task[None] = asyncio.create_task(emit_coro)
-
-                def _log_emit_error(t: asyncio.Task[None]) -> None:
-                    if (exc := t.exception()) is not None:
-                        logger.exception("Stream emitter failed", exc_info=exc)
-
-                emit_task.add_done_callback(_log_emit_error)
-
-    async def _execute_structured(self, task: Task, state: ExecutionState) -> dict[str, Any]:
-        """Execute task using structured step-by-step approach.
-
-        Args:
-            task: The task to execute.
-            state: Full execution state (for future context usage).
-
-        Returns:
-            Dict with status and output.
-        """
-        try:
-            if task.steps:
-                logger.info(f"Developer executing {len(task.steps)} steps for task {task.id}")
-                results = []
-                for i, step in enumerate(task.steps, 1):
-                    logger.info(f"Executing step {i}: {step.description}")
-                    step_output = ""
-
-                    if step.code:
-                        target_file = None
-                        if task.files:
-                            for f in task.files:
-                                if f.operation in ("create", "modify"):
-                                    target_file = f.path
-                                    break
-
-                        if target_file:
-                            logger.info(f"Writing code to {target_file}")
-                            await self.driver.execute_tool(ToolName.WRITE_FILE, file_path=target_file, content=step.code)
-                            step_output += f"Wrote to {target_file}. "
-                        else:
-                            logger.warning("Step has code but no target file could be determined from task.files.")
-
-                    if step.command:
-                        logger.info(f"Running command: {step.command}")
-                        cmd_result = await self.driver.execute_tool(ToolName.RUN_SHELL_COMMAND, command=step.command)
-                        step_output += f"Command output: {cmd_result}"
-
-                    results.append(f"Step {i}: {step_output}")
-
-                return {"status": "completed", "output": "\n".join(results)}
-
-            task_desc_lower = task.description.lower().strip()
-
-            if task_desc_lower.startswith("run shell command:"):
-                prefix_len = len("run shell command:")
-                command = task.description[prefix_len:].strip()
-                logger.info(f"Developer executing shell command: {command}")
-                result = await self.driver.execute_tool(ToolName.RUN_SHELL_COMMAND, command=command)
-                return {"status": "completed", "output": result}
-
-            elif task_desc_lower.startswith("write file:"):
-                logger.info(f"Developer executing write file task: {task.description}")
-
-                # Using original description for content extraction
-                if " with " in task.description:
-                    parts = task.description.split(" with ", 1)
-                    path_part = parts[0]
-                    content = parts[1]
-                else:
-                    path_part = task.description
-                    content = ""
-                
-                file_path = path_part[len("write file:"):].strip()
-
-                result = await self.driver.execute_tool(ToolName.WRITE_FILE, file_path=file_path, content=content)
-                return {"status": "completed", "output": result}
-
-            else:
-                logger.info(f"Developer generating response for task: {task.description}")
-                # Use context strategy for consistent message compilation
-                strategy = self.context_strategy()
-                context = strategy.compile(state)
-                # Build messages: prepend system prompt if present, then user messages
-                messages: list[AgentMessage] = []
-                if context.system_prompt:
-                    messages.append(AgentMessage(role="system", content=context.system_prompt))
-                messages.extend(strategy.to_messages(context))
-                llm_response = await self.driver.generate(messages=messages)
-                return {"status": "completed", "output": llm_response}
-
-        except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
-            raise
-        except Exception as e:
-            logger.exception(
-                "Developer task execution failed",
-                error_type=type(e).__name__,
-            )
-            return {"status": "failed", "output": str(e), "error": str(e)}

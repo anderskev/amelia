@@ -252,4 +252,4 @@ class TestGraphInterruptHandling:
 
         # Verify APPROVAL_REQUIRED was emitted
         approval_events = event_tracker.get_by_type(EventType.APPROVAL_REQUIRED)
-        assert len(approval_events) >= 1
+        assert len(approval_events) == 1

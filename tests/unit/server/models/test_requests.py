@@ -6,10 +6,16 @@
 These tests verify security validators and format constraints.
 """
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from amelia.server.models.requests import CreateWorkflowRequest, RejectRequest
+from amelia.server.models.requests import (
+    CreateReviewWorkflowRequest,
+    CreateWorkflowRequest,
+    RejectRequest,
+)
 
 
 class TestCreateWorkflowRequest:
@@ -150,3 +156,61 @@ class TestRejectRequest:
         """Test valid reject request construction."""
         # Smoke test - should not raise
         RejectRequest(feedback="Please fix the typo in line 42")
+
+
+class TestCreateReviewWorkflowRequest:
+    """Tests for CreateReviewWorkflowRequest validation."""
+
+    def test_valid_request(self, tmp_path: Path) -> None:
+        """Valid request with all fields passes validation."""
+        worktree = tmp_path / "repo"
+        worktree.mkdir()
+
+        request = CreateReviewWorkflowRequest(
+            diff_content="+ added line",
+            worktree_path=str(worktree),
+            worktree_name="test-review",
+            profile="default",
+        )
+
+        assert request.diff_content == "+ added line"
+        assert request.worktree_path == str(worktree)
+        assert request.worktree_name == "test-review"
+        assert request.profile == "default"
+
+    def test_empty_diff_content_rejected(self, tmp_path: Path) -> None:
+        """Empty diff_content is rejected."""
+        worktree = tmp_path / "repo"
+        worktree.mkdir()
+
+        with pytest.raises(ValidationError) as exc_info:
+            CreateReviewWorkflowRequest(
+                diff_content="",
+                worktree_path=str(worktree),
+            )
+
+        error_str = str(exc_info.value).lower()
+        assert "at least 1 character" in error_str or "string_too_short" in error_str
+
+    def test_invalid_worktree_path_rejected(self) -> None:
+        """Relative worktree path is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            CreateReviewWorkflowRequest(
+                diff_content="+ line",
+                worktree_path="relative/path/to/repo",
+            )
+
+        assert "must be absolute" in str(exc_info.value).lower()
+
+    def test_optional_fields_default_to_none(self, tmp_path: Path) -> None:
+        """Optional fields default to None when not provided."""
+        worktree = tmp_path / "repo"
+        worktree.mkdir()
+
+        request = CreateReviewWorkflowRequest(
+            diff_content="+ line",
+            worktree_path=str(worktree),
+        )
+
+        assert request.worktree_name is None
+        assert request.profile is None

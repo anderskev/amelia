@@ -438,8 +438,9 @@ async def test_approve_workflow_success(
     # Setup mock graph
     mock_graph = MagicMock()
     mock_graph.aupdate_state = AsyncMock()
-    # astream_events should return the iterator directly
-    mock_graph.astream_events = MagicMock(return_value=AsyncIteratorMock([]))
+    mock_graph.aget_state = AsyncMock(return_value=MagicMock(values={"human_approved": True}, next=[]))
+    # astream should return an async iterator
+    mock_graph.astream = MagicMock(return_value=AsyncIteratorMock([]))
     mock_create_graph.return_value = mock_graph
 
     mock_saver = AsyncMock()
@@ -903,8 +904,8 @@ async def test_start_workflow_denied_by_policy_hook(
         async def on_workflow_start(
             self,
             workflow_id: str,
-            issue_id: str,
             profile: object,
+            issue_id: str,
         ) -> bool:
             return False
 

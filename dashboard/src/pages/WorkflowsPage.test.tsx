@@ -33,17 +33,17 @@ const mockWorkflowDetail: WorkflowDetail = {
   worktree_path: '/path/to/worktree',
   completed_at: null,
   failure_reason: null,
-  plan: {
-    execution_order: ['t1', 't2'],
-    tasks: [
-      { id: 't1', description: 'Plan', status: 'completed', dependencies: [] },
-      { id: 't2', description: 'Code', status: 'in_progress', dependencies: ['t1'] },
-    ],
-  },
   token_usage: {},
   recent_events: [
     { id: 'e1', workflow_id: '1', sequence: 1, timestamp: '2025-12-07T09:01:00Z', event_type: 'stage_started', agent: 'developer', message: 'Started coding' },
   ],
+  // Batch execution fields
+  execution_plan: null,
+  current_batch_index: 0,
+  batch_results: [],
+  developer_status: null,
+  current_blocker: null,
+  batch_approvals: [],
 };
 
 const mockPipeline = {
@@ -69,16 +69,17 @@ const mockSecondWorkflowDetail: WorkflowDetail = {
   worktree_path: '/path/to/second/worktree',
   completed_at: null,
   failure_reason: null,
-  plan: {
-    execution_order: ['t1'],
-    tasks: [
-      { id: 't1', description: 'Review', status: 'in_progress', dependencies: [] },
-    ],
-  },
   token_usage: {},
   recent_events: [
     { id: 'e2', workflow_id: 'wf-002', sequence: 1, timestamp: '2025-12-07T08:01:00Z', event_type: 'stage_started', agent: 'reviewer', message: 'Started review' },
   ],
+  // Batch execution fields
+  execution_plan: null,
+  current_batch_index: 0,
+  batch_results: [],
+  developer_status: null,
+  current_blocker: null,
+  batch_approvals: [],
 };
 
 /**

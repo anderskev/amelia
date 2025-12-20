@@ -12,8 +12,17 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from amelia.core.state import ExecutionState, Task, TaskDAG
-from amelia.core.types import Issue, Profile
+from amelia.core.state import (
+    BatchApproval,
+    BatchResult,
+    BlockerReport,
+    ExecutionBatch,
+    ExecutionPlan,
+    ExecutionState,
+    PlanStep,
+    StepResult,
+)
+from amelia.core.types import DeveloperStatus, Issue, Profile
 from amelia.server.database import WorkflowRepository
 from amelia.server.exceptions import (
     ConcurrencyLimitError,
@@ -216,13 +225,13 @@ class TestGetWorkflow:
         body = response.json()
         assert body["code"] == "NOT_FOUND"
 
-    async def test_get_workflow_returns_plan_when_present(
+    async def test_get_workflow_returns_plan_as_none(
         self,
         client: AsyncClient,
         mock_repository: AsyncMock,
         make_workflow: Callable[..., ServerExecutionState],
     ):
-        """Get workflow returns plan from execution_state when present."""
+        """Get workflow returns None for legacy plan field (deprecated)."""
         # Create a test profile
         profile = Profile(
             name="test",
@@ -239,30 +248,31 @@ class TestGetWorkflow:
             status="open",
         )
 
-        # Create a plan with tasks
-        task1 = Task(
-            id="task-1",
-            description="Write failing test",
-            status="completed",
-            dependencies=[],
+        # Create an execution plan with batches (new model)
+        step = PlanStep(
+            id="step-1",
+            description="Run test",
+            action_type="command",
+            command="pytest tests/",
         )
-        task2 = Task(
-            id="task-2",
-            description="Implement feature",
-            status="in_progress",
-            dependencies=["task-1"],
+        batch = ExecutionBatch(
+            batch_number=1,
+            steps=(step,),
+            risk_summary="low",
+            description="Test batch",
         )
-        plan = TaskDAG(
-            tasks=[task1, task2],
-            original_issue="Test issue description",
+        execution_plan = ExecutionPlan(
+            goal="Test goal",
+            batches=(batch,),
+            total_estimated_minutes=5,
+            tdd_approach=True,
         )
 
-        # Create ExecutionState with the plan
+        # Create ExecutionState with execution_plan
         execution_state = ExecutionState(
             profile=profile,
             issue=issue,
-            plan=plan,
-            current_task_id="task-2",
+            execution_plan=execution_plan,
         )
 
         # Create ServerExecutionState with the execution_state
@@ -276,6 +286,7 @@ class TestGetWorkflow:
 
         # Mock repository to return the workflow
         mock_repository.get.return_value = workflow
+        mock_repository.get_recent_events.return_value = []
 
         # Call GET /workflows/{id}
         response = await client.get("/workflows/wf-123")
@@ -284,19 +295,10 @@ class TestGetWorkflow:
         assert response.status_code == 200
         data = response.json()
 
-        # Assert plan data is returned
-        assert data["plan"] is not None, "Plan should not be None"
-        assert "tasks" in data["plan"], "Plan should contain 'tasks'"
-        assert "original_issue" in data["plan"], "Plan should contain 'original_issue'"
-        assert len(data["plan"]["tasks"]) == 2, "Plan should have 2 tasks"
-        assert data["plan"]["tasks"][0]["id"] == "task-1"
-        assert data["plan"]["tasks"][0]["description"] == "Write failing test"
-        assert data["plan"]["tasks"][0]["status"] == "completed"
-        assert data["plan"]["tasks"][1]["id"] == "task-2"
-        assert data["plan"]["tasks"][1]["description"] == "Implement feature"
-        assert data["plan"]["tasks"][1]["status"] == "in_progress"
-        assert data["plan"]["tasks"][1]["dependencies"] == ["task-1"]
-        assert data["plan"]["original_issue"] == "Test issue description"
+        # Assert legacy plan field is None (deprecated in favor of execution_plan)
+        assert data["plan"] is None, "Legacy plan field should be None"
+        # execution_plan should be present
+        assert data["execution_plan"] is not None
 
 
 class TestApproveWorkflow:
@@ -487,3 +489,528 @@ class TestCancelWorkflow:
         response = await client.post("/workflows/wf-missing/cancel")
 
         assert response.status_code == 404
+
+
+class TestBatchExecutionFields:
+    """Tests for batch execution fields in WorkflowDetailResponse."""
+
+    async def test_get_workflow_returns_execution_plan(
+        self,
+        client: AsyncClient,
+        mock_repository: AsyncMock,
+        make_workflow: Callable[..., ServerExecutionState],
+    ):
+        """Get workflow returns execution_plan when present."""
+        # Create a test profile
+        profile = Profile(
+            name="test",
+            driver="cli:claude",
+            tracker="noop",
+            strategy="single",
+        )
+
+        # Create a test issue
+        issue = Issue(
+            id="TEST-123",
+            title="Test Issue",
+            description="Test issue description",
+            status="open",
+        )
+
+        # Create an execution plan with batches
+        step1 = PlanStep(
+            id="step-1",
+            description="Run tests",
+            action_type="command",
+            command="pytest tests/",
+            risk_level="low",
+        )
+        step2 = PlanStep(
+            id="step-2",
+            description="Build project",
+            action_type="command",
+            command="npm run build",
+            risk_level="medium",
+        )
+        batch1 = ExecutionBatch(
+            batch_number=1,
+            steps=(step1,),
+            risk_summary="low",
+            description="Test batch",
+        )
+        batch2 = ExecutionBatch(
+            batch_number=2,
+            steps=(step2,),
+            risk_summary="medium",
+            description="Build batch",
+        )
+        execution_plan = ExecutionPlan(
+            goal="Test and build the project",
+            batches=(batch1, batch2),
+            total_estimated_minutes=10,
+            tdd_approach=True,
+        )
+
+        # Create ExecutionState with the execution plan
+        execution_state = ExecutionState(
+            profile=profile,
+            issue=issue,
+            execution_plan=execution_plan,
+            current_batch_index=0,
+        )
+
+        # Create ServerExecutionState with the execution_state
+        workflow = make_workflow(
+            id="wf-123",
+            issue_id="TEST-123",
+            status="in_progress",
+            execution_state=execution_state,
+            current_stage="development",
+        )
+
+        # Mock repository to return the workflow
+        mock_repository.get.return_value = workflow
+        mock_repository.get_recent_events.return_value = []
+
+        # Call GET /workflows/{id}
+        response = await client.get("/workflows/wf-123")
+
+        # Assert response is successful
+        assert response.status_code == 200
+        data = response.json()
+
+        # Assert execution_plan data is returned
+        assert data["execution_plan"] is not None
+        assert data["execution_plan"]["goal"] == "Test and build the project"
+        assert len(data["execution_plan"]["batches"]) == 2
+        assert data["execution_plan"]["batches"][0]["batch_number"] == 1
+        assert data["execution_plan"]["batches"][0]["description"] == "Test batch"
+        assert len(data["execution_plan"]["batches"][0]["steps"]) == 1
+        assert data["execution_plan"]["batches"][0]["steps"][0]["id"] == "step-1"
+        assert data["execution_plan"]["total_estimated_minutes"] == 10
+        assert data["execution_plan"]["tdd_approach"] is True
+
+    async def test_get_workflow_returns_batch_results(
+        self,
+        client: AsyncClient,
+        mock_repository: AsyncMock,
+        make_workflow: Callable[..., ServerExecutionState],
+    ):
+        """Get workflow returns batch_results when present."""
+        # Create a test profile and issue
+        profile = Profile(
+            name="test",
+            driver="cli:claude",
+            tracker="noop",
+            strategy="single",
+        )
+        issue = Issue(
+            id="TEST-123",
+            title="Test Issue",
+            description="Test issue description",
+            status="open",
+        )
+
+        # Create batch results
+        step_result1 = StepResult(
+            step_id="step-1",
+            status="completed",
+            output="Tests passed",
+            executed_command="pytest tests/",
+            duration_seconds=5.0,
+        )
+        batch_result1 = BatchResult(
+            batch_number=1,
+            status="complete",
+            completed_steps=(step_result1,),
+        )
+        batch_results = [batch_result1]
+
+        # Create ExecutionState with batch results
+        execution_state = ExecutionState(
+            profile=profile,
+            issue=issue,
+            current_batch_index=1,
+            batch_results=batch_results,
+        )
+
+        # Create ServerExecutionState
+        workflow = make_workflow(
+            id="wf-123",
+            issue_id="TEST-123",
+            status="in_progress",
+            execution_state=execution_state,
+        )
+
+        mock_repository.get.return_value = workflow
+        mock_repository.get_recent_events.return_value = []
+
+        # Call GET /workflows/{id}
+        response = await client.get("/workflows/wf-123")
+
+        # Assert response
+        assert response.status_code == 200
+        data = response.json()
+
+        # Assert batch_results data is returned
+        assert data["current_batch_index"] == 1
+        assert len(data["batch_results"]) == 1
+        assert data["batch_results"][0]["batch_number"] == 1
+        assert data["batch_results"][0]["status"] == "complete"
+        assert len(data["batch_results"][0]["completed_steps"]) == 1
+        assert data["batch_results"][0]["completed_steps"][0]["step_id"] == "step-1"
+        assert data["batch_results"][0]["completed_steps"][0]["status"] == "completed"
+        assert data["batch_results"][0]["completed_steps"][0]["output"] == "Tests passed"
+
+    async def test_get_workflow_returns_developer_status(
+        self,
+        client: AsyncClient,
+        mock_repository: AsyncMock,
+        make_workflow: Callable[..., ServerExecutionState],
+    ):
+        """Get workflow returns developer_status."""
+        profile = Profile(
+            name="test",
+            driver="cli:claude",
+            tracker="noop",
+            strategy="single",
+        )
+        issue = Issue(
+            id="TEST-123",
+            title="Test Issue",
+            description="Test issue description",
+            status="open",
+        )
+
+        # Create ExecutionState with specific developer status
+        execution_state = ExecutionState(
+            profile=profile,
+            issue=issue,
+            developer_status=DeveloperStatus.BATCH_COMPLETE,
+        )
+
+        workflow = make_workflow(
+            id="wf-123",
+            issue_id="TEST-123",
+            status="in_progress",
+            execution_state=execution_state,
+        )
+
+        mock_repository.get.return_value = workflow
+        mock_repository.get_recent_events.return_value = []
+
+        response = await client.get("/workflows/wf-123")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["developer_status"] == "batch_complete"
+
+    async def test_get_workflow_returns_current_blocker(
+        self,
+        client: AsyncClient,
+        mock_repository: AsyncMock,
+        make_workflow: Callable[..., ServerExecutionState],
+    ):
+        """Get workflow returns current_blocker when present."""
+        profile = Profile(
+            name="test",
+            driver="cli:claude",
+            tracker="noop",
+            strategy="single",
+        )
+        issue = Issue(
+            id="TEST-123",
+            title="Test Issue",
+            description="Test issue description",
+            status="open",
+        )
+
+        # Create a blocker report
+        blocker = BlockerReport(
+            step_id="step-2",
+            step_description="Build project",
+            blocker_type="command_failed",
+            error_message="npm build failed with exit code 1",
+            attempted_actions=("Retried build command", "Checked dependencies"),
+            suggested_resolutions=("Fix build errors", "Update dependencies"),
+        )
+
+        # Create ExecutionState with blocker
+        execution_state = ExecutionState(
+            profile=profile,
+            issue=issue,
+            developer_status=DeveloperStatus.BLOCKED,
+            current_blocker=blocker,
+        )
+
+        workflow = make_workflow(
+            id="wf-123",
+            issue_id="TEST-123",
+            status="blocked",
+            execution_state=execution_state,
+        )
+
+        mock_repository.get.return_value = workflow
+        mock_repository.get_recent_events.return_value = []
+
+        response = await client.get("/workflows/wf-123")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["current_blocker"] is not None
+        assert data["current_blocker"]["step_id"] == "step-2"
+        assert data["current_blocker"]["step_description"] == "Build project"
+        assert data["current_blocker"]["blocker_type"] == "command_failed"
+        assert data["current_blocker"]["error_message"] == "npm build failed with exit code 1"
+        assert len(data["current_blocker"]["attempted_actions"]) == 2
+        assert len(data["current_blocker"]["suggested_resolutions"]) == 2
+
+    async def test_get_workflow_returns_batch_approvals(
+        self,
+        client: AsyncClient,
+        mock_repository: AsyncMock,
+        make_workflow: Callable[..., ServerExecutionState],
+    ):
+        """Get workflow returns batch_approvals when present."""
+        profile = Profile(
+            name="test",
+            driver="cli:claude",
+            tracker="noop",
+            strategy="single",
+        )
+        issue = Issue(
+            id="TEST-123",
+            title="Test Issue",
+            description="Test issue description",
+            status="open",
+        )
+
+        # Create batch approvals
+        now = datetime.now(UTC)
+        approval1 = BatchApproval(
+            batch_number=1,
+            approved=True,
+            feedback="Looks good",
+            approved_at=now,
+        )
+        batch_approvals = [approval1]
+
+        # Create ExecutionState with approvals
+        execution_state = ExecutionState(
+            profile=profile,
+            issue=issue,
+            batch_approvals=batch_approvals,
+        )
+
+        workflow = make_workflow(
+            id="wf-123",
+            issue_id="TEST-123",
+            status="in_progress",
+            execution_state=execution_state,
+        )
+
+        mock_repository.get.return_value = workflow
+        mock_repository.get_recent_events.return_value = []
+
+        response = await client.get("/workflows/wf-123")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["batch_approvals"]) == 1
+        assert data["batch_approvals"][0]["batch_number"] == 1
+        assert data["batch_approvals"][0]["approved"] is True
+        assert data["batch_approvals"][0]["feedback"] == "Looks good"
+
+    async def test_get_workflow_with_no_execution_state(
+        self,
+        client: AsyncClient,
+        mock_repository: AsyncMock,
+        make_workflow: Callable[..., ServerExecutionState],
+    ):
+        """Get workflow returns default values when execution_state is None."""
+        workflow = make_workflow(
+            id="wf-123",
+            issue_id="TEST-123",
+            status="pending",
+            execution_state=None,
+        )
+
+        mock_repository.get.return_value = workflow
+        mock_repository.get_recent_events.return_value = []
+
+        response = await client.get("/workflows/wf-123")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["execution_plan"] is None
+        assert data["current_batch_index"] == 0
+        assert data["batch_results"] == []
+        assert data["developer_status"] is None
+        assert data["current_blocker"] is None
+        assert data["batch_approvals"] == []
+
+
+class TestBatchApprovalEndpoint:
+    """Tests for POST /workflows/{id}/batches/{batch_number}/approve endpoint."""
+
+    async def test_approve_batch_success(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Approve batch should call orchestrator and return success."""
+        mock_orchestrator.approve_workflow.return_value = None
+
+        response = await client.post("/workflows/wf-123/batches/1/approve")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "approved"
+        assert data["workflow_id"] == "wf-123"
+        mock_orchestrator.approve_workflow.assert_called_once_with("wf-123")
+
+    async def test_approve_batch_not_found(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Approve batch for nonexistent workflow returns 404."""
+        mock_orchestrator.approve_workflow.side_effect = WorkflowNotFoundError("wf-missing")
+
+        response = await client.post("/workflows/wf-missing/batches/1/approve")
+
+        assert response.status_code == 404
+
+    async def test_approve_batch_invalid_state(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Approve batch when not in correct state returns 422."""
+        mock_orchestrator.approve_workflow.side_effect = InvalidStateError(
+            "Workflow not ready for approval", "wf-123", "in_progress"
+        )
+
+        response = await client.post("/workflows/wf-123/batches/1/approve")
+
+        assert response.status_code == 422
+
+
+class TestBlockerResolutionEndpoint:
+    """Tests for POST /workflows/{id}/blocker/resolve endpoint."""
+
+    async def test_resolve_blocker_skip(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Resolve blocker with skip action."""
+        mock_orchestrator.resolve_blocker.return_value = None
+
+        response = await client.post(
+            "/workflows/wf-123/blocker/resolve",
+            json={"action": "skip", "feedback": "Skip this step"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "skipped"
+        assert data["workflow_id"] == "wf-123"
+        mock_orchestrator.resolve_blocker.assert_called_once_with(
+            workflow_id="wf-123", action="skip", feedback="Skip this step"
+        )
+
+    async def test_resolve_blocker_retry(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Resolve blocker with retry action."""
+        mock_orchestrator.resolve_blocker.return_value = None
+
+        response = await client.post(
+            "/workflows/wf-123/blocker/resolve",
+            json={"action": "retry"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "retrying"
+        mock_orchestrator.resolve_blocker.assert_called_once_with(
+            workflow_id="wf-123", action="retry", feedback=None
+        )
+
+    async def test_resolve_blocker_abort(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Resolve blocker with abort action."""
+        mock_orchestrator.resolve_blocker.return_value = None
+
+        response = await client.post(
+            "/workflows/wf-123/blocker/resolve",
+            json={"action": "abort"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "aborted"
+        mock_orchestrator.resolve_blocker.assert_called_once_with(
+            workflow_id="wf-123", action="abort", feedback=None
+        )
+
+    async def test_resolve_blocker_abort_revert(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Resolve blocker with abort_revert action."""
+        mock_orchestrator.resolve_blocker.return_value = None
+
+        response = await client.post(
+            "/workflows/wf-123/blocker/resolve",
+            json={"action": "abort_revert"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "aborted"
+        mock_orchestrator.resolve_blocker.assert_called_once_with(
+            workflow_id="wf-123", action="abort_revert", feedback=None
+        )
+
+    async def test_resolve_blocker_fix(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Resolve blocker with fix action."""
+        mock_orchestrator.resolve_blocker.return_value = None
+
+        response = await client.post(
+            "/workflows/wf-123/blocker/resolve",
+            json={"action": "fix", "feedback": "Use this command instead"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "fix_provided"
+        mock_orchestrator.resolve_blocker.assert_called_once_with(
+            workflow_id="wf-123", action="fix", feedback="Use this command instead"
+        )
+
+    async def test_resolve_blocker_not_found(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Resolve blocker for nonexistent workflow returns 404."""
+        mock_orchestrator.resolve_blocker.side_effect = WorkflowNotFoundError("wf-missing")
+
+        response = await client.post(
+            "/workflows/wf-missing/blocker/resolve",
+            json={"action": "skip"},
+        )
+
+        assert response.status_code == 404
+
+    async def test_resolve_blocker_missing_feedback_for_fix(
+        self, client: AsyncClient, mock_orchestrator: AsyncMock
+    ):
+        """Resolve blocker with fix action and no feedback passes None."""
+        mock_orchestrator.resolve_blocker.return_value = None
+
+        response = await client.post(
+            "/workflows/wf-123/blocker/resolve",
+            json={"action": "fix"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "fix_provided"
+        mock_orchestrator.resolve_blocker.assert_called_once_with(
+            workflow_id="wf-123", action="fix", feedback=None
+        )

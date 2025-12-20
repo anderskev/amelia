@@ -71,7 +71,7 @@ def _log_format(record: "Record") -> str:
     # Loguru uses </> to close any open color tag
     close = "</>"
 
-    # Format: timestamp | level | module | message
+    # Format: timestamp | level | module | message [extra]
     # Using gradient-inspired styling with dashboard colors
     fmt = (
         f"<fg {COLORS['sage_muted']}>{{time:HH:mm:ss}}{close}"
@@ -80,8 +80,19 @@ def _log_format(record: "Record") -> str:
         f"<fg {COLORS['sage_pending']}>│{close} "
         f"<fg {COLORS['sage_muted']}>{{name}}{close}"
         f"<fg {COLORS['sage_pending']}>:{close}"
-        f"<fg {COLORS['cream']}>{{message}}{close}\n"
+        f"<fg {COLORS['cream']}>{{message}}{close}"
     )
+
+    # Add structured fields if present
+    extra = record["extra"]
+    if extra:
+        # Format extra fields as key=value pairs
+        extra_str = " ".join(f"{k}={v!r}" for k, v in extra.items())
+        # Escape braces to prevent Loguru format string injection
+        extra_str = extra_str.replace("{", "{{").replace("}", "}}")
+        fmt += f" <fg {COLORS['sage_muted']}>│ {extra_str}{close}"
+
+    fmt += "\n"
 
     # Add exception formatting if present
     if record["exception"]:

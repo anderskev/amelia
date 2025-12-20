@@ -1,28 +1,35 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""Integration tests for orchestrator with batch execution model."""
+
 import asyncio
 import time
-from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from langchain_core.runnables.config import RunnableConfig
 
-from amelia.agents.architect import PlanOutput
 from amelia.agents.reviewer import ReviewResponse
-from amelia.core.orchestrator import call_reviewer_node, create_orchestrator_graph
-from amelia.core.state import ExecutionState, Task, TaskDAG
-from amelia.core.types import Issue, Profile
+from amelia.core.orchestrator import call_reviewer_node
+from amelia.core.state import ExecutionState
+
+from .conftest import make_batch, make_issue, make_plan, make_profile, make_step
 
 
 async def test_orchestrator_parallel_review_api() -> None:
     """Verifies concurrent API calls during competitive review with an API driver."""
-    profile = Profile(
-        name="api_comp_reviewer", driver="api:openai", tracker="noop", strategy="competitive"
+    profile = make_profile(
+        name="api_comp_reviewer",
+        driver="api:openai",
+        tracker="noop",
+        strategy="competitive",
     )
-    test_issue = Issue(
-        id="PAR-API", title="Parallel API Review", description="Test concurrent API calls for review."
+    test_issue = make_issue(
+        id="PAR-API",
+        title="Parallel API Review",
+        description="Test concurrent API calls for review.",
     )
 
     mock_driver = AsyncMock()
@@ -42,7 +49,7 @@ async def test_orchestrator_parallel_review_api() -> None:
             code_changes_for_review="changes"
         )
 
-        config = {"configurable": {"thread_id": "test-parallel-review"}}
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-parallel-review"}})
         await call_reviewer_node(initial_state, config)
 
         _ = time.time() - start_time  # Duration tracked but not asserted - timing is unreliable in CI
@@ -51,56 +58,123 @@ async def test_orchestrator_parallel_review_api() -> None:
         assert mock_driver.generate.call_count == 3
 
 
-@pytest.mark.parametrize(
-    "driver_type,profile_name,task_prefix,issue_id,issue_title",
-    [
-        ("api:openai", "api_parallel", "P", "PAR-EXEC", "Parallel Execution Test"),
-        ("cli:claude", "cli_parallel", "S", "CLI-PAR", "CLI Parallel Test"),
-    ],
-    ids=["api_driver", "cli_driver"]
-)
-async def test_orchestrator_parallel_execution(
-    driver_type: str,
-    profile_name: str,
-    task_prefix: str,
-    issue_id: str,
-    issue_title: str
-) -> None:
-    """Verifies the orchestrator executes independent tasks in parallel with different drivers."""
-    profile = Profile(name=profile_name, driver=driver_type, tracker="noop", strategy="single")
-    test_issue = Issue(id=issue_id, title=issue_title, description="Execute tasks in parallel.")
+async def test_orchestrator_batch_execution_calls_developer_run() -> None:
+    """Verifies the orchestrator correctly calls Developer.run() for batch execution."""
+    from amelia.core.orchestrator import call_developer_node
 
-    async def delayed_execute_current_task(_self: Any, state: ExecutionState, workflow_id: str | None = None) -> dict[str, str]:
-        await asyncio.sleep(0.05)
-        return {"status": "completed", "output": f"Task {state.current_task_id} finished"}
+    profile = make_profile(name="test", driver="cli:claude")
+    test_issue = make_issue(id="BATCH-1", title="Batch Test", description="Test batch execution")
 
-    mock_plan_output = PlanOutput(
-        task_dag=TaskDAG(tasks=[
-            Task(id=f"{task_prefix}1", description="Task 1", status="pending"),
-            Task(id=f"{task_prefix}2", description="Task 2", status="pending"),
-        ], original_issue=issue_id),
-        markdown_path=Path(f"/tmp/test-plan-{issue_id.lower()}.md")
+    # Create execution plan with steps
+    step = make_step(id="step-1", description="Test step", command="echo test")
+    batch = make_batch(batch_number=1, steps=(step,), description="Test batch")
+    execution_plan = make_plan(goal="Test goal", batches=(batch,), tdd_approach=True)
+
+    initial_state = ExecutionState(
+        profile=profile,
+        issue=test_issue,
+        execution_plan=execution_plan,
+        human_approved=True
     )
 
     mock_driver = AsyncMock()
-    mock_driver.generate.return_value = ReviewResponse(approved=True, comments=[], severity="low")
+    mock_developer = AsyncMock()
+    mock_developer.run.return_value = {"developer_status": "all_done"}
 
-    with patch('amelia.agents.architect.Architect.plan', new_callable=AsyncMock) as mock_plan, \
-         patch('amelia.agents.developer.Developer.execute_current_task', new=delayed_execute_current_task), \
-         patch('amelia.drivers.factory.DriverFactory.get_driver', return_value=mock_driver), \
-         patch('amelia.core.orchestrator.get_code_changes_for_review', new_callable=AsyncMock, return_value="mock code changes"), \
-         patch('typer.confirm', return_value=True), \
-         patch('typer.prompt', return_value=""):
+    with patch("amelia.drivers.factory.DriverFactory.get_driver", return_value=mock_driver), \
+         patch("amelia.core.orchestrator.Developer") as MockDeveloper:
+        MockDeveloper.return_value = mock_developer
 
-        mock_plan.return_value = mock_plan_output
-        initial_state = ExecutionState(profile=profile, issue=test_issue)
-        app = create_orchestrator_graph()
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-batch-exec"}})
+        result = await call_developer_node(initial_state, config)
 
-        start_time = time.time()
-        config = {"configurable": {"thread_id": f"test-parallel-exec-{issue_id.lower()}"}}
-        final_state = await app.ainvoke(initial_state, config)
-        duration = time.time() - start_time
+        # Developer should be instantiated
+        MockDeveloper.assert_called_once()
+        # Developer.run() should be called with the state
+        mock_developer.run.assert_called_once()
 
-        # Sequential: 100ms, Parallel: ~50ms (200ms threshold for CI variability)
-        assert duration < 0.2, f"Expected < 0.2s, got {duration:.3f}s"
-        assert all(task.status == "completed" for task in final_state["plan"].tasks)
+        # Result should contain developer_status
+        assert "developer_status" in result
+
+
+@pytest.mark.parametrize(
+    "node_name,node_function,setup_state_kwargs,setup_mock",
+    [
+        (
+            "architect",
+            "call_architect_node",
+            {"issue": make_issue(id="CWD-123", title="Test Architect CWD")},
+            "setup_architect_mock",
+        ),
+        (
+            "reviewer",
+            "call_reviewer_node",
+            {
+                "issue": make_issue(id="CWD-124", title="Test Reviewer CWD"),
+                "code_changes_for_review": "diff content",
+            },
+            "setup_reviewer_mock",
+        ),
+    ],
+)
+async def test_orchestrator_node_passes_working_dir_as_cwd(
+    node_name: str,
+    node_function: str,
+    setup_state_kwargs: dict[str, Any],
+    setup_mock: str,
+) -> None:
+    """Verify orchestrator nodes pass working_dir to driver as cwd.
+
+    Args:
+        node_name: Name of the node being tested (for display).
+        node_function: Name of the node function to import and call.
+        setup_state_kwargs: Additional kwargs for ExecutionState.
+        setup_mock: Name of the helper function to set up mock returns.
+    """
+    from amelia.agents.architect import ExecutionPlanOutput
+    from amelia.core.orchestrator import call_architect_node, call_reviewer_node
+
+    # Select the actual node function
+    node_func = call_architect_node if node_function == "call_architect_node" else call_reviewer_node
+
+    # Create profile with working_dir set
+    profile = make_profile(
+        name="test",
+        driver="api:openai",
+        working_dir="/test/project",
+    )
+
+    # Create initial state
+    initial_state = ExecutionState(
+        profile=profile,
+        **setup_state_kwargs,
+    )
+
+    # Mock driver with appropriate response
+    mock_driver = AsyncMock()
+    if setup_mock == "setup_architect_mock":
+        # Architect needs ExecutionPlanOutput
+        step = make_step(id="step-1", description="Test step", command="echo test")
+        batch = make_batch(batch_number=1, steps=(step,), description="Test batch")
+        execution_plan = make_plan(goal="Test goal", batches=(batch,), tdd_approach=True)
+        mock_driver.generate.return_value = ExecutionPlanOutput(
+            plan=execution_plan,
+            reasoning="Test reasoning",
+        )
+    else:
+        # Reviewer needs ReviewResponse
+        mock_driver.generate.return_value = ReviewResponse(
+            approved=True,
+            comments=["Looks good"],
+            severity="low",
+        )
+
+    with patch("amelia.drivers.factory.DriverFactory.get_driver", return_value=mock_driver):
+        config = cast(RunnableConfig, {"configurable": {"thread_id": f"test-{node_name}-cwd"}})
+        await node_func(initial_state, config)
+
+        # Verify driver.generate was called with cwd=working_dir
+        mock_driver.generate.assert_called_once()
+        call_kwargs = mock_driver.generate.call_args.kwargs
+        assert "cwd" in call_kwargs
+        assert call_kwargs["cwd"] == "/test/project"

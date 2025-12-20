@@ -14,18 +14,18 @@ class TestCompetitiveReviewPersonaAttribution:
     async def test_competitive_review_prefixes_comments_with_persona(
         self,
         mock_execution_state_factory,
-        mock_task_dag_factory,
+        mock_execution_plan_factory,
         mock_async_driver_factory,
     ):
         """
         Comments from competitive review should be prefixed with persona name
         so users can identify which perspective raised each concern.
         """
-        # Set up state with plan, current_task_id, and code changes
-        plan = mock_task_dag_factory(num_tasks=1)
+        # Set up state with execution plan and code changes
+        plan = mock_execution_plan_factory(num_batches=1)
         state = mock_execution_state_factory(
-            plan=plan,
-            current_task_id="1",  # Required when plan has tasks
+            execution_plan=plan,
+            current_batch_index=0,
             code_changes_for_review="diff --git a/file.py"
         )
 
@@ -56,14 +56,14 @@ class TestCompetitiveReviewPersonaAttribution:
     async def test_competitive_review_handles_empty_comments(
         self,
         mock_execution_state_factory,
-        mock_task_dag_factory,
+        mock_execution_plan_factory,
         mock_async_driver_factory,
     ):
         """Personas with no comments should not add empty prefixed entries."""
-        plan = mock_task_dag_factory(num_tasks=1)
+        plan = mock_execution_plan_factory(num_batches=1)
         state = mock_execution_state_factory(
-            plan=plan,
-            current_task_id="1",  # Required when plan has tasks
+            execution_plan=plan,
+            current_batch_index=0,
             code_changes_for_review="diff --git a/file.py"
         )
 

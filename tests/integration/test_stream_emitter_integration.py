@@ -21,7 +21,7 @@ import pytest
 
 from amelia.agents.architect import PlanOutput
 from amelia.agents.reviewer import ReviewResponse
-from amelia.core.state import ExecutionState, Task, TaskDAG
+from amelia.core.state import ExecutionBatch, ExecutionPlan, ExecutionState, PlanStep
 from amelia.core.types import Issue, Profile, StreamEvent, StreamEventType
 from amelia.server.models import ServerExecutionState
 from amelia.server.orchestrator.service import OrchestratorService
@@ -103,28 +103,38 @@ class TestStreamEmitterIntegration:
                     severity="low",
                 )
 
+                # Create execution plan for new batch model
+                step = PlanStep(
+                    id="step-1",
+                    description="Test step",
+                    action_type="command",
+                    command="echo test"
+                )
+                batch = ExecutionBatch(
+                    batch_number=1,
+                    steps=(step,),
+                    risk_summary="low",
+                    description="Test batch"
+                )
+                execution_plan = ExecutionPlan(
+                    goal="Test goal",
+                    batches=(batch,),
+                    total_estimated_minutes=5,
+                    tdd_approach=True
+                )
                 mock_plan = PlanOutput(
-                    task_dag=TaskDAG(
-                        tasks=[
-                            Task(
-                                id="T1",
-                                description="Test task",
-                                status="pending",
-                            )
-                        ],
-                        original_issue=test_issue.id,
-                    ),
+                    execution_plan=execution_plan,
                     markdown_path=Path("/tmp/test-plan.md"),
                 )
 
                 with (
                     patch("amelia.drivers.factory.DriverFactory.get_driver", return_value=mock_driver),
                     patch("amelia.agents.architect.Architect.plan", new_callable=AsyncMock) as mock_plan_call,
-                    patch("amelia.agents.developer.Developer.execute_current_task", new_callable=AsyncMock) as mock_execute,
+                    patch("amelia.agents.developer.Developer.run", new_callable=AsyncMock) as mock_run,
                     patch("amelia.core.orchestrator.get_code_changes_for_review", new_callable=AsyncMock, return_value="test changes"),
                 ):
                     mock_plan_call.return_value = mock_plan
-                    mock_execute.return_value = {"status": "completed", "output": "Task completed"}
+                    mock_run.return_value = {"developer_status": "all_done"}
 
                     # Mock repository get to return workflow state
                     def mock_get_workflow(workflow_id: str) -> ServerExecutionState | None:
@@ -136,7 +146,7 @@ class TestStreamEmitterIntegration:
                             execution_state=ExecutionState(
                                 profile=test_profile,
                                 issue=test_issue,
-                                plan=mock_plan.task_dag,
+                                execution_plan=mock_plan.execution_plan,
                             ),
                             workflow_status="in_progress",
                             started_at=datetime.now(UTC),

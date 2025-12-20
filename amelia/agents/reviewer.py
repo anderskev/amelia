@@ -48,6 +48,36 @@ Analyze the provided code changes and provide a comprehensive review."""
         """
         self.persona = persona
 
+    def _get_current_batch_context(self, state: ExecutionState) -> str | None:
+        """Get context description for the current batch.
+
+        Args:
+            state: The current execution state.
+
+        Returns:
+            Formatted batch context string, or None if no execution plan.
+        """
+        if not state.execution_plan:
+            return None
+
+        if state.current_batch_index >= len(state.execution_plan.batches):
+            return None
+
+        batch = state.execution_plan.batches[state.current_batch_index]
+
+        # Build context from batch description and steps
+        parts = [f"**Batch {batch.batch_number}**"]
+        if batch.description:
+            parts.append(batch.description)
+
+        # Add step descriptions for context
+        if batch.steps:
+            parts.append("\n**Steps:**")
+            for step in batch.steps:
+                parts.append(f"- {step.description}")
+
+        return "\n\n".join(parts)
+
     def compile(self, state: ExecutionState) -> CompiledContext:
         """Compile ExecutionState into review context.
 
@@ -63,11 +93,14 @@ Analyze the provided code changes and provide a comprehensive review."""
         # Format system prompt with persona
         system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(persona=self.persona)
 
-        # Get current task or fall back to issue summary
+        # Get context for what was supposed to be done
+        # Priority: current batch (new model) > current task (legacy) > issue summary
+        batch_context = self._get_current_batch_context(state)
         current_task = self.get_current_task(state)
         issue_summary = self.get_issue_summary(state)
-        if not current_task and not issue_summary:
-            raise ValueError("No task or issue context found for review")
+
+        if not batch_context and not current_task and not issue_summary:
+            raise ValueError("No batch, task, or issue context found for review")
 
         # Get code changes
         code_changes = state.code_changes_for_review
@@ -77,17 +110,25 @@ Analyze the provided code changes and provide a comprehensive review."""
         # Build sections
         sections: list[ContextSection] = []
 
-        # Task or issue section - what was supposed to be done
-        if current_task:
+        # Batch/task/issue section - what was supposed to be done
+        if batch_context:
             sections.append(
                 ContextSection(
                     name="task",
-                    content=current_task.description,
-                    source="state.current_task.description"
+                    content=batch_context,
+                    source="state.execution_plan.batches[current_batch_index]"
+                )
+            )
+        elif current_task:
+            sections.append(
+                ContextSection(
+                    name="task",
+                    content=current_task,
+                    source="state.execution_plan (current batch)"
                 )
             )
         elif issue_summary:
-            # issue_summary is guaranteed non-None here due to check on line 67
+            # issue_summary is guaranteed non-None here due to validation check above
             sections.append(
                 ContextSection(
                     name="issue",
@@ -186,14 +227,6 @@ class Reviewer:
         Returns:
             ReviewResult with approval status, comments, and severity.
         """
-        # Validate state: if plan has tasks, current_task_id must be set
-        # State preparation is the orchestrator's responsibility, not the agent's
-        if state.plan and state.plan.tasks and not state.current_task_id:
-            raise ValueError(
-                "current_task_id is required when plan has tasks. "
-                "The orchestrator must set current_task_id before calling review."
-            )
-
         # Prepare state for context strategy
         # Set code_changes_for_review if not already set (passed as parameter)
         review_state = state
@@ -214,7 +247,11 @@ class Reviewer:
         # Convert to messages
         prompt_messages = strategy.to_messages(compiled_context)
 
-        response = await self.driver.generate(messages=prompt_messages, schema=ReviewResponse)
+        response = await self.driver.generate(
+            messages=prompt_messages,
+            schema=ReviewResponse,
+            cwd=state.profile.working_dir,
+        )
 
         # Emit completion event before return
         if self._stream_emitter is not None:

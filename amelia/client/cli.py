@@ -23,6 +23,61 @@ from amelia.client.models import CreateWorkflowResponse
 console = Console()
 
 
+def _get_worktree_context() -> tuple[str, str]:
+    """Get worktree context with error handling.
+
+    Returns:
+        Tuple of (worktree_path, worktree_name).
+
+    Raises:
+        typer.Exit: If not in a git repository or worktree detection fails.
+    """
+    try:
+        return get_worktree_context()
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        console.print("\nMake sure you're in a git repository working directory.")
+        raise typer.Exit(1) from None
+    except RuntimeError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+
+
+def _handle_workflow_api_error(
+    exc: ServerUnreachableError | WorkflowConflictError | RateLimitError | InvalidRequestError,
+    worktree_path: str | None = None,
+) -> None:
+    """Handle workflow API errors with appropriate user messaging.
+
+    Args:
+        exc: The exception to handle.
+        worktree_path: Worktree path for conflict error messages.
+
+    Raises:
+        typer.Exit: Always exits with code 1.
+    """
+    if isinstance(exc, ServerUnreachableError):
+        console.print(f"[red]Error:[/red] {exc}")
+        console.print("\n[yellow]Start the server:[/yellow] amelia server")
+
+    elif isinstance(exc, WorkflowConflictError):
+        console.print(f"[red]Error:[/red] Workflow already active in {worktree_path}")
+
+        if exc.active_workflow:
+            active = exc.active_workflow
+            console.print(f"\n  Active workflow: [bold]{active['id']}[/bold] ({active['issue_id']})")
+            console.print(f"  Status: {active['status']}")
+
+        console.print("\n[yellow]To start a new workflow:[/yellow]")
+        console.print("  - Cancel the existing one: [bold]amelia cancel[/bold]")
+        console.print("  - Or use a different worktree: [bold]git worktree add ../project-issue-123[/bold]")
+
+    elif isinstance(exc, (RateLimitError, InvalidRequestError)):
+        console.print(f"[red]Error:[/red] {exc}")
+
+    raise typer.Exit(1) from None
+
+
 def start_command(
     issue_id: Annotated[str, typer.Argument(help="Issue ID to work on (e.g., ISSUE-123)")],
     profile: Annotated[
@@ -38,18 +93,8 @@ def start_command(
         issue_id: Issue ID to work on (e.g., ISSUE-123).
         profile: Profile name for configuration.
     """
-    # Detect worktree context
-    try:
-        worktree_path, worktree_name = get_worktree_context()
-    except ValueError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        console.print("\nMake sure you're in a git repository working directory.")
-        raise typer.Exit(1) from None
-    except RuntimeError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1) from None
+    worktree_path, worktree_name = _get_worktree_context()
 
-    # Create workflow via API
     client = AmeliaClient()
 
     async def _create() -> CreateWorkflowResponse:
@@ -69,31 +114,51 @@ def start_command(
         console.print(f"  Status: {workflow.status}")
         console.print("\n[dim]View in dashboard: http://127.0.0.1:8420[/dim]")
 
-    except ServerUnreachableError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        console.print("\n[yellow]Start the server:[/yellow] amelia server")
-        raise typer.Exit(1) from None
+    except (ServerUnreachableError, WorkflowConflictError, RateLimitError, InvalidRequestError) as e:
+        _handle_workflow_api_error(e, worktree_path=worktree_path)
 
-    except WorkflowConflictError as e:
-        console.print(f"[red]Error:[/red] Workflow already active in {worktree_path}")
 
-        if e.active_workflow:
-            active = e.active_workflow
-            console.print(f"\n  Active workflow: [bold]{active['id']}[/bold] ({active['issue_id']})")
-            console.print(f"  Status: {active['status']}")
+def plan_command(
+    issue_id: Annotated[str, typer.Argument(help="Issue ID to work on (e.g., ISSUE-123)")],
+    profile: Annotated[
+        str | None,
+        typer.Option("--profile", "-p", help="Profile name for configuration"),
+    ] = None,
+) -> None:
+    """Generate a plan for an issue without executing it.
 
-        console.print("\n[yellow]To start a new workflow:[/yellow]")
-        console.print("  - Cancel the existing one: [bold]amelia cancel[/bold]")
-        console.print("  - Or use a different worktree: [bold]git worktree add ../project-issue-123[/bold]")
-        raise typer.Exit(1) from None
+    Detects the current git worktree and creates a plan-only workflow via the API server.
+    The plan will be saved to docs/plans/ when complete.
 
-    except RateLimitError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1) from None
+    Args:
+        issue_id: Issue ID to work on (e.g., ISSUE-123).
+        profile: Profile name for configuration.
+    """
+    worktree_path, worktree_name = _get_worktree_context()
 
-    except InvalidRequestError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1) from None
+    client = AmeliaClient()
+
+    async def _create() -> CreateWorkflowResponse:
+        return await client.create_workflow(
+            issue_id=issue_id,
+            worktree_path=worktree_path,
+            worktree_name=worktree_name,
+            profile=profile,
+            plan_only=True,
+        )
+
+    try:
+        workflow = asyncio.run(_create())
+
+        console.print(f"[green]✓[/green] Plan generation started: [bold]{workflow.id}[/bold]")
+        console.print(f"  Issue: {issue_id}")
+        console.print(f"  Worktree: {worktree_path}")
+        console.print(f"  Status: {workflow.status}")
+        console.print("\n[dim]Plan will be saved to docs/plans/ when complete[/dim]")
+        console.print("[dim]View in dashboard: http://127.0.0.1:8420[/dim]")
+
+    except (ServerUnreachableError, WorkflowConflictError, RateLimitError, InvalidRequestError) as e:
+        _handle_workflow_api_error(e, worktree_path=worktree_path)
 
 
 def reject_command(

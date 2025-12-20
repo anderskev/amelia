@@ -22,7 +22,14 @@ from loguru import logger
 from amelia.agents.architect import Architect
 from amelia.agents.developer import Developer
 from amelia.agents.reviewer import Reviewer
-from amelia.core.state import BatchApproval, ExecutionBatch, ExecutionState, TaskDAG
+from amelia.core.state import (
+    BatchApproval,
+    ExecutionBatch,
+    ExecutionPlan,
+    ExecutionState,
+    PlanStep,
+    ReviewResult,
+)
 from amelia.core.types import DeveloperStatus, Profile, StreamEmitter, TrustLevel
 from amelia.drivers.factory import DriverFactory
 from amelia.tools.git_utils import revert_to_git_snapshot
@@ -90,14 +97,14 @@ async def call_architect_node(
     state: ExecutionState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
-    """Orchestrator node for the Architect agent to generate a plan.
+    """Orchestrator node for the Architect agent to generate an execution plan.
 
     Args:
         state: Current execution state containing the issue and profile.
         config: Optional RunnableConfig with stream_emitter in configurable.
 
     Returns:
-        Partial state dict with the generated plan.
+        Partial state dict with the generated execution plan.
 
     Raises:
         ValueError: If no issue is provided in the state.
@@ -113,18 +120,43 @@ async def call_architect_node(
 
     driver = DriverFactory.get_driver(state.profile.driver)
     architect = Architect(driver, stream_emitter=stream_emitter)
-    plan_output = await architect.plan(state, workflow_id=workflow_id)
+
+    # Handle plan_only mode - generate plan with markdown and exit
+    if state.plan_only:
+        plan_output = await architect.plan(
+            state=state,
+            workflow_id=workflow_id or "plan-only",
+        )
+        logger.info(
+            "Agent action completed",
+            agent="architect",
+            action="generated_plan",
+            details={
+                "batch_count": len(plan_output.execution_plan.batches),
+                "markdown_path": str(plan_output.markdown_path),
+            },
+        )
+        return {
+            "execution_plan": plan_output.execution_plan,
+            "workflow_status": "completed",
+        }
+
+    # Normal mode - generate execution plan
+    execution_plan = await architect.generate_execution_plan(
+        issue=state.issue,
+        state=state,
+    )
 
     # Log the agent action
     logger.info(
         "Agent action completed",
         agent="architect",
-        action="generated_plan",
-        details={"task_count": len(plan_output.task_dag.tasks)},
+        action="generated_execution_plan",
+        details={"batch_count": len(execution_plan.batches)},
     )
 
-    # Return partial state update
-    return {"plan": plan_output.task_dag}
+    # Return partial state update with execution plan
+    return {"execution_plan": execution_plan}
 
 async def human_approval_node(
     state: ExecutionState,
@@ -156,9 +188,11 @@ async def human_approval_node(
     typer.secho("\n--- HUMAN APPROVAL REQUIRED ---", fg=typer.colors.BRIGHT_YELLOW)
     typer.echo("Review the proposed plan before proceeding. State snapshot (for debug):")
     typer.echo(f"Plan for issue {state.issue.id if state.issue else 'N/A'}:")
-    if state.plan:
-        for task in state.plan.tasks:
-            typer.echo(f"  - [{task.id}] {task.description} (Dependencies: {', '.join(task.dependencies)})")
+    if state.execution_plan:
+        for i, batch in enumerate(state.execution_plan.batches, 1):
+            typer.echo(f"  Batch {i}:")
+            for step in batch.steps:
+                typer.echo(f"    - {step.description}")
 
     approved = typer.confirm("Do you approve this plan to proceed with development?", default=True)
     comment = typer.prompt("Add an optional comment for the audit log (press Enter to skip)", default="")
@@ -239,14 +273,31 @@ async def blocker_resolution_node(state: ExecutionState) -> dict[str, Any]:
 
     # Handle skip resolution
     if resolution == "skip":
+        # Import here to avoid circular imports
+        from amelia.agents.developer import get_cascade_skips  # noqa: PLC0415
+
+        # Mark the blocked step as skipped
+        skip_reasons = {blocker.step_id: f"Skipped by user: {blocker.error_message}"}
+
+        # Find all cascade skips (steps that depend on the skipped step)
+        cascade_skips: dict[str, str] = {}
+        if state.execution_plan:
+            cascade_skips = get_cascade_skips(
+                blocker.step_id, state.execution_plan, skip_reasons
+            )
+
+        # Combine original skip + cascade skips
+        all_skipped = {blocker.step_id, *cascade_skips.keys()}
+
         logger.info(
             "Blocker resolved by skipping step",
             step_id=blocker.step_id,
-            total_skipped=len(state.skipped_step_ids) + 1,
+            cascade_skipped=list(cascade_skips.keys()),
+            total_skipped=len(all_skipped),
         )
 
         return {
-            "skipped_step_ids": {blocker.step_id},
+            "skipped_step_ids": all_skipped,
             "current_blocker": None,
             "blocker_resolution": None,
         }
@@ -348,25 +399,14 @@ async def call_reviewer_node(
     """
     logger.info(f"Orchestrator: Calling Reviewer for issue {state.issue.id if state.issue else 'N/A'}")
 
-    # Ensure current_task_id is set if plan has tasks (orchestrator owns state management)
-    review_state = state
-    if state.plan and state.plan.tasks and not state.current_task_id:
-        # Use the first task as fallback - this shouldn't happen in normal flow
-        # since developer_node sets current_task_id, but handle defensively
-        logger.warning(
-            "current_task_id not set despite plan having tasks. "
-            "Setting to first task. This may indicate a workflow issue."
-        )
-        review_state = state.model_copy(update={"current_task_id": state.plan.tasks[0].id})
-
     # Extract stream_emitter and workflow_id from config if available
     stream_emitter, workflow_id = _extract_config_params(config)
 
     driver = DriverFactory.get_driver(state.profile.driver)
     reviewer = Reviewer(driver, stream_emitter=stream_emitter)
 
-    code_changes = await get_code_changes_for_review(review_state)
-    review_result = await reviewer.review(review_state, code_changes, workflow_id=workflow_id)
+    code_changes = await get_code_changes_for_review(state)
+    review_result = await reviewer.review(state, code_changes, workflow_id=workflow_id)
 
     # Log the review completion
     logger.info(
@@ -386,25 +426,48 @@ async def call_developer_node(
     state: ExecutionState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
-    """Orchestrator node for the Developer agent to execute tasks.
+    """Orchestrator node for the Developer agent to execute batches.
 
-    Executes ready tasks, passing execution_mode and working directory from profile.
+    Uses the new batch execution model via Developer.run(), which handles
+    batch execution, blocker detection, and checkpoint logic internally.
 
     Args:
-        state: Current execution state containing the plan and tasks.
+        state: Current execution state containing the execution plan.
         config: Optional RunnableConfig with stream_emitter in configurable.
 
     Returns:
-        Partial state dict with task results.
+        Partial state dict with developer_status and batch results.
     """
-    logger.info("Orchestrator: Calling Developer to execute tasks.")
+    logger.info("Orchestrator: Calling Developer to execute batch.")
 
-    if not state.plan or not state.plan.tasks:
-        logger.info("Orchestrator: No plan or tasks to execute.")
-        return {}
+    # Diagnostic logging for debugging state issues
+    logger.debug(
+        "Developer node state",
+        state_type=type(state).__name__,
+        has_execution_plan=state.execution_plan is not None,
+        execution_plan_type=type(state.execution_plan).__name__ if state.execution_plan else None,
+        batch_count=len(state.execution_plan.batches) if state.execution_plan and state.execution_plan.batches else 0,
+        human_approved=state.human_approved,
+        current_batch_index=state.current_batch_index,
+    )
 
-    # Extract stream_emitter and workflow_id from config if available
-    stream_emitter, workflow_id = _extract_config_params(config)
+    if not state.execution_plan or not state.execution_plan.batches:
+        error_msg = (
+            "Developer node has no execution plan or batches to execute. "
+            "This indicates a state synchronization issue - the architect should have "
+            "generated a plan before the developer runs."
+        )
+        logger.error(
+            error_msg,
+            has_execution_plan=state.execution_plan is not None,
+            batches_empty=not state.execution_plan.batches if state.execution_plan else True,
+            human_approved=state.human_approved,
+            current_batch_index=state.current_batch_index,
+        )
+        raise ValueError(error_msg)
+
+    # Extract stream_emitter from config if available
+    stream_emitter, _ = _extract_config_params(config)
 
     driver = DriverFactory.get_driver(state.profile.driver)
     developer = Developer(
@@ -413,80 +476,8 @@ async def call_developer_node(
         stream_emitter=stream_emitter,
     )
 
-    ready_tasks = state.plan.get_ready_tasks()
-
-    if not ready_tasks:
-        logger.info("Orchestrator: No ready tasks found to execute in this iteration.")
-        return {}
-
-    logger.info(f"Orchestrator: Executing {len(ready_tasks)} ready tasks.")
-
-    # Create a mutable copy of tasks to update immutably
-    updated_tasks = list(state.plan.tasks)
-
-    for task in ready_tasks:
-        # Find the index of this task in the updated_tasks list
-        task_idx = next(j for j, t in enumerate(updated_tasks) if t.id == task.id)
-
-        # Update status to in_progress (immutably)
-        updated_tasks[task_idx] = task.model_copy(update={"status": "in_progress"})
-        logger.info(f"Orchestrator: Developer executing task {task.id}")
-
-        try:
-            # Create state with current task ID for execution
-            current_state = state.model_copy(update={"current_task_id": task.id})
-            result = await developer.execute_current_task(current_state, workflow_id=workflow_id)
-
-            if result.get("status") == "completed":
-                # Update status to completed (immutably)
-                updated_tasks[task_idx] = updated_tasks[task_idx].model_copy(update={"status": "completed"})
-                output_content = result.get("output", "No output")
-                logger.info(
-                    "Task completed",
-                    task_id=task.id,
-                    output=output_content,
-                )
-            else:
-                # Update status to failed (immutably)
-                updated_tasks[task_idx] = updated_tasks[task_idx].model_copy(update={"status": "failed"})
-                logger.error(
-                    "Task failed",
-                    task_id=task.id,
-                    error=result.get("error", "Unknown"),
-                )
-
-        except Exception as e:
-            # Update status to failed (immutably)
-            updated_tasks[task_idx] = updated_tasks[task_idx].model_copy(update={"status": "failed"})
-            logger.error(f"Task {task.id} failed: {e}")
-
-            # For agentic mode, fail fast
-            if state.profile.execution_mode == "agentic":
-                updated_plan = TaskDAG(
-                    tasks=updated_tasks, original_issue=state.plan.original_issue
-                )
-                return {"plan": updated_plan, "workflow_status": "failed"}
-
-    updated_plan = TaskDAG(
-        tasks=updated_tasks, original_issue=state.plan.original_issue
-    )
-
-    # Determine developer_status for routing
-    # Check if there are more ready tasks after this execution
-    remaining_ready_tasks = updated_plan.get_ready_tasks()
-
-    if remaining_ready_tasks:
-        # More tasks to execute - continue developer loop
-        developer_status = DeveloperStatus.EXECUTING
-    else:
-        # No more ready tasks - all done, go to reviewer
-        developer_status = DeveloperStatus.ALL_DONE
-
-    return {
-        "plan": updated_plan,
-        "current_task_id": ready_tasks[0].id if ready_tasks else state.current_task_id,
-        "developer_status": developer_status,
-    }
+    # Developer.run() handles all batch execution logic and returns state updates
+    return await developer.run(state)
 
 def should_continue_review_loop(state: ExecutionState) -> Literal["re_evaluate", "end"]:
     """Determine if review loop should continue based on last review.
@@ -499,16 +490,28 @@ def should_continue_review_loop(state: ExecutionState) -> Literal["re_evaluate",
         'end' if review was approved or no tasks are ready (workflow is stuck).
     """
     if state.last_review and not state.last_review.approved:
-        # Only re-evaluate if there are tasks that can be executed
-        if state.plan and state.plan.get_ready_tasks():
+        # Only re-evaluate if there are batches that can be executed
+        if state.execution_plan and state.execution_plan.batches:
             return "re_evaluate"
-        # No tasks available - log and exit to prevent infinite loop
+        # No batches available - log and exit to prevent infinite loop
         logger.warning(
-            "Review not approved but no tasks available to execute. "
+            "Review not approved but no batches available to execute. "
             "Ending workflow - manual intervention may be required."
         )
         return "end"
     return "end"
+
+def route_after_architect(state: ExecutionState) -> Literal["end", "human_approval"]:
+    """Route after architect based on plan_only mode.
+
+    Args:
+        state: Current execution state containing plan_only flag.
+
+    Returns:
+        'end' if plan_only is True (just generated plan, exit workflow).
+        'human_approval' otherwise (continue to human approval).
+    """
+    return "end" if state.plan_only else "human_approval"
 
 def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
     """Route based on human approval status.
@@ -521,7 +524,7 @@ def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
     """
     return "approve" if state.human_approved else "reject"
 
-def route_after_developer(state: ExecutionState) -> Literal["reviewer", "batch_approval", "blocker_resolution", "developer"]:
+def route_after_developer(state: ExecutionState) -> Literal["reviewer", "batch_approval", "blocker_resolution", "developer", "__end__"]:
     """Route based on Developer status.
 
     Args:
@@ -530,14 +533,50 @@ def route_after_developer(state: ExecutionState) -> Literal["reviewer", "batch_a
     Returns:
         Route string based on developer_status:
         - 'reviewer' if ALL_DONE (all batches completed)
-        - 'batch_approval' if BATCH_COMPLETE (batch finished, needs approval)
+        - 'batch_approval' if BATCH_COMPLETE and should_checkpoint returns True
+        - 'developer' if BATCH_COMPLETE and should_checkpoint returns False (skip approval)
         - 'blocker_resolution' if BLOCKED (execution blocked, needs human help)
         - 'developer' if EXECUTING (continue executing steps)
     """
+    logger.debug(
+        "Routing after developer",
+        developer_status=state.developer_status.value if state.developer_status else None,
+        has_execution_plan=state.execution_plan is not None,
+        current_batch_index=state.current_batch_index,
+    )
     if state.developer_status == DeveloperStatus.ALL_DONE:
         return "reviewer"
     elif state.developer_status == DeveloperStatus.BATCH_COMPLETE:
-        return "batch_approval"
+        # Check if we should checkpoint for human approval
+        # No execution plan at this point indicates state corruption - fail fast
+        if state.execution_plan is None:
+            logger.error(
+                "route_after_developer called without an execution plan. "
+                "This indicates a critical state issue. Aborting workflow.",
+                developer_status=state.developer_status.value if state.developer_status else None,
+            )
+            return "__end__"
+
+        # Bounds check: if we've processed all batches, route to reviewer
+        if state.current_batch_index >= len(state.execution_plan.batches):
+            logger.info(
+                "All batches complete, routing to reviewer",
+                current_batch_index=state.current_batch_index,
+                total_batches=len(state.execution_plan.batches),
+            )
+            return "reviewer"
+
+        current_batch = state.execution_plan.batches[state.current_batch_index]
+        if should_checkpoint(current_batch, state.profile):
+            return "batch_approval"
+        else:
+            logger.info(
+                "Skipping batch approval checkpoint",
+                batch_number=current_batch.batch_number,
+                risk_summary=current_batch.risk_summary,
+                trust_level=state.profile.trust_level.value,
+            )
+            return "developer"
     elif state.developer_status == DeveloperStatus.BLOCKED:
         return "blocker_resolution"
     else:  # EXECUTING or default
@@ -546,15 +585,19 @@ def route_after_developer(state: ExecutionState) -> Literal["reviewer", "batch_a
 def route_batch_approval(state: ExecutionState) -> Literal["developer", "__end__"]:
     """Route based on batch approval status.
 
+    Uses the batch_approvals record created by batch_approval_node, NOT human_approved.
+    This is because batch_approval_node resets human_approved to None before routing.
+
     Args:
-        state: Current execution state containing human_approved flag.
+        state: Current execution state containing batch_approvals list.
 
     Returns:
         Route string based on approval:
-        - 'developer' if human_approved is True (continue to next batch)
-        - END if human_approved is False or None (user rejected, stop workflow)
+        - 'developer' if last batch was approved (continue to next batch)
+        - END if last batch was rejected or no approvals exist (stop workflow)
     """
-    if state.human_approved:
+    # Check the last batch approval record (just created by batch_approval_node)
+    if state.batch_approvals and state.batch_approvals[-1].approved:
         return "developer"
     return "__end__"
 
@@ -572,6 +615,106 @@ def route_blocker_resolution(state: ExecutionState) -> Literal["developer", "__e
     if state.workflow_status == "aborted":
         return "__end__"
     return "developer"
+
+# Review-fix loop helper functions
+
+def create_synthetic_plan_from_review(review: ReviewResult) -> ExecutionPlan:
+    """Create a synthetic execution plan from review comments for the developer.
+
+    Args:
+        review: The review result with comments.
+
+    Returns:
+        An ExecutionPlan with a single batch containing a code action to fix review comments.
+    """
+    comments_text = "\n".join(f"- {c}" for c in review.comments)
+
+    # Create a single step with the review feedback
+    step = PlanStep(
+        id="REVIEW-FIX-1",
+        description=f"Address review comments:\n{comments_text}",
+        action_type="code",
+        risk_level="medium",
+        estimated_minutes=5,
+        requires_human_judgment=False,
+        success_criteria="All review comments are addressed",
+    )
+
+    # Create a batch with the single step
+    batch = ExecutionBatch(
+        batch_number=1,
+        steps=(step,),
+        risk_summary="medium",
+        description="Fix review comments",
+    )
+
+    # Create the execution plan
+    return ExecutionPlan(
+        goal="Address code review feedback",
+        batches=(batch,),
+        total_estimated_minutes=5,
+        tdd_approach=False,
+    )
+
+
+def should_continue_review_fix(state: ExecutionState) -> Literal["developer", "__end__"]:
+    """Determine next step in review-fix loop.
+
+    Returns:
+        "developer" if review rejected and under max iterations,
+        "__end__" if approved or max iterations reached.
+    """
+    if state.last_review and state.last_review.approved:
+        return "__end__"
+    max_iterations = state.profile.max_review_iterations if state.profile else 3
+    if state.review_iteration >= max_iterations:
+        logger.warning(
+            "Max review iterations reached, terminating loop",
+            max_iterations=max_iterations,
+        )
+        return "__end__"
+    return "developer"
+
+
+async def call_developer_node_for_review(
+    state: ExecutionState,
+    config: RunnableConfig | None = None,
+) -> dict[str, Any]:
+    """Developer node for review-fix loop.
+
+    Creates a synthetic plan from review comments and increments iteration counter.
+    """
+    # Create synthetic plan from review comments
+    if not state.last_review:
+        raise ValueError("Cannot call developer for review without review results")
+
+    synthetic_plan = create_synthetic_plan_from_review(state.last_review)
+
+    # Update state with synthetic plan context
+    updated_state = state.model_copy(update={
+        "execution_plan": synthetic_plan,
+        "current_batch_index": 0,
+        "review_iteration": state.review_iteration + 1,
+    })
+
+    # Call the actual developer node
+    return await call_developer_node(updated_state, config=config)
+
+
+def create_review_graph(checkpointer: BaseCheckpointSaver[Any]) -> CompiledStateGraph[Any]:
+    """Create a graph for review-fix loop: reviewer ↔ developer until approved.
+
+    The graph runs autonomously without human approval pauses.
+    Max 3 iterations to prevent infinite loops.
+    """
+    graph = StateGraph(ExecutionState)
+    graph.add_node("reviewer", call_reviewer_node)
+    graph.add_node("developer", call_developer_node_for_review)
+    graph.add_conditional_edges("reviewer", should_continue_review_fix)
+    graph.add_edge("developer", "reviewer")
+    graph.set_entry_point("reviewer")
+    return graph.compile(checkpointer=checkpointer)
+
 
 def create_orchestrator_graph(
     checkpoint_saver: BaseCheckpointSaver[Any] | None = None,
@@ -604,7 +747,15 @@ def create_orchestrator_graph(
     workflow.set_entry_point("architect_node")
 
     # Define edges
-    workflow.add_edge("architect_node", "human_approval_node")
+    # Architect -> route based on plan_only mode
+    workflow.add_conditional_edges(
+        "architect_node",
+        route_after_architect,
+        {
+            "end": END,
+            "human_approval": "human_approval_node",
+        }
+    )
 
     # Conditional edge from human_approval_node: if approved, go to developer_node, else END
     workflow.add_conditional_edges(
