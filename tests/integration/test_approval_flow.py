@@ -137,19 +137,15 @@ class TestLifecycleEvents:
         mock_repository,
         temp_checkpoint_db,
         mock_settings,
+        langgraph_mock_factory,
     ):
         """WORKFLOW_STARTED event is emitted at the start."""
-        # Setup mock graph that completes immediately
-        mock_graph = AsyncMock()
-        # Use lambda to return iterator directly without AsyncMock wrapper
-        mock_graph.astream = lambda *args, **kwargs: AsyncIteratorMock([])
-        mock_create_graph.return_value = mock_graph
-
-        mock_saver = AsyncMock()
-        mock_saver_class.from_conn_string.return_value.__aenter__ = AsyncMock(
-            return_value=mock_saver
+        # Setup LangGraph mocks using factory
+        mocks = langgraph_mock_factory()
+        mock_create_graph.return_value = mocks.graph
+        mock_saver_class.from_conn_string.return_value = (
+            mocks.saver_class.from_conn_string.return_value
         )
-        mock_saver_class.from_conn_string.return_value.__aexit__ = AsyncMock()
 
         service = OrchestratorService(
             event_tracker,
