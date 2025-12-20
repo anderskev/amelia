@@ -15,7 +15,14 @@ from pytest import TempPathFactory
 from typer.testing import CliRunner
 
 from amelia.agents.reviewer import ReviewResponse
-from amelia.core.state import ExecutionState, ReviewResult, Severity, Task, TaskDAG, TaskStatus
+from amelia.core.state import (
+    ExecutionBatch,
+    ExecutionPlan,
+    ExecutionState,
+    PlanStep,
+    ReviewResult,
+    Severity,
+)
 from amelia.core.types import (
     Design,
     DriverType,
@@ -119,44 +126,44 @@ def mock_settings(mock_profile_factory: Callable[..., Profile]) -> Settings:
 
 
 @pytest.fixture
-def mock_task_factory() -> Callable[..., Task]:
-    """Factory fixture for creating test Task instances with sensible defaults."""
+def mock_execution_plan_factory() -> Callable[..., ExecutionPlan]:
+    """Factory fixture for creating test ExecutionPlan instances."""
     def _create(
-        id: str,
-        description: str | None = None,
-        status: TaskStatus = "pending",
-        dependencies: list[str] | None = None,
-        files: list[Any] | None = None,
-        steps: list[Any] | None = None,
-        commit_message: str | None = None
-    ) -> Task:
-        return Task(
-            id=id,
-            description=description or f"Task {id}",
-            status=status,
-            dependencies=dependencies or [],
-            files=files or [],
-            steps=steps or [],
-            commit_message=commit_message
+        goal: str = "Test goal",
+        num_batches: int = 1,
+        steps_per_batch: int = 1,
+        risk_levels: list[str] | None = None,
+        tdd_approach: bool = True,
+    ) -> ExecutionPlan:
+        if risk_levels is None:
+            risk_levels = ["low"] * num_batches
+
+        batches = []
+        step_id = 1
+        for batch_num in range(1, num_batches + 1):
+            steps = []
+            risk = risk_levels[batch_num - 1] if batch_num <= len(risk_levels) else "low"
+            for _ in range(steps_per_batch):
+                steps.append(PlanStep(
+                    id=f"step-{step_id}",
+                    description=f"Test step {step_id}",
+                    action_type="command",
+                    command=f"echo step-{step_id}",
+                    risk_level=risk,
+                ))
+                step_id += 1
+            batches.append(ExecutionBatch(
+                batch_number=batch_num,
+                steps=tuple(steps),
+                risk_summary=risk,
+                description=f"Test batch {batch_num}",
+            ))
+        return ExecutionPlan(
+            goal=goal,
+            batches=tuple(batches),
+            total_estimated_minutes=num_batches * steps_per_batch * 2,
+            tdd_approach=tdd_approach,
         )
-    return _create
-
-
-@pytest.fixture
-def mock_task_dag_factory(mock_task_factory: Callable[..., Task]) -> Callable[..., TaskDAG]:
-    """Factory fixture for creating test TaskDAG instances."""
-    def _create(
-        tasks: list[Task] | None = None,
-        num_tasks: int = 1,
-        original_issue: str = "TEST-123",
-        linear: bool = True
-    ) -> TaskDAG:
-        if tasks is None:
-            tasks = []
-            for i in range(1, num_tasks + 1):
-                deps = [str(i-1)] if linear and i > 1 else []
-                tasks.append(mock_task_factory(id=str(i), dependencies=deps))
-        return TaskDAG(tasks=tasks, original_issue=original_issue)
     return _create
 
 
@@ -167,7 +174,7 @@ def mock_execution_state_factory(mock_profile_factory: Callable[..., Profile], m
         profile: Profile | None = None,
         profile_preset: str = "cli_single",
         issue: Issue | None = None,
-        plan: TaskDAG | None = None,
+        execution_plan: ExecutionPlan | None = None,
         code_changes_for_review: str | None = None,
         design: Design | None = None,
         **kwargs: Any
@@ -179,7 +186,7 @@ def mock_execution_state_factory(mock_profile_factory: Callable[..., Profile], m
         return ExecutionState(
             profile=profile,
             issue=issue,
-            plan=plan,
+            execution_plan=execution_plan,
             code_changes_for_review=code_changes_for_review,
             design=design,
             **kwargs
@@ -387,54 +394,76 @@ def cli_runner() -> CliRunner:
 
 
 @pytest.fixture
-def reviewer_state_with_task(
+def reviewer_state_with_plan(
     mock_execution_state_factory: Callable[..., ExecutionState],
-    mock_task_factory: Callable[..., Task],
+    mock_execution_plan_factory: Callable[..., ExecutionPlan],
 ) -> Callable[..., ExecutionState]:
-    """Factory fixture for creating ExecutionState with a task and TaskDAG for reviewer tests.
+    """Factory fixture for creating ExecutionState for reviewer tests.
 
     Returns a callable that creates state with:
-    - A single task with id="1"
-    - A TaskDAG containing that task
+    - An ExecutionPlan with a single batch
     - Customizable issue, workflow_id, profile via kwargs
     """
     def _create(**kwargs: Any) -> ExecutionState:
-        state = mock_execution_state_factory(**kwargs)
-        task = mock_task_factory(id="1", description="Test task")
-        state.plan = TaskDAG(tasks=[task], original_issue="TEST-123")
-        return state
+        # Remove current_task_id if present (legacy parameter no longer used)
+        kwargs.pop("current_task_id", None)
+        if "execution_plan" not in kwargs:
+            kwargs["execution_plan"] = mock_execution_plan_factory()
+        return mock_execution_state_factory(**kwargs)
     return _create
 
 
 @pytest.fixture
-def developer_test_context(mock_task_factory: Callable[..., Task], mock_execution_state_factory: Callable[..., ExecutionState]) -> Callable[..., tuple[AsyncMock, ExecutionState]]:
+def developer_test_context(
+    mock_execution_plan_factory: Callable[..., ExecutionPlan],
+    mock_execution_state_factory: Callable[..., ExecutionState]
+) -> Callable[..., tuple[AsyncMock, ExecutionState]]:
     """Factory fixture for creating Developer test contexts with mock driver and state.
 
     Returns a callable that creates a tuple of (mock_driver, state) with configurable:
-    - task_desc: Task description (default: "Test task")
+    - step_desc: Step description (default: "Test step")
     - driver_return: Return value for driver.execute_tool (default: "output")
     - driver_side_effect: Side effect for driver.execute_tool (overrides driver_return if set)
 
     Example usage:
         def test_example(developer_test_context):
             mock_driver, state = developer_test_context(
-                task_desc="Run shell command: echo hello",
+                step_desc="Run shell command: echo hello",
                 driver_return="Command output"
             )
             developer = Developer(driver=mock_driver)
-            result = await developer.execute_current_task(state, workflow_id="test-workflow")
+            result = await developer.run(state)
     """
-    def _create(task_desc: str = "Test task", driver_return: Any = "output", driver_side_effect: Any = None) -> tuple[AsyncMock, ExecutionState]:
+    def _create(
+        step_desc: str = "Test step",
+        driver_return: Any = "output",
+        driver_side_effect: Any = None
+    ) -> tuple[AsyncMock, ExecutionState]:
         mock_driver = AsyncMock(spec=DriverInterface)
         if driver_side_effect:
             mock_driver.execute_tool.side_effect = driver_side_effect
         else:
             mock_driver.execute_tool.return_value = driver_return
-        task = mock_task_factory(id="1", description=task_desc)
-        state = mock_execution_state_factory(
-            plan=TaskDAG(tasks=[task], original_issue="Test"),
-            current_task_id=task.id
+        # Create execution plan with single step
+        step = PlanStep(
+            id="step-1",
+            description=step_desc,
+            action_type="command",
+            command="echo test",
         )
+        batch = ExecutionBatch(
+            batch_number=1,
+            steps=(step,),
+            risk_summary="low",
+            description="Test batch",
+        )
+        execution_plan = ExecutionPlan(
+            goal="Test goal",
+            batches=(batch,),
+            total_estimated_minutes=5,
+            tdd_approach=True,
+        )
+        state = mock_execution_state_factory(execution_plan=execution_plan)
         return mock_driver, state
     return _create
 

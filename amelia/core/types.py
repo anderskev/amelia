@@ -71,6 +71,7 @@ class Profile(BaseModel):
         retry: Retry configuration for transient failures.
         trust_level: How much autonomy the Developer gets.
         batch_checkpoint_enabled: Whether to pause for human approval between batches.
+        max_review_iterations: Maximum review-fix loop iterations before terminating.
     """
 
     name: str
@@ -83,6 +84,7 @@ class Profile(BaseModel):
     retry: RetryConfig = Field(default_factory=RetryConfig)
     trust_level: TrustLevel = TrustLevel.STANDARD
     batch_checkpoint_enabled: bool = True
+    max_review_iterations: int = 3
 
 class Settings(BaseModel):
     """Global settings for Amelia.

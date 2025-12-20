@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
 from amelia.core.state import (
@@ -15,34 +15,22 @@ from amelia.core.state import (
     ExecutionPlan,
     ExecutionState,
     RiskLevel,
-    Task,
-    TaskDAG,
 )
 from amelia.core.types import Design, Issue, StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import DriverInterface
-
-
-class TaskListResponse(BaseModel):
-    """Schema for LLM-generated list of tasks.
-
-    Attributes:
-        tasks: List of actionable development tasks parsed from LLM output.
-    """
-
-    tasks: list[Task] = Field(description="A list of actionable development tasks.")
 
 
 class PlanOutput(BaseModel):
     """Output from architect planning.
 
     Attributes:
-        task_dag: The generated task dependency graph.
+        execution_plan: The generated execution plan with batched steps.
         markdown_path: Path to the saved markdown plan file.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    task_dag: TaskDAG
+    execution_plan: ExecutionPlan
     markdown_path: Path
 
 
@@ -82,58 +70,6 @@ class ArchitectContextStrategy(ContextStrategy):
 You analyze issues and produce structured task DAGs with clear dependencies."""
 
     ALLOWED_SECTIONS = {"issue", "design", "codebase"}
-
-    def get_task_generation_system_prompt(self) -> str:
-        """Get the detailed system prompt for task DAG generation.
-
-        This prompt is used specifically when generating the structured task DAG
-        from the compiled context. It includes detailed TDD instructions and
-        task structure requirements.
-
-        Returns:
-            Detailed system prompt string for task generation.
-        """
-        return """You are an expert software architect creating implementation plans.
-
-Your role is to break down the given context into a sequence of actionable development tasks.
-Each task MUST follow TDD (Test-Driven Development) principles.
-
-For each task, provide:
-- id: Unique identifier (e.g., "1", "2", "3")
-- description: Clear, concise description of what to build
-- dependencies: List of task IDs this task depends on
-- files: List of FileOperation objects with:
-  - operation: "create", "modify", or "test"
-  - path: Exact file path (e.g., "src/auth/middleware.py")
-  - line_range: Optional, for modify operations (e.g., "10-25")
-- steps: List of TaskStep objects following TDD:
-  1. Write the failing test (include actual code)
-  2. Run test to verify it fails (include command and expected output)
-  3. Write minimal implementation (include actual code)
-  4. Run test to verify it passes (include command and expected output)
-  5. Commit (include commit message)
-- commit_message: Conventional commit message (e.g., "feat: add auth middleware")
-
-CRITICAL - Shell command restrictions:
-- Each command must be a SINGLE command - NO command chaining
-- NEVER use: && || ; | > >> < ` $( ${ or newlines in commands
-- WRONG: "cd src && npm test" or "npm install && npm run build"
-- CORRECT: Create separate steps for each command
-- If a command needs to run in a specific directory, use the full path or create separate cd step
-
-Each step should be 2-5 minutes of work. Include complete code, not placeholders."""
-
-    def get_task_generation_user_prompt(self) -> str:
-        """Get the user prompt for task DAG generation.
-
-        This prompt is appended to the context to instruct the LLM to generate
-        the task DAG with specific formatting requirements.
-
-        Returns:
-            User prompt string for task generation.
-        """
-        return """Create a detailed implementation plan with bite-sized TDD tasks.
-Ensure exact file paths, complete code in steps, and single-command shell instructions (no && or chaining)."""
 
     def get_execution_plan_system_prompt(self) -> str:
         """Get system prompt for ExecutionPlan generation.
@@ -418,7 +354,7 @@ class Architect:
     ) -> PlanOutput:
         """Generate a development plan from an issue and optional design.
 
-        Creates a structured TaskDAG and saves a markdown version for human review.
+        Creates an ExecutionPlan and saves a markdown version for human review.
         Design context is read from state.design if present.
 
         Args:
@@ -428,7 +364,7 @@ class Architect:
             workflow_id: Workflow ID for stream events (required).
 
         Returns:
-            PlanOutput containing the task DAG and path to the saved markdown file.
+            PlanOutput containing the execution plan and path to the saved markdown file.
 
         Raises:
             ValueError: If no issue is present in the state.
@@ -445,31 +381,17 @@ class Architect:
         if not output_path.is_absolute() and state.profile.working_dir:
             output_dir = str(Path(state.profile.working_dir) / output_path)
 
-        # Compile context using strategy
-        strategy = self.context_strategy()
-        compiled_context = strategy.compile(state)
+        # Generate execution plan using the new batched execution model
+        execution_plan = await self.generate_execution_plan(state.issue, state)
 
-        # Calculate system prompt length for logging
-        prompt_length = (
-            len(compiled_context.system_prompt)
-            if compiled_context.system_prompt
-            else 0
-        )
-        logger.debug(
-            "Compiled context",
-            agent="architect",
-            sections=[s.name for s in compiled_context.sections],
-            system_prompt_length=prompt_length
-        )
-
-        # Generate task DAG using compiled context
-        task_dag = await self._generate_task_dag(compiled_context, state.issue, strategy)
+        # Count total steps for logging
+        total_steps = sum(len(batch.steps) for batch in execution_plan.batches)
 
         # Emit completion event
         if self._stream_emitter is not None:
             event = StreamEvent(
                 type=StreamEventType.AGENT_OUTPUT,
-                content=f"Generated plan with {len(task_dag.tasks)} tasks",
+                content=f"Generated plan with {len(execution_plan.batches)} batches, {total_steps} steps",
                 timestamp=datetime.now(UTC),
                 agent="architect",
                 workflow_id=workflow_id,
@@ -477,9 +399,9 @@ class Architect:
             await self._stream_emitter(event)
 
         # Save markdown
-        markdown_path = self._save_markdown(task_dag, state.issue, state.design, output_dir)
+        markdown_path = self._save_markdown(execution_plan, state.issue, state.design, output_dir)
 
-        return PlanOutput(task_dag=task_dag, markdown_path=markdown_path)
+        return PlanOutput(execution_plan=execution_plan, markdown_path=markdown_path)
 
     async def generate_execution_plan(
         self,
@@ -517,7 +439,11 @@ class Architect:
         ]
 
         # Call driver with ExecutionPlanOutput schema
-        response = await self.driver.generate(messages=messages, schema=ExecutionPlanOutput)
+        response = await self.driver.generate(
+            messages=messages,
+            schema=ExecutionPlanOutput,
+            cwd=state.profile.working_dir,
+        )
 
         # Log reasoning for audit trail
         logger.info(
@@ -536,42 +462,9 @@ class Architect:
 
         return validated_plan
 
-    async def _generate_task_dag(
-        self,
-        compiled_context: CompiledContext,
-        issue: Issue,
-        strategy: ArchitectContextStrategy,
-    ) -> TaskDAG:
-        """Generate TaskDAG using LLM.
-
-        Args:
-            compiled_context: Compiled context from the strategy.
-            issue: Original issue being planned.
-            strategy: The context strategy instance for prompt generation.
-
-        Returns:
-            TaskDAG containing structured tasks with TDD steps.
-        """
-        task_system_prompt = strategy.get_task_generation_system_prompt()
-        task_user_prompt = strategy.get_task_generation_user_prompt()
-
-        # Convert compiled context to messages (user messages only)
-        base_messages = strategy.to_messages(compiled_context)
-
-        # Prepend task-specific system prompt and append user prompt
-        messages = [
-            AgentMessage(role="system", content=task_system_prompt),
-            *base_messages,
-            AgentMessage(role="user", content=task_user_prompt),
-        ]
-
-        response = await self.driver.generate(messages=messages, schema=TaskListResponse)
-
-        return TaskDAG(tasks=response.tasks, original_issue=issue.id)
-
     def _save_markdown(
         self,
-        task_dag: TaskDAG,
+        execution_plan: ExecutionPlan,
         issue: Issue,
         design: Design | None,
         output_dir: str
@@ -579,7 +472,7 @@ class Architect:
         """Save plan as markdown file.
 
         Args:
-            task_dag: Structured task DAG to render.
+            execution_plan: Execution plan to render.
             issue: Original issue being planned.
             design: Optional design context.
             output_dir: Directory path for saving the markdown file.
@@ -594,21 +487,21 @@ class Architect:
         filename = f"{date.today().isoformat()}-{_slugify(title)}.md"
         file_path = output_path / filename
 
-        md_content = self._render_markdown(task_dag, issue, design)
+        md_content = self._render_markdown(execution_plan, issue, design)
         file_path.write_text(md_content)
 
         return file_path
 
     def _render_markdown(
         self,
-        task_dag: TaskDAG,
+        execution_plan: ExecutionPlan,
         issue: Issue,
         design: Design | None
     ) -> str:
-        """Render TaskDAG as markdown following writing-plans format.
+        """Render ExecutionPlan as markdown following writing-plans format.
 
         Args:
-            task_dag: Structured task DAG to render.
+            execution_plan: Execution plan to render.
             issue: Original issue being planned.
             design: Optional design context.
 
@@ -617,13 +510,13 @@ class Architect:
         """
         title = design.title if design else issue.title
         goal = design.goal if design else issue.description
-        architecture = design.architecture if design else "See task descriptions below."
+        architecture = design.architecture if design else "See batch descriptions below."
         tech_stack = ", ".join(design.tech_stack) if design else "See implementation details."
 
         # Build the markdown header with Claude instructions
         claude_instruction = (
             "> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans "
-            "to implement this plan task-by-task."
+            "to implement this plan batch-by-batch."
         )
 
         lines = [
@@ -641,42 +534,52 @@ class Architect:
             "",
         ]
 
-        for i, task in enumerate(task_dag.tasks, 1):
-            lines.append(f"### Task {i}: {task.description}")
+        for batch in execution_plan.batches:
+            risk_badge = f"[{batch.risk_summary.upper()} RISK]"
+            lines.append(f"## Batch {batch.batch_number} {risk_badge}")
+            if batch.description:
+                lines.append(f"*{batch.description}*")
             lines.append("")
 
-            if task.files:
-                lines.append("**Files:**")
-                for f in task.files:
-                    if f.line_range:
-                        lines.append(f"- {f.operation.capitalize()}: `{f.path}:{f.line_range}`")
-                    else:
-                        lines.append(f"- {f.operation.capitalize()}: `{f.path}`")
+            for step in batch.steps:
+                lines.append(f"### Step {step.id}: {step.description}")
+                lines.append("")
+                lines.append(f"- **Action:** {step.action_type}")
+                if step.file_path:
+                    lines.append(f"- **File:** `{step.file_path}`")
+                if step.is_test_step:
+                    lines.append("- **Type:** Test step")
+                if step.validates_step:
+                    lines.append(f"- **Validates:** Step {step.validates_step}")
+                if step.depends_on:
+                    lines.append(f"- **Depends on:** {', '.join(step.depends_on)}")
                 lines.append("")
 
-            for j, step in enumerate(task.steps, 1):
-                lines.append(f"**Step {j}: {step.description}**")
-                lines.append("")
-                if step.code:
+                if step.code_change:
                     lines.append("```python")
-                    lines.append(step.code)
+                    lines.append(step.code_change)
                     lines.append("```")
                     lines.append("")
-                if step.command:
-                    lines.append(f"Run: `{step.command}`")
-                if step.expected_output:
-                    lines.append(f"Expected: {step.expected_output}")
-                lines.append("")
 
-            if task.commit_message:
-                lines.append("**Commit:**")
-                lines.append("```bash")
-                if task.files:
-                    file_paths = " ".join(f.path for f in task.files)
-                    lines.append(f"git add {file_paths}")
-                lines.append(f'git commit -m "{task.commit_message}"')
-                lines.append("```")
-                lines.append("")
+                if step.command:
+                    lines.append(f"**Run:** `{step.command}`")
+                    if step.cwd:
+                        lines.append(f"  (in directory: `{step.cwd}`)")
+                    lines.append("")
+
+                if step.fallback_commands:
+                    lines.append("**Fallbacks:**")
+                    for fallback in step.fallback_commands:
+                        lines.append(f"- `{fallback}`")
+                    lines.append("")
+
+                if step.expected_output_pattern:
+                    lines.append(f"**Expected output:** `{step.expected_output_pattern}`")
+                    lines.append("")
+
+                if step.success_criteria:
+                    lines.append(f"**Success criteria:** {step.success_criteria}")
+                    lines.append("")
 
             lines.append("---")
             lines.append("")

@@ -91,6 +91,8 @@ Review files matching: `**/ui/*.tsx`, `**/components/*.tsx`
 - Performance (memoization where beneficial)
 - Props typing (avoid `any`)
 - List items have stable unique keys (not array indices, use IDs from data)
+- No redundant ARIA roles on semantic HTML (e.g., `<nav role="navigation">`, `<ol role="list">`, `<li role="listitem">` - these elements have implicit roles and the role attribute should be removed)
+- **Early return control flow**: Check loading/error states BEFORE content checks. Avoid `if (noData) { if (!isLoading) { return empty; } }` followed by `if (isLoading) { return loading; }` - instead check `isLoading` first, then `noData`
 
 ### Conditional Agent: Graph/Flow Components
 

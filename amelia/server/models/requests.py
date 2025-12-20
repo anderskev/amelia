@@ -5,9 +5,66 @@
 
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_worktree_path(cls: type, v: str) -> str:
+    """Validate worktree_path is absolute and safe.
+
+    Args:
+        cls: The model class (unused, required by field_validator).
+        v: Path to validate.
+
+    Returns:
+        Canonicalized absolute path.
+
+    Raises:
+        ValueError: If path is not absolute or contains null bytes.
+    """
+    # Reject null bytes
+    if "\0" in v:
+        msg = "worktree_path contains null byte"
+        raise ValueError(msg)
+
+    # Must be absolute
+    if not os.path.isabs(v):
+        msg = "worktree_path must be absolute"
+        raise ValueError(msg)
+
+    # Resolve to canonical form (removes .., symlinks, etc.)
+    resolved = str(Path(v).resolve())
+
+    return resolved
+
+
+def _validate_profile(cls: type, v: str | None) -> str | None:
+    """Validate profile name pattern.
+
+    Args:
+        cls: The model class (unused, required by field_validator).
+        v: Profile name to validate.
+
+    Returns:
+        Validated profile name.
+
+    Raises:
+        ValueError: If profile doesn't match pattern.
+    """
+    if v is None:
+        return v
+
+    # Must be lowercase alphanumeric with dashes/underscores
+    if not v:
+        msg = "profile cannot be empty"
+        raise ValueError(msg)
+
+    if not all(c.islower() or c.isdigit() or c in {"-", "_"} for c in v):
+        msg = "profile must be lowercase alphanumeric with dashes/underscores"
+        raise ValueError(msg)
+
+    return v
 
 
 class CreateWorkflowRequest(BaseModel):
@@ -51,6 +108,13 @@ class CreateWorkflowRequest(BaseModel):
             description="Optional driver override in type:name format (e.g., sdk:claude)",
         ),
     ] = None
+    plan_only: Annotated[
+        bool,
+        Field(
+            default=False,
+            description="If True, stop after planning and save markdown without executing",
+        ),
+    ] = False
 
     @field_validator("issue_id", mode="after")
     @classmethod
@@ -102,62 +166,10 @@ class CreateWorkflowRequest(BaseModel):
 
         return v
 
-    @field_validator("worktree_path", mode="after")
-    @classmethod
-    def validate_worktree_path(cls, v: str) -> str:
-        """Validate worktree_path is absolute and safe.
-
-        Args:
-            v: Path to validate
-
-        Returns:
-            Canonicalized absolute path
-
-        Raises:
-            ValueError: If path is not absolute or contains null bytes
-        """
-        # Reject null bytes
-        if "\0" in v:
-            msg = "worktree_path contains null byte"
-            raise ValueError(msg)
-
-        # Must be absolute
-        if not os.path.isabs(v):
-            msg = "worktree_path must be absolute"
-            raise ValueError(msg)
-
-        # Resolve to canonical form (removes .., symlinks, etc.)
-        resolved = str(Path(v).resolve())
-
-        return resolved
-
-    @field_validator("profile", mode="after")
-    @classmethod
-    def validate_profile(cls, v: str | None) -> str | None:
-        """Validate profile name pattern.
-
-        Args:
-            v: Profile name to validate
-
-        Returns:
-            Validated profile name
-
-        Raises:
-            ValueError: If profile doesn't match pattern
-        """
-        if v is None:
-            return v
-
-        # Must be lowercase alphanumeric with dashes/underscores
-        if not v:
-            msg = "profile cannot be empty"
-            raise ValueError(msg)
-
-        if not all(c.islower() or c.isdigit() or c in {"-", "_"} for c in v):
-            msg = "profile must be lowercase alphanumeric with dashes/underscores"
-            raise ValueError(msg)
-
-        return v
+    validate_worktree_path = field_validator("worktree_path", mode="after")(
+        _validate_worktree_path
+    )
+    validate_profile = field_validator("profile", mode="after")(_validate_profile)
 
     @field_validator("driver", mode="after")
     @classmethod
@@ -194,6 +206,27 @@ class CreateWorkflowRequest(BaseModel):
         return v
 
 
+class CreateReviewWorkflowRequest(BaseModel):
+    """Request to create a review workflow.
+
+    Attributes:
+        diff_content: The git diff content to review.
+        worktree_path: Absolute path for conflict detection (typically cwd).
+        worktree_name: Optional human-readable name.
+        profile: Optional profile name from settings.
+    """
+
+    diff_content: Annotated[str, Field(min_length=1, description="Git diff content to review")]
+    worktree_path: Annotated[str, Field(description="Absolute path for conflict detection")]
+    worktree_name: Annotated[str | None, Field(default=None)] = None
+    profile: Annotated[str | None, Field(default=None)] = None
+
+    validate_worktree_path = field_validator("worktree_path", mode="after")(
+        _validate_worktree_path
+    )
+    validate_profile = field_validator("profile", mode="after")(_validate_profile)
+
+
 class RejectRequest(BaseModel):
     """Request to reject a plan or changes.
 
@@ -205,3 +238,21 @@ class RejectRequest(BaseModel):
         str,
         Field(min_length=1, description="Rejection feedback explaining what needs to change"),
     ]
+
+
+class BlockerResolutionRequest(BaseModel):
+    """Request to resolve a blocker.
+
+    Attributes:
+        action: Resolution action to take (skip, retry, abort, abort_revert, fix)
+        feedback: Optional feedback or fix instruction
+    """
+
+    action: Annotated[
+        Literal["skip", "retry", "abort", "abort_revert", "fix"],
+        Field(description="Resolution action to take"),
+    ]
+    feedback: Annotated[
+        str | None,
+        Field(default=None, description="Optional feedback or fix instruction"),
+    ] = None

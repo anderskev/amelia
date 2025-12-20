@@ -189,6 +189,7 @@ class SafeShellExecutor:
         timeout: int | None = 30,
         strict_mode: bool = False,
         allowed_commands: frozenset[str] | None = None,
+        cwd: str | None = None,
     ) -> str:
         """
         Execute a shell command safely.
@@ -198,6 +199,7 @@ class SafeShellExecutor:
             timeout: Maximum execution time in seconds (None for no timeout)
             strict_mode: If True, only allow commands in allowlist
             allowed_commands: Custom allowlist for strict mode (defaults to STRICT_MODE_ALLOWED_COMMANDS)
+            cwd: Working directory to execute the command in (None for current directory)
 
         Returns:
             Command stdout as string
@@ -218,6 +220,7 @@ class SafeShellExecutor:
             *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
         )
 
         try:
