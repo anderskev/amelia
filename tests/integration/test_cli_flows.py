@@ -416,4 +416,4 @@ class TestCLIFlows:
         assert result.exit_code == 1
         # Error message is written to stderr (err=True)
         combined_output = result.stdout + result.stderr
-        assert "--local" in combined_output.lower() or "use --local" in combined_output.lower()
+        assert "use --local to review local uncommitted changes" in combined_output.lower()
