@@ -292,7 +292,7 @@ export function BlockerResolutionDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setShowKeepChangesAlert(false)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleKeepChanges}
               className="bg-destructive hover:bg-destructive/90 focus-visible:ring-destructive/50"
@@ -314,7 +314,7 @@ export function BlockerResolutionDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setShowRevertAlert(false)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRevertBatch}
               className="bg-destructive hover:bg-destructive/90 focus-visible:ring-destructive/50"

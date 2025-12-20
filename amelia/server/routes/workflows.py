@@ -405,7 +405,7 @@ async def approve_batch(
     """
     # TODO: Validate batch_number matches current batch index when batch-specific approval is implemented
     await orchestrator.approve_workflow(workflow_id)
-    logger.info(f"Approved batch {batch_number} for workflow {workflow_id}")
+    logger.info("Approved batch", batch_number=batch_number, workflow_id=workflow_id)
     return ActionResponse(status="approved", workflow_id=workflow_id)
 
 
