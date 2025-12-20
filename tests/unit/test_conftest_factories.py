@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from amelia.core.state import ExecutionState, Task, TaskDAG
+from amelia.core.state import ExecutionPlan
 from amelia.core.types import Design, Issue, Profile
 
 
@@ -19,10 +19,8 @@ class TestFactoryDefaults:
         [
             ("mock_issue_factory", Issue, "id", "TEST-123"),
             ("mock_profile_factory", Profile, "driver", "cli:claude"),
-            ("mock_task_factory", Task, "status", "pending"),
-            ("mock_task_dag_factory", TaskDAG, "original_issue", "TEST-123"),
             ("mock_design_factory", Design, "title", "Test Feature"),
-            ("mock_execution_state_factory", ExecutionState, "plan", None),
+            ("mock_execution_plan_factory", ExecutionPlan, "tdd_approach", True),
         ],
     )
     def test_factory_creates_valid_defaults(
@@ -30,8 +28,7 @@ class TestFactoryDefaults:
     ):
         """Each factory should create objects with expected default values."""
         factory = request.getfixturevalue(factory_name)
-        # task_factory requires id parameter
-        obj = factory(id="1") if factory_name == "mock_task_factory" else factory()
+        obj = factory()
 
         assert isinstance(obj, expected_type)
         assert getattr(obj, check_field) == expected_value
@@ -57,25 +54,67 @@ class TestFactoryCustomization:
         assert api.driver == "api:openai"
         assert comp.strategy == "competitive"
 
-    def test_task_factory_with_dependencies(self, mock_task_factory):
-        """Task factory should accept dependencies list."""
-        task = mock_task_factory(id="A", dependencies=["B", "C"])
+    def test_execution_plan_factory_custom_batches(self, mock_execution_plan_factory):
+        """ExecutionPlan factory should accept custom num_batches and steps_per_batch."""
+        plan = mock_execution_plan_factory(num_batches=3, steps_per_batch=2)
 
-        assert task.id == "A"
-        assert task.dependencies == ["B", "C"]
+        assert len(plan.batches) == 3
+        assert len(plan.batches[0].steps) == 2
+        assert len(plan.batches[1].steps) == 2
+        assert len(plan.batches[2].steps) == 2
 
-    def test_task_dag_factory_linear_dependencies(self, mock_task_dag_factory):
-        """TaskDAG factory should support linear dependency chain."""
-        dag = mock_task_dag_factory(num_tasks=3, linear=True)
+    def test_execution_plan_factory_goal(self, mock_execution_plan_factory):
+        """ExecutionPlan factory should accept custom goal."""
+        plan = mock_execution_plan_factory(goal="Implement authentication")
 
-        assert dag.tasks[1].dependencies == ["1"]
-        assert dag.tasks[2].dependencies == ["2"]
+        assert plan.goal == "Implement authentication"
+
+    def test_execution_plan_factory_risk_levels(self, mock_execution_plan_factory):
+        """ExecutionPlan factory should accept custom risk_levels."""
+        plan = mock_execution_plan_factory(
+            num_batches=3,
+            steps_per_batch=2,
+            risk_levels=["low", "medium", "high"]
+        )
+
+        assert len(plan.batches) == 3
+        assert plan.batches[0].risk_summary == "low"
+        assert plan.batches[1].risk_summary == "medium"
+        assert plan.batches[2].risk_summary == "high"
+        # Verify steps also have correct risk levels
+        for step in plan.batches[0].steps:
+            assert step.risk_level == "low"
+        for step in plan.batches[1].steps:
+            assert step.risk_level == "medium"
+        for step in plan.batches[2].steps:
+            assert step.risk_level == "high"
+
+    def test_execution_plan_factory_default_risk_levels(self, mock_execution_plan_factory):
+        """ExecutionPlan factory should default to low risk when risk_levels not provided."""
+        plan = mock_execution_plan_factory(num_batches=2, steps_per_batch=1)
+
+        assert plan.batches[0].risk_summary == "low"
+        assert plan.batches[1].risk_summary == "low"
+        for step in plan.batches[0].steps:
+            assert step.risk_level == "low"
+        for step in plan.batches[1].steps:
+            assert step.risk_level == "low"
 
     def test_execution_state_factory_with_preset(self, mock_execution_state_factory):
         """ExecutionState factory should accept profile presets."""
         state = mock_execution_state_factory(profile_preset="api_competitive")
 
         assert state.profile.strategy == "competitive"
+
+    def test_execution_state_factory_with_execution_plan(
+        self, mock_execution_state_factory, mock_execution_plan_factory
+    ):
+        """ExecutionState factory should accept execution_plan parameter."""
+        plan = mock_execution_plan_factory(goal="Custom goal")
+        state = mock_execution_state_factory(execution_plan=plan)
+
+        assert state.execution_plan is not None
+        assert state.execution_plan.goal == "Custom goal"
 
     def test_design_factory_custom_values(self, mock_design_factory):
         """Design factory should accept custom values."""

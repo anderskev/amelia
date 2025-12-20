@@ -7,7 +7,7 @@ import asyncio
 import contextlib
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from httpx import TimeoutException
@@ -17,9 +17,9 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
-from amelia.core.orchestrator import create_orchestrator_graph
-from amelia.core.state import ExecutionState, TaskDAG
-from amelia.core.types import Settings, StreamEmitter, StreamEvent
+from amelia.core.orchestrator import create_orchestrator_graph, create_review_graph
+from amelia.core.state import ExecutionPlan, ExecutionState
+from amelia.core.types import Issue, Settings, StreamEmitter, StreamEvent
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.exceptions import (
@@ -101,11 +101,15 @@ class OrchestratorService:
             checkpointer: Checkpoint saver for persistence.
 
         Returns:
-            Compiled LangGraph with interrupt_before=["human_approval_node"].
+            Compiled LangGraph with interrupts before all human-input nodes.
         """
         return create_orchestrator_graph(
             checkpoint_saver=checkpointer,
-            interrupt_before=["human_approval_node"],
+            interrupt_before=[
+                "human_approval_node",
+                "batch_approval_node",
+                "blocker_resolution_node",
+            ],
         )
 
     def _create_stream_emitter(self) -> StreamEmitter:
@@ -130,6 +134,7 @@ class OrchestratorService:
         worktree_name: str | None = None,
         profile: str | None = None,
         driver: str | None = None,
+        plan_only: bool = False,
     ) -> str:
         """Start a new workflow.
 
@@ -139,6 +144,7 @@ class OrchestratorService:
             worktree_name: Human-readable worktree name (optional).
             profile: Optional profile name.
             driver: Optional driver override.
+            plan_only: If True, stop after planning and save markdown without executing.
 
         Returns:
             The workflow ID (UUID).
@@ -178,12 +184,19 @@ class OrchestratorService:
                 raise ValueError(f"Profile '{profile_name}' not found in settings")
             loaded_profile = self._settings.profiles[profile_name]
 
+            # Ensure working_dir is set to worktree_path for git operations
+            # Create a copy to avoid mutating the shared settings profile
+            if loaded_profile.working_dir is None:
+                loaded_profile = loaded_profile.model_copy(
+                    update={"working_dir": worktree_path}
+                )
+
             # Fetch issue from tracker (pass worktree_path so gh CLI uses correct repo)
             tracker = create_tracker(loaded_profile)
             issue = tracker.get_issue(issue_id, cwd=worktree_path)
 
             # Initialize ExecutionState with the loaded profile and issue
-            execution_state = ExecutionState(profile=loaded_profile, issue=issue)
+            execution_state = ExecutionState(profile=loaded_profile, issue=issue, plan_only=plan_only)
 
             state = ServerExecutionState(
                 id=workflow_id,
@@ -214,6 +227,104 @@ class OrchestratorService:
             self._active_tasks[worktree_path] = (workflow_id, task)
 
         # Remove from active tasks on completion
+        def cleanup_task(_: asyncio.Task[None]) -> None:
+            """Clean up resources when workflow task completes.
+
+            Args:
+                _: The completed asyncio Task (unused).
+            """
+            self._active_tasks.pop(worktree_path, None)
+            self._sequence_counters.pop(workflow_id, None)
+            self._sequence_locks.pop(workflow_id, None)
+            self._last_task_statuses.pop(workflow_id, None)
+            logger.debug(
+                "Workflow task completed",
+                workflow_id=workflow_id,
+                worktree_path=worktree_path,
+            )
+
+        task.add_done_callback(cleanup_task)
+
+        return workflow_id
+
+    async def start_review_workflow(
+        self,
+        diff_content: str,
+        worktree_path: str,
+        worktree_name: str | None = None,
+        profile: str | None = None,
+    ) -> str:
+        """Start a review-fix workflow.
+
+        Args:
+            diff_content: The git diff to review.
+            worktree_path: Path for conflict detection (typically cwd).
+            worktree_name: Optional human-readable name.
+            profile: Optional profile name.
+
+        Returns:
+            The workflow ID (UUID).
+
+        Raises:
+            WorkflowConflictError: If worktree already has active workflow.
+            ConcurrencyLimitError: If at max concurrent workflows.
+        """
+        # Validate worktree exists (for conflict detection, not git ops)
+        worktree = Path(worktree_path)
+        if not worktree.exists() or not worktree.is_dir():
+            raise InvalidWorktreeError(worktree_path, "directory does not exist")
+
+        async with self._start_lock:
+            # Same conflict and concurrency checks as start_workflow
+            if worktree_path in self._active_tasks:
+                existing_id, _ = self._active_tasks[worktree_path]
+                raise WorkflowConflictError(worktree_path, existing_id)
+
+            if len(self._active_tasks) >= self._max_concurrent:
+                raise ConcurrencyLimitError(self._max_concurrent, len(self._active_tasks))
+
+            workflow_id = str(uuid4())
+
+            # Load profile
+            profile_name = profile or self._settings.active_profile
+            loaded_profile = self._settings.profiles[profile_name]
+            if loaded_profile.working_dir is None:
+                loaded_profile = loaded_profile.model_copy(update={"working_dir": worktree_path})
+
+            # Create dummy issue for review context
+            dummy_issue = Issue(
+                id="LOCAL-REVIEW",
+                title="Local Code Review",
+                description="Review local uncommitted changes."
+            )
+
+            # Initialize ExecutionState with diff content
+            execution_state = ExecutionState(
+                profile=loaded_profile,
+                issue=dummy_issue,
+                code_changes_for_review=diff_content,
+                review_iteration=0,
+            )
+
+            # Create server state with workflow_type="review"
+            state = ServerExecutionState(
+                id=workflow_id,
+                issue_id="LOCAL-REVIEW",
+                worktree_path=worktree_path,
+                worktree_name=worktree_name or "local-review",
+                workflow_type="review",
+                execution_state=execution_state,
+                workflow_status="pending",
+                started_at=datetime.now(UTC),
+            )
+
+            await self._repository.create(state)
+
+            # Start with review graph instead of full graph
+            task = asyncio.create_task(self._run_review_workflow(workflow_id, state))
+            self._active_tasks[worktree_path] = (workflow_id, task)
+
+        # Same cleanup callback as start_workflow
         def cleanup_task(_: asyncio.Task[None]) -> None:
             """Clean up resources when workflow task completes.
 
@@ -507,6 +618,85 @@ class OrchestratorService:
                 )
                 raise
 
+    async def _run_review_workflow(
+        self,
+        workflow_id: str,
+        state: ServerExecutionState,
+    ) -> None:
+        """Run the review-fix workflow graph.
+
+        Similar to _run_workflow but uses review graph and no approval pauses.
+        The graph runs autonomously until approved or max iterations reached.
+
+        Args:
+            workflow_id: The workflow ID.
+            state: Server execution state with embedded core state.
+        """
+        if state.execution_state is None:
+            logger.error("No execution_state in ServerExecutionState", workflow_id=workflow_id)
+            await self._repository.set_status(
+                workflow_id, "failed", failure_reason="Missing execution state"
+            )
+            return
+
+        async with AsyncSqliteSaver.from_conn_string(
+            str(self._checkpoint_path)
+        ) as checkpointer:
+            # Create review graph (no interrupt_before - runs autonomously)
+            graph = create_review_graph(checkpointer)
+
+            # Create stream emitter and pass it via config
+            stream_emitter = self._create_stream_emitter()
+            config: RunnableConfig = {
+                "configurable": {
+                    "thread_id": workflow_id,
+                    "execution_mode": "server",
+                    "stream_emitter": stream_emitter,
+                }
+            }
+
+            await self._emit(
+                workflow_id,
+                EventType.WORKFLOW_STARTED,
+                "Review workflow started",
+                data={"issue_id": state.issue_id, "workflow_type": "review"},
+            )
+
+            try:
+                await self._repository.set_status(workflow_id, "in_progress")
+
+                # Convert Pydantic model to JSON-serializable dict for checkpointing
+                initial_state = state.execution_state.model_dump(mode="json")
+
+                async for chunk in graph.astream(
+                    initial_state,
+                    config=config,
+                    stream_mode="updates",
+                ):
+                    # No interrupt handling - review graph runs autonomously
+                    # Emit stage events for each node that completes
+                    await self._handle_stream_chunk(workflow_id, chunk)
+
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_COMPLETED,
+                    "Review workflow completed",
+                    data={"final_stage": state.current_stage},
+                )
+                await self._repository.set_status(workflow_id, "completed")
+
+            except Exception as e:
+                logger.exception("Review workflow failed", workflow_id=workflow_id)
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_FAILED,
+                    f"Review workflow failed: {e}",
+                    data={"error": str(e)},
+                )
+                await self._repository.set_status(
+                    workflow_id, "failed", failure_reason=str(e)
+                )
+
     async def _emit(
         self,
         workflow_id: str,
@@ -625,31 +815,102 @@ class OrchestratorService:
             # Update state with approval decision
             await graph.aupdate_state(config, {"human_approved": True})
 
+            # Diagnostic: Log checkpoint state before resuming
+            checkpoint_state = await graph.aget_state(config)
+            if checkpoint_state and checkpoint_state.values:
+                has_plan = checkpoint_state.values.get("execution_plan") is not None
+                logger.debug(
+                    "Checkpoint state before resume",
+                    workflow_id=workflow_id,
+                    has_execution_plan=has_plan,
+                    human_approved=checkpoint_state.values.get("human_approved"),
+                    next_nodes=checkpoint_state.next if checkpoint_state.next else None,
+                )
+            else:
+                logger.warning(
+                    "No checkpoint state available before resume",
+                    workflow_id=workflow_id,
+                )
+
             # Update status to in_progress before resuming
             await self._repository.set_status(workflow_id, "in_progress")
 
             # Resume execution from checkpoint
             try:
+                was_interrupted = False
                 async for chunk in graph.astream(
                     None,  # Resume from checkpoint, no new input needed
                     config=config,
                     stream_mode="updates",
                 ):
-                    # Check for unexpected interrupt (shouldn't happen after approval)
+                    # Check for interrupt after resuming (e.g., blocker or batch approval)
                     if "__interrupt__" in chunk:
-                        logger.warning(
-                            "Unexpected interrupt after approval",
+                        # Get checkpoint state to determine which node triggered interrupt
+                        state = await graph.aget_state(config)
+                        next_nodes = state.next if state else []
+
+                        logger.info(
+                            "Interrupt detected after approval",
                             workflow_id=workflow_id,
+                            next_nodes=next_nodes,
+                            interrupt_data=chunk["__interrupt__"],
                         )
-                        continue
+
+                        # Handle blocker_resolution_node interrupt
+                        if "blocker_resolution_node" in next_nodes:
+                            was_interrupted = True
+                            # Sync state and emit blocker event
+                            await self._sync_plan_from_checkpoint(
+                                workflow_id, graph, config
+                            )
+                            # Get blocker details from state
+                            current_blocker = (
+                                state.values.get("current_blocker")
+                                if state and state.values
+                                else None
+                            )
+                            await self._emit(
+                                workflow_id,
+                                EventType.APPROVAL_REQUIRED,
+                                "Developer blocked - awaiting human intervention",
+                                data={
+                                    "paused_at": "blocker_resolution_node",
+                                    "blocker": current_blocker,
+                                },
+                            )
+                            await self._repository.set_status(workflow_id, "blocked")
+                            break
+                        # Handle batch_approval_node interrupt
+                        elif "batch_approval_node" in next_nodes:
+                            was_interrupted = True
+                            await self._sync_plan_from_checkpoint(
+                                workflow_id, graph, config
+                            )
+                            await self._emit(
+                                workflow_id,
+                                EventType.APPROVAL_REQUIRED,
+                                "Batch complete - awaiting approval to continue",
+                                data={"paused_at": "batch_approval_node"},
+                            )
+                            await self._repository.set_status(workflow_id, "blocked")
+                            break
+                        else:
+                            # Truly unexpected interrupt - log and continue
+                            logger.warning(
+                                "Unexpected interrupt after approval",
+                                workflow_id=workflow_id,
+                                next_nodes=next_nodes,
+                            )
+                            continue
                     await self._handle_stream_chunk(workflow_id, chunk)
 
-                await self._emit(
-                    workflow_id,
-                    EventType.WORKFLOW_COMPLETED,
-                    "Workflow completed successfully",
-                )
-                await self._repository.set_status(workflow_id, "completed")
+                if not was_interrupted:
+                    await self._emit(
+                        workflow_id,
+                        EventType.WORKFLOW_COMPLETED,
+                        "Workflow completed successfully",
+                    )
+                    await self._repository.set_status(workflow_id, "completed")
 
             except Exception as e:
                 logger.exception("Workflow failed after approval", workflow_id=workflow_id)
@@ -731,6 +992,193 @@ class OrchestratorService:
             }
 
             await graph.aupdate_state(config, {"human_approved": False})
+
+    async def resolve_blocker(
+        self,
+        workflow_id: str,
+        action: Literal["skip", "retry", "abort", "abort_revert", "fix"],
+        feedback: str | None = None,
+    ) -> None:
+        """Resolve a blocker and resume LangGraph execution.
+
+        Maps the action to the appropriate blocker_resolution value and resumes
+        the graph from blocker_resolution_node.
+
+        Args:
+            workflow_id: The workflow with a blocker to resolve.
+            action: Resolution action (skip, retry, abort, abort_revert, fix).
+            feedback: Optional feedback or fix instruction (required for 'fix').
+
+        Raises:
+            WorkflowNotFoundError: If workflow doesn't exist.
+            InvalidStateError: If workflow is not in "blocked" state.
+        """
+        workflow = await self._repository.get(workflow_id)
+        if not workflow:
+            raise WorkflowNotFoundError(workflow_id)
+
+        if workflow.workflow_status != "blocked":
+            raise InvalidStateError(
+                f"Cannot resolve blocker for workflow in '{workflow.workflow_status}' state",
+                workflow_id=workflow_id,
+                current_status=workflow.workflow_status,
+            )
+
+        # Map action to blocker_resolution value
+        # See blocker_resolution_node in orchestrator.py for handling:
+        # - "skip" → Skip step and continue
+        # - "abort" → Abort workflow (keep changes)
+        # - "abort_revert" → Abort workflow and revert changes
+        # - Any other string (including empty for retry) → Fix instruction/retry
+        resolution_map = {
+            "skip": "skip",
+            "abort": "abort",
+            "abort_revert": "abort_revert",
+            "retry": "",  # Empty string signals retry without fix instruction
+            "fix": feedback or "",  # Fix instruction text
+        }
+        blocker_resolution = resolution_map.get(action, "")
+
+        async with self._approval_lock:
+            await self._emit(
+                workflow_id,
+                EventType.APPROVAL_GRANTED,
+                f"Blocker resolved: {action}",
+                data={"action": action, "feedback": feedback},
+            )
+            logger.info(
+                "Blocker resolution submitted",
+                workflow_id=workflow_id,
+                action=action,
+                resolution=blocker_resolution,
+            )
+
+        # Resume LangGraph execution with blocker_resolution set
+        async with AsyncSqliteSaver.from_conn_string(
+            str(self._checkpoint_path)
+        ) as checkpointer:
+            graph = self._create_server_graph(checkpointer)
+
+            stream_emitter = self._create_stream_emitter()
+            config: RunnableConfig = {
+                "configurable": {
+                    "thread_id": workflow_id,
+                    "execution_mode": "server",
+                    "stream_emitter": stream_emitter,
+                }
+            }
+
+            # Update state with blocker resolution
+            await graph.aupdate_state(config, {"blocker_resolution": blocker_resolution})
+
+            # Diagnostic logging
+            checkpoint_state = await graph.aget_state(config)
+            if checkpoint_state and checkpoint_state.values:
+                logger.debug(
+                    "Checkpoint state before blocker resume",
+                    workflow_id=workflow_id,
+                    blocker_resolution=checkpoint_state.values.get("blocker_resolution"),
+                    next_nodes=checkpoint_state.next if checkpoint_state.next else None,
+                )
+
+            await self._repository.set_status(workflow_id, "in_progress")
+
+            try:
+                was_interrupted = False
+                async for chunk in graph.astream(
+                    None,
+                    config=config,
+                    stream_mode="updates",
+                ):
+                    # Check for new interrupt (e.g., another blocker or batch approval)
+                    if "__interrupt__" in chunk:
+                        state = await graph.aget_state(config)
+                        next_nodes = state.next if state else []
+
+                        logger.info(
+                            "Interrupt detected after blocker resolution",
+                            workflow_id=workflow_id,
+                            next_nodes=next_nodes,
+                        )
+
+                        if "blocker_resolution_node" in next_nodes:
+                            was_interrupted = True
+                            await self._sync_plan_from_checkpoint(
+                                workflow_id, graph, config
+                            )
+                            current_blocker = (
+                                state.values.get("current_blocker")
+                                if state and state.values
+                                else None
+                            )
+                            await self._emit(
+                                workflow_id,
+                                EventType.APPROVAL_REQUIRED,
+                                "Developer blocked - awaiting human intervention",
+                                data={
+                                    "paused_at": "blocker_resolution_node",
+                                    "blocker": current_blocker,
+                                },
+                            )
+                            await self._repository.set_status(workflow_id, "blocked")
+                            break
+                        elif "batch_approval_node" in next_nodes:
+                            was_interrupted = True
+                            await self._sync_plan_from_checkpoint(
+                                workflow_id, graph, config
+                            )
+                            await self._emit(
+                                workflow_id,
+                                EventType.APPROVAL_REQUIRED,
+                                "Batch complete - awaiting approval to continue",
+                                data={"paused_at": "batch_approval_node"},
+                            )
+                            await self._repository.set_status(workflow_id, "blocked")
+                            break
+                        elif "human_approval_node" in next_nodes:
+                            was_interrupted = True
+                            await self._sync_plan_from_checkpoint(
+                                workflow_id, graph, config
+                            )
+                            await self._emit(
+                                workflow_id,
+                                EventType.APPROVAL_REQUIRED,
+                                "Plan ready for review - awaiting human approval",
+                                data={"paused_at": "human_approval_node"},
+                            )
+                            await self._repository.set_status(workflow_id, "blocked")
+                            break
+                        else:
+                            logger.warning(
+                                "Unexpected interrupt after blocker resolution",
+                                workflow_id=workflow_id,
+                                next_nodes=next_nodes,
+                            )
+                            continue
+                    await self._handle_stream_chunk(workflow_id, chunk)
+
+                if not was_interrupted:
+                    await self._emit(
+                        workflow_id,
+                        EventType.WORKFLOW_COMPLETED,
+                        "Workflow completed successfully",
+                    )
+                    await self._repository.set_status(workflow_id, "completed")
+
+            except Exception as e:
+                logger.exception(
+                    "Workflow failed after blocker resolution", workflow_id=workflow_id
+                )
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_FAILED,
+                    f"Workflow failed: {e!s}",
+                    data={"error": str(e)},
+                )
+                await self._repository.set_status(
+                    workflow_id, "failed", failure_reason=str(e)
+                )
+                raise
 
     async def _wait_for_approval(self, workflow_id: str) -> None:
         """Block until workflow is approved or rejected.
@@ -882,25 +1330,61 @@ class OrchestratorService:
             workflow_id: The workflow ID.
             output: State updates from the architect node.
         """
-        plan = output.get("plan")
-        if plan and isinstance(plan, dict):
-            tasks = plan.get("tasks", [])
-            await self._emit(
-                workflow_id,
-                EventType.AGENT_MESSAGE,
-                f"Generated plan with {len(tasks)} tasks",
-                agent="architect",
-                data={"task_count": len(tasks)},
-            )
-            # Initialize task status tracking for this workflow
-            if workflow_id not in self._last_task_statuses:
-                self._last_task_statuses[workflow_id] = {}
-            for task in tasks:
-                if isinstance(task, dict):
-                    task_id = task.get("id")
-                    task_status = task.get("status")
-                    if task_id and task_status:
-                        self._last_task_statuses[workflow_id][task_id] = task_status
+        execution_plan = output.get("execution_plan")
+        if not execution_plan:
+            return
+
+        # Handle both Pydantic model and dict representations
+        # LangGraph may pass either depending on serialization context
+        if isinstance(execution_plan, dict):
+            batches = execution_plan.get("batches", [])
+        elif hasattr(execution_plan, "batches"):
+            # Pydantic model - convert to list for consistent handling
+            batches = list(execution_plan.batches)
+        else:
+            return
+
+        # Count total steps across all batches
+        total_steps = 0
+        for batch in batches:
+            if isinstance(batch, dict):
+                total_steps += len(batch.get("steps", []))
+            elif hasattr(batch, "steps"):
+                total_steps += len(batch.steps)
+
+        await self._emit(
+            workflow_id,
+            EventType.AGENT_MESSAGE,
+            f"Generated plan with {len(batches)} batches, {total_steps} steps",
+            agent="architect",
+            data={"batch_count": len(batches), "step_count": total_steps},
+        )
+
+        # Initialize step status tracking for this workflow
+        if workflow_id not in self._last_task_statuses:
+            self._last_task_statuses[workflow_id] = {}
+
+        for batch in batches:
+            # Get steps from either dict or Pydantic model
+            if isinstance(batch, dict):
+                steps = batch.get("steps", [])
+            elif hasattr(batch, "steps"):
+                steps = batch.steps
+            else:
+                continue
+
+            for step in steps:
+                # Get step_id from either dict or Pydantic model
+                if isinstance(step, dict):
+                    step_id = step.get("id")
+                elif hasattr(step, "id"):
+                    step_id = step.id
+                else:
+                    continue
+
+                if step_id:
+                    # Steps don't have status initially, mark as pending
+                    self._last_task_statuses[workflow_id][step_id] = "pending"
 
     async def _emit_developer_messages(
         self,
@@ -913,60 +1397,126 @@ class OrchestratorService:
             workflow_id: The workflow ID.
             output: State updates from the developer node.
         """
-        plan = output.get("plan")
-        if plan and isinstance(plan, dict):
-            tasks = plan.get("tasks", [])
-            # Initialize tracking if not present
-            if workflow_id not in self._last_task_statuses:
-                self._last_task_statuses[workflow_id] = {}
+        # Check for batch results from new execution model
+        batch_results = output.get("batch_results")
+        developer_status = output.get("developer_status")
+        current_batch_index = output.get("current_batch_index")
 
-            last_statuses = self._last_task_statuses[workflow_id]
-
-            # Emit events only for tasks that changed status
-            for task in tasks:
-                if not isinstance(task, dict):
+        if batch_results and isinstance(batch_results, list):
+            for result in batch_results:
+                if not isinstance(result, dict):
                     continue
 
-                task_id = task.get("id")
-                task_status = task.get("status")
-                task_desc = task.get("description", "")
+                batch_num = result.get("batch_number", 0)
+                # Field is 'completed_steps' in BatchResult model, not 'step_results'
+                completed_steps = result.get("completed_steps", [])
 
-                if not task_id or not task_status:
-                    continue
+                # Emit events for each step result
+                for step_result in completed_steps:
+                    if not isinstance(step_result, dict):
+                        continue
 
-                # Check if status changed
-                previous_status = last_statuses.get(task_id)
-                if previous_status == task_status:
-                    continue  # No change, skip
+                    step_id = step_result.get("step_id")
+                    # StepResult uses 'status' field with values like "completed", "failed", "skipped"
+                    status = step_result.get("status")
+                    # StepResult uses 'error' field, not 'error_message'
+                    error = step_result.get("error")
 
-                # Update tracking
-                last_statuses[task_id] = task_status
+                    if not step_id:
+                        continue
 
-                # Emit task lifecycle events based on new status
-                if task_status == "in_progress":
-                    await self._emit(
-                        workflow_id,
-                        EventType.TASK_STARTED,
-                        f"Starting task: {task_desc}",
-                        agent="developer",
-                        data={"task_id": task_id, "description": task_desc},
-                    )
-                elif task_status == "completed":
-                    await self._emit(
-                        workflow_id,
-                        EventType.TASK_COMPLETED,
-                        f"Completed task: {task_desc}",
-                        agent="developer",
-                        data={"task_id": task_id, "description": task_desc},
-                    )
-                elif task_status == "failed":
-                    await self._emit(
-                        workflow_id,
-                        EventType.TASK_FAILED,
-                        f"Task failed: {task_desc}",
-                        agent="developer",
-                        data={"task_id": task_id, "description": task_desc},
-                    )
+                    if status == "completed":
+                        await self._emit(
+                            workflow_id,
+                            EventType.TASK_COMPLETED,
+                            f"Completed step: {step_id}",
+                            agent="developer",
+                            data={"step_id": step_id, "batch_number": batch_num},
+                        )
+                    elif status == "failed" and error:
+                        await self._emit(
+                            workflow_id,
+                            EventType.TASK_FAILED,
+                            f"Step failed: {step_id} - {error}",
+                            agent="developer",
+                            data={"step_id": step_id, "batch_number": batch_num, "error": error},
+                        )
+                    elif status == "skipped":
+                        await self._emit(
+                            workflow_id,
+                            EventType.AGENT_MESSAGE,
+                            f"Step skipped: {step_id}",
+                            agent="developer",
+                            data={"step_id": step_id, "batch_number": batch_num, "status": "skipped"},
+                        )
+
+        # Emit status updates based on developer_status
+        if developer_status == "batch_complete":
+            await self._emit(
+                workflow_id,
+                EventType.AGENT_MESSAGE,
+                f"Batch {current_batch_index} complete, awaiting review",
+                agent="developer",
+                data={"batch_index": current_batch_index, "status": developer_status},
+            )
+        elif developer_status == "all_done":
+            await self._emit(
+                workflow_id,
+                EventType.AGENT_MESSAGE,
+                "All batches complete",
+                agent="developer",
+                data={"status": developer_status},
+            )
+        elif developer_status == "blocked":
+            # Get blocker details from output
+            current_blocker = output.get("current_blocker")
+            blocker_data: dict[str, Any] = {"status": developer_status}
+
+            if current_blocker and isinstance(current_blocker, dict):
+                step_id = current_blocker.get("step_id", "unknown")
+                step_desc = current_blocker.get("step_description", "")
+                blocker_type = current_blocker.get("blocker_type", "unknown")
+                context = current_blocker.get("context", "")
+
+                # Build detailed message
+                message_parts = [f"Developer blocked at step '{step_id}'"]
+                if blocker_type:
+                    message_parts.append(f"({blocker_type})")
+                if step_desc:
+                    message_parts.append(f": {step_desc}")
+                message = " ".join(message_parts)
+
+                # Include blocker details in event data
+                blocker_data["blocker"] = {
+                    "step_id": step_id,
+                    "step_description": step_desc,
+                    "blocker_type": blocker_type,
+                    "context": context,
+                }
+
+                # Log detailed blocker info
+                logger.warning(
+                    "Developer execution blocked",
+                    workflow_id=workflow_id,
+                    step_id=step_id,
+                    step_description=step_desc,
+                    blocker_type=blocker_type,
+                    context=context[:200] if context else None,
+                )
+            else:
+                message = "Developer blocked, needs human intervention"
+                logger.warning(
+                    "Developer blocked without blocker details",
+                    workflow_id=workflow_id,
+                )
+
+            await self._emit(
+                workflow_id,
+                EventType.AGENT_MESSAGE,
+                message,
+                agent="developer",
+                data=blocker_data,
+            )
 
     async def _emit_reviewer_messages(
         self,
@@ -1024,29 +1574,29 @@ class OrchestratorService:
                 )
                 return
 
-            plan_dict = checkpoint_state.values.get("plan")
-            if plan_dict is None:
-                logger.debug("No plan in checkpoint yet", workflow_id=workflow_id)
+            execution_plan_dict = checkpoint_state.values.get("execution_plan")
+            if execution_plan_dict is None:
+                logger.debug("No execution_plan in checkpoint yet", workflow_id=workflow_id)
                 return
 
             # Fetch ServerExecutionState
             state = await self._repository.get(workflow_id)
             if state is None or state.execution_state is None:
                 logger.warning(
-                    "Cannot sync plan - workflow or execution_state not found",
+                    "Cannot sync execution_plan - workflow or execution_state not found",
                     workflow_id=workflow_id,
                 )
                 return
 
-            # Parse the plan dict into a TaskDAG
-            task_dag = TaskDAG.model_validate(plan_dict)
+            # Parse the execution_plan dict into an ExecutionPlan
+            execution_plan = ExecutionPlan.model_validate(execution_plan_dict)
 
-            # Update the execution_state with the plan
-            state.execution_state.plan = task_dag
+            # Update the execution_state with the execution_plan
+            state.execution_state.execution_plan = execution_plan
 
             # Save back to repository
             await self._repository.update(state)
-            logger.debug("Synced plan to ServerExecutionState", workflow_id=workflow_id)
+            logger.debug("Synced execution_plan to ServerExecutionState", workflow_id=workflow_id)
 
         except Exception as e:
             # Log but don't fail the workflow - plan sync is best-effort

@@ -103,6 +103,7 @@ Profile-based configuration via `settings.amelia.yaml`:
 - **Pydantic models** for all data structures - use validators/defaults, not ad-hoc dicts
 - **Async throughout** - agents/drivers expose async methods, avoid blocking calls in async functions
 - **Loguru** for logging (via `logger`), not `print`
+- **Structured logging** - Use kwargs for structured fields: `logger.info("msg", key=value)`. Don't use `.bind()` for single-log context. Fields appear in `record["extra"]` and are displayed in log output.
 - **Typer** for CLI with annotated parameters
 - **Google-style docstrings** for all functions
 - Raise `ValueError` with clear messages for validation failures

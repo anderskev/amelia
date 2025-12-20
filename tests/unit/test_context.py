@@ -158,79 +158,122 @@ class TestContextStrategy:
         # Should not raise even though sections aren't in ALLOWED_SECTIONS
         strategy.validate_sections(sections)
 
-    @pytest.mark.parametrize(
-        "test_id, setup_state, expected_task_id, expected_description",
-        [
-            (
-                "task_found",
-                lambda factories: factories["state"](
-                    plan=factories["dag"](tasks=[
-                        factories["task"](id="1", description="First task"),
-                        factories["task"](id="2", description="Second task"),
-                        factories["task"](id="3", description="Third task")
-                    ]),
-                    current_task_id="2"
-                ),
-                "2",
-                "Second task"
-            ),
-            (
-                "no_plan",
-                lambda factories: factories["state"](plan=None, current_task_id="1"),
-                None,
-                None
-            ),
-            (
-                "no_current_task_id",
-                lambda factories: factories["state"](
-                    plan=factories["dag"](num_tasks=3),
-                    current_task_id=None
-                ),
-                None,
-                None
-            ),
-            (
-                "task_not_found",
-                lambda factories: factories["state"](
-                    plan=factories["dag"](tasks=[
-                        factories["task"](id="1", description="First task"),
-                        factories["task"](id="2", description="Second task")
-                    ]),
-                    current_task_id="999"
-                ),
-                None,
-                None
-            ),
-        ],
-        ids=["task_found", "no_plan", "no_current_task_id", "task_not_found"]
-    )
-    def test_get_current_task(
-        self,
-        strategy,
-        mock_execution_state_factory,
-        mock_task_dag_factory,
-        mock_task_factory,
-        test_id,
-        setup_state,
-        expected_task_id,
-        expected_description
-    ):
-        """Test get_current_task with various state configurations."""
-        factories = {
-            "state": mock_execution_state_factory,
-            "dag": mock_task_dag_factory,
-            "task": mock_task_factory
-        }
-        state = setup_state(factories)
+    def test_get_current_task_with_batch_description(self, strategy, mock_execution_state_factory):
+        """Test get_current_task returns batch description from ExecutionPlan."""
+        from amelia.core.state import ExecutionBatch, ExecutionPlan, PlanStep
+
+        # Create execution plan with batches
+        step1 = PlanStep(
+            id="step-1",
+            description="Write unit tests for authentication",
+            action_type="code",
+            file_path="/test/test_auth.py",
+        )
+        step2 = PlanStep(
+            id="step-2",
+            description="Implement login endpoint",
+            action_type="code",
+            file_path="/src/auth.py",
+        )
+        batch = ExecutionBatch(
+            batch_number=1,
+            steps=(step1, step2),
+            risk_summary="medium",
+            description="Implement authentication with TDD"
+        )
+        execution_plan = ExecutionPlan(
+            goal="Add user authentication",
+            batches=(batch,),
+            total_estimated_minutes=15,
+            tdd_approach=True
+        )
+
+        # Create state with execution_plan
+        state = mock_execution_state_factory(
+            execution_plan=execution_plan,
+            current_batch_index=0,
+        )
 
         current_task = strategy.get_current_task(state)
 
-        if expected_task_id is None:
-            assert current_task is None
-        else:
-            assert current_task is not None
-            assert current_task.id == expected_task_id
-            assert current_task.description == expected_description
+        # Should return batch description as string
+        assert current_task is not None
+        assert current_task == "Implement authentication with TDD"
+
+    def test_get_current_task_no_plan(self, strategy, mock_execution_state_factory):
+        """Test get_current_task returns None when no execution plan exists."""
+        state = mock_execution_state_factory(
+            execution_plan=None,
+        )
+
+        current_task = strategy.get_current_task(state)
+        assert current_task is None
+
+    def test_get_current_task_falls_back_to_step_description(
+        self, strategy, mock_execution_state_factory
+    ):
+        """Test get_current_task falls back to first step description if batch has no description."""
+        from amelia.core.state import ExecutionBatch, ExecutionPlan, PlanStep
+
+        step = PlanStep(
+            id="step-1",
+            description="Run linter on codebase",
+            action_type="command",
+            command="uv run ruff check .",
+        )
+        batch = ExecutionBatch(
+            batch_number=2,
+            steps=(step,),
+            risk_summary="low",
+            description=""  # Empty description
+        )
+        execution_plan = ExecutionPlan(
+            goal="Code quality improvements",
+            batches=(batch,),
+            total_estimated_minutes=5,
+        )
+
+        state = mock_execution_state_factory(
+            execution_plan=execution_plan,
+            current_batch_index=0,
+        )
+
+        current_task = strategy.get_current_task(state)
+
+        # Should fall back to first step description
+        assert current_task is not None
+        assert current_task == "Run linter on codebase"
+
+    def test_get_current_task_out_of_range_batch(
+        self, strategy, mock_execution_state_factory
+    ):
+        """Test get_current_task returns None when current_batch_index is out of range."""
+        from amelia.core.state import ExecutionBatch, ExecutionPlan, PlanStep
+
+        step = PlanStep(
+            id="step-1",
+            description="Test step",
+            action_type="code",
+            file_path="/test.py",
+        )
+        batch = ExecutionBatch(
+            batch_number=1,
+            steps=(step,),
+            risk_summary="low",
+        )
+        execution_plan = ExecutionPlan(
+            goal="Test goal",
+            batches=(batch,),
+            total_estimated_minutes=5,
+        )
+
+        state = mock_execution_state_factory(
+            execution_plan=execution_plan,
+            current_batch_index=999,  # Out of range
+        )
+
+        current_task = strategy.get_current_task(state)
+        assert current_task is None
 
     @pytest.mark.parametrize(
         "title, description, expected_summary",

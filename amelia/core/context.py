@@ -11,7 +11,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
-from amelia.core.state import AgentMessage, ExecutionState, Task
+from amelia.core.state import AgentMessage, ExecutionState
 
 
 class ContextSection(BaseModel):
@@ -127,18 +127,25 @@ class ContextStrategy(ABC):
 
         return messages
 
-    def get_current_task(self, state: ExecutionState) -> Task | None:
-        """Get the current task from the execution state.
+    def get_current_task(self, state: ExecutionState) -> str | None:
+        """Get the current task description from the execution state.
+
+        This method extracts the current batch description from the ExecutionPlan.
+        Used as fallback context when batch_context is not available.
 
         Args:
             state: The current execution state.
 
         Returns:
-            The current Task if found, None otherwise.
+            The current task description if found, None otherwise.
         """
-        if not state.plan or not state.current_task_id:
-            return None
-        return state.plan.get_task(state.current_task_id)
+        if state.execution_plan and state.current_batch_index < len(state.execution_plan.batches):
+            batch = state.execution_plan.batches[state.current_batch_index]
+            description = batch.description if batch.description else batch.steps[0].description if batch.steps else ""
+            if description:
+                return description
+
+        return None
 
     def get_issue_summary(self, state: ExecutionState) -> str | None:
         """Format issue title and description into a summary.

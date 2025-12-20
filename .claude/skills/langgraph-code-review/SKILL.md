@@ -175,9 +175,38 @@ builder.add_node("dynamic", dynamic)  # Graph viz won't show edges
 builder.add_node("dynamic", dynamic, destinations=["next", END])
 ```
 
+## Routing Logic Issues
+
+### 13. Routing to Inevitable Crash Instead of Failing Fast
+
+```python
+# BAD - detects invalid state but defers to node where approval path crashes
+def route_after_work(state) -> Literal["approval", "done"]:
+    if state.required_data is None:
+        # Routes to approval, but if user approves, next node crashes!
+        return "approval"
+    ...
+
+def next_node(state):
+    if state.required_data is None:
+        raise ValueError("required_data is None")  # Crash!
+    ...
+
+# GOOD - fail fast when state corruption is detected
+def route_after_work(state) -> Literal["approval", "done", "__end__"]:
+    if state.required_data is None:
+        logger.error("Invalid state: required_data is None. Aborting.")
+        return END  # Clean exit, don't defer decision to user
+    ...
+```
+
+**Why this matters:** If a routing function detects state corruption, routing to a
+decision node (like human approval) where one path will inevitably crash is misleading.
+The user is offered a choice where one option fails. Fail fast with clear error logging.
+
 ## Async Issues
 
-### 13. Mixing Sync/Async Incorrectly
+### 14. Mixing Sync/Async Incorrectly
 
 ```python
 # BAD - async node called with sync invoke
@@ -192,7 +221,7 @@ await graph.ainvoke(input)
 # Or provide both sync and async versions
 ```
 
-### 14. Blocking Calls in Async Context
+### 15. Blocking Calls in Async Context
 
 ```python
 # BAD - blocking call in async node
@@ -209,7 +238,7 @@ async def my_node(state):
 
 ## Tool Integration Issues
 
-### 15. Tool Calls Without Corresponding ToolMessage
+### 16. Tool Calls Without Corresponding ToolMessage
 
 ```python
 # BAD - AI message with tool_calls but no tool execution
@@ -227,7 +256,7 @@ messages = [
 ]
 ```
 
-### 16. Parallel Tool Calls Before Interrupt
+### 17. Parallel Tool Calls Before Interrupt
 
 ```python
 # BAD - model may call multiple tools including interrupt
@@ -243,7 +272,7 @@ model = ChatOpenAI().bind_tools(
 
 ## Checkpointing Issues
 
-### 17. InMemorySaver in Production
+### 18. InMemorySaver in Production
 
 ```python
 # BAD - in-memory checkpointer loses state on restart
@@ -255,7 +284,7 @@ checkpointer = PostgresSaver.from_conn_string(conn_string)
 graph = builder.compile(checkpointer=checkpointer)
 ```
 
-### 18. Subgraph Checkpointer Confusion
+### 19. Subgraph Checkpointer Confusion
 
 ```python
 # BAD - subgraph with explicit False prevents persistence
@@ -269,7 +298,7 @@ subgraph = sub_builder.compile(checkpointer=True)
 
 ## Performance Issues
 
-### 19. Large State in Every Update
+### 20. Large State in Every Update
 
 ```python
 # BAD - returning large data in every node
@@ -285,7 +314,7 @@ def node(state, *, store: BaseStore):
     return {"data_ref": f"{namespace}/{key}"}
 ```
 
-### 20. Missing Recursion Limit Handling
+### 21. Missing Recursion Limit Handling
 
 ```python
 # BAD - no protection against infinite loops
@@ -317,3 +346,4 @@ def check_limit(state):
 8. [ ] Async nodes use async operations
 9. [ ] Production uses persistent checkpointer
 10. [ ] Recursion limits considered for loops
+11. [ ] Routing functions fail fast on state corruption (don't defer to nodes that will crash)

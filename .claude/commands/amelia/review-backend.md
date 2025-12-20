@@ -70,6 +70,7 @@ Review all changed `.py` files for general Python quality:
 - No bare `except:` clauses
 - Specific exception types, not `Exception`
 - Re-raising with `from` to preserve stack trace
+- Error messages don't suggest options/features that aren't implemented
 
 **Database & Queries:**
 - Query parameters validated (LIMIT < 0 raises or returns early; LIMIT 0 is valid for empty results)
@@ -81,11 +82,15 @@ Review all changed `.py` files for general Python quality:
 - No `print()` statements (use `logger` from loguru)
 - No mutable default arguments
 - f-strings preferred
+- Comments use relative references ("see check above", "due to validation earlier") not line numbers that become stale
+- Source metadata accurately describes what data could contain (account for fallbacks, not just happy path)
+- **Early return control flow**: Transient states (loading, error) should be checked before content states. Avoid nested conditionals that only exist to fall through to a later check (e.g., `if A: if not B: return X` followed by `if B: return Y` - reorder to check B first)
 
 **Observability:**
 - Critical paths have `logger.debug()` for diagnostics (broadcast counts, target counts)
 - Key operations have `logger.info()` for operational visibility
 - Errors include context (IDs, counts) not just messages
+- Loguru structured logging: use f-strings or `.bind()`, NOT keyword arguments (`logger.info("msg", key=val)` doesn't work - use `logger.bind(key=val).info("msg")` or `logger.info(f"msg: key={val}")`)
 
 ### Agent 2: LangGraph Review (If core/orchestrator changed)
 

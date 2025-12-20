@@ -27,13 +27,6 @@ const mockWorkflow = createMockWorkflowDetail({
   status: 'in_progress',
   started_at: '2025-12-07T09:00:00Z',
   current_stage: 'developer',
-  plan: {
-    tasks: [
-      { id: 't1', description: 'Setup', dependencies: [], status: 'completed' },
-      { id: 't2', description: 'Implement', dependencies: ['t1'], status: 'in_progress' },
-    ],
-    execution_order: ['t1', 't2'],
-  },
 });
 
 /**
@@ -72,8 +65,8 @@ describe('WorkflowDetailPage', () => {
     renderWithRouter({ workflow: mockWorkflow });
 
     await waitFor(() => {
-      // WorkflowProgress component shows task completion
-      expect(screen.getByText(/of 2 stages/)).toBeInTheDocument();
+      // WorkflowProgress component shows task completion (0 stages when no execution_plan)
+      expect(screen.getByText(/of 0 stages/)).toBeInTheDocument();
     });
   });
 

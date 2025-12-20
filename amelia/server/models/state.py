@@ -82,6 +82,10 @@ class ServerExecutionState(BaseModel):
     issue_id: str = Field(..., description="Issue being worked on")
     worktree_path: str = Field(..., description="Absolute path to worktree")
     worktree_name: str = Field(..., description="Human-readable worktree name")
+    workflow_type: Literal["full", "review"] = Field(
+        default="full",
+        description="Type of workflow: 'full' for standard, 'review' for review-only",
+    )
 
     execution_state: ExecutionState | None = Field(
         default=None,

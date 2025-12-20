@@ -15,8 +15,7 @@ import {
   type WorkflowDetail,
   type WorkflowEvent,
   type StreamEvent,
-  type TaskDAG,
-  type TaskNode,
+  type ExecutionPlan,
 } from '../types';
 
 // ============================================================================
@@ -58,9 +57,15 @@ export function createMockWorkflowDetail(
     worktree_path: '/tmp/test-worktree',
     completed_at: null,
     failure_reason: null,
-    plan: null,
     token_usage: {},
     recent_events: [],
+    // Batch execution fields
+    execution_plan: null,
+    current_batch_index: 0,
+    batch_results: [],
+    developer_status: null,
+    current_blocker: null,
+    batch_approvals: [],
     ...overrides,
   };
 }
@@ -167,51 +172,44 @@ export const mockWorkflowSummaries: WorkflowSummary[] = [
 ];
 
 // ============================================================================
-// Task DAG Fixtures
+// Execution Plan Fixtures
 // ============================================================================
 
 /**
- * Mock task nodes for a complete workflow plan.
+ * Mock execution plan representing a complete batched workflow.
  */
-export const mockTaskNodes: TaskNode[] = [
-  {
-    id: 'task-1',
-    description: 'Analyze requirements and create high-level architecture',
-    dependencies: [],
-    status: 'completed',
-  },
-  {
-    id: 'task-2',
-    description: 'Implement user authentication module',
-    dependencies: ['task-1'],
-    status: 'completed',
-  },
-  {
-    id: 'task-3',
-    description: 'Implement API endpoints for user management',
-    dependencies: ['task-2'],
-    status: 'in_progress',
-  },
-  {
-    id: 'task-4',
-    description: 'Review authentication implementation',
-    dependencies: ['task-2'],
-    status: 'pending',
-  },
-  {
-    id: 'task-5',
-    description: 'Write integration tests for authentication flow',
-    dependencies: ['task-4'],
-    status: 'pending',
-  },
-];
-
-/**
- * Mock task DAG representing a complete execution plan.
- */
-export const mockTaskDAG: TaskDAG = {
-  tasks: mockTaskNodes,
-  execution_order: ['task-1', 'task-2', 'task-3', 'task-4', 'task-5'],
+export const mockExecutionPlan: ExecutionPlan = {
+  goal: 'Implement user authentication system',
+  batches: [
+    {
+      batch_number: 1,
+      description: 'Analysis and architecture',
+      risk_summary: 'low',
+      steps: [
+        { id: 'step-1', description: 'Analyze requirements and create high-level architecture', action_type: 'code' },
+      ],
+    },
+    {
+      batch_number: 2,
+      description: 'Authentication implementation',
+      risk_summary: 'medium',
+      steps: [
+        { id: 'step-2', description: 'Implement user authentication module', action_type: 'code', file_path: 'src/auth/auth.py' },
+        { id: 'step-3', description: 'Implement API endpoints for user management', action_type: 'code', file_path: 'src/auth/api.py' },
+      ],
+    },
+    {
+      batch_number: 3,
+      description: 'Review and testing',
+      risk_summary: 'low',
+      steps: [
+        { id: 'step-4', description: 'Review authentication implementation', action_type: 'validation' },
+        { id: 'step-5', description: 'Write integration tests for authentication flow', action_type: 'code', file_path: 'tests/test_auth.py' },
+      ],
+    },
+  ],
+  total_estimated_minutes: 60,
+  tdd_approach: true,
 };
 
 // ============================================================================
@@ -370,7 +368,6 @@ export const mockWorkflowDetail: WorkflowDetail = {
   completed_at: null,
   failure_reason: null,
   current_stage: 'developer',
-  plan: mockTaskDAG,
   token_usage: {
     architect: {
       total_tokens: 15430,
@@ -388,6 +385,13 @@ export const mockWorkflowDetail: WorkflowDetail = {
   recent_events: mockWorkflowEvents.filter(
     (evt) => evt.workflow_id === 'wf-in-progress-002'
   ),
+  // Batch execution fields
+  execution_plan: mockExecutionPlan,
+  current_batch_index: 1,
+  batch_results: [],
+  developer_status: 'executing',
+  current_blocker: null,
+  batch_approvals: [],
 };
 
 /**
@@ -403,7 +407,6 @@ export const mockCompletedWorkflowDetail: WorkflowDetail = {
   completed_at: '2025-12-05T09:45:05Z',
   failure_reason: null,
   current_stage: 'reviewer',
-  plan: mockTaskDAG,
   token_usage: {
     architect: {
       total_tokens: 12500,
@@ -421,6 +424,13 @@ export const mockCompletedWorkflowDetail: WorkflowDetail = {
   recent_events: mockWorkflowEvents.filter(
     (evt) => evt.workflow_id === 'wf-completed-004'
   ),
+  // Batch execution fields
+  execution_plan: mockExecutionPlan,
+  current_batch_index: 3,
+  batch_results: [],
+  developer_status: 'all_done',
+  current_blocker: null,
+  batch_approvals: [],
 };
 
 /**
@@ -436,10 +446,6 @@ export const mockFailedWorkflowDetail: WorkflowDetail = {
   completed_at: '2025-12-05T08:15:05Z',
   failure_reason: 'Task execution error: syntax error in generated code',
   current_stage: 'developer',
-  plan: {
-    tasks: mockTaskNodes.slice(0, 3),
-    execution_order: ['task-1', 'task-2', 'task-3'],
-  },
   token_usage: {
     architect: {
       total_tokens: 11200,
@@ -457,6 +463,13 @@ export const mockFailedWorkflowDetail: WorkflowDetail = {
   recent_events: mockWorkflowEvents.filter(
     (evt) => evt.workflow_id === 'wf-failed-005'
   ),
+  // Batch execution fields
+  execution_plan: mockExecutionPlan,
+  current_batch_index: 1,
+  batch_results: [],
+  developer_status: 'blocked',
+  current_blocker: null,
+  batch_approvals: [],
 };
 
 /**
@@ -472,7 +485,13 @@ export const mockPendingWorkflowDetail: WorkflowDetail = {
   completed_at: null,
   failure_reason: null,
   current_stage: null,
-  plan: null,
   token_usage: {},
   recent_events: [],
+  // Batch execution fields
+  execution_plan: null,
+  current_batch_index: 0,
+  batch_results: [],
+  developer_status: null,
+  current_blocker: null,
+  batch_approvals: [],
 }
