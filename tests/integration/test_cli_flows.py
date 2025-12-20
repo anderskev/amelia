@@ -391,9 +391,9 @@ class TestCLIFlows:
         call_kwargs = mock_client.create_review_workflow.call_args.kwargs
         assert call_kwargs["profile"] == "work"
 
-    @pytest.mark.parametrize("cmd,extra_args", [
-        (["start", "ISSUE-123"], []),
-        (["plan", "ISSUE-123"], []),
+    @pytest.mark.parametrize("cmd", [
+        ["start", "ISSUE-123"],
+        ["plan", "ISSUE-123"],
     ])
     @patch("amelia.client.cli.get_worktree_context")
     @patch("amelia.client.cli.AmeliaClient")
@@ -404,7 +404,6 @@ class TestCLIFlows:
         cli_runner: CliRunner,
         git_repo_with_changes: Path,
         cmd: list[str],
-        extra_args: list[str],
     ) -> None:
         """Verify --profile flag is consistently passed across start and plan commands."""
         from amelia.main import app
@@ -422,7 +421,7 @@ class TestCLIFlows:
         )
         mock_client_class.return_value = mock_client
 
-        result = cli_runner.invoke(app, cmd + extra_args + ["--profile", "work"])
+        result = cli_runner.invoke(app, cmd + ["--profile", "work"])
 
         assert result.exit_code == 0
         call_kwargs = mock_client.create_workflow.call_args.kwargs
