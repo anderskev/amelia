@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
+from amelia.core.types import Settings
+
 
 class TestCLIFlows:
     """Integration tests for full CLI workflows."""
@@ -303,3 +305,110 @@ class TestCLIFlows:
         result = cli_runner.invoke(app, ["cancel", "--force"])
         assert result.exit_code == 0
         assert "cancelled" in result.stdout.lower()
+
+    @patch("amelia.main.stream_workflow_events")
+    @patch("amelia.main.run_shell_command")
+    @patch("amelia.main.load_settings")
+    @patch("amelia.main.AmeliaClient")
+    def test_review_local_creates_workflow(
+        self,
+        mock_client_class: MagicMock,
+        mock_load_settings: MagicMock,
+        mock_run_shell: MagicMock,
+        mock_stream: MagicMock,
+        cli_runner: CliRunner,
+        mock_settings: Settings,
+    ) -> None:
+        """Test review --local creates review workflow with diff content."""
+        from amelia.main import app
+
+        mock_load_settings.return_value = mock_settings
+        mock_run_shell.return_value = "diff --git a/file.txt\n+new line"
+
+        mock_client = AsyncMock()
+        mock_client.create_review_workflow.return_value = MagicMock(
+            id="wf-review-123",
+        )
+        mock_client_class.return_value = mock_client
+        mock_stream.return_value = None
+
+        result = cli_runner.invoke(app, ["review", "--local"])
+
+        assert result.exit_code == 0
+        assert "wf-review-123" in result.stdout
+        mock_client.create_review_workflow.assert_called_once()
+        call_kwargs = mock_client.create_review_workflow.call_args.kwargs
+        assert "diff_content" in call_kwargs
+        assert "+new line" in call_kwargs["diff_content"]
+
+    @patch("amelia.main.run_shell_command")
+    @patch("amelia.main.load_settings")
+    def test_review_local_no_changes(
+        self,
+        mock_load_settings: MagicMock,
+        mock_run_shell: MagicMock,
+        cli_runner: CliRunner,
+        mock_settings: Settings,
+    ) -> None:
+        """Test review --local exits gracefully when no changes exist."""
+        from amelia.main import app
+
+        mock_load_settings.return_value = mock_settings
+        mock_run_shell.return_value = ""
+
+        result = cli_runner.invoke(app, ["review", "--local"])
+
+        assert result.exit_code == 0
+        assert "no local uncommitted changes" in result.stdout.lower()
+
+    @patch("amelia.main.stream_workflow_events")
+    @patch("amelia.main.run_shell_command")
+    @patch("amelia.main.load_settings")
+    @patch("amelia.main.AmeliaClient")
+    def test_review_local_with_profile(
+        self,
+        mock_client_class: MagicMock,
+        mock_load_settings: MagicMock,
+        mock_run_shell: MagicMock,
+        mock_stream: MagicMock,
+        cli_runner: CliRunner,
+        mock_settings: Settings,
+    ) -> None:
+        """Test review --local passes profile to API."""
+        from amelia.main import app
+
+        mock_load_settings.return_value = mock_settings
+        mock_run_shell.return_value = "diff --git a/file.txt\n+new line"
+
+        mock_client = AsyncMock()
+        mock_client.create_review_workflow.return_value = MagicMock(id="wf-review-123")
+        mock_client_class.return_value = mock_client
+        mock_stream.return_value = None
+
+        result = cli_runner.invoke(app, ["review", "--local", "--profile", "work"])
+
+        assert result.exit_code == 0
+        call_kwargs = mock_client.create_review_workflow.call_args.kwargs
+        assert call_kwargs["profile"] == "work"
+
+    @patch("amelia.main.validate_profile")
+    @patch("amelia.main.load_settings")
+    def test_review_without_local_flag_fails(
+        self,
+        mock_load_settings: MagicMock,
+        mock_validate_profile: MagicMock,
+        cli_runner: CliRunner,
+        mock_settings: Settings,
+    ) -> None:
+        """Test review command without --local shows usage message."""
+        from amelia.main import app
+
+        mock_load_settings.return_value = mock_settings
+        mock_validate_profile.return_value = None
+
+        result = cli_runner.invoke(app, ["review"])
+
+        assert result.exit_code == 1
+        # Error message is written to stderr (err=True)
+        combined_output = result.stdout + result.stderr
+        assert "--local" in combined_output.lower() or "use --local" in combined_output.lower()
