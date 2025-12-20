@@ -160,8 +160,6 @@ For full documentation, visit **[anderskev.github.io/amelia](https://anderskev.g
 
 Amelia Core is licensed under the [Mozilla Public License 2.0](LICENSE).
 
-Commercial add-ons (multi-tenancy, centralized management, enterprise integrations) live in a separate private repository. Core remains fully open and functional without any commercial components.
-
 ## Current Status
 
 > [!WARNING]
