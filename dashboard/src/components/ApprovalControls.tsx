@@ -87,11 +87,16 @@ export function ApprovalControls({
                 className="bg-status-completed hover:bg-status-completed/90 focus-visible:ring-status-completed/50"
               >
                 {isPending ? (
-                  <Loader className="w-4 h-4 mr-2" />
+                  <>
+                    <Loader className="w-4 h-4 mr-2" />
+                    Approving...
+                  </>
                 ) : (
-                  <Check className="w-4 h-4 mr-2" />
+                  <>
+                    <Check className="w-4 h-4 mr-2" />
+                    Approve
+                  </>
                 )}
-                Approve
               </Button>
             </approveFetcher.Form>
 
@@ -135,6 +140,7 @@ export function ApprovalControls({
                 <textarea
                   id="feedback"
                   name="feedback"
+                  autoFocus
                   value={rejectionFeedback}
                   onChange={(e) => setRejectionFeedback(e.target.value)}
                   placeholder="Explain why this plan needs revision..."
@@ -155,11 +161,16 @@ export function ApprovalControls({
                 className="w-fit border-destructive text-destructive hover:bg-destructive hover:text-foreground focus-visible:ring-destructive/50"
               >
                 {isPending ? (
-                  <Loader className="w-4 h-4 mr-2" />
+                  <>
+                    <Loader className="w-4 h-4 mr-2" />
+                    Rejecting...
+                  </>
                 ) : (
-                  <X className="w-4 h-4 mr-2" />
+                  <>
+                    <X className="w-4 h-4 mr-2" />
+                    Submit Rejection
+                  </>
                 )}
-                Submit Rejection
               </Button>
             </rejectFetcher.Form>
           )}
