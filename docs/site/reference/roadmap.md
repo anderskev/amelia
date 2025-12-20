@@ -317,8 +317,6 @@ Map PRs and issues to capitalizable initiatives, estimate engineering hours from
 **12-Factor Compliance:**
 - **F5 (Unified State)**: Workflow timestamps and initiative mappings stored alongside execution state
 
-See [Capitalization Tracking Design](/ideas/capex-tracking) for detailed specification.
-
 ---
 
 ## Phase 15: Cloud Deployment [Planned]
@@ -337,8 +335,6 @@ Deploy Amelia to AWS to enable parallel workflow execution without local resourc
 - **F6 (Launch/Pause/Resume)**: Cloud-scale parallel execution with simple launch APIs
 - **F11 (Trigger from Anywhere)**: Web dashboard and CLI both connect to cloud backend
 - **F12 (Stateless Reducer)**: Cloud deployment requires fully serializable, stateless workflow execution
-
-See [Cloud Deployment Design](/ideas/aws-agentcore) for detailed specification.
 
 ---
 

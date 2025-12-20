@@ -2,7 +2,23 @@
 
 This document provides a technical deep dive into Amelia's architecture, component interactions, and data flow.
 
-## System Overview
+## What Amelia Does Today
+
+**Phase 1 (Complete):** Multi-agent orchestration with the **Architect → Developer → Reviewer** loop. Issues flow through planning, execution, and review stages with human approval gates before any code ships. Supports both API-based (OpenAI via pydantic-ai) and CLI-based (Claude) LLM drivers, with Jira and GitHub issue tracker integrations.
+
+**Phase 2 (In Progress):** Observable orchestration through a local web dashboard. FastAPI server with SQLite persistence, REST API for workflow management, React dashboard with real-time WebSocket updates, and batch-based execution with checkpoint approvals.
+
+## The Vision: Complete Workflow Autonomy
+
+The [roadmap](/reference/roadmap) charts a path toward **complete end-to-end workflow control**—where developers never need to open GitHub, Jira, or any tracker web UI. Built on the assumption that LLMs will continually improve, Amelia automatically gets better as models advance.
+
+**Design Principles** (informed by [Anthropic's research on effective agent harnesses](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)):
+- **Model Improvement as Tailwind** — Prefer prompts over code, delegation over hardcoding
+- **Structured Handoffs** — Explicit state transfer mechanisms for cross-session work
+- **Verify Before Declaring Done** — Agents test as humans would, not just claim completion
+- **Environment as Truth** — Git history and artifacts are the source of truth, not agent memory
+
+## System Architecture
 
 ```mermaid
 flowchart TB
