@@ -391,6 +391,43 @@ class TestCLIFlows:
         call_kwargs = mock_client.create_review_workflow.call_args.kwargs
         assert call_kwargs["profile"] == "work"
 
+    @pytest.mark.parametrize("cmd,extra_args", [
+        (["start", "ISSUE-123"], []),
+        (["plan", "ISSUE-123"], []),
+    ])
+    @patch("amelia.client.cli.get_worktree_context")
+    @patch("amelia.client.cli.AmeliaClient")
+    def test_profile_flag_passed_to_client(
+        self,
+        mock_client_class: MagicMock,
+        mock_worktree: MagicMock,
+        cli_runner: CliRunner,
+        git_repo_with_changes: Path,
+        cmd: list[str],
+        extra_args: list[str],
+    ) -> None:
+        """Verify --profile flag is consistently passed across start and plan commands."""
+        from amelia.main import app
+
+        mock_worktree.return_value = (str(git_repo_with_changes), "main")
+
+        mock_client = AsyncMock()
+        mock_client.create_workflow.return_value = MagicMock(
+            id="wf-123",
+            issue_id="ISSUE-123",
+            status="planning",
+            worktree_path=str(git_repo_with_changes),
+            worktree_name="main",
+            started_at=datetime(2025, 12, 1, 10, 0, 0),
+        )
+        mock_client_class.return_value = mock_client
+
+        result = cli_runner.invoke(app, cmd + extra_args + ["--profile", "work"])
+
+        assert result.exit_code == 0
+        call_kwargs = mock_client.create_workflow.call_args.kwargs
+        assert call_kwargs["profile"] == "work"
+
     @patch("amelia.main.validate_profile")
     @patch("amelia.main.load_settings")
     def test_review_without_local_flag_fails(
