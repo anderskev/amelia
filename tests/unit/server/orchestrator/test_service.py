@@ -24,7 +24,6 @@ from amelia.server.exceptions import (
 from amelia.server.models import ServerExecutionState
 from amelia.server.models.events import EventType
 from amelia.server.orchestrator.service import OrchestratorService
-from tests.conftest import AsyncIteratorMock
 
 
 @pytest.fixture

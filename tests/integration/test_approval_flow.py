@@ -24,7 +24,6 @@ from amelia.server.database.repository import WorkflowRepository
 from amelia.server.models.events import EventType, WorkflowEvent
 from amelia.server.models.state import ServerExecutionState
 from amelia.server.orchestrator.service import OrchestratorService
-from tests.conftest import AsyncIteratorMock
 
 
 @pytest.fixture
