@@ -13,6 +13,21 @@ from typer.testing import CliRunner
 from amelia.core.types import Settings
 
 
+@pytest.fixture
+def mock_workflow_client(git_repo_with_changes: Path) -> AsyncMock:
+    """Common mock client setup for workflow tests."""
+    mock_client = AsyncMock()
+    mock_client.create_workflow.return_value = MagicMock(
+        id="wf-123",
+        issue_id="ISSUE-123",
+        status="planning",
+        worktree_path=str(git_repo_with_changes),
+        worktree_name="main",
+        started_at=datetime(2025, 12, 1, 10, 0, 0),
+    )
+    return mock_client
+
+
 class TestCLIFlows:
     """Integration tests for full CLI workflows."""
 
@@ -24,23 +39,14 @@ class TestCLIFlows:
         mock_worktree: MagicMock,
         cli_runner: CliRunner,
         git_repo_with_changes: Path,
+        mock_workflow_client: AsyncMock,
     ) -> None:
         """Test start -> approve flow."""
         from amelia.main import app
 
         mock_worktree.return_value = (str(git_repo_with_changes), "main")
 
-        mock_client = AsyncMock()
-
-        # Mock start workflow response
-        mock_client.create_workflow.return_value = MagicMock(
-            id="wf-123",
-            issue_id="ISSUE-123",
-            status="planning",
-            worktree_path=str(git_repo_with_changes),
-            worktree_name="main",
-            started_at=datetime(2025, 12, 1, 10, 0, 0),
-        )
+        mock_client = mock_workflow_client
 
         # Mock get workflows for approve
         mock_client.get_active_workflows.return_value = MagicMock(
@@ -75,23 +81,14 @@ class TestCLIFlows:
         mock_worktree: MagicMock,
         cli_runner: CliRunner,
         git_repo_with_changes: Path,
+        mock_workflow_client: AsyncMock,
     ) -> None:
         """Test start -> reject flow."""
         from amelia.main import app
 
         mock_worktree.return_value = (str(git_repo_with_changes), "main")
 
-        mock_client = AsyncMock()
-
-        # Mock start workflow response
-        mock_client.create_workflow.return_value = MagicMock(
-            id="wf-123",
-            issue_id="ISSUE-123",
-            status="planning",
-            worktree_path=str(git_repo_with_changes),
-            worktree_name="main",
-            started_at=datetime(2025, 12, 1, 10, 0, 0),
-        )
+        mock_client = mock_workflow_client
 
         # Mock get workflows for reject
         mock_client.get_active_workflows.return_value = MagicMock(
@@ -124,23 +121,14 @@ class TestCLIFlows:
         mock_worktree: MagicMock,
         cli_runner: CliRunner,
         git_repo_with_changes: Path,
+        mock_workflow_client: AsyncMock,
     ) -> None:
         """Test start -> status flow."""
         from amelia.main import app
 
         mock_worktree.return_value = (str(git_repo_with_changes), "main")
 
-        mock_client = AsyncMock()
-
-        # Mock start workflow response
-        mock_client.create_workflow.return_value = MagicMock(
-            id="wf-123",
-            issue_id="ISSUE-123",
-            status="planning",
-            worktree_path=str(git_repo_with_changes),
-            worktree_name="main",
-            started_at=datetime(2025, 12, 1, 10, 0, 0),
-        )
+        mock_client = mock_workflow_client
 
         # Mock get workflows for status
         mock_client.get_active_workflows.return_value = MagicMock(
@@ -169,24 +157,31 @@ class TestCLIFlows:
         assert result.exit_code == 0
         assert "wf-123" in result.stdout
 
+    @pytest.mark.parametrize("cmd,issue_id,plan_only_expected", [
+        (["start", "ISSUE-123"], "ISSUE-123", False),
+        (["plan", "ISSUE-456"], "ISSUE-456", True),
+    ])
     @patch("amelia.client.cli.get_worktree_context")
     @patch("amelia.client.cli.AmeliaClient")
-    def test_plan_command_creates_workflow(
+    def test_workflow_creation_commands(
         self,
         mock_client_class: MagicMock,
         mock_worktree: MagicMock,
         cli_runner: CliRunner,
         git_repo_with_changes: Path,
+        cmd: list[str],
+        issue_id: str,
+        plan_only_expected: bool,
     ) -> None:
-        """Test plan command creates workflow with plan_only=True."""
+        """Test start and plan commands create workflows correctly."""
         from amelia.main import app
 
         mock_worktree.return_value = (str(git_repo_with_changes), "main")
 
         mock_client = AsyncMock()
         mock_client.create_workflow.return_value = MagicMock(
-            id="wf-plan-123",
-            issue_id="ISSUE-456",
+            id="wf-123",
+            issue_id=issue_id,
             status="planning",
             worktree_path=str(git_repo_with_changes),
             worktree_name="main",
@@ -194,14 +189,14 @@ class TestCLIFlows:
         )
         mock_client_class.return_value = mock_client
 
-        result = cli_runner.invoke(app, ["plan", "ISSUE-456"])
+        result = cli_runner.invoke(app, cmd)
 
         assert result.exit_code == 0
-        assert "wf-plan-123" in result.stdout
+        assert "wf-123" in result.stdout
         mock_client.create_workflow.assert_called_once()
         call_kwargs = mock_client.create_workflow.call_args.kwargs
-        assert call_kwargs["issue_id"] == "ISSUE-456"
-        assert call_kwargs["plan_only"] is True
+        assert call_kwargs["issue_id"] == issue_id
+        assert call_kwargs.get("plan_only", False) is plan_only_expected
 
     @pytest.mark.parametrize("cmd", [
         ["start", "ISSUE-123"],
@@ -233,23 +228,14 @@ class TestCLIFlows:
         mock_worktree: MagicMock,
         cli_runner: CliRunner,
         git_repo_with_changes: Path,
+        mock_workflow_client: AsyncMock,
     ) -> None:
         """Test start -> cancel flow."""
         from amelia.main import app
 
         mock_worktree.return_value = (str(git_repo_with_changes), "main")
 
-        mock_client = AsyncMock()
-
-        # Mock start workflow response
-        mock_client.create_workflow.return_value = MagicMock(
-            id="wf-123",
-            issue_id="ISSUE-123",
-            status="planning",
-            worktree_path=str(git_repo_with_changes),
-            worktree_name="main",
-            started_at=datetime(2025, 12, 1, 10, 0, 0),
-        )
+        mock_client = mock_workflow_client
 
         # Mock get workflows for cancel
         mock_client.get_active_workflows.return_value = MagicMock(
@@ -275,6 +261,10 @@ class TestCLIFlows:
         assert result.exit_code == 0
         assert "cancelled" in result.stdout.lower()
 
+    @pytest.mark.parametrize("extra_args,expected_profile", [
+        ([], None),
+        (["--profile", "work"], "work"),
+    ])
     @patch("amelia.main.stream_workflow_events")
     @patch("amelia.main.run_shell_command")
     @patch("amelia.main.load_settings")
@@ -287,6 +277,8 @@ class TestCLIFlows:
         mock_stream: MagicMock,
         cli_runner: CliRunner,
         mock_settings: Settings,
+        extra_args: list[str],
+        expected_profile: str | None,
     ) -> None:
         """Test review --local creates review workflow with diff content."""
         from amelia.main import app
@@ -301,7 +293,7 @@ class TestCLIFlows:
         mock_client_class.return_value = mock_client
         mock_stream.return_value = None
 
-        result = cli_runner.invoke(app, ["review", "--local"])
+        result = cli_runner.invoke(app, ["review", "--local"] + extra_args)
 
         assert result.exit_code == 0
         assert "wf-review-123" in result.stdout
@@ -309,6 +301,8 @@ class TestCLIFlows:
         call_kwargs = mock_client.create_review_workflow.call_args.kwargs
         assert "diff_content" in call_kwargs
         assert "+new line" in call_kwargs["diff_content"]
+        if expected_profile:
+            assert call_kwargs["profile"] == expected_profile
 
     @patch("amelia.main.run_shell_command")
     @patch("amelia.main.load_settings")
@@ -329,36 +323,6 @@ class TestCLIFlows:
 
         assert result.exit_code == 0
         assert "no local uncommitted changes" in result.stdout.lower()
-
-    @patch("amelia.main.stream_workflow_events")
-    @patch("amelia.main.run_shell_command")
-    @patch("amelia.main.load_settings")
-    @patch("amelia.main.AmeliaClient")
-    def test_review_local_with_profile(
-        self,
-        mock_client_class: MagicMock,
-        mock_load_settings: MagicMock,
-        mock_run_shell: MagicMock,
-        mock_stream: MagicMock,
-        cli_runner: CliRunner,
-        mock_settings: Settings,
-    ) -> None:
-        """Test review --local passes profile to API."""
-        from amelia.main import app
-
-        mock_load_settings.return_value = mock_settings
-        mock_run_shell.return_value = "diff --git a/file.txt\n+new line"
-
-        mock_client = AsyncMock()
-        mock_client.create_review_workflow.return_value = MagicMock(id="wf-review-123")
-        mock_client_class.return_value = mock_client
-        mock_stream.return_value = None
-
-        result = cli_runner.invoke(app, ["review", "--local", "--profile", "work"])
-
-        assert result.exit_code == 0
-        call_kwargs = mock_client.create_review_workflow.call_args.kwargs
-        assert call_kwargs["profile"] == "work"
 
     @pytest.mark.parametrize("cmd", [
         ["start", "ISSUE-123"],
