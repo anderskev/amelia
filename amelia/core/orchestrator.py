@@ -409,10 +409,10 @@ async def call_reviewer_node(
     """
     logger.info(f"Orchestrator: Calling Reviewer for issue {state.issue.id if state.issue else 'N/A'}")
 
-    # Extract stream_emitter and workflow_id from config if available
-    stream_emitter, workflow_id = _extract_config_params(config)
+    # Extract stream_emitter, workflow_id, and profile from config
+    stream_emitter, workflow_id, profile = _extract_config_params(config)
 
-    driver = DriverFactory.get_driver(state.profile.driver)
+    driver = DriverFactory.get_driver(profile.driver)
     reviewer = Reviewer(driver, stream_emitter=stream_emitter)
 
     code_changes = await get_code_changes_for_review(state)

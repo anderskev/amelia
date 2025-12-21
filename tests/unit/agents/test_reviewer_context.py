@@ -324,3 +324,39 @@ class TestReviewerSessionId:
         # Verify return value includes session_id
         assert result_session_id == "new-sess"
         assert result is not None
+
+
+class TestReviewerNodeConfig:
+    """Tests for call_reviewer_node using profile from config."""
+
+    async def test_reviewer_node_uses_profile_from_config(
+        self,
+        mock_profile_factory,
+        mock_issue_factory,
+    ) -> None:
+        """call_reviewer_node should get profile from config."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from langchain_core.runnables.config import RunnableConfig
+        from amelia.core.orchestrator import call_reviewer_node
+        from amelia.core.state import ExecutionState
+
+        profile = mock_profile_factory()
+        state = ExecutionState(
+            profile_id=profile.name,
+            issue=mock_issue_factory(),
+            code_changes_for_review="diff content",
+        )
+
+        config: RunnableConfig = {
+            "configurable": {
+                "thread_id": "wf-test",
+                "profile": profile,
+            }
+        }
+
+        with patch("amelia.core.orchestrator.Reviewer") as mock_rev:
+            mock_rev_instance = MagicMock()
+            mock_rev_instance.review = AsyncMock(return_value=(MagicMock(approved=True), "sess-123"))
+            mock_rev.return_value = mock_rev_instance
+
+            await call_reviewer_node(state, config)
