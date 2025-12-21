@@ -78,11 +78,12 @@ Analyze the provided code changes and provide a comprehensive review."""
 
         return "\n\n".join(parts)
 
-    def compile(self, state: ExecutionState) -> CompiledContext:
+    def compile(self, state: ExecutionState, profile: Profile) -> CompiledContext:
         """Compile ExecutionState into review context.
 
         Args:
             state: Current execution state containing task and code changes.
+            profile: The profile configuration for this workflow (unused in reviewer).
 
         Returns:
             CompiledContext with system prompt and relevant sections.
@@ -239,7 +240,7 @@ class Reviewer:
 
         # Use context strategy to compile review context
         strategy = self.context_strategy(persona=persona)
-        compiled_context = strategy.compile(review_state)
+        compiled_context = strategy.compile(review_state, profile)
 
         logger.debug(
             "Compiled context",

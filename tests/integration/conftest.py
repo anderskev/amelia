@@ -212,6 +212,33 @@ def make_blocker(
     )
 
 
+def make_config(
+    thread_id: str,
+    profile: Profile | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Create a RunnableConfig with thread_id and profile.
+
+    Args:
+        thread_id: The thread ID for the workflow.
+        profile: Optional profile (defaults to test profile if not provided).
+        **kwargs: Additional configurable parameters.
+
+    Returns:
+        RunnableConfig dict with configurable parameters.
+    """
+    if profile is None:
+        profile = make_profile()
+
+    return {
+        "configurable": {
+            "thread_id": thread_id,
+            "profile": profile,
+            **kwargs,
+        }
+    }
+
+
 # =============================================================================
 # Assertion Helpers
 # =============================================================================

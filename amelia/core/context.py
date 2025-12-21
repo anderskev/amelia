@@ -6,12 +6,18 @@
 This module provides the foundational types for building context compilation
 strategies that transform ExecutionState into LLM-ready prompts.
 """
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, Field
 
 from amelia.core.state import AgentMessage, ExecutionState
+
+
+if TYPE_CHECKING:
+    from amelia.core.types import Profile
 
 
 class ContextSection(BaseModel):
@@ -60,11 +66,12 @@ class ContextStrategy(ABC):
     ALLOWED_SECTIONS: ClassVar[set[str]] = set()
 
     @abstractmethod
-    def compile(self, state: ExecutionState) -> CompiledContext:
+    def compile(self, state: ExecutionState, profile: Profile) -> CompiledContext:
         """Compile ExecutionState into a CompiledContext.
 
         Args:
             state: The current execution state.
+            profile: The profile configuration for this workflow.
 
         Returns:
             CompiledContext ready to be converted to messages.

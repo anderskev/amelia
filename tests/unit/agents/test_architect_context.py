@@ -445,7 +445,7 @@ class TestArchitectNodeProfileFromConfig:
             mock_arch.return_value = mock_arch_instance
 
             # Should not raise, should use profile from config
-            result = await call_architect_node(state, config)
+            await call_architect_node(state, config)
 
             # Verify Architect was created
             mock_arch.assert_called_once()

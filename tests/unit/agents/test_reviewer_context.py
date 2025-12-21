@@ -338,7 +338,9 @@ class TestReviewerNodeConfig:
     ) -> None:
         """call_reviewer_node should get profile from config."""
         from unittest.mock import AsyncMock, MagicMock, patch
+
         from langchain_core.runnables.config import RunnableConfig
+
         from amelia.core.orchestrator import call_reviewer_node
         from amelia.core.state import ExecutionState
 

@@ -4,7 +4,6 @@
 
 """Tests for call_developer_node using profile from config."""
 
-import pytest
 
 
 class TestDeveloperNodeProfileFromConfig:

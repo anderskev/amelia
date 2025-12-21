@@ -44,12 +44,12 @@ async def test_orchestrator_parallel_review_api() -> None:
         start_time = time.time()
 
         initial_state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=test_issue,
             code_changes_for_review="changes"
         )
 
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-parallel-review"}})
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-parallel-review", "profile": profile}})
         await call_reviewer_node(initial_state, config)
 
         _ = time.time() - start_time  # Duration tracked but not asserted - timing is unreliable in CI
@@ -71,7 +71,7 @@ async def test_orchestrator_batch_execution_calls_developer_run() -> None:
     execution_plan = make_plan(goal="Test goal", batches=(batch,), tdd_approach=True)
 
     initial_state = ExecutionState(
-        profile=profile,
+        profile_id=profile.name,
         issue=test_issue,
         execution_plan=execution_plan,
         human_approved=True
@@ -85,7 +85,7 @@ async def test_orchestrator_batch_execution_calls_developer_run() -> None:
          patch("amelia.core.orchestrator.Developer") as MockDeveloper:
         MockDeveloper.return_value = mock_developer
 
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-batch-exec"}})
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-batch-exec", "profile": profile}})
         result = await call_developer_node(initial_state, config)
 
         # Developer should be instantiated
@@ -146,7 +146,7 @@ async def test_orchestrator_node_passes_working_dir_as_cwd(
 
     # Create initial state
     initial_state = ExecutionState(
-        profile=profile,
+        profile_id=profile.name,
         **setup_state_kwargs,
     )
 
@@ -169,7 +169,7 @@ async def test_orchestrator_node_passes_working_dir_as_cwd(
         )
 
     with patch("amelia.drivers.factory.DriverFactory.get_driver", return_value=mock_driver):
-        config = cast(RunnableConfig, {"configurable": {"thread_id": f"test-{node_name}-cwd"}})
+        config = cast(RunnableConfig, {"configurable": {"thread_id": f"test-{node_name}-cwd", "profile": profile}})
         await node_func(initial_state, config)
 
         # Verify driver.generate was called with cwd=working_dir

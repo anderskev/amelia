@@ -15,6 +15,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from amelia.core.orchestrator import create_review_graph
 from amelia.core.state import ExecutionState, ReviewResult
+from amelia.core.types import Profile
 
 
 if TYPE_CHECKING:
@@ -39,11 +40,12 @@ def make_review_state(
         diff_content: str = "+ added line",
         review_iteration: int = 0,
         last_review: ReviewResult | None = None,
-    ) -> ExecutionState:
+    ) -> tuple[ExecutionState, Profile]:
         # Create a minimal execution plan with one batch for context
         plan = mock_execution_plan_factory(num_batches=1, steps_per_batch=1)
-        return ExecutionState(
-            profile=mock_profile_factory(),
+        profile = mock_profile_factory()
+        state = ExecutionState(
+            profile_id=profile.name,
             issue=mock_issue_factory(),
             execution_plan=plan,
             current_batch_index=0,
@@ -51,6 +53,7 @@ def make_review_state(
             review_iteration=review_iteration,
             last_review=last_review,
         )
+        return state, profile
     return _make
 
 
@@ -63,7 +66,7 @@ class TestReviewGraphExecution:
         make_review_state: Callable[..., ExecutionState],
     ) -> None:
         """Review workflow completes immediately when reviewer approves."""
-        state = make_review_state(diff_content="+ good code")
+        state, profile = make_review_state(diff_content="+ good code")
         mock_driver = AsyncMock()
         mock_driver.generate = AsyncMock(return_value=(
             ReviewResult(
@@ -75,7 +78,7 @@ class TestReviewGraphExecution:
             None,  # session_id
         ))
 
-        config: RunnableConfig = {"configurable": {"thread_id": "test-1"}}
+        config: RunnableConfig = {"configurable": {"thread_id": "test-1", "profile": profile}}
 
         with patch("amelia.core.orchestrator.DriverFactory.get_driver", return_value=mock_driver):
             chunks = []
@@ -97,7 +100,7 @@ class TestReviewGraphExecution:
         make_review_state: Callable[..., ExecutionState],
     ) -> None:
         """Review rejects once, developer fixes, review approves."""
-        state = make_review_state(diff_content="+ buggy code")
+        state, profile = make_review_state(diff_content="+ buggy code")
 
         # Mock driver that rejects once then approves
         mock_driver = AsyncMock()
@@ -125,7 +128,7 @@ class TestReviewGraphExecution:
         ])
         mock_driver.execute_tool = AsyncMock(return_value="Fixed the bug")
 
-        config: RunnableConfig = {"configurable": {"thread_id": "test-2"}}
+        config: RunnableConfig = {"configurable": {"thread_id": "test-2", "profile": profile}}
 
         with patch("amelia.core.orchestrator.DriverFactory.get_driver", return_value=mock_driver):
             chunks = []
@@ -148,7 +151,7 @@ class TestReviewGraphExecution:
         make_review_state: Callable[..., ExecutionState],
     ) -> None:
         """Review loop terminates at max 3 iterations even if not approved."""
-        state = make_review_state(diff_content="+ unfixable code")
+        state, profile = make_review_state(diff_content="+ unfixable code")
 
         # Mock driver that always rejects - returns tuple (ReviewResult, session_id)
         mock_driver = AsyncMock()
@@ -164,7 +167,7 @@ class TestReviewGraphExecution:
         mock_driver.execute_tool = AsyncMock(return_value="Attempted fix")
 
         config: RunnableConfig = {
-            "configurable": {"thread_id": "test-3"},
+            "configurable": {"thread_id": "test-3", "profile": profile},
             "recursion_limit": 50,  # Increase limit to allow proper termination
         }
 

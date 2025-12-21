@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from amelia.core.types import Design, DeveloperStatus, Issue, Profile
+from amelia.core.types import Design, DeveloperStatus, Issue
 
 
 Severity = Literal["low", "medium", "high", "critical"]
