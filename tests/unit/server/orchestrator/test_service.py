@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.runnables.config import RunnableConfig
 
 from amelia.core.state import ExecutionState
 from amelia.core.types import Settings
@@ -929,8 +930,6 @@ class TestSyncPlanFromCheckpoint:
         mock_profile_factory,
     ):
         """_sync_plan_from_checkpoint should update execution_state with plan from checkpoint."""
-        from langchain_core.runnables.config import RunnableConfig
-
         # Create execution plan
         execution_plan = mock_execution_plan_factory(goal="Test goal", num_batches=2)
 
@@ -973,8 +972,6 @@ class TestSyncPlanFromCheckpoint:
         mock_repository: AsyncMock,
     ):
         """_sync_plan_from_checkpoint should return early if no checkpoint state."""
-        from langchain_core.runnables.config import RunnableConfig
-
         mock_graph = MagicMock()
         mock_graph.aget_state = AsyncMock(return_value=None)
 
@@ -993,8 +990,6 @@ class TestSyncPlanFromCheckpoint:
         mock_repository: AsyncMock,
     ):
         """_sync_plan_from_checkpoint should return early if no execution_plan in checkpoint."""
-        from langchain_core.runnables.config import RunnableConfig
-
         mock_graph = MagicMock()
         mock_graph.aget_state = AsyncMock(
             return_value=MagicMock(values={"some_other_key": "value"})
@@ -1015,8 +1010,6 @@ class TestSyncPlanFromCheckpoint:
         mock_execution_plan_factory,
     ):
         """_sync_plan_from_checkpoint should return early if workflow not found."""
-        from langchain_core.runnables.config import RunnableConfig
-
         execution_plan = mock_execution_plan_factory()
         mock_graph = MagicMock()
         mock_graph.aget_state = AsyncMock(
