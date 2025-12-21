@@ -34,9 +34,9 @@ async def test_orchestrator_parallel_review_api() -> None:
 
     mock_driver = AsyncMock()
 
-    async def slow_generate(*_args: Any, **_kwargs: Any) -> ReviewResponse:
+    async def slow_generate(*_args: Any, **_kwargs: Any) -> tuple[ReviewResponse, None]:
         await asyncio.sleep(0.1)
-        return ReviewResponse(approved=True, comments=[], severity="low")
+        return (ReviewResponse(approved=True, comments=[], severity="low"), None)
 
     mock_driver.generate.side_effect = slow_generate
 
@@ -153,20 +153,19 @@ async def test_orchestrator_node_passes_working_dir_as_cwd(
     # Mock driver with appropriate response
     mock_driver = AsyncMock()
     if setup_mock == "setup_architect_mock":
-        # Architect needs ExecutionPlanOutput
+        # Architect needs ExecutionPlanOutput - now returns tuple (output, session_id)
         step = make_step(id="step-1", description="Test step", command="echo test")
         batch = make_batch(batch_number=1, steps=(step,), description="Test batch")
         execution_plan = make_plan(goal="Test goal", batches=(batch,), tdd_approach=True)
-        mock_driver.generate.return_value = ExecutionPlanOutput(
-            plan=execution_plan,
-            reasoning="Test reasoning",
+        mock_driver.generate.return_value = (
+            ExecutionPlanOutput(plan=execution_plan, reasoning="Test reasoning"),
+            None,
         )
     else:
-        # Reviewer needs ReviewResponse
-        mock_driver.generate.return_value = ReviewResponse(
-            approved=True,
-            comments=["Looks good"],
-            severity="low",
+        # Reviewer needs ReviewResponse - now returns tuple (output, session_id)
+        mock_driver.generate.return_value = (
+            ReviewResponse(approved=True, comments=["Looks good"], severity="low"),
+            None,
         )
 
     with patch("amelia.drivers.factory.DriverFactory.get_driver", return_value=mock_driver):

@@ -65,11 +65,14 @@ class TestReviewGraphExecution:
         """Review workflow completes immediately when reviewer approves."""
         state = make_review_state(diff_content="+ good code")
         mock_driver = AsyncMock()
-        mock_driver.generate = AsyncMock(return_value=ReviewResult(
-            approved=True,
-            comments=[],
-            severity="low",
-            reviewer_persona="Test Reviewer",
+        mock_driver.generate = AsyncMock(return_value=(
+            ReviewResult(
+                approved=True,
+                comments=[],
+                severity="low",
+                reviewer_persona="Test Reviewer",
+            ),
+            None,  # session_id
         ))
 
         config: RunnableConfig = {"configurable": {"thread_id": "test-1"}}
@@ -99,19 +102,25 @@ class TestReviewGraphExecution:
         # Mock driver that rejects once then approves
         mock_driver = AsyncMock()
         mock_driver.generate = AsyncMock(side_effect=[
-            # First review - reject
-            ReviewResult(
-                approved=False,
-                comments=["Fix bug"],
-                severity="medium",
-                reviewer_persona="Test Reviewer",
+            # First review - reject (returns tuple)
+            (
+                ReviewResult(
+                    approved=False,
+                    comments=["Fix bug"],
+                    severity="medium",
+                    reviewer_persona="Test Reviewer",
+                ),
+                None,
             ),
-            # Second review - approve
-            ReviewResult(
-                approved=True,
-                comments=[],
-                severity="low",
-                reviewer_persona="Test Reviewer",
+            # Second review - approve (returns tuple)
+            (
+                ReviewResult(
+                    approved=True,
+                    comments=[],
+                    severity="low",
+                    reviewer_persona="Test Reviewer",
+                ),
+                None,
             ),
         ])
         mock_driver.execute_tool = AsyncMock(return_value="Fixed the bug")
@@ -141,13 +150,16 @@ class TestReviewGraphExecution:
         """Review loop terminates at max 3 iterations even if not approved."""
         state = make_review_state(diff_content="+ unfixable code")
 
-        # Mock driver that always rejects
+        # Mock driver that always rejects - returns tuple (ReviewResult, session_id)
         mock_driver = AsyncMock()
-        mock_driver.generate = AsyncMock(return_value=ReviewResult(
-            approved=False,
-            comments=["Still wrong"],
-            severity="high",
-            reviewer_persona="Test Reviewer",
+        mock_driver.generate = AsyncMock(return_value=(
+            ReviewResult(
+                approved=False,
+                comments=["Still wrong"],
+                severity="high",
+                reviewer_persona="Test Reviewer",
+            ),
+            None,
         ))
         mock_driver.execute_tool = AsyncMock(return_value="Attempted fix")
 

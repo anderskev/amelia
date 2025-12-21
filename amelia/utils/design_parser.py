@@ -52,6 +52,7 @@ async def parse_design(path: str | Path, driver: DriverInterface) -> Design:
         AgentMessage(role="user", content=content)
     ]
 
-    result: Design = await driver.generate(messages=messages, schema=Design)
-    result.raw_content = content
-    return result
+    parsed_result, _session_id = await driver.generate(messages=messages, schema=Design)
+    design: Design = parsed_result  # Type assertion - schema was provided
+    design.raw_content = content
+    return design

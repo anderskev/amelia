@@ -193,7 +193,7 @@ def create_mock_reviewer(approved: bool = True, comments: list[str] | None = Non
         reviewer_persona="Test Reviewer",
     )
     mock_reviewer = AsyncMock()
-    mock_reviewer.review = AsyncMock(return_value=mock_review)
+    mock_reviewer.review = AsyncMock(return_value=(mock_review, None))
     return mock_reviewer
 
 
@@ -284,7 +284,7 @@ class TestHappyPathExecution:
 
         # Create mock architect that returns our plan
         mock_architect = AsyncMock()
-        mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+        mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
 
         # Create mock reviewer that approves
         mock_reviewer = create_mock_reviewer(approved=True)
@@ -381,7 +381,7 @@ class TestBatchRejection:
 
         # Create mock architect
         mock_architect = AsyncMock()
-        mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+        mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
 
         config = cast(RunnableConfig, {"configurable": {"thread_id": "test-rejection", "execution_mode": "server"}})
 
@@ -530,7 +530,7 @@ class TestBlockerResolution:
 
         # Create mock architect
         mock_architect = AsyncMock()
-        mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+        mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
 
         # Create mock developer
         if expect_cascade_skips:
@@ -733,7 +733,7 @@ class TestTrustLevelBehavior:
 
         # Create mock architect that returns our plan
         mock_architect = AsyncMock()
-        mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+        mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
 
         # Create mock reviewer that approves
         mock_reviewer = create_mock_reviewer(approved=True)
