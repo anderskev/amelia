@@ -6,7 +6,20 @@
 
 [Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is a local agentic coding system that orchestrates software development through Architect, Developer, and Reviewer agents. They argue about your code so you don't have to.
 
-See the [**Roadmap**](https://anderskev.github.io/amelia/reference/roadmap) for where we're headed and [**Current Status**](#current-status) for where we are. They're different places.
+See the [**Roadmap**](https://anderskev.github.io/amelia/reference/roadmap) for where we're headed.
+
+## Current Status
+
+> [!WARNING]
+> This is an experimental project. It will occasionally do something baffling. So will you. You'll figure it out together.
+
+- Full orchestrator loop with human approval gates (CLI and web dashboard)
+- CLI driver (Claude CLI wrapper) with structured outputs, streaming, and agentic execution
+- Local code review with competitive strategy
+- GitHub tracker integration (via `gh` CLI)
+- Real tool execution in Developer agent (shell commands, file writes)
+- FastAPI server with SQLite persistence and WebSocket event streaming
+- Web dashboard with workflow visualization, real-time activity log, and approval controls
 
 ## Prerequisites
 
@@ -158,15 +171,8 @@ For full documentation, visit **[anderskev.github.io/amelia](https://anderskev.g
 
 Amelia Core is licensed under the [Mozilla Public License 2.0](LICENSE).
 
-## Current Status
+### Commercial Licensing
 
-> [!WARNING]
-> This is an experimental project. It will occasionally do something baffling. So will you. You'll figure it out together.
+A commercial license is required only for restricted uses: reselling, repackaging, hosting as a service, or embedding Amelia in paid products. Internal use at your company does not require a commercial license.
 
-- Full orchestrator loop with human approval gates (CLI and web dashboard)
-- CLI driver (Claude CLI wrapper) with structured outputs, streaming, and agentic execution
-- Local code review with competitive strategy
-- GitHub tracker integration (via `gh` CLI)
-- Real tool execution in Developer agent (shell commands, file writes)
-- FastAPI server with SQLite persistence and WebSocket event streaming
-- Web dashboard with workflow visualization, real-time activity log, and approval controls
+See [LICENSING.md](LICENSING.md) for details and examples.
