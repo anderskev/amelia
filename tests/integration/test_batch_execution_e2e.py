@@ -617,12 +617,12 @@ class TestBlockerResolution:
         # Mock revert function
         mock_revert = AsyncMock()
 
-        config = cast(RunnableConfig, {
-            "configurable": {
-                "thread_id": f"test-blocker-{resolution}",
-                "execution_mode": "server",
-            }
-        })
+        from tests.integration.conftest import make_config
+        config = cast(RunnableConfig, make_config(
+            thread_id=f"test-blocker-{resolution}",
+            profile=profile,
+            execution_mode="server",
+        ))
 
         with mock_agents_context(mock_architect, mock_developer, mock_reviewer), \
              patch("amelia.core.orchestrator.revert_to_git_snapshot", mock_revert):

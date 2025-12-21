@@ -23,6 +23,7 @@ from amelia.core.orchestrator import create_orchestrator_graph
 from amelia.core.types import DeveloperStatus
 
 from .conftest import (
+    make_config,
     make_execution_state,
     make_plan,
     make_profile,
@@ -127,7 +128,7 @@ class TestMemoryCheckpointPersistence:
         plan = make_plan(num_batches=2, steps_per_batch=2)
         thread_id = "test-resume-003"
         profile = make_profile()
-        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id, "execution_mode": "server", "profile": profile}})
+        config = cast(RunnableConfig, make_config(thread_id=thread_id, profile=profile, execution_mode="server"))
 
         with (
             patch("amelia.core.orchestrator.DriverFactory.get_driver"),
@@ -152,7 +153,7 @@ class TestMemoryCheckpointPersistence:
         # Verify key fields are preserved
         values = interrupted_state.values
         assert values.get("issue") is not None
-        assert values.get("profile") is not None
+        assert values.get("profile_id") is not None
         assert values.get("execution_plan") is not None
         # Check the plan has correct structure
         saved_plan = values["execution_plan"]
@@ -204,8 +205,10 @@ class TestMemoryCheckpointPersistence:
         plan1 = make_plan(num_batches=1, steps_per_batch=1, goal="Goal 1")
         plan2 = make_plan(num_batches=2, steps_per_batch=2, goal="Goal 2")
 
-        config1 = cast(RunnableConfig, {"configurable": {"thread_id": "thread-1", "execution_mode": "server"}})
-        config2 = cast(RunnableConfig, {"configurable": {"thread_id": "thread-2", "execution_mode": "server"}})
+        profile1 = make_profile()
+        profile2 = make_profile()
+        config1 = cast(RunnableConfig, make_config(thread_id="thread-1", profile=profile1, execution_mode="server"))
+        config2 = cast(RunnableConfig, make_config(thread_id="thread-2", profile=profile2, execution_mode="server"))
 
         with (
             patch("amelia.core.orchestrator.DriverFactory.get_driver"),
@@ -216,7 +219,7 @@ class TestMemoryCheckpointPersistence:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan1, None))
             MockArchitect.return_value = mock_architect
 
-            state1 = make_execution_state()
+            state1 = make_execution_state(profile=profile1)
             async for chunk in graph.astream(
                 state1.model_dump(mode="json"), config1
             ):
@@ -226,7 +229,7 @@ class TestMemoryCheckpointPersistence:
             # Second thread with plan2
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan2, None))
 
-            state2 = make_execution_state()
+            state2 = make_execution_state(profile=profile2)
             async for chunk in graph.astream(
                 state2.model_dump(mode="json"), config2
             ):

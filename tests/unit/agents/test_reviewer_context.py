@@ -58,9 +58,10 @@ index 1234567..abcdefg 100644
         )
         return state
 
-    def test_compile_with_code_diff(self, strategy, state_with_batch, code_diff):
+    def test_compile_with_code_diff(self, strategy, state_with_batch, code_diff, mock_profile_factory):
         """Test compile produces context with code diff section."""
-        context = strategy.compile(state_with_batch)
+        profile = mock_profile_factory()
+        context = strategy.compile(state_with_batch, profile)
 
         assert isinstance(context, CompiledContext)
         # Should have diff section
@@ -69,25 +70,28 @@ index 1234567..abcdefg 100644
         assert code_diff in diff_sections[0].content
 
     @pytest.mark.parametrize("persona", ["Security", "Performance", "General"])
-    def test_compile_with_persona(self, state_with_batch, persona):
+    def test_compile_with_persona(self, state_with_batch, persona, mock_profile_factory):
         """Test persona appears in system prompt and produces stable output."""
+        profile = mock_profile_factory()
         strategy = ReviewerContextStrategy(persona=persona)
-        context = strategy.compile(state_with_batch)
+        context = strategy.compile(state_with_batch, profile)
 
         assert context.system_prompt is not None
         assert persona in context.system_prompt
 
         # Test stability by compiling twice
-        context2 = strategy.compile(state_with_batch)
+        context2 = strategy.compile(state_with_batch, profile)
         assert context.system_prompt == context2.system_prompt
 
     def test_compile_batch_context_included(
         self,
         strategy,
-        state_with_batch
+        state_with_batch,
+        mock_profile_factory
     ):
         """Test batch context is included in sections."""
-        context = strategy.compile(state_with_batch)
+        profile = mock_profile_factory()
+        context = strategy.compile(state_with_batch, profile)
 
         # Should have task section from batch
         task_sections = [s for s in context.sections if s.name == "task"]
@@ -110,7 +114,7 @@ index 1234567..abcdefg 100644
             code_changes_for_review=code_diff
         )
 
-        context = strategy.compile(state)
+        context = strategy.compile(state, profile)
 
         # Should have issue section (fallback)
         issue_sections = [s for s in context.sections if s.name == "issue"]
@@ -137,36 +141,40 @@ index 1234567..abcdefg 100644
 
         strategy = ReviewerContextStrategy()
         with pytest.raises(ValueError, match="No batch, task, or issue context found"):
-            strategy.compile(state)
+            strategy.compile(state, profile)
 
     def test_system_prompt_template_produces_stable_prefix_per_persona(
         self,
-        state_with_batch
+        state_with_batch,
+        mock_profile_factory
     ):
         """Test SYSTEM_PROMPT_TEMPLATE produces stable prefix per persona."""
+        profile = mock_profile_factory()
         persona = "Security"
 
         # Compile multiple times with same persona
         strategy1 = ReviewerContextStrategy(persona=persona)
-        context1 = strategy1.compile(state_with_batch)
+        context1 = strategy1.compile(state_with_batch, profile)
         strategy2 = ReviewerContextStrategy(persona=persona)
-        context2 = strategy2.compile(state_with_batch)
+        context2 = strategy2.compile(state_with_batch, profile)
 
         # System prompts should be identical for same persona
         assert context1.system_prompt == context2.system_prompt
 
         # Should be different for different personas
         strategy3 = ReviewerContextStrategy(persona="Performance")
-        context3 = strategy3.compile(state_with_batch)
+        context3 = strategy3.compile(state_with_batch, profile)
         assert context1.system_prompt != context3.system_prompt
 
     def test_compile_validates_allowed_sections(
         self,
         strategy,
-        state_with_batch
+        state_with_batch,
+        mock_profile_factory
     ):
         """Test compile only produces allowed sections."""
-        context = strategy.compile(state_with_batch)
+        profile = mock_profile_factory()
+        context = strategy.compile(state_with_batch, profile)
 
         # All sections should be in ALLOWED_SECTIONS
         for section in context.sections:
@@ -174,11 +182,13 @@ index 1234567..abcdefg 100644
 
     def test_to_messages_integration(
         self,
-        state_with_batch
+        state_with_batch,
+        mock_profile_factory
     ):
         """Test compiled context can be converted to messages."""
+        profile = mock_profile_factory()
         strategy = ReviewerContextStrategy(persona="Security")
-        context = strategy.compile(state_with_batch)
+        context = strategy.compile(state_with_batch, profile)
 
         messages = strategy.to_messages(context)
 
@@ -206,15 +216,17 @@ index 1234567..abcdefg 100644
 
         strategy = ReviewerContextStrategy()
         with pytest.raises(ValueError, match="No code changes provided"):
-            strategy.compile(state)
+            strategy.compile(state, profile)
 
     def test_compile_section_sources_for_debugging(
         self,
         strategy,
-        state_with_batch
+        state_with_batch,
+        mock_profile_factory
     ):
         """Test sections have source metadata for debugging."""
-        context = strategy.compile(state_with_batch)
+        profile = mock_profile_factory()
+        context = strategy.compile(state_with_batch, profile)
 
         # All sections should have source metadata with meaningful values
         for section in context.sections:
@@ -223,12 +235,14 @@ index 1234567..abcdefg 100644
 
     def test_compile_default_persona(
         self,
-        state_with_batch
+        state_with_batch,
+        mock_profile_factory
     ):
         """Test compile with default persona when not specified."""
+        profile = mock_profile_factory()
         # Create strategy without explicit persona (should use default)
         strategy = ReviewerContextStrategy()
-        context = strategy.compile(state_with_batch)
+        context = strategy.compile(state_with_batch, profile)
 
         # Should have a system prompt even without explicit persona
         assert context.system_prompt is not None
