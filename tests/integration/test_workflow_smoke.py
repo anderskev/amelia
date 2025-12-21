@@ -184,7 +184,7 @@ class TestGraphNodes:
 
         with patch("amelia.core.orchestrator.Architect") as MockArchitect:
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state()
@@ -208,7 +208,7 @@ class TestGraphNodes:
 
         with patch("amelia.core.orchestrator.Reviewer") as MockReviewer:
             mock_reviewer = AsyncMock()
-            mock_reviewer.review = AsyncMock(return_value=review)
+            mock_reviewer.review = AsyncMock(return_value=(review, None))
             MockReviewer.return_value = mock_reviewer
 
             state = make_execution_state(

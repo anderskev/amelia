@@ -595,8 +595,8 @@ class TestClaudeCliDriverSessionIdReturn:
         mock_subprocess_process_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test that generate returns session_id when schema is provided."""
-        from amelia.drivers.cli.claude import ClaudeCliDriver
         from amelia.core.state import AgentMessage
+        from amelia.drivers.cli.claude import ClaudeCliDriver
 
         class TestOutput(BaseModel):
             value: str
@@ -631,8 +631,8 @@ class TestClaudeCliDriverSessionIdReturn:
         mock_subprocess_process_factory: Callable[..., AsyncMock],
     ) -> None:
         """Test that generate returns session_id even without schema."""
-        from amelia.drivers.cli.claude import ClaudeCliDriver
         from amelia.core.state import AgentMessage
+        from amelia.drivers.cli.claude import ClaudeCliDriver
 
         mock_process = mock_subprocess_process_factory(
             stdout_lines=[b"plain text response"],

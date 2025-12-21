@@ -55,7 +55,7 @@ class TestMemoryCheckpointPersistence:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state()
@@ -94,7 +94,7 @@ class TestMemoryCheckpointPersistence:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state()
@@ -130,7 +130,7 @@ class TestMemoryCheckpointPersistence:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state()
@@ -173,7 +173,7 @@ class TestMemoryCheckpointPersistence:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state()
@@ -208,7 +208,7 @@ class TestMemoryCheckpointPersistence:
         ):
             # First thread with plan1
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan1)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan1, None))
             MockArchitect.return_value = mock_architect
 
             state1 = make_execution_state()
@@ -219,7 +219,7 @@ class TestMemoryCheckpointPersistence:
                     break
 
             # Second thread with plan2
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan2)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan2, None))
 
             state2 = make_execution_state()
             async for chunk in graph.astream(
@@ -276,7 +276,7 @@ class TestCheckpointStateIntegrity:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state()
@@ -325,7 +325,7 @@ class TestCheckpointStateIntegrity:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             # Create state with skipped steps
@@ -359,7 +359,7 @@ class TestCheckpointStateIntegrity:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state(
@@ -406,7 +406,7 @@ class TestCheckpointResume:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state()
@@ -443,7 +443,7 @@ class TestCheckpointResume:
             patch("amelia.core.orchestrator.Architect") as MockArchitect,
         ):
             mock_architect = AsyncMock()
-            mock_architect.generate_execution_plan = AsyncMock(return_value=plan)
+            mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state()

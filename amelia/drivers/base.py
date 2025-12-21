@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from amelia.core.state import AgentMessage
 
+
 # Type alias for generate return value: (output, session_id)
 # output is str when no schema, or instance of schema when schema provided
 # session_id is None when driver doesn't support sessions or no session was returned
