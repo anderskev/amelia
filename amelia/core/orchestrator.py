@@ -71,25 +71,32 @@ def should_checkpoint(batch: ExecutionBatch, profile: Profile) -> bool:
     return True
 
 
-def _extract_config_params(config: RunnableConfig | None) -> tuple[StreamEmitter | None, str]:
-    """Extract stream_emitter and workflow_id from RunnableConfig.
+def _extract_config_params(
+    config: RunnableConfig | None,
+) -> tuple[StreamEmitter | None, str, Profile]:
+    """Extract stream_emitter, workflow_id, and profile from RunnableConfig.
 
     Args:
         config: Optional RunnableConfig with configurable parameters.
 
     Returns:
-        Tuple of (stream_emitter, workflow_id).
+        Tuple of (stream_emitter, workflow_id, profile).
 
     Raises:
-        ValueError: If workflow_id (thread_id) is not provided in config.configurable.
+        ValueError: If workflow_id (thread_id) or profile is not provided.
     """
     config = config or {}
     configurable = config.get("configurable", {})
     stream_emitter = configurable.get("stream_emitter")
     workflow_id = configurable.get("thread_id")
+    profile = configurable.get("profile")
+
     if not workflow_id:
         raise ValueError("workflow_id (thread_id) is required in config.configurable")
-    return stream_emitter, workflow_id
+    if not profile:
+        raise ValueError("profile is required in config.configurable")
+
+    return stream_emitter, workflow_id, profile
 
 
 # Define nodes for the graph
