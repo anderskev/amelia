@@ -103,10 +103,6 @@ Reach out. We're happy to clarify whether your specific situation requires a Com
 
 Contact us to discuss startup-friendly terms.
 
-## Commercial License Template
-
-For the commercial license agreement template, see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md). A signed agreement is required for the commercial license to be effective.
-
 ## Contact
 
 For Commercial License inquiries:
