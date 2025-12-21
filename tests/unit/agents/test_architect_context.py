@@ -370,3 +370,34 @@ class TestArchitectContextStrategy:
         # Should be a clear instruction to create an execution plan
         assert len(prompt) > 0
         assert "execution plan" in prompt.lower() or "plan" in prompt.lower()
+
+
+class TestArchitectSessionId:
+    """Tests for Architect session_id handling."""
+
+    async def test_architect_passes_session_id_to_driver(
+        self,
+        mock_execution_state_factory,
+        mock_async_driver_factory,
+        mock_execution_plan_factory,
+    ):
+        """Test that Architect passes session_id from state to driver."""
+        from amelia.agents.architect import Architect, ExecutionPlanOutput
+        from amelia.core.state import ExecutionPlan, ExecutionBatch, PlanStep
+
+        # Create mock plan output
+        mock_plan = mock_execution_plan_factory()
+        mock_output = ExecutionPlanOutput(plan=mock_plan, reasoning="test")
+
+        # Driver returns (output, new_session_id)
+        mock_driver = mock_async_driver_factory(generate_return=(mock_output, "new-sess-456"))
+
+        state = mock_execution_state_factory(driver_session_id="existing-sess-123")
+
+        architect = Architect(mock_driver)
+        await architect.generate_execution_plan(state.issue, state)
+
+        # Verify driver was called with session_id from state
+        mock_driver.generate.assert_called_once()
+        call_kwargs = mock_driver.generate.call_args.kwargs
+        assert call_kwargs.get("session_id") == "existing-sess-123"

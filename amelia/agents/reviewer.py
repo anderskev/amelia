@@ -247,10 +247,11 @@ class Reviewer:
         # Convert to messages
         prompt_messages = strategy.to_messages(compiled_context)
 
-        response = await self.driver.generate(
+        response, _new_session_id = await self.driver.generate(
             messages=prompt_messages,
             schema=ReviewResponse,
             cwd=state.profile.working_dir,
+            session_id=state.driver_session_id,
         )
 
         # Emit completion event before return

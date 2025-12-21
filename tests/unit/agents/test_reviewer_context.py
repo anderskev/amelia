@@ -254,8 +254,8 @@ class TestReviewerValidation:
             code_changes_for_review="diff --git a/file.py"
         )
 
-        mock_driver = mock_async_driver_factory()
-        mock_driver.generate.return_value = mock_review_response_factory()
+        mock_response = mock_review_response_factory()
+        mock_driver = mock_async_driver_factory(generate_return=(mock_response, None))
 
         reviewer = Reviewer(mock_driver)
 
@@ -284,11 +284,39 @@ class TestReviewerValidation:
             code_changes_for_review="diff --git a/file.py"
         )
 
-        mock_driver = mock_async_driver_factory()
-        mock_driver.generate.return_value = mock_review_response_factory()
+        mock_response = mock_review_response_factory()
+        mock_driver = mock_async_driver_factory(generate_return=(mock_response, None))
 
         reviewer = Reviewer(mock_driver)
 
         # Should not raise - falls back to issue context
         result = await reviewer.review(state, code_changes="diff --git a/file.py", workflow_id="test-workflow")
         assert result is not None
+
+
+class TestReviewerSessionId:
+    """Tests for Reviewer session_id handling."""
+
+    async def test_reviewer_passes_session_id_to_driver(
+        self,
+        mock_execution_state_factory,
+        mock_async_driver_factory,
+        mock_review_response_factory,
+    ):
+        """Test that Reviewer passes session_id from state to driver."""
+        from amelia.agents.reviewer import Reviewer
+
+        mock_response = mock_review_response_factory(approved=True)
+        mock_driver = mock_async_driver_factory(generate_return=(mock_response, "new-sess"))
+
+        state = mock_execution_state_factory(
+            driver_session_id="review-sess-123",
+            code_changes_for_review="diff content",
+        )
+
+        reviewer = Reviewer(mock_driver)
+        await reviewer._single_review(state, "diff", "General", workflow_id="wf-1")
+
+        mock_driver.generate.assert_called_once()
+        call_kwargs = mock_driver.generate.call_args.kwargs
+        assert call_kwargs.get("session_id") == "review-sess-123"

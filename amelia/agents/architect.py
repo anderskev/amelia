@@ -439,10 +439,11 @@ class Architect:
         ]
 
         # Call driver with ExecutionPlanOutput schema
-        response = await self.driver.generate(
+        response, _new_session_id = await self.driver.generate(
             messages=messages,
             schema=ExecutionPlanOutput,
             cwd=state.profile.working_dir,
+            session_id=state.driver_session_id,
         )
 
         # Log reasoning for audit trail
