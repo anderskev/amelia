@@ -204,6 +204,26 @@ def mock_execution_state_factory(mock_profile_factory: Callable[..., Profile], m
 
 
 @pytest.fixture
+def mock_config_factory(mock_profile_factory: Callable[..., Profile]) -> Callable[..., dict[str, Any]]:
+    """Factory fixture for creating LangGraph config with configurable profile.
+
+    Creates a config dict with profile in config["configurable"]["profile"]
+    as expected by the orchestrator nodes after the profile_id refactor.
+    """
+    def _create(profile: Profile | None = None, **kwargs: Any) -> dict[str, Any]:
+        if profile is None:
+            profile = mock_profile_factory()
+        return {
+            "configurable": {
+                "thread_id": kwargs.get("workflow_id", "test-wf"),
+                "profile": profile,
+                **kwargs,
+            }
+        }
+    return _create
+
+
+@pytest.fixture
 def mock_driver() -> MagicMock:
     """Returns a mock driver that implements DriverInterface."""
     mock = MagicMock(spec=DriverInterface)

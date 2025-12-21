@@ -102,16 +102,16 @@ class TestFactoryCustomization:
 
     def test_execution_state_factory_with_preset(self, mock_execution_state_factory):
         """ExecutionState factory should accept profile presets."""
-        state = mock_execution_state_factory(profile_preset="api_competitive")
+        state, profile = mock_execution_state_factory(profile_preset="api_competitive")
 
-        assert state.profile.strategy == "competitive"
+        assert profile.strategy == "competitive"
 
     def test_execution_state_factory_with_execution_plan(
         self, mock_execution_state_factory, mock_execution_plan_factory
     ):
         """ExecutionState factory should accept execution_plan parameter."""
         plan = mock_execution_plan_factory(goal="Custom goal")
-        state = mock_execution_state_factory(execution_plan=plan)
+        state, _profile = mock_execution_state_factory(execution_plan=plan)
 
         assert state.execution_plan is not None
         assert state.execution_plan.goal == "Custom goal"

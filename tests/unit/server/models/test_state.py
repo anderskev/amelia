@@ -124,8 +124,9 @@ class TestServerExecutionStateComposition:
 
     def test_server_state_accepts_execution_state(self) -> None:
         """ServerExecutionState can hold an ExecutionState."""
+        profile = Profile(name="test", driver="cli:claude")
         core_state = ExecutionState(
-            profile=Profile(name="test", driver="cli:claude"),
+            profile_id=profile.name,
         )
         server_state = ServerExecutionState(
             id="wf-123",
@@ -135,5 +136,5 @@ class TestServerExecutionStateComposition:
             execution_state=core_state,
         )
         assert server_state.execution_state is not None
-        assert server_state.execution_state.profile.name == "test"
+        assert server_state.execution_state.profile_id == "test"
 

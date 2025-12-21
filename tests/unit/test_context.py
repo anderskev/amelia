@@ -189,7 +189,7 @@ class TestContextStrategy:
         )
 
         # Create state with execution_plan
-        state = mock_execution_state_factory(
+        state, _profile = mock_execution_state_factory(
             execution_plan=execution_plan,
             current_batch_index=0,
         )
@@ -202,7 +202,7 @@ class TestContextStrategy:
 
     def test_get_current_task_no_plan(self, strategy, mock_execution_state_factory):
         """Test get_current_task returns None when no execution plan exists."""
-        state = mock_execution_state_factory(
+        state, _profile = mock_execution_state_factory(
             execution_plan=None,
         )
 
@@ -233,7 +233,7 @@ class TestContextStrategy:
             total_estimated_minutes=5,
         )
 
-        state = mock_execution_state_factory(
+        state, _profile = mock_execution_state_factory(
             execution_plan=execution_plan,
             current_batch_index=0,
         )
@@ -267,7 +267,7 @@ class TestContextStrategy:
             total_estimated_minutes=5,
         )
 
-        state = mock_execution_state_factory(
+        state, _profile = mock_execution_state_factory(
             execution_plan=execution_plan,
             current_batch_index=999,  # Out of range
         )
@@ -312,7 +312,7 @@ class TestContextStrategy:
     ):
         """Test get_issue_summary with various title and description combinations."""
         issue = mock_issue_factory(title=title, description=description)
-        state = mock_execution_state_factory(issue=issue)
+        state, _profile = mock_execution_state_factory(issue=issue)
 
         summary = strategy.get_issue_summary(state)
 
@@ -322,7 +322,7 @@ class TestContextStrategy:
         """Test get_issue_summary returns None when issue is not present."""
         # Create state directly with issue=None (factory always creates default issue)
         profile = mock_profile_factory()
-        state = ExecutionState(profile=profile, issue=None)
+        state = ExecutionState(profile_id=profile.name, issue=None)
 
         summary = strategy.get_issue_summary(state)
 

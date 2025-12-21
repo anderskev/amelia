@@ -180,9 +180,11 @@ def make_execution_state(
     **kwargs: Any,
 ) -> ExecutionState:
     """Create an ExecutionState with sensible defaults."""
+    if profile is None:
+        profile = make_profile()
     return ExecutionState(
         issue=issue or make_issue(),
-        profile=profile or make_profile(),
+        profile_id=profile.name,
         execution_plan=execution_plan,
         current_batch_index=current_batch_index,
         developer_status=developer_status,

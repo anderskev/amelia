@@ -27,14 +27,14 @@ from amelia.core.types import DeveloperStatus, Profile, TrustLevel
 def test_execution_state_workflow_status_default():
     """ExecutionState workflow_status should default to 'running'."""
     profile = Profile(name="test", driver="cli:claude")
-    state = ExecutionState(profile=profile)
+    state = ExecutionState(profile_id=profile.name)
     assert state.workflow_status == "running"
 
 
 def test_execution_state_workflow_status_failed():
     """ExecutionState should accept workflow_status='failed'."""
     profile = Profile(name="test", driver="cli:claude")
-    state = ExecutionState(profile=profile, workflow_status="failed")
+    state = ExecutionState(profile_id=profile.name, workflow_status="failed")
     assert state.workflow_status == "failed"
 
 
@@ -51,7 +51,7 @@ def test_execution_state_accepts_design_field():
         components=["Component A"],
         raw_content="# Test Design\n\nRaw content here",
     )
-    state = ExecutionState(profile=profile, design=design)
+    state = ExecutionState(profile_id=profile.name, design=design)
 
     assert state.design is not None
     assert state.design.title == "Test Design"
@@ -60,7 +60,7 @@ def test_execution_state_accepts_design_field():
 def test_execution_state_design_defaults_to_none():
     """ExecutionState design should default to None."""
     profile = Profile(name="test", driver="cli:claude")
-    state = ExecutionState(profile=profile)
+    state = ExecutionState(profile_id=profile.name)
 
     assert state.design is None
 
@@ -70,7 +70,7 @@ def test_mock_execution_state_factory_accepts_design(
 ):
     """mock_execution_state_factory should accept design parameter."""
     design = mock_design_factory(title="Factory Design")
-    state = mock_execution_state_factory(design=design)
+    state, _profile = mock_execution_state_factory(design=design)
 
     assert state.design is not None
     assert state.design.title == "Factory Design"
@@ -445,7 +445,7 @@ class TestExecutionStateNewFields:
         batch = ExecutionBatch(batch_number=1, steps=(step,), risk_summary="low")
         plan = ExecutionPlan(goal="Test", batches=(batch,), total_estimated_minutes=5)
 
-        state = ExecutionState(profile=profile, execution_plan=plan)
+        state = ExecutionState(profile_id=profile.name, execution_plan=plan)
 
         assert state.execution_plan is not None
         assert state.execution_plan.goal == "Test"
@@ -453,32 +453,32 @@ class TestExecutionStateNewFields:
     def test_state_execution_plan_defaults_to_none(self):
         """ExecutionState execution_plan defaults to None."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
+        state = ExecutionState(profile_id=profile.name)
         assert state.execution_plan is None
 
     def test_state_current_batch_index_default(self):
         """ExecutionState current_batch_index defaults to 0."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
+        state = ExecutionState(profile_id=profile.name)
         assert state.current_batch_index == 0
 
     def test_state_batch_results_default(self):
         """ExecutionState batch_results defaults to empty list."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
+        state = ExecutionState(profile_id=profile.name)
         assert state.batch_results == []
 
     def test_state_developer_status_default(self):
         """ExecutionState developer_status defaults to EXECUTING."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
+        state = ExecutionState(profile_id=profile.name)
         assert state.developer_status == DeveloperStatus.EXECUTING
 
     def test_state_developer_status_custom(self):
         """ExecutionState accepts custom developer_status."""
         profile = Profile(name="test", driver="cli:claude")
         state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             developer_status=DeveloperStatus.BLOCKED,
         )
         assert state.developer_status == DeveloperStatus.BLOCKED
@@ -494,39 +494,39 @@ class TestExecutionStateNewFields:
             attempted_actions=(),
             suggested_resolutions=(),
         )
-        state = ExecutionState(profile=profile, current_blocker=blocker)
+        state = ExecutionState(profile_id=profile.name, current_blocker=blocker)
         assert state.current_blocker is not None
         assert state.current_blocker.step_id == "s1"
 
     def test_state_blocker_resolution(self):
         """ExecutionState accepts blocker_resolution."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile, blocker_resolution="skip")
+        state = ExecutionState(profile_id=profile.name, blocker_resolution="skip")
         assert state.blocker_resolution == "skip"
 
     def test_state_batch_approvals_default(self):
         """ExecutionState batch_approvals defaults to empty list."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
+        state = ExecutionState(profile_id=profile.name)
         assert state.batch_approvals == []
 
     def test_state_skipped_step_ids_default(self):
         """ExecutionState skipped_step_ids defaults to empty set."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
+        state = ExecutionState(profile_id=profile.name)
         assert state.skipped_step_ids == set()
 
     def test_state_skipped_step_ids_custom(self):
         """ExecutionState accepts custom skipped_step_ids."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile, skipped_step_ids={"s1", "s2"})
+        state = ExecutionState(profile_id=profile.name, skipped_step_ids={"s1", "s2"})
         assert state.skipped_step_ids == {"s1", "s2"}
 
     def test_state_git_snapshot_before_batch(self):
         """ExecutionState accepts git_snapshot_before_batch."""
         profile = Profile(name="test", driver="cli:claude")
         snapshot = GitSnapshot(head_commit="abc123", dirty_files=())
-        state = ExecutionState(profile=profile, git_snapshot_before_batch=snapshot)
+        state = ExecutionState(profile_id=profile.name, git_snapshot_before_batch=snapshot)
         assert state.git_snapshot_before_batch is not None
         assert state.git_snapshot_before_batch.head_commit == "abc123"
 
@@ -534,7 +534,7 @@ class TestExecutionStateNewFields:
         """ExecutionState remains backwards compatible with existing fields."""
         profile = Profile(name="test", driver="cli:claude")
         state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             workflow_status="running",
             human_approved=True,
         )
@@ -639,7 +639,7 @@ class TestExecutionStateImmutability:
     def test_execution_state_is_frozen(self):
         """ExecutionState should be immutable (frozen=True)."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
+        state = ExecutionState(profile_id=profile.name)
 
         with pytest.raises(ValidationError, match="frozen"):
             state.workflow_status = "completed"
@@ -647,21 +647,13 @@ class TestExecutionStateImmutability:
     def test_execution_state_model_copy_creates_new_instance(self):
         """ExecutionState.model_copy creates a new instance with updates."""
         profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
+        state = ExecutionState(profile_id=profile.name)
 
         updated = state.model_copy(update={"workflow_status": "completed"})
 
         assert state.workflow_status == "running"  # Original unchanged
         assert updated.workflow_status == "completed"  # New instance updated
         assert state is not updated
-
-    def test_execution_state_nested_profile_also_frozen(self):
-        """Profile within ExecutionState is also frozen."""
-        profile = Profile(name="test", driver="cli:claude")
-        state = ExecutionState(profile=profile)
-
-        with pytest.raises(ValidationError, match="frozen"):
-            state.profile.name = "modified"
 
 
 class TestProfileImmutability:
