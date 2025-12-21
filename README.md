@@ -6,7 +6,7 @@
 
 [Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is a local agentic coding system that orchestrates software development through Architect, Developer, and Reviewer agents. They argue about your code so you don't have to.
 
-See the [**Roadmap**](https://anderskev.github.io/amelia/reference/roadmap) for where we're headed and [**Current Status**](#current-status) for where we are. They're different places.
+See the [**Roadmap**](https://anderskev.github.io/amelia/reference/roadmap) for where we're headed.
 
 ## Current Status
 
