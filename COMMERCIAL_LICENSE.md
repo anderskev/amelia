@@ -52,12 +52,11 @@ Licensee retains ownership of:
 - Original works created by Licensee
 - Modifications made by Licensee (subject to Section 6)
 
-## 6. Contribution of Modifications
+## 6. Modifications
 
-If Licensee contributes modifications back to the open-source project:
-- Such contributions are subject to the project's [Contributor License Agreement](CLA.md)
-- Licensor may incorporate contributions into future versions
-- Licensee retains the right to use their own modifications
+Licensee may modify Amelia for their own use under this Agreement. Licensee retains ownership of their modifications.
+
+Note: The open-source project does not accept external code contributions. If Licensee wishes to contribute modifications, contact Licensor to discuss terms.
 
 ## 7. Trademark
 

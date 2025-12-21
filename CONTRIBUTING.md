@@ -1,10 +1,23 @@
 # Contributing to Amelia
 
-Thank you for your interest in contributing to Amelia! This document provides guidelines and information for contributors.
+Thank you for your interest in Amelia!
+
+## External Contributions
+
+We welcome bug reports, feature requests, and feedback via [GitHub Issues](https://github.com/anderskev/amelia/issues).
+
+**Code contributions (pull requests) are not accepted from external contributors.** Amelia uses a dual-licensing model that requires all code to be authored by the project maintainers. See [LICENSING.md](LICENSING.md) for details.
+
+If you've found a bug or have an idea for improvement, please open an issue - we appreciate the feedback.
+
+---
+
+## Internal Development Guide
+
+*The following sections are for internal contributors.*
 
 ## Table of Contents
 
-- [Contributor License Agreement](#contributor-license-agreement)
 - [Development Setup](#development-setup)
 - [Build & Development Commands](#build--development-commands)
 - [Code Conventions](#code-conventions)
@@ -12,18 +25,6 @@ Thank you for your interest in contributing to Amelia! This document provides gu
 - [GitHub Workflow](#github-workflow)
 - [Commit Messages](#commit-messages)
 - [Pull Request Process](#pull-request-process)
-
-## Contributor License Agreement
-
-By submitting a contribution to Amelia, you agree to the [Contributor License Agreement (CLA)](CLA.md).
-
-Amelia uses a dual-licensing model (MPL-2.0 + Commercial License). The CLA grants us the rights needed to:
-- Distribute your contributions under MPL-2.0
-- Include your contributions in commercially-licensed versions
-
-You retain copyright to your contributions. The CLA simply ensures we can include them in both licensing tracks.
-
-**By submitting a pull request, you agree to the CLA.** No signatures or paperwork required. See the [full CLA](CLA.md) for details.
 
 ## Development Setup
 
