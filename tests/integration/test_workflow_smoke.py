@@ -75,12 +75,15 @@ class TestRoutingDecisions:
         expected_route: str,
     ) -> None:
         """Route after developer based on developer status."""
+        profile = make_profile()
         state = make_execution_state(
+            profile=profile,
             execution_plan=make_plan(num_batches=num_batches),
             current_batch_index=current_batch,
             developer_status=developer_status,
         )
-        route = route_after_developer(state)
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-route", "profile": profile}})
+        route = route_after_developer(state, config)
         assert route == expected_route
 
     @pytest.mark.parametrize("approved,expected_route", [
@@ -187,8 +190,9 @@ class TestGraphNodes:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
-            state = make_execution_state()
-            config = cast(RunnableConfig, {"configurable": {"thread_id": "test-123"}})
+            profile = make_profile()
+            state = make_execution_state(profile=profile)
+            config = cast(RunnableConfig, {"configurable": {"thread_id": "test-123", "profile": profile}})
 
             result = await call_architect_node(state, config)
 
@@ -211,10 +215,12 @@ class TestGraphNodes:
             mock_reviewer.review = AsyncMock(return_value=(review, None))
             MockReviewer.return_value = mock_reviewer
 
+            profile = make_profile()
             state = make_execution_state(
+                profile=profile,
                 execution_plan=make_plan(num_batches=1),
             )
-            config = cast(RunnableConfig, {"configurable": {"thread_id": "test-123"}})
+            config = cast(RunnableConfig, {"configurable": {"thread_id": "test-123", "profile": profile}})
 
             result = await call_reviewer_node(state, config)
 
@@ -225,8 +231,9 @@ class TestGraphNodes:
         """Developer node should raise error without execution plan."""
         from amelia.core.orchestrator import call_developer_node
 
-        state = make_execution_state(execution_plan=None)
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-123"}})
+        profile = make_profile()
+        state = make_execution_state(profile=profile, execution_plan=None)
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-123", "profile": profile}})
 
         with pytest.raises(ValueError, match="no execution plan"):
             await call_developer_node(state, config)
@@ -239,8 +246,9 @@ class TestHumanApprovalNode:
         """Server mode should return empty dict (interrupt handles pause)."""
         from amelia.core.orchestrator import human_approval_node
 
-        state = make_execution_state()
-        config = cast(RunnableConfig, {"configurable": {"execution_mode": "server", "thread_id": "test-123"}})
+        profile = make_profile()
+        state = make_execution_state(profile=profile)
+        config = cast(RunnableConfig, {"configurable": {"execution_mode": "server", "thread_id": "test-123", "profile": profile}})
 
         result = await human_approval_node(state, config)
 
@@ -291,5 +299,6 @@ class TestTrustLevelRouting:
             developer_status=DeveloperStatus.BATCH_COMPLETE,
         )
 
-        route = route_after_developer(state)
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-routing", "profile": profile}})
+        route = route_after_developer(state, config)
         assert route == expected_route

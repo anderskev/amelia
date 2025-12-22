@@ -289,7 +289,7 @@ class TestHappyPathExecution:
         # Create mock reviewer that approves
         mock_reviewer = create_mock_reviewer(approved=True)
 
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-3batch", "execution_mode": "server"}})
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-3batch", "execution_mode": "server", "profile": profile}})
 
         with mock_agents_context(mock_architect, mock_developer, mock_reviewer):
             # Run until first interrupt (human_approval_node for initial plan approval)
@@ -383,7 +383,7 @@ class TestBatchRejection:
         mock_architect = AsyncMock()
         mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
 
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-rejection", "execution_mode": "server"}})
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-rejection", "execution_mode": "server", "profile": profile}})
 
         with mock_agents_context(mock_architect, mock_developer):
             # Run until first interrupt (human_approval_node)
@@ -617,12 +617,12 @@ class TestBlockerResolution:
         # Mock revert function
         mock_revert = AsyncMock()
 
-        config = cast(RunnableConfig, {
-            "configurable": {
-                "thread_id": f"test-blocker-{resolution}",
-                "execution_mode": "server",
-            }
-        })
+        from tests.integration.conftest import make_config
+        config = cast(RunnableConfig, make_config(
+            thread_id=f"test-blocker-{resolution}",
+            profile=profile,
+            execution_mode="server",
+        ))
 
         with mock_agents_context(mock_architect, mock_developer, mock_reviewer), \
              patch("amelia.core.orchestrator.revert_to_git_snapshot", mock_revert):
@@ -738,7 +738,7 @@ class TestTrustLevelBehavior:
         # Create mock reviewer that approves
         mock_reviewer = create_mock_reviewer(approved=True)
 
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-autonomous", "execution_mode": "server"}})
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-autonomous", "execution_mode": "server", "profile": profile}})
 
         with mock_agents_context(mock_architect, mock_developer, mock_reviewer):
             # Count total interrupts for batch approval

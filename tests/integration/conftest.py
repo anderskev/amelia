@@ -180,9 +180,11 @@ def make_execution_state(
     **kwargs: Any,
 ) -> ExecutionState:
     """Create an ExecutionState with sensible defaults."""
+    if profile is None:
+        profile = make_profile()
     return ExecutionState(
         issue=issue or make_issue(),
-        profile=profile or make_profile(),
+        profile_id=profile.name,
         execution_plan=execution_plan,
         current_batch_index=current_batch_index,
         developer_status=developer_status,
@@ -208,6 +210,33 @@ def make_blocker(
         attempted_actions=attempted_actions,
         suggested_resolutions=suggested_resolutions,
     )
+
+
+def make_config(
+    thread_id: str,
+    profile: Profile | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Create a RunnableConfig with thread_id and profile.
+
+    Args:
+        thread_id: The thread ID for the workflow.
+        profile: Optional profile (defaults to test profile if not provided).
+        **kwargs: Additional configurable parameters.
+
+    Returns:
+        RunnableConfig dict with configurable parameters.
+    """
+    if profile is None:
+        profile = make_profile()
+
+    return {
+        "configurable": {
+            "thread_id": thread_id,
+            "profile": profile,
+            **kwargs,
+        }
+    }
 
 
 # =============================================================================

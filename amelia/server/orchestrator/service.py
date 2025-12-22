@@ -19,7 +19,7 @@ from loguru import logger
 
 from amelia.core.orchestrator import create_orchestrator_graph, create_review_graph
 from amelia.core.state import ExecutionPlan, ExecutionState
-from amelia.core.types import Issue, Settings, StreamEmitter, StreamEvent
+from amelia.core.types import Issue, Profile, Settings, StreamEmitter, StreamEvent
 from amelia.ext import WorkflowEventType as ExtWorkflowEventType
 from amelia.ext.exceptions import PolicyDeniedError
 from amelia.ext.hooks import (
@@ -134,6 +134,24 @@ class OrchestratorService:
 
         return emit
 
+    async def _get_profile_or_fail(self, workflow_id: str, profile_id: str) -> Profile | None:
+        """Look up profile by ID and handle missing profile consistently.
+
+        Args:
+            workflow_id: Workflow ID for logging and status updates.
+            profile_id: Profile ID to look up in settings.
+
+        Returns:
+            Profile if found, None if not found (after setting workflow to failed).
+        """
+        if profile_id not in self._settings.profiles:
+            logger.error("Profile not found", workflow_id=workflow_id, profile_id=profile_id)
+            await self._repository.set_status(
+                workflow_id, "failed", failure_reason=f"Profile '{profile_id}' not found"
+            )
+            return None
+        return self._settings.profiles[profile_id]
+
     async def start_workflow(
         self,
         issue_id: str,
@@ -221,8 +239,8 @@ class OrchestratorService:
             tracker = create_tracker(loaded_profile)
             issue = tracker.get_issue(issue_id, cwd=worktree_path)
 
-            # Initialize ExecutionState with the loaded profile and issue
-            execution_state = ExecutionState(profile=loaded_profile, issue=issue, plan_only=plan_only)
+            # Initialize ExecutionState with profile_id and issue
+            execution_state = ExecutionState(profile_id=loaded_profile.name, issue=issue, plan_only=plan_only)
 
             state = ServerExecutionState(
                 id=workflow_id,
@@ -326,7 +344,7 @@ class OrchestratorService:
 
             # Initialize ExecutionState with diff content
             execution_state = ExecutionState(
-                profile=loaded_profile,
+                profile_id=loaded_profile.name,
                 issue=dummy_issue,
                 code_changes_for_review=diff_content,
                 review_iteration=0,
@@ -489,6 +507,11 @@ class OrchestratorService:
             )
             return
 
+        # Get profile from settings using profile_id
+        profile = await self._get_profile_or_fail(workflow_id, state.execution_state.profile_id)
+        if profile is None:
+            return
+
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
         ) as checkpointer:
@@ -502,6 +525,7 @@ class OrchestratorService:
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "stream_emitter": stream_emitter,
+                    "profile": profile,
                 }
             }
 
@@ -609,7 +633,11 @@ class OrchestratorService:
             )
             return
 
-        retry_config = state.execution_state.profile.retry
+        # Get profile from settings using profile_id
+        profile = await self._get_profile_or_fail(workflow_id, state.execution_state.profile_id)
+        if profile is None:
+            return
+        retry_config = profile.retry
         attempt = 0
 
         while attempt <= retry_config.max_retries:
@@ -715,6 +743,11 @@ class OrchestratorService:
             )
             return
 
+        # Get profile from settings using profile_id
+        profile = await self._get_profile_or_fail(workflow_id, state.execution_state.profile_id)
+        if profile is None:
+            return
+
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
         ) as checkpointer:
@@ -728,6 +761,7 @@ class OrchestratorService:
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "stream_emitter": stream_emitter,
+                    "profile": profile,
                 }
             }
 
@@ -883,6 +917,14 @@ class OrchestratorService:
 
             logger.info("Workflow approved", workflow_id=workflow_id)
 
+        # Get profile from settings using profile_id
+        if workflow.execution_state is None:
+            logger.error("No execution_state in workflow", workflow_id=workflow_id)
+            return
+        profile = await self._get_profile_or_fail(workflow_id, workflow.execution_state.profile_id)
+        if profile is None:
+            return
+
         # Resume LangGraph execution with updated state
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
@@ -896,6 +938,7 @@ class OrchestratorService:
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "stream_emitter": stream_emitter,
+                    "profile": profile,
                 }
             }
 
@@ -1085,6 +1128,14 @@ class OrchestratorService:
                 feedback=feedback,
             )
 
+        # Get profile from settings using profile_id
+        if workflow.execution_state is None:
+            logger.error("No execution_state in workflow", workflow_id=workflow_id)
+            return
+        profile = await self._get_profile_or_fail(workflow_id, workflow.execution_state.profile_id)
+        if profile is None:
+            return
+
         # Update LangGraph state to record rejection
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
@@ -1095,6 +1146,7 @@ class OrchestratorService:
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
+                    "profile": profile,
                 }
             }
 
@@ -1160,6 +1212,14 @@ class OrchestratorService:
                 resolution=blocker_resolution,
             )
 
+        # Get profile from settings using profile_id
+        if workflow.execution_state is None:
+            logger.error("No execution_state in workflow", workflow_id=workflow_id)
+            return
+        profile = await self._get_profile_or_fail(workflow_id, workflow.execution_state.profile_id)
+        if profile is None:
+            return
+
         # Resume LangGraph execution with blocker_resolution set
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
@@ -1172,6 +1232,7 @@ class OrchestratorService:
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "stream_emitter": stream_emitter,
+                    "profile": profile,
                 }
             }
 

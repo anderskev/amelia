@@ -15,7 +15,7 @@ Amelia Core is dual-licensed under the **Mozilla Public License 2.0 (MPL-2.0)** 
 
 ## Open-Source License (MPL-2.0)
 
-The source code is available under the [Mozilla Public License 2.0](LICENSE). Under MPL-2.0, you can:
+The source code is available under the [Mozilla Public License 2.0](../../LICENSE). Under MPL-2.0, you can:
 
 - Use Amelia for any purpose, including commercial internal use
 - Modify the source code
@@ -23,7 +23,7 @@ The source code is available under the [Mozilla Public License 2.0](LICENSE). Un
 - Create proprietary extensions in separate files
 - Combine Amelia with proprietary code in a "Larger Work"
 
-See the full [LICENSE](LICENSE) file for the complete terms.
+See the full [LICENSE](../../LICENSE) file for the complete terms.
 
 ## Commercial License
 
@@ -105,4 +105,4 @@ For licensing questions, email legal@existentialbirds.com.
 
 ---
 
-*This document is for informational purposes. The authoritative license terms are in the [LICENSE](LICENSE) file and any signed Commercial License agreement.*
+*This document is for informational purposes. The authoritative license terms are in the [LICENSE](../../LICENSE) file and any signed Commercial License agreement.*

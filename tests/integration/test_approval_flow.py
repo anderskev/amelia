@@ -19,7 +19,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from amelia.core.state import ExecutionState
-from amelia.core.types import Profile
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.models.events import EventType, WorkflowEvent
 from amelia.server.models.state import ServerExecutionState
@@ -154,7 +153,7 @@ class TestLifecycleEvents:
         )
 
         core_state = ExecutionState(
-            profile=Profile(name="test", driver="cli:claude"),
+            profile_id="test",
         )
         server_state = ServerExecutionState(
             id="wf-lifecycle-test",
@@ -208,7 +207,7 @@ class TestGraphInterruptHandling:
         )
 
         core_state = ExecutionState(
-            profile=Profile(name="test", driver="cli:claude"),
+            profile_id="test",
         )
         server_state = ServerExecutionState(
             id="wf-interrupt-test",
