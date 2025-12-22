@@ -1343,6 +1343,476 @@ git commit -m "test: add OpenRouter agentic integration test"
 
 ---
 
+## Task 11: Extract Message Utilities Module
+
+**Goal:** Eliminate duplicated message handling logic across drivers.
+
+**Files:**
+- Create: `amelia/drivers/message_utils.py`
+- Modify: `amelia/drivers/api/openai.py`
+- Modify: `amelia/drivers/cli/claude.py`
+- Test: `tests/unit/test_message_utils.py`
+
+**Step 1: Write the failing tests**
+
+```python
+# tests/unit/test_message_utils.py
+"""Tests for driver message utilities."""
+import pytest
+from amelia.core.state import AgentMessage
+from amelia.drivers.message_utils import (
+    extract_system_prompt,
+    filter_conversation_messages,
+)
+
+
+class TestExtractSystemPrompt:
+    """Test extract_system_prompt utility."""
+
+    def test_returns_none_for_no_system_messages(self):
+        """Should return None when no system messages present."""
+        messages = [AgentMessage(role="user", content="Hello")]
+        assert extract_system_prompt(messages) is None
+
+    def test_extracts_single_system_message(self):
+        """Should extract content from single system message."""
+        messages = [
+            AgentMessage(role="system", content="You are helpful"),
+            AgentMessage(role="user", content="Hello"),
+        ]
+        assert extract_system_prompt(messages) == "You are helpful"
+
+    def test_joins_multiple_system_messages(self):
+        """Should join multiple system messages with double newline."""
+        messages = [
+            AgentMessage(role="system", content="First instruction"),
+            AgentMessage(role="system", content="Second instruction"),
+            AgentMessage(role="user", content="Hello"),
+        ]
+        assert extract_system_prompt(messages) == "First instruction\n\nSecond instruction"
+
+    def test_skips_empty_system_content(self):
+        """Should skip system messages with empty content."""
+        messages = [
+            AgentMessage(role="system", content="Valid"),
+            AgentMessage(role="system", content=""),
+            AgentMessage(role="system", content="Also valid"),
+        ]
+        assert extract_system_prompt(messages) == "Valid\n\nAlso valid"
+
+    def test_skips_none_system_content(self):
+        """Should skip system messages with None content."""
+        messages = [
+            AgentMessage(role="system", content="Valid"),
+            AgentMessage(role="system", content=None),
+        ]
+        assert extract_system_prompt(messages) == "Valid"
+
+
+class TestFilterConversationMessages:
+    """Test filter_conversation_messages utility."""
+
+    def test_filters_out_system_messages(self):
+        """Should remove all system messages."""
+        messages = [
+            AgentMessage(role="system", content="System prompt"),
+            AgentMessage(role="user", content="Hello"),
+            AgentMessage(role="assistant", content="Hi"),
+        ]
+        result = filter_conversation_messages(messages)
+        assert len(result) == 2
+        assert all(m.role != "system" for m in result)
+
+    def test_preserves_message_order(self):
+        """Should maintain original message order."""
+        messages = [
+            AgentMessage(role="user", content="First"),
+            AgentMessage(role="assistant", content="Response"),
+            AgentMessage(role="user", content="Second"),
+        ]
+        result = filter_conversation_messages(messages)
+        assert [m.content for m in result] == ["First", "Response", "Second"]
+
+    def test_returns_empty_for_system_only(self):
+        """Should return empty list when only system messages."""
+        messages = [AgentMessage(role="system", content="System only")]
+        assert filter_conversation_messages(messages) == []
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/test_message_utils.py -v`
+Expected: FAIL - ModuleNotFoundError
+
+**Step 3: Create message_utils module**
+
+```python
+# amelia/drivers/message_utils.py
+"""Shared utilities for message handling across drivers."""
+from amelia.core.state import AgentMessage
+
+
+def extract_system_prompt(messages: list[AgentMessage]) -> str | None:
+    """Extract and combine all system messages into a single prompt.
+
+    Args:
+        messages: List of conversation messages.
+
+    Returns:
+        Combined system prompt string, or None if no system messages.
+    """
+    system_messages = [msg for msg in messages if msg.role == "system"]
+    if not system_messages:
+        return None
+
+    contents = [msg.content for msg in system_messages if msg.content]
+    return "\n\n".join(contents) if contents else None
+
+
+def filter_conversation_messages(messages: list[AgentMessage]) -> list[AgentMessage]:
+    """Filter out system messages, keeping only conversation history.
+
+    Args:
+        messages: List of all messages including system messages.
+
+    Returns:
+        List of non-system messages preserving order.
+    """
+    return [msg for msg in messages if msg.role != "system"]
+```
+
+**Step 4: Run tests to verify they pass**
+
+Run: `uv run pytest tests/unit/test_message_utils.py -v`
+Expected: PASS
+
+**Step 5: Update ApiDriver to use utilities**
+
+```python
+# amelia/drivers/api/openai.py - replace duplicated logic
+from amelia.drivers.message_utils import extract_system_prompt, filter_conversation_messages
+
+# In generate() method, replace:
+#   system_messages = [msg for msg in messages if msg.role == 'system']
+#   system_prompt = "\n\n".join(msg.content for msg in system_messages if msg.content) if system_messages else None
+# With:
+system_prompt = extract_system_prompt(messages)
+```
+
+**Step 6: Update ClaudeCliDriver to use utilities**
+
+```python
+# amelia/drivers/cli/claude.py - replace duplicated logic (lines 309, 517)
+from amelia.drivers.message_utils import extract_system_prompt, filter_conversation_messages
+
+# Replace all instances of:
+#   system_messages = [m for m in messages if m.role == "system"]
+#   system_prompt = "\n\n".join(m.content for m in system_messages if m.content)
+# With:
+system_prompt = extract_system_prompt(messages)
+```
+
+**Step 7: Run full test suite**
+
+Run: `uv run pytest tests/unit/ -v`
+Expected: PASS
+
+**Step 8: Commit**
+
+```bash
+git add amelia/drivers/message_utils.py tests/unit/test_message_utils.py amelia/drivers/api/openai.py amelia/drivers/cli/claude.py
+git commit -m "refactor(drivers): extract shared message utilities"
+```
+
+---
+
+## Task 12: Standardize execute_agentic Interface
+
+**Goal:** Clarify that `execute_agentic` uses `instructions` parameter only - no system messages in the message list.
+
+**Files:**
+- Modify: `amelia/drivers/base.py`
+- Modify: `amelia/drivers/api/openai.py`
+- Modify: `amelia/drivers/cli/claude.py`
+
+**Step 1: Update base interface docstring**
+
+```python
+# amelia/drivers/base.py - update execute_agentic docstring
+@abstractmethod
+async def execute_agentic(
+    self,
+    messages: list[AgentMessage],
+    cwd: str,
+    instructions: str | None = None,
+) -> AsyncIterator[Any]:
+    """Execute prompt with autonomous tool access.
+
+    Args:
+        messages: Conversation history (user/assistant messages only).
+                  System messages should NOT be included - use `instructions` instead.
+        cwd: Working directory for tool execution.
+        instructions: Runtime instructions for the agent. This replaces
+                      system prompts for agentic execution.
+
+    Yields:
+        Stream events as execution progresses.
+    """
+    ...
+```
+
+**Step 2: Verify ApiDriver implementation matches**
+
+The ApiDriver implementation from Task 8 already filters system messages and uses `instructions`. Verify no changes needed.
+
+**Step 3: Update ClaudeCliDriver to match**
+
+```python
+# amelia/drivers/cli/claude.py - update execute_agentic
+# Remove system_prompt handling from execute_agentic since instructions replaces it
+# The instructions parameter is passed to --append-system-prompt instead
+```
+
+**Step 4: Commit**
+
+```bash
+git add amelia/drivers/base.py amelia/drivers/cli/claude.py
+git commit -m "refactor(drivers): standardize execute_agentic to use instructions only"
+```
+
+---
+
+## Task 13: Add DeveloperContextStrategy
+
+**Goal:** Create context strategy for Developer agent to match Architect and Reviewer patterns.
+
+**Files:**
+- Create: `amelia/agents/developer_context.py`
+- Modify: `amelia/agents/developer.py`
+- Test: `tests/unit/test_developer_context.py`
+
+**Step 1: Write the failing tests**
+
+```python
+# tests/unit/test_developer_context.py
+"""Tests for Developer context strategy."""
+import pytest
+from amelia.agents.developer_context import DeveloperContextStrategy
+from amelia.core.context import ContextSection
+
+
+class TestDeveloperContextStrategy:
+    """Test DeveloperContextStrategy."""
+
+    def test_has_system_prompt(self):
+        """Should define a system prompt."""
+        strategy = DeveloperContextStrategy()
+        assert strategy.SYSTEM_PROMPT
+        assert "developer" in strategy.SYSTEM_PROMPT.lower()
+
+    def test_defines_allowed_sections(self):
+        """Should define allowed context sections."""
+        strategy = DeveloperContextStrategy()
+        assert hasattr(strategy, "ALLOWED_SECTIONS")
+        assert "current_task" in strategy.ALLOWED_SECTIONS
+
+    def test_compile_returns_compiled_context(self):
+        """Should return CompiledContext with system prompt."""
+        strategy = DeveloperContextStrategy()
+        sections = [
+            ContextSection(name="current_task", content="Fix the bug"),
+        ]
+        result = strategy.compile(sections)
+        assert result.system_prompt == strategy.SYSTEM_PROMPT
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/test_developer_context.py -v`
+Expected: FAIL - ModuleNotFoundError
+
+**Step 3: Create DeveloperContextStrategy**
+
+```python
+# amelia/agents/developer_context.py
+"""Context strategy for the Developer agent."""
+from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
+
+
+class DeveloperContextStrategy(ContextStrategy):
+    """Context compilation strategy for the Developer agent.
+
+    The Developer agent executes implementation tasks step-by-step,
+    focusing on writing code and running commands safely.
+    """
+
+    SYSTEM_PROMPT = """You are a careful software developer executing implementation tasks.
+
+Your responsibilities:
+- Execute one task at a time from the provided plan
+- Write clean, tested code following project conventions
+- Run commands safely and report results accurately
+- Stop and report if you encounter blocking issues
+
+Always verify your changes work before marking a task complete."""
+
+    ALLOWED_SECTIONS = frozenset({
+        "current_task",
+        "requirements",
+        "errors",
+        "file_context",
+        "test_results",
+    })
+
+    def compile(self, sections: list[ContextSection]) -> CompiledContext:
+        """Compile context sections for Developer execution.
+
+        Args:
+            sections: Available context sections.
+
+        Returns:
+            CompiledContext with Developer-specific formatting.
+        """
+        filtered = [s for s in sections if s.name in self.ALLOWED_SECTIONS]
+        messages = self._sections_to_messages(filtered)
+        return CompiledContext(
+            system_prompt=self.SYSTEM_PROMPT,
+            messages=messages,
+        )
+```
+
+**Step 4: Run tests to verify they pass**
+
+Run: `uv run pytest tests/unit/test_developer_context.py -v`
+Expected: PASS
+
+**Step 5: Integrate with Developer agent**
+
+```python
+# amelia/agents/developer.py - add import and use strategy
+from amelia.agents.developer_context import DeveloperContextStrategy
+
+# In Developer class, add:
+context_strategy = DeveloperContextStrategy()
+```
+
+**Step 6: Commit**
+
+```bash
+git add amelia/agents/developer_context.py amelia/agents/developer.py tests/unit/test_developer_context.py
+git commit -m "refactor(developer): add DeveloperContextStrategy for consistency"
+```
+
+---
+
+## Task 14: Consolidate ClaudeCliDriver Prompt Preparation
+
+**Goal:** Extract duplicated prompt preparation logic in ClaudeCliDriver.
+
+**Files:**
+- Modify: `amelia/drivers/cli/claude.py`
+- Test: `tests/unit/test_claude_driver.py`
+
+**Step 1: Write the failing test**
+
+```python
+# tests/unit/test_claude_driver.py - add to existing tests
+class TestPrepareExecution:
+    """Test _prepare_execution helper."""
+
+    def test_builds_prompt_from_messages(self):
+        """Should convert messages to prompt string."""
+        driver = ClaudeCliDriver()
+        messages = [
+            AgentMessage(role="user", content="Hello"),
+            AgentMessage(role="assistant", content="Hi"),
+        ]
+        prompt, args = driver._prepare_execution(messages)
+        assert "Hello" in prompt
+        assert "Hi" in prompt
+
+    def test_extracts_system_prompt_to_args(self):
+        """Should add system prompt to CLI args."""
+        driver = ClaudeCliDriver()
+        messages = [
+            AgentMessage(role="system", content="Be helpful"),
+            AgentMessage(role="user", content="Hello"),
+        ]
+        prompt, args = driver._prepare_execution(messages)
+        assert "--append-system-prompt" in args
+        assert "Be helpful" in args
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/test_claude_driver.py::TestPrepareExecution -v`
+Expected: FAIL - _prepare_execution doesn't exist
+
+**Step 3: Extract _prepare_execution method**
+
+```python
+# amelia/drivers/cli/claude.py - add method
+from amelia.drivers.message_utils import extract_system_prompt
+
+def _prepare_execution(
+    self,
+    messages: list[AgentMessage],
+    session_id: str | None = None,
+) -> tuple[str, list[str]]:
+    """Prepare prompt and CLI arguments from messages.
+
+    Args:
+        messages: Conversation messages.
+        session_id: Optional session ID for continuation.
+
+    Returns:
+        Tuple of (prompt_string, additional_cli_args).
+    """
+    prompt = self._convert_messages_to_prompt(messages)
+    args: list[str] = []
+
+    system_prompt = extract_system_prompt(messages)
+    if system_prompt:
+        args.extend(["--append-system-prompt", system_prompt])
+
+    if session_id:
+        args.extend(["--resume", session_id])
+
+    return prompt, args
+```
+
+**Step 4: Update generate_stream to use helper**
+
+```python
+# amelia/drivers/cli/claude.py - refactor generate_stream
+# Replace lines 517-537 with call to _prepare_execution
+prompt, extra_args = self._prepare_execution(messages, session_id)
+# ... rest of method uses prompt and extra_args
+```
+
+**Step 5: Update execute_agentic to use helper**
+
+```python
+# amelia/drivers/cli/claude.py - refactor execute_agentic
+# Replace lines 603-619 with call to _prepare_execution
+prompt, extra_args = self._prepare_execution(messages, session_id)
+# ... rest of method uses prompt and extra_args
+```
+
+**Step 6: Run tests to verify they pass**
+
+Run: `uv run pytest tests/unit/test_claude_driver.py -v`
+Expected: PASS
+
+**Step 7: Commit**
+
+```bash
+git add amelia/drivers/cli/claude.py tests/unit/test_claude_driver.py
+git commit -m "refactor(claude-driver): consolidate prompt preparation"
+```
+
+---
+
 ## Summary
 
 After completing all tasks:
@@ -1350,6 +1820,9 @@ After completing all tasks:
 - `execute_agentic()` uses pydantic-ai with registered tools
 - Tool support is validated before execution
 - Session IDs are generated for continuity
+- Shared message utilities eliminate duplication across drivers
+- `execute_agentic` interface standardized to use `instructions` parameter
+- All agents have consistent context strategies
 - All tests pass, lint clean, types check
 
 **Files created/modified:**
@@ -1358,10 +1831,18 @@ After completing all tasks:
 - `amelia/drivers/api/openai.py` - Major updates
 - `amelia/drivers/api/events.py` - New
 - `amelia/drivers/api/tools.py` - New
+- `amelia/drivers/base.py` - Updated docstrings
+- `amelia/drivers/message_utils.py` - New (shared utilities)
+- `amelia/drivers/cli/claude.py` - Refactored
+- `amelia/agents/developer.py` - Added context strategy
+- `amelia/agents/developer_context.py` - New
 - `tests/unit/test_driver_types.py` - New
 - `tests/unit/test_driver_factory.py` - New
 - `tests/unit/test_api_driver_providers.py` - New
 - `tests/unit/test_api_events.py` - New
 - `tests/unit/test_api_tools.py` - New
 - `tests/unit/test_api_driver_agentic.py` - New
+- `tests/unit/test_message_utils.py` - New
+- `tests/unit/test_developer_context.py` - New
+- `tests/unit/test_claude_driver.py` - Extended
 - `tests/integration/test_openrouter_agentic.py` - New
