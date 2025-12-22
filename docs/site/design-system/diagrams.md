@@ -32,8 +32,6 @@ vars: {
 }
 ```
 
-**Location**: [design-system/themes/d2/amelia-dark.d2](https://github.com/anderskev/amelia/blob/main/design-system/themes/d2/amelia-dark.d2)
-
 ### Light Theme Configuration
 
 Use the Amelia Light Theme for daytime professional aesthetics:
@@ -50,8 +48,6 @@ vars: {
   muted: "#5C7263"
 }
 ```
-
-**Location**: [design-system/themes/d2/amelia-light.d2](https://github.com/anderskev/amelia/blob/main/design-system/themes/d2/amelia-light.d2)
 
 ### Basic Usage
 
