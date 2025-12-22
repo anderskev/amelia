@@ -11,7 +11,10 @@ These tests verify graceful handling of edge cases like:
 These are regression tests for bugs identified in the test gap analysis.
 """
 
+from typing import cast
+
 import pytest
+from langchain_core.runnables.config import RunnableConfig
 
 from amelia.core.orchestrator import route_after_developer
 from amelia.core.state import ExecutionPlan
@@ -20,6 +23,7 @@ from amelia.core.types import DeveloperStatus
 from .conftest import (
     make_execution_state,
     make_plan,
+    make_profile,
 )
 
 
@@ -167,12 +171,15 @@ class TestBatchIndexValidIndex:
         # Use appropriate batch index based on status
         current_batch_index = 1 if developer_status == DeveloperStatus.BATCH_COMPLETE else 0
 
+        profile = make_profile()
         state = make_execution_state(
+            profile=profile,
             execution_plan=plan,
             current_batch_index=current_batch_index,
             developer_status=developer_status,
             human_approved=True,
         )
 
-        route = route_after_developer(state)
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-boundary", "profile": profile}})
+        route = route_after_developer(state, config)
         assert route == expected_route

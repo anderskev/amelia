@@ -70,8 +70,10 @@ def should_checkpoint(batch: ExecutionBatch, profile: Profile) -> bool:
     return True
 
 
-def _extract_config_params(config: RunnableConfig | None) -> tuple[StreamEmitter | None, str]:
-    """Extract stream_emitter and workflow_id from RunnableConfig.
+def _extract_config_params(
+    config: RunnableConfig | None,
+) -> tuple[StreamEmitter | None, str, Profile]:
+    """Extract stream_emitter, workflow_id, and profile from RunnableConfig.
 
     Extracts values from config.configurable dictionary. workflow_id is required.
 
@@ -79,18 +81,23 @@ def _extract_config_params(config: RunnableConfig | None) -> tuple[StreamEmitter
         config: Optional RunnableConfig with configurable parameters.
 
     Returns:
-        Tuple of (stream_emitter, workflow_id).
+        Tuple of (stream_emitter, workflow_id, profile).
 
     Raises:
-        ValueError: If workflow_id (thread_id) is not provided in config.configurable.
+        ValueError: If workflow_id (thread_id) or profile is not provided.
     """
     config = config or {}
     configurable = config.get("configurable", {})
     stream_emitter = configurable.get("stream_emitter")
     workflow_id = configurable.get("thread_id")
+    profile = configurable.get("profile")
+
     if not workflow_id:
         raise ValueError("workflow_id (thread_id) is required in config.configurable")
-    return stream_emitter, workflow_id
+    if not profile:
+        raise ValueError("profile is required in config.configurable")
+
+    return stream_emitter, workflow_id, profile
 
 
 # Define nodes for the graph
@@ -116,16 +123,17 @@ async def call_architect_node(
     if state.issue is None:
         raise ValueError("Cannot call Architect: no issue provided in state.")
 
-    # Extract stream_emitter and workflow_id from config if available
-    stream_emitter, workflow_id = _extract_config_params(config)
+    # Extract stream_emitter, workflow_id, and profile from config
+    stream_emitter, workflow_id, profile = _extract_config_params(config)
 
-    driver = DriverFactory.get_driver(state.profile.driver)
+    driver = DriverFactory.get_driver(profile.driver)
     architect = Architect(driver, stream_emitter=stream_emitter)
 
     # Handle plan_only mode - generate plan with markdown and exit
     if state.plan_only:
         plan_output = await architect.plan(
             state=state,
+            profile=profile,
             workflow_id=workflow_id or "plan-only",
         )
         logger.info(
@@ -146,6 +154,7 @@ async def call_architect_node(
     execution_plan, new_session_id = await architect.generate_execution_plan(
         issue=state.issue,
         state=state,
+        profile=profile,
     )
 
     # Log the agent action
@@ -403,14 +412,14 @@ async def call_reviewer_node(
     """
     logger.info(f"Orchestrator: Calling Reviewer for issue {state.issue.id if state.issue else 'N/A'}")
 
-    # Extract stream_emitter and workflow_id from config if available
-    stream_emitter, workflow_id = _extract_config_params(config)
+    # Extract stream_emitter, workflow_id, and profile from config
+    stream_emitter, workflow_id, profile = _extract_config_params(config)
 
-    driver = DriverFactory.get_driver(state.profile.driver)
+    driver = DriverFactory.get_driver(profile.driver)
     reviewer = Reviewer(driver, stream_emitter=stream_emitter)
 
     code_changes = await get_code_changes_for_review(state)
-    review_result, new_session_id = await reviewer.review(state, code_changes, workflow_id=workflow_id)
+    review_result, new_session_id = await reviewer.review(state, code_changes, profile, workflow_id=workflow_id)
 
     # Log the review completion
     logger.info(
@@ -473,18 +482,18 @@ async def call_developer_node(
         )
         raise ValueError(error_msg)
 
-    # Extract stream_emitter from config if available
-    stream_emitter, _ = _extract_config_params(config)
+    # Extract stream_emitter, workflow_id, and profile from config if available
+    stream_emitter, workflow_id, profile = _extract_config_params(config)
 
-    driver = DriverFactory.get_driver(state.profile.driver)
+    driver = DriverFactory.get_driver(profile.driver)
     developer = Developer(
         driver,
-        execution_mode=state.profile.execution_mode,
+        execution_mode=profile.execution_mode,
         stream_emitter=stream_emitter,
     )
 
     # Developer.run() handles all batch execution logic and returns state updates
-    return await developer.run(state)
+    return await developer.run(state, profile)
 
 def should_continue_review_loop(state: ExecutionState) -> Literal["re_evaluate", "end"]:
     """Determine if review loop should continue based on last review result.
@@ -531,11 +540,15 @@ def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
     """
     return "approve" if state.human_approved else "reject"
 
-def route_after_developer(state: ExecutionState) -> Literal["reviewer", "batch_approval", "blocker_resolution", "developer", "__end__"]:
+def route_after_developer(
+    state: ExecutionState,
+    config: RunnableConfig | None = None,
+) -> Literal["reviewer", "batch_approval", "blocker_resolution", "developer", "__end__"]:
     """Route based on Developer agent status and batch completion state.
 
     Args:
         state: Current execution state containing developer_status.
+        config: Optional RunnableConfig with profile in configurable.
 
     Returns:
         Route string based on developer_status:
@@ -573,15 +586,18 @@ def route_after_developer(state: ExecutionState) -> Literal["reviewer", "batch_a
             )
             return "reviewer"
 
+        # Extract profile from config
+        _, _, profile = _extract_config_params(config)
+
         current_batch = state.execution_plan.batches[state.current_batch_index]
-        if should_checkpoint(current_batch, state.profile):
+        if should_checkpoint(current_batch, profile):
             return "batch_approval"
         else:
             logger.info(
                 "Skipping batch approval checkpoint",
                 batch_number=current_batch.batch_number,
                 risk_summary=current_batch.risk_summary,
-                trust_level=state.profile.trust_level.value,
+                trust_level=profile.trust_level.value,
             )
             return "developer"
     elif state.developer_status == DeveloperStatus.BLOCKED:
@@ -664,11 +680,15 @@ def create_synthetic_plan_from_review(review: ReviewResult) -> ExecutionPlan:
     )
 
 
-def should_continue_review_fix(state: ExecutionState) -> Literal["developer", "__end__"]:
+def should_continue_review_fix(
+    state: ExecutionState,
+    config: RunnableConfig | None = None,
+) -> Literal["developer", "__end__"]:
     """Determine next step in review-fix loop based on approval and iteration count.
 
     Args:
         state: Current execution state with last_review and review_iteration.
+        config: Optional RunnableConfig with profile in configurable.
 
     Returns:
         "developer" if review rejected and under max iterations,
@@ -676,7 +696,11 @@ def should_continue_review_fix(state: ExecutionState) -> Literal["developer", "_
     """
     if state.last_review and state.last_review.approved:
         return "__end__"
-    max_iterations = state.profile.max_review_iterations if state.profile else 3
+
+    # Extract profile from config
+    _, _, profile = _extract_config_params(config)
+    max_iterations = profile.max_review_iterations
+
     if state.review_iteration >= max_iterations:
         logger.warning(
             "Max review iterations reached, terminating loop",

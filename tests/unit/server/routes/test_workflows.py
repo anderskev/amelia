@@ -270,7 +270,7 @@ class TestGetWorkflow:
 
         # Create ExecutionState with execution_plan
         execution_state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=issue,
             execution_plan=execution_plan,
         )
@@ -553,7 +553,7 @@ class TestBatchExecutionFields:
 
         # Create ExecutionState with the execution plan
         execution_state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=issue,
             execution_plan=execution_plan,
             current_batch_index=0,
@@ -628,7 +628,7 @@ class TestBatchExecutionFields:
 
         # Create ExecutionState with batch results
         execution_state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=issue,
             current_batch_index=1,
             batch_results=batch_results,
@@ -684,7 +684,7 @@ class TestBatchExecutionFields:
 
         # Create ExecutionState with specific developer status
         execution_state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=issue,
             developer_status=DeveloperStatus.BATCH_COMPLETE,
         )
@@ -737,7 +737,7 @@ class TestBatchExecutionFields:
 
         # Create ExecutionState with blocker
         execution_state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=issue,
             developer_status=DeveloperStatus.BLOCKED,
             current_blocker=blocker,
@@ -797,7 +797,7 @@ class TestBatchExecutionFields:
 
         # Create ExecutionState with approvals
         execution_state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=issue,
             batch_approvals=batch_approvals,
         )

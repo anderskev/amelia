@@ -144,7 +144,7 @@ class TestStreamEmitterIntegration:
                             worktree_path=str(worktree_path),
                             worktree_name="test-worktree",
                             execution_state=ExecutionState(
-                                profile=test_profile,
+                                profile_id=test_profile.name,
                                 issue=test_issue,
                                 execution_plan=mock_plan.execution_plan,
                             ),

@@ -15,7 +15,7 @@ class TestGetCodeChangesForReview:
         self, mock_execution_state_factory
     ):
         """Branch 1: Returns state.code_changes_for_review when present."""
-        state = mock_execution_state_factory(
+        state, _profile = mock_execution_state_factory(
             code_changes_for_review="diff --git a/file.py\n+new line"
         )
 
@@ -28,7 +28,7 @@ class TestGetCodeChangesForReview:
         self, mock_create_subprocess, mock_execution_state_factory
     ):
         """Branch 2: Falls back to git diff HEAD stdout when state has no changes."""
-        state = mock_execution_state_factory(code_changes_for_review=None)
+        state, _profile = mock_execution_state_factory(code_changes_for_review=None)
 
         # Mock successful git diff with output
         mock_process = MagicMock()
@@ -48,7 +48,7 @@ class TestGetCodeChangesForReview:
         self, mock_create_subprocess, mock_execution_state_factory
     ):
         """Branch 3: Returns error message when git diff fails (non-zero exit code)."""
-        state = mock_execution_state_factory(code_changes_for_review=None)
+        state, _profile = mock_execution_state_factory(code_changes_for_review=None)
 
         # Mock failed git diff
         mock_process = MagicMock()
@@ -68,7 +68,7 @@ class TestGetCodeChangesForReview:
         self, mock_create_subprocess, mock_execution_state_factory
     ):
         """Branch 4: Returns error message when subprocess raises exception."""
-        state = mock_execution_state_factory(code_changes_for_review=None)
+        state, _profile = mock_execution_state_factory(code_changes_for_review=None)
 
         # Mock subprocess raising exception
         mock_create_subprocess.side_effect = FileNotFoundError("git command not found")
@@ -83,7 +83,7 @@ class TestGetCodeChangesForReview:
         self, mock_create_subprocess, mock_execution_state_factory
     ):
         """Edge case: Handles empty git diff output (no changes)."""
-        state = mock_execution_state_factory(code_changes_for_review=None)
+        state, _profile = mock_execution_state_factory(code_changes_for_review=None)
 
         # Mock successful git diff with empty output
         mock_process = MagicMock()
@@ -101,7 +101,7 @@ class TestGetCodeChangesForReview:
         self, mock_create_subprocess, mock_execution_state_factory
     ):
         """Edge case: Empty string in state is treated as falsy, triggers git diff."""
-        state = mock_execution_state_factory(code_changes_for_review="")
+        state, _profile = mock_execution_state_factory(code_changes_for_review="")
 
         mock_process = MagicMock()
         mock_process.returncode = 0

@@ -23,8 +23,10 @@ from amelia.core.orchestrator import create_orchestrator_graph
 from amelia.core.types import DeveloperStatus
 
 from .conftest import (
+    make_config,
     make_execution_state,
     make_plan,
+    make_profile,
 )
 
 
@@ -58,8 +60,9 @@ class TestMemoryCheckpointPersistence:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
-            state = make_execution_state()
-            config = cast(RunnableConfig, {"configurable": {"thread_id": "test-persist-001"}})
+            profile = make_profile()
+            state = make_execution_state(profile=profile)
+            config = cast(RunnableConfig, {"configurable": {"thread_id": "test-persist-001", "profile": profile}})
 
             # Run until interrupt (human_approval_node)
             chunks = []
@@ -81,7 +84,8 @@ class TestMemoryCheckpointPersistence:
         """State should survive graph recreation with same checkpointer."""
         plan = make_plan(num_batches=1, steps_per_batch=1)
         thread_id = "test-survive-002"
-        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id}})
+        profile = make_profile()
+        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id, "profile": profile}})
 
         # First graph instance
         graph1 = create_orchestrator_graph(
@@ -97,7 +101,7 @@ class TestMemoryCheckpointPersistence:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
-            state = make_execution_state()
+            state = make_execution_state(profile=profile)
 
             # Run until interrupt
             async for chunk in graph1.astream(
@@ -123,7 +127,8 @@ class TestMemoryCheckpointPersistence:
         """Resuming from interrupt should preserve all state fields."""
         plan = make_plan(num_batches=2, steps_per_batch=2)
         thread_id = "test-resume-003"
-        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id, "execution_mode": "server"}})
+        profile = make_profile()
+        config = cast(RunnableConfig, make_config(thread_id=thread_id, profile=profile, execution_mode="server"))
 
         with (
             patch("amelia.core.orchestrator.DriverFactory.get_driver"),
@@ -133,7 +138,7 @@ class TestMemoryCheckpointPersistence:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
-            state = make_execution_state()
+            state = make_execution_state(profile=profile)
 
             # Run until interrupt
             async for chunk in graph.astream(
@@ -148,7 +153,7 @@ class TestMemoryCheckpointPersistence:
         # Verify key fields are preserved
         values = interrupted_state.values
         assert values.get("issue") is not None
-        assert values.get("profile") is not None
+        assert values.get("profile_id") is not None
         assert values.get("execution_plan") is not None
         # Check the plan has correct structure
         saved_plan = values["execution_plan"]
@@ -166,7 +171,8 @@ class TestMemoryCheckpointPersistence:
         """Updating state via graph should persist the update."""
         plan = make_plan(num_batches=1, steps_per_batch=1)
         thread_id = "test-update-004"
-        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id}})
+        profile = make_profile()
+        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id, "profile": profile}})
 
         with (
             patch("amelia.core.orchestrator.DriverFactory.get_driver"),
@@ -176,7 +182,7 @@ class TestMemoryCheckpointPersistence:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
-            state = make_execution_state()
+            state = make_execution_state(profile=profile)
 
             # Run until interrupt
             async for chunk in graph.astream(
@@ -199,8 +205,10 @@ class TestMemoryCheckpointPersistence:
         plan1 = make_plan(num_batches=1, steps_per_batch=1, goal="Goal 1")
         plan2 = make_plan(num_batches=2, steps_per_batch=2, goal="Goal 2")
 
-        config1 = cast(RunnableConfig, {"configurable": {"thread_id": "thread-1", "execution_mode": "server"}})
-        config2 = cast(RunnableConfig, {"configurable": {"thread_id": "thread-2", "execution_mode": "server"}})
+        profile1 = make_profile()
+        profile2 = make_profile()
+        config1 = cast(RunnableConfig, make_config(thread_id="thread-1", profile=profile1, execution_mode="server"))
+        config2 = cast(RunnableConfig, make_config(thread_id="thread-2", profile=profile2, execution_mode="server"))
 
         with (
             patch("amelia.core.orchestrator.DriverFactory.get_driver"),
@@ -211,7 +219,7 @@ class TestMemoryCheckpointPersistence:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan1, None))
             MockArchitect.return_value = mock_architect
 
-            state1 = make_execution_state()
+            state1 = make_execution_state(profile=profile1)
             async for chunk in graph.astream(
                 state1.model_dump(mode="json"), config1
             ):
@@ -221,7 +229,7 @@ class TestMemoryCheckpointPersistence:
             # Second thread with plan2
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan2, None))
 
-            state2 = make_execution_state()
+            state2 = make_execution_state(profile=profile2)
             async for chunk in graph.astream(
                 state2.model_dump(mode="json"), config2
             ):
@@ -269,7 +277,8 @@ class TestCheckpointStateIntegrity:
     ) -> None:
         """ExecutionPlan structure should be fully preserved through checkpoint."""
         plan = make_plan(num_batches=2, steps_per_batch=3)
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-structure", "execution_mode": "server"}})
+        profile = make_profile()
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-structure", "execution_mode": "server", "profile": profile}})
 
         with (
             patch("amelia.core.orchestrator.DriverFactory.get_driver"),
@@ -279,7 +288,7 @@ class TestCheckpointStateIntegrity:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
-            state = make_execution_state()
+            state = make_execution_state(profile=profile)
             async for chunk in graph.astream(
                 state.model_dump(mode="json"), config
             ):
@@ -318,7 +327,8 @@ class TestCheckpointStateIntegrity:
     ) -> None:
         """Frozenset fields like skipped_step_ids should be preserved."""
         plan = make_plan(num_batches=1, steps_per_batch=1)
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-frozenset"}})
+        profile = make_profile()
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-frozenset", "profile": profile}})
 
         with (
             patch("amelia.core.orchestrator.DriverFactory.get_driver"),
@@ -330,6 +340,7 @@ class TestCheckpointStateIntegrity:
 
             # Create state with skipped steps
             state = make_execution_state(
+                profile=profile,
                 skipped_step_ids=frozenset({"step-1", "step-2"})
             )
             async for chunk in graph.astream(
@@ -352,7 +363,8 @@ class TestCheckpointStateIntegrity:
     ) -> None:
         """Enum fields like developer_status should be preserved."""
         plan = make_plan(num_batches=1, steps_per_batch=1)
-        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-enum"}})
+        profile = make_profile()
+        config = cast(RunnableConfig, {"configurable": {"thread_id": "test-enum", "profile": profile}})
 
         with (
             patch("amelia.core.orchestrator.DriverFactory.get_driver"),
@@ -363,6 +375,7 @@ class TestCheckpointStateIntegrity:
             MockArchitect.return_value = mock_architect
 
             state = make_execution_state(
+                profile=profile,
                 developer_status=DeveloperStatus.BATCH_COMPLETE
             )
             async for chunk in graph.astream(
@@ -394,7 +407,8 @@ class TestCheckpointResume:
         """Approving and resuming should continue to developer node."""
         plan = make_plan(num_batches=1, steps_per_batch=1)
         thread_id = "test-resume-approve"
-        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id}})
+        profile = make_profile()
+        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id, "profile": profile}})
 
         graph = create_orchestrator_graph(
             checkpoint_saver=checkpointer,
@@ -409,7 +423,7 @@ class TestCheckpointResume:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
-            state = make_execution_state()
+            state = make_execution_state(profile=profile)
 
             # Phase 1: Run until human_approval interrupt
             async for chunk in graph.astream(
@@ -431,7 +445,8 @@ class TestCheckpointResume:
         """Rejecting should allow workflow to end."""
         plan = make_plan(num_batches=1, steps_per_batch=1)
         thread_id = "test-resume-reject"
-        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id, "execution_mode": "server"}})
+        profile = make_profile()
+        config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id, "execution_mode": "server", "profile": profile}})
 
         graph = create_orchestrator_graph(
             checkpoint_saver=checkpointer,
@@ -446,7 +461,7 @@ class TestCheckpointResume:
             mock_architect.generate_execution_plan = AsyncMock(return_value=(plan, None))
             MockArchitect.return_value = mock_architect
 
-            state = make_execution_state()
+            state = make_execution_state(profile=profile)
 
             # Run until interrupt
             async for chunk in graph.astream(

@@ -168,8 +168,13 @@ def mock_execution_plan_factory() -> Callable[..., ExecutionPlan]:
 
 
 @pytest.fixture
-def mock_execution_state_factory(mock_profile_factory: Callable[..., Profile], mock_issue_factory: Callable[..., Issue]) -> Callable[..., ExecutionState]:
-    """Factory fixture for creating ExecutionState instances."""
+def mock_execution_state_factory(mock_profile_factory: Callable[..., Profile], mock_issue_factory: Callable[..., Issue]) -> Callable[..., tuple[ExecutionState, Profile]]:
+    """Factory fixture for creating ExecutionState instances.
+
+    Returns:
+        Factory function that returns tuple[ExecutionState, Profile] where profile
+        is the Profile object that was used to create the state.
+    """
     def _create(
         profile: Profile | None = None,
         profile_preset: str = "cli_single",
@@ -178,19 +183,44 @@ def mock_execution_state_factory(mock_profile_factory: Callable[..., Profile], m
         code_changes_for_review: str | None = None,
         design: Design | None = None,
         **kwargs: Any
-    ) -> ExecutionState:
+    ) -> tuple[ExecutionState, Profile]:
         if profile is None:
             profile = mock_profile_factory(preset=profile_preset)
         if issue is None:
             issue = mock_issue_factory()
-        return ExecutionState(
-            profile=profile,
+
+        # Extract profile_id from profile
+        profile_id = kwargs.pop("profile_id", profile.name)
+
+        state = ExecutionState(
+            profile_id=profile_id,
             issue=issue,
             execution_plan=execution_plan,
             code_changes_for_review=code_changes_for_review,
             design=design,
             **kwargs
         )
+        return state, profile
+    return _create
+
+
+@pytest.fixture
+def mock_config_factory(mock_profile_factory: Callable[..., Profile]) -> Callable[..., dict[str, Any]]:
+    """Factory fixture for creating LangGraph config with configurable profile.
+
+    Creates a config dict with profile in config["configurable"]["profile"]
+    as expected by the orchestrator nodes after the profile_id refactor.
+    """
+    def _create(profile: Profile | None = None, **kwargs: Any) -> dict[str, Any]:
+        if profile is None:
+            profile = mock_profile_factory()
+        return {
+            "configurable": {
+                "thread_id": kwargs.get("workflow_id", "test-wf"),
+                "profile": profile,
+                **kwargs,
+            }
+        }
     return _create
 
 

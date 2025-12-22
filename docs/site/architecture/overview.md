@@ -183,12 +183,18 @@ tracker = create_tracker(profile)
 issue = tracker.get_issue("PROJ-123")
 
 # Initialize state
-initial_state = ExecutionState(profile=profile, issue=issue)
+initial_state = ExecutionState(profile_id=profile.name, issue=issue)
 
-# Run with SQLite checkpointing
+# Run with SQLite checkpointing and profile in config
 checkpointer = AsyncSqliteSaver(db_path)
 app = create_orchestrator_graph().compile(checkpointer=checkpointer)
-final_state = await app.ainvoke(initial_state, config={"thread_id": workflow_id})
+config = {
+    "configurable": {
+        "thread_id": workflow_id,
+        "profile": profile,  # Profile passed via config, not state
+    }
+}
+final_state = await app.ainvoke(initial_state, config=config)
 ```
 
 #### 4. Real-Time Events → WebSocket → Dashboard
@@ -490,7 +496,7 @@ class TaskDAG(BaseModel):
 
 ```python
 class ExecutionState(BaseModel):
-    profile: Profile
+    profile_id: str  # Profile name for replay determinism
     issue: Issue | None = None
     plan: TaskDAG | None = None
     current_task_id: str | None = None
@@ -501,6 +507,19 @@ class ExecutionState(BaseModel):
     claude_session_id: str | None = None           # For CLI driver session resumption
     workflow_status: Literal["running", "completed", "failed"] = "running"
 ```
+
+**Note**: The full `Profile` object is not stored in state for determinism. Instead, it's passed via LangGraph's RunnableConfig:
+
+```python
+config = {
+    "configurable": {
+        "thread_id": workflow_id,
+        "profile": profile,  # Runtime config passed here
+    }
+}
+```
+
+This ensures that when replaying from checkpoints, the profile configuration at invocation time is used, preventing bugs from stale profile data in checkpointed state.
 
 #### ReviewResult
 

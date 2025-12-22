@@ -37,7 +37,7 @@ class TestBatchExecutionFlow:
         plan = mock_execution_plan_factory(num_batches=1, steps_per_batch=2)
 
         initial_state = ExecutionState(
-            profile=test_profile,
+            profile_id=test_profile.name,
             issue=test_issue,
             execution_plan=plan,
             current_batch_index=0,
@@ -71,7 +71,7 @@ class TestBatchExecutionFlow:
         ) as MockDeveloper:
             MockDeveloper.return_value = mock_developer
 
-            config = {"configurable": {"thread_id": "test-1"}}
+            config = {"configurable": {"thread_id": "test-1", "profile": test_profile}}
             result = await call_developer_node(initial_state, config)
 
         # Verify batch completed
@@ -95,7 +95,7 @@ class TestBatchExecutionFlow:
 
         # State after first batch completes
         state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=test_issue,
             execution_plan=plan,
             current_batch_index=1,  # Batch 1 done
@@ -104,7 +104,8 @@ class TestBatchExecutionFlow:
         )
 
         # Route should go to batch_approval
-        route = route_after_developer(state)
+        config = {"configurable": {"thread_id": "test-routing", "profile": profile}}
+        route = route_after_developer(state, config)
         assert route == "batch_approval"
 
     async def test_batch_approval_continues_on_approval(
@@ -121,7 +122,7 @@ class TestBatchExecutionFlow:
         plan = mock_execution_plan_factory(num_batches=2, steps_per_batch=1)
 
         state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=test_issue,
             execution_plan=plan,
             current_batch_index=1,  # Batch 1 done
@@ -149,7 +150,7 @@ class TestBatchExecutionFlow:
 
         # State after all batches complete
         state = ExecutionState(
-            profile=profile,
+            profile_id=profile.name,
             issue=test_issue,
             execution_plan=plan,
             current_batch_index=1,  # Only 1 batch, now done

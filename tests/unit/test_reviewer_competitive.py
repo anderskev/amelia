@@ -23,7 +23,7 @@ class TestCompetitiveReviewPersonaAttribution:
         """
         # Set up state with execution plan, code changes, and competitive strategy
         plan = mock_execution_plan_factory(num_batches=1)
-        state = mock_execution_state_factory(
+        state, _profile = mock_execution_state_factory(
             profile_preset="api_competitive",
             execution_plan=plan,
             current_batch_index=0,
@@ -43,7 +43,7 @@ class TestCompetitiveReviewPersonaAttribution:
 
         reviewer = Reviewer(mock_driver)
 
-        result, _session_id = await reviewer.review(state, code_changes="diff --git a/file.py", workflow_id="test-workflow")
+        result, _session_id = await reviewer.review(state, code_changes="diff --git a/file.py", profile=_profile, workflow_id="test-workflow")
 
         # Each comment should be prefixed with its persona
         assert any("Security" in c for c in result.comments), \
@@ -61,7 +61,7 @@ class TestCompetitiveReviewPersonaAttribution:
     ):
         """Personas with no comments should not add empty prefixed entries."""
         plan = mock_execution_plan_factory(num_batches=1)
-        state = mock_execution_state_factory(
+        state, _profile = mock_execution_state_factory(
             profile_preset="api_competitive",
             execution_plan=plan,
             current_batch_index=0,
@@ -80,7 +80,7 @@ class TestCompetitiveReviewPersonaAttribution:
 
         reviewer = Reviewer(mock_driver)
 
-        result, _session_id = await reviewer.review(state, code_changes="diff --git a/file.py", workflow_id="test-workflow")
+        result, _session_id = await reviewer.review(state, code_changes="diff --git a/file.py", profile=_profile, workflow_id="test-workflow")
 
         # Should only have comments from Performance (the one that had comments)
         assert len(result.comments) == 1
