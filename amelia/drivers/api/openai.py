@@ -2,25 +2,35 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 import os
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
 from loguru import logger
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from pydantic_ai.agent import CallToolsNode
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
     TextPart,
+    ToolCallPart,
     UserPromptPart,
 )
 
 from amelia.core.constants import ToolName
+from amelia.core.exceptions import SecurityError
 from amelia.core.state import AgentMessage
+from amelia.drivers.api.events import ApiStreamEvent
+from amelia.drivers.api.tools import AgenticContext, run_shell_command, write_file
 from amelia.drivers.base import DriverInterface
 from amelia.tools.safe_file import SafeFileWriter
 from amelia.tools.safe_shell import SafeShellExecutor
+
+MAX_MESSAGE_SIZE = 100_000  # 100KB per message
+MAX_TOTAL_SIZE = 500_000  # 500KB total across all messages
+MAX_INSTRUCTIONS_SIZE = 10_000  # 10KB max instructions
 
 
 class ApiDriver(DriverInterface):
@@ -42,6 +52,92 @@ class ApiDriver(DriverInterface):
         """
         self.model_name = model
         self._provider = model.split(":")[0] if ":" in model else "openai"
+
+    def _validate_messages(self, messages: list[AgentMessage]) -> None:
+        """Validate message list for security and sanity.
+
+        Args:
+            messages: List of messages to validate.
+
+        Raises:
+            ValueError: If messages are invalid.
+        """
+        if not messages:
+            raise ValueError("Messages list cannot be empty")
+
+        # Check total size first (prevents many small messages attack)
+        total_size = sum(len(m.content or "") for m in messages)
+        if total_size > MAX_TOTAL_SIZE:
+            raise ValueError(
+                f"Total message content exceeds maximum ({MAX_TOTAL_SIZE // 1000}KB). "
+                f"Got {total_size} characters."
+            )
+
+        for msg in messages:
+            if not msg.content.strip():
+                raise ValueError(f"Message with role '{msg.role}' has empty or whitespace-only content")
+
+            if len(msg.content) > MAX_MESSAGE_SIZE:
+                raise ValueError(
+                    f"Message content exceeds maximum length ({MAX_MESSAGE_SIZE // 1000}KB). "
+                    f"Got {len(msg.content)} characters."
+                )
+
+            if msg.role not in ("system", "user", "assistant"):
+                raise ValueError(f"Invalid message role: {msg.role}")
+
+    def _build_message_history(self, messages: list[AgentMessage]) -> list[ModelMessage] | None:
+        """Build pydantic-ai message history from AgentMessages.
+
+        Args:
+            messages: Current conversation messages.
+
+        Returns:
+            Pydantic-ai ModelMessage list, or None for empty history.
+        """
+        non_system = [m for m in messages if m.role != "system"]
+        if len(non_system) <= 1:
+            return None
+
+        history: list[ModelMessage] = []
+        for msg in non_system[:-1]:  # Exclude last (current prompt)
+            if not msg.content:
+                continue
+            if msg.role == "user":
+                history.append(ModelRequest(parts=[UserPromptPart(content=msg.content)]))
+            elif msg.role == "assistant":
+                history.append(ModelResponse(parts=[TextPart(content=msg.content)]))
+
+        return history if history else None
+
+    def _generate_session_id(self) -> str:
+        """Generate a unique session ID.
+
+        Returns:
+            UUID string for session identification.
+        """
+        return str(uuid.uuid4())
+
+    def _validate_instructions(self, instructions: str | None) -> None:
+        """Validate instructions parameter for size and content.
+
+        Args:
+            instructions: Optional runtime instructions string.
+
+        Raises:
+            ValueError: If instructions are empty/whitespace or exceed size limit.
+        """
+        if instructions is None:
+            return
+
+        if not instructions.strip():
+            raise ValueError("instructions cannot be empty or whitespace-only")
+
+        if len(instructions) > MAX_INSTRUCTIONS_SIZE:
+            raise ValueError(
+                f"instructions exceeds maximum length ({MAX_INSTRUCTIONS_SIZE} chars). "
+                f"Got {len(instructions)} characters."
+            )
 
     async def generate(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None, **kwargs: Any) -> tuple[Any, str | None]:
         """Generate a response from the OpenAI model.
@@ -155,26 +251,82 @@ class ApiDriver(DriverInterface):
         self,
         messages: list[AgentMessage],
         cwd: str,
-        session_id: str | None = None,
-        system_prompt: str | None = None
-    ) -> AsyncIterator[Any]:
-        """Execute prompt with autonomous tool access (agentic mode).
+        instructions: str | None = None,
+    ) -> AsyncIterator[ApiStreamEvent]:
+        """Execute prompt with autonomous tool access using pydantic-ai.
 
         Args:
-            messages: List of conversation messages (system, user, assistant).
+            messages: List of conversation messages.
             cwd: Working directory for execution context.
-            session_id: Optional session ID to resume.
-            system_prompt: Optional system prompt to override any system messages in the list.
+            instructions: Runtime instructions for the agent.
 
         Yields:
-            Stream events from execution (never yields, always raises).
+            ApiStreamEvent objects as tools execute.
 
         Raises:
-            NotImplementedError: Always, as API drivers don't support agentic mode.
-
-        Note:
-            Agentic execution is not supported by API drivers.
+            ValueError: If invalid messages or cwd.
         """
-        raise NotImplementedError("Agentic execution is not supported by ApiDriver. Use CLI drivers for agentic mode.")
-        # This is an async generator stub - yield is never reached but makes the signature correct
-        yield
+
+        self._validate_messages(messages)
+        self._validate_instructions(instructions)
+
+        # Create agent with tools
+        agent = Agent(
+            self.model_name,
+            output_type=str,
+            tools=[run_shell_command, write_file],
+        )
+
+        # Build context
+        context = AgenticContext(cwd=cwd, allowed_dirs=[cwd])
+
+        # Extract current prompt from last user message
+        non_system = [m for m in messages if m.role != "system"]
+        if not non_system or non_system[-1].role != "user":
+            raise ValueError("Messages must end with a user message")
+        current_prompt = non_system[-1].content
+
+        if not current_prompt or not current_prompt.strip():
+            raise ValueError("User message cannot be empty")
+
+        # Build message history from prior messages
+        history = self._build_message_history(messages)
+
+        new_session_id = self._generate_session_id()
+
+        try:
+            async with agent.iter(  # type: ignore[call-overload]
+                current_prompt,
+                deps=context,
+                message_history=history,
+                instructions=instructions,
+            ) as agent_run:
+                async for node in agent_run:
+                    # Process tool calls from CallToolsNode
+                    if isinstance(node, CallToolsNode):
+                        for part in node.model_response.parts:
+                            if isinstance(part, ToolCallPart):
+                                yield ApiStreamEvent(
+                                    type="tool_use",
+                                    tool_name=part.tool_name,
+                                    tool_input=part.args_as_dict(),
+                                )
+
+                # Final result
+                yield ApiStreamEvent(
+                    type="result",
+                    result_text=str(agent_run.result.output) if agent_run.result else "",
+                    session_id=new_session_id,
+                )
+
+        except ValueError as e:
+            logger.info("Validation failed", error=str(e))
+            yield ApiStreamEvent(type="error", content=f"Invalid input: {e}")
+
+        except SecurityError as e:
+            logger.warning("Security violation", error=str(e))
+            yield ApiStreamEvent(type="error", content=f"Security violation: {e}")
+
+        except Exception as e:
+            logger.error("Agentic execution failed", error=str(e), error_type=type(e).__name__)
+            yield ApiStreamEvent(type="error", content=str(e))
