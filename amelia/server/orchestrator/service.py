@@ -19,7 +19,7 @@ from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
 from amelia.core.orchestrator import create_orchestrator_graph, create_review_graph
-from amelia.core.state import ExecutionPlan, ExecutionState
+from amelia.core.state import BlockerReport, ExecutionPlan, ExecutionState
 from amelia.core.types import Issue, Profile, Settings, StreamEmitter, StreamEvent
 from amelia.ext import WorkflowEventType as ExtWorkflowEventType
 from amelia.ext.exceptions import PolicyDeniedError
@@ -70,7 +70,6 @@ class OrchestratorService:
         self,
         event_bus: EventBus,
         repository: WorkflowRepository,
-        settings: Settings,
         max_concurrent: int = 5,
         checkpoint_path: str = "~/.amelia/checkpoints.db",
     ) -> None:
@@ -79,13 +78,11 @@ class OrchestratorService:
         Args:
             event_bus: Event bus for broadcasting workflow events.
             repository: Repository for workflow persistence.
-            settings: Application settings for profile management.
             max_concurrent: Maximum number of concurrent workflows (default: 5).
             checkpoint_path: Path to checkpoint database file.
         """
         self._event_bus = event_bus
         self._repository = repository
-        self._settings = settings
         self._max_concurrent = max_concurrent
         # Expand ~ and resolve path, ensure parent directory exists
         expanded_path = Path(checkpoint_path).expanduser().resolve()
@@ -139,30 +136,45 @@ class OrchestratorService:
         self,
         workflow_id: str,
         profile_id: str,
-        worktree_path: str | None = None,
+        worktree_path: str,
     ) -> Profile | None:
-        """Look up profile by ID and handle missing profile consistently.
+        """Look up profile by ID from worktree settings.
+
+        Settings are loaded from the worktree's settings.amelia.yaml file.
+        There is no fallback - each worktree must have its own settings.
 
         Args:
             workflow_id: Workflow ID for logging and status updates.
             profile_id: Profile ID to look up in settings.
-            worktree_path: Optional worktree path to set as working_dir fallback.
+            worktree_path: Worktree path to load settings from (required).
 
         Returns:
             Profile if found, None if not found (after setting workflow to failed).
         """
-        if profile_id not in self._settings.profiles:
+        settings = self._load_settings_for_worktree(worktree_path)
+        if settings is None:
+            logger.error(
+                "No settings file found in worktree",
+                workflow_id=workflow_id,
+                worktree_path=worktree_path,
+            )
+            await self._repository.set_status(
+                workflow_id, "failed", failure_reason=f"No settings.amelia.yaml in {worktree_path}"
+            )
+            return None
+
+        if profile_id not in settings.profiles:
             logger.error("Profile not found", workflow_id=workflow_id, profile_id=profile_id)
             await self._repository.set_status(
                 workflow_id, "failed", failure_reason=f"Profile '{profile_id}' not found"
             )
             return None
 
-        profile = self._settings.profiles[profile_id]
+        profile = settings.profiles[profile_id]
 
         # Ensure working_dir is set to worktree_path for git operations
         # Create a copy to avoid mutating the shared settings profile
-        if profile.working_dir is None and worktree_path:
+        if profile.working_dir is None:
             profile = profile.model_copy(update={"working_dir": worktree_path})
 
         return profile
@@ -259,24 +271,19 @@ class OrchestratorService:
             # Create workflow ID early for policy check
             workflow_id = str(uuid4())
 
-            # Load settings: prefer worktree settings, fallback to server settings
-            worktree_settings = self._load_settings_for_worktree(worktree_path)
-            effective_settings = worktree_settings if worktree_settings is not None else self._settings
-
-            # If worktree has a settings file but it failed to load, that's an error
-            if worktree_settings is None:
-                settings_path = Path(worktree_path) / "settings.amelia.yaml"
-                if settings_path.exists():
-                    raise ValueError(
-                        f"Failed to load settings from {settings_path}. "
-                        "Check the file format and ensure all required fields are present."
-                    )
+            # Load settings from worktree (required - no fallback)
+            settings = self._load_settings_for_worktree(worktree_path)
+            if settings is None:
+                raise ValueError(
+                    f"No settings.amelia.yaml found in {worktree_path}. "
+                    "Each worktree must have its own settings file."
+                )
 
             # Load the profile (use provided profile name or active profile as fallback)
-            profile_name = profile or effective_settings.active_profile
-            if profile_name not in effective_settings.profiles:
+            profile_name = profile or settings.active_profile
+            if profile_name not in settings.profiles:
                 raise ValueError(f"Profile '{profile_name}' not found in settings")
-            loaded_profile = effective_settings.profiles[profile_name]
+            loaded_profile = settings.profiles[profile_name]
 
             # Check policy hooks before starting workflow
             # This allows Enterprise to enforce rate limits, quotas, etc.
@@ -398,24 +405,19 @@ class OrchestratorService:
 
             workflow_id = str(uuid4())
 
-            # Load settings: prefer worktree settings, fallback to server settings
-            worktree_settings = self._load_settings_for_worktree(worktree_path)
-            effective_settings = worktree_settings if worktree_settings is not None else self._settings
-
-            # If worktree has a settings file but it failed to load, that's an error
-            if worktree_settings is None:
-                settings_path = Path(worktree_path) / "settings.amelia.yaml"
-                if settings_path.exists():
-                    raise ValueError(
-                        f"Failed to load settings from {settings_path}. "
-                        "Check the file format and ensure all required fields are present."
-                    )
+            # Load settings from worktree (required - no fallback)
+            settings = self._load_settings_for_worktree(worktree_path)
+            if settings is None:
+                raise ValueError(
+                    f"No settings.amelia.yaml found in {worktree_path}. "
+                    "Each worktree must have its own settings file."
+                )
 
             # Load profile
-            profile_name = profile or effective_settings.active_profile
-            if profile_name not in effective_settings.profiles:
+            profile_name = profile or settings.active_profile
+            if profile_name not in settings.profiles:
                 raise ValueError(f"Profile '{profile_name}' not found in settings")
-            loaded_profile = effective_settings.profiles[profile_name]
+            loaded_profile = settings.profiles[profile_name]
             if loaded_profile.working_dir is None:
                 loaded_profile = loaded_profile.model_copy(update={"working_dir": worktree_path})
 
@@ -1072,7 +1074,7 @@ class OrchestratorService:
                         next_nodes = state.next if state else []
 
                         logger.info(
-                            "Interrupt detected after approval",
+                            f"Interrupt detected after approval: next_nodes={next_nodes}",
                             workflow_id=workflow_id,
                             next_nodes=next_nodes,
                             interrupt_data=chunk["__interrupt__"],
@@ -1360,7 +1362,7 @@ class OrchestratorService:
                         next_nodes = state.next if state else []
 
                         logger.info(
-                            "Interrupt detected after blocker resolution",
+                            f"Interrupt detected after blocker resolution: next_nodes={next_nodes}",
                             workflow_id=workflow_id,
                             next_nodes=next_nodes,
                         )
@@ -1855,11 +1857,23 @@ class OrchestratorService:
             # Parse the execution_plan dict into an ExecutionPlan
             execution_plan = ExecutionPlan.model_validate(execution_plan_dict)
 
-            # Update the execution_state with the execution_plan
+            # Build update dict with execution_plan and optionally current_blocker
+            update_dict: dict[str, Any] = {"execution_plan": execution_plan}
+
+            # Also sync current_blocker if present in checkpoint
+            current_blocker_dict = checkpoint_state.values.get("current_blocker")
+            if current_blocker_dict is not None:
+                current_blocker = BlockerReport.model_validate(current_blocker_dict)
+                update_dict["current_blocker"] = current_blocker
+                logger.debug(
+                    "Syncing current_blocker from checkpoint",
+                    workflow_id=workflow_id,
+                    blocker_type=current_blocker.blocker_type,
+                )
+
+            # Update the execution_state with synced fields
             # ExecutionState is frozen, so we use model_copy to create an updated instance
-            state.execution_state = state.execution_state.model_copy(
-                update={"execution_plan": execution_plan}
-            )
+            state.execution_state = state.execution_state.model_copy(update=update_dict)
 
             # Save back to repository
             await self._repository.update(state)

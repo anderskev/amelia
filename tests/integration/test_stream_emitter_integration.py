@@ -34,13 +34,11 @@ class TestStreamEmitterIntegration:
         self,
         mock_event_bus: MagicMock,
         mock_repository: AsyncMock,
-        test_settings: MagicMock,
     ) -> None:
         """_create_stream_emitter returns a callable that broadcasts to EventBus."""
         service = OrchestratorService(
             event_bus=mock_event_bus,
             repository=mock_repository,
-            settings=test_settings,
             max_concurrent=5,
         )
 
@@ -69,7 +67,6 @@ class TestStreamEmitterIntegration:
         self,
         mock_event_bus: MagicMock,
         mock_repository: AsyncMock,
-        test_settings: MagicMock,
         test_profile: Profile,
         test_issue: Issue,
     ) -> None:
@@ -88,6 +85,17 @@ class TestStreamEmitterIntegration:
             worktree_path.mkdir()
             git_dir = worktree_path / ".git"
             git_dir.mkdir()
+            # Add required settings file (worktree settings are mandatory)
+            settings_content = """
+active_profile: test_profile
+profiles:
+  test_profile:
+    name: test_profile
+    driver: cli:claude
+    tracker: noop
+    strategy: single
+"""
+            (worktree_path / "settings.amelia.yaml").write_text(settings_content)
 
             # Mock tracker to return test issue
             with patch("amelia.trackers.factory.create_tracker") as mock_create_tracker:
@@ -157,7 +165,6 @@ class TestStreamEmitterIntegration:
                     service = OrchestratorService(
                         event_bus=mock_event_bus,
                         repository=mock_repository,
-                        settings=test_settings,
                         max_concurrent=5,
                     )
 
@@ -191,13 +198,11 @@ class TestStreamEmitterIntegration:
         event_type: StreamEventType,
         mock_event_bus: MagicMock,
         mock_repository: AsyncMock,
-        test_settings: MagicMock,
     ) -> None:
         """Stream emitter correctly propagates a specific StreamEventType."""
         service = OrchestratorService(
             event_bus=mock_event_bus,
             repository=mock_repository,
-            settings=test_settings,
         )
 
         emitter = service._create_stream_emitter()
@@ -225,13 +230,11 @@ class TestStreamEmitterIntegration:
         self,
         mock_event_bus: MagicMock,
         mock_repository: AsyncMock,
-        test_settings: MagicMock,
     ) -> None:
         """Events from different workflows preserve their workflow_id."""
         service = OrchestratorService(
             event_bus=mock_event_bus,
             repository=mock_repository,
-            settings=test_settings,
         )
 
         # workflow_id is carried by each StreamEvent, not the emitter

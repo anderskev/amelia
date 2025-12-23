@@ -232,6 +232,32 @@ class Reviewer:
         Returns:
             Tuple of (ReviewResult, session_id from driver).
         """
+        # Handle empty code changes - warn and auto-approve
+        if not code_changes or not code_changes.strip():
+            logger.warning(
+                "No code changes to review, auto-approving",
+                agent="reviewer",
+                persona=persona,
+                workflow_id=workflow_id,
+            )
+            if self._stream_emitter is not None:
+                event = StreamEvent(
+                    type=StreamEventType.AGENT_OUTPUT,
+                    content="No code changes to review - auto-approved",
+                    timestamp=datetime.now(UTC),
+                    agent="reviewer",
+                    workflow_id=workflow_id,
+                )
+                await self._stream_emitter(event)
+
+            result = ReviewResult(
+                reviewer_persona=persona,
+                approved=True,
+                comments=["No code changes to review"],
+                severity="low"
+            )
+            return result, state.driver_session_id
+
         # Prepare state for context strategy
         # Set code_changes_for_review if not already set (passed as parameter)
         review_state = state

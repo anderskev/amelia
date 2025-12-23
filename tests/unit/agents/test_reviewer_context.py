@@ -253,6 +253,67 @@ index 1234567..abcdefg 100644
 class TestReviewerValidation:
     """Tests for Reviewer agent fallback behavior."""
 
+    async def test_reviewer_auto_approves_empty_code_changes(
+        self,
+        mock_execution_state_factory,
+    ):
+        """Reviewer should auto-approve when code_changes is empty instead of raising.
+
+        This prevents HTTP 500 errors when there are no changes to review.
+        """
+        from unittest.mock import AsyncMock, MagicMock
+
+        from amelia.agents.reviewer import Reviewer
+
+        state, profile = mock_execution_state_factory(
+            code_changes_for_review=None
+        )
+
+        # Driver should never be called for empty changes
+        mock_driver = MagicMock()
+        mock_driver.generate = AsyncMock()
+
+        reviewer = Reviewer(mock_driver)
+
+        # Should NOT raise - should auto-approve
+        result, session_id = await reviewer._single_review(
+            state, "", profile, "General", workflow_id="test-workflow"
+        )
+
+        # Verify auto-approved result
+        assert result is not None
+        assert result.approved is True
+        assert result.severity == "low"
+        assert "No code changes to review" in result.comments
+
+        # Driver should not have been called
+        mock_driver.generate.assert_not_called()
+
+    async def test_reviewer_auto_approves_whitespace_only_code_changes(
+        self,
+        mock_execution_state_factory,
+    ):
+        """Reviewer should auto-approve when code_changes is whitespace only."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from amelia.agents.reviewer import Reviewer
+
+        state, profile = mock_execution_state_factory()
+
+        mock_driver = MagicMock()
+        mock_driver.generate = AsyncMock()
+
+        reviewer = Reviewer(mock_driver)
+
+        # Should NOT raise for whitespace-only changes
+        result, _ = await reviewer._single_review(
+            state, "   \n\t  ", profile, "General", workflow_id="test-workflow"
+        )
+
+        assert result.approved is True
+        assert "No code changes to review" in result.comments
+        mock_driver.generate.assert_not_called()
+
     async def test_reviewer_allows_no_execution_plan_with_issue(
         self,
         mock_execution_state_factory,
