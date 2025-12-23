@@ -1179,3 +1179,38 @@ profiles:
         call_args = mock_repository.create.call_args
         state = call_args[0][0]
         assert state.execution_state.profile_id == "test"
+
+    async def test_start_review_workflow_uses_worktree_settings(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+        tmp_path: Path,
+    ):
+        """start_review_workflow uses settings from worktree directory."""
+        # Create valid worktree (review doesn't require .git)
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        # Create worktree-specific settings
+        settings_content = """
+active_profile: review_profile
+profiles:
+  review_profile:
+    name: review_profile
+    driver: cli:claude
+    tracker: noop
+    strategy: single
+"""
+        (worktree / "settings.amelia.yaml").write_text(settings_content)
+
+        with patch.object(orchestrator, "_run_review_workflow", new=AsyncMock()):
+            workflow_id = await orchestrator.start_review_workflow(
+                diff_content="--- a/file.py\n+++ b/file.py\n@@ -1 +1 @@\n-old\n+new",
+                worktree_path=str(worktree),
+                worktree_name="review-test",
+            )
+
+        # Verify workflow was created with worktree profile
+        call_args = mock_repository.create.call_args
+        state = call_args[0][0]
+        assert state.execution_state.profile_id == "review_profile"
