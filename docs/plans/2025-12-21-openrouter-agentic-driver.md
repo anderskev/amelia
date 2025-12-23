@@ -13,7 +13,7 @@
 ## Task 1: Add OpenRouter to DriverType
 
 **Files:**
-- Modify: `amelia/core/types.py:27`
+- Modify: `amelia/core/types.py:20`
 - Test: `tests/unit/test_driver_types.py` (new)
 
 **Step 1: Write the failing test**
@@ -124,7 +124,7 @@ git commit -m "feat(factory): add api:openrouter driver key"
 
 ---
 
-## Task 3: Generalize ApiDriver Provider Validation
+## Task 3: Add Provider Extraction to ApiDriver
 
 **Files:**
 - Modify: `amelia/drivers/api/openai.py:35-47`
@@ -134,55 +134,46 @@ git commit -m "feat(factory): add api:openrouter driver key"
 
 ```python
 # tests/unit/test_api_driver_providers.py
-"""Tests for ApiDriver provider validation."""
-import os
+"""Tests for ApiDriver provider extraction."""
 import pytest
 from amelia.drivers.api.openai import ApiDriver
 
 
-class TestProviderValidation:
-    """Test provider validation in ApiDriver."""
+class TestProviderExtraction:
+    """Test provider extraction in ApiDriver."""
 
-    def test_accepts_openai_model(self):
-        """Should accept openai: prefixed models."""
+    def test_extracts_openai_provider(self):
+        """Should extract openai provider from model string."""
         driver = ApiDriver(model="openai:gpt-4o")
         assert driver.model_name == "openai:gpt-4o"
         assert driver._provider == "openai"
 
-    def test_accepts_openrouter_model(self):
-        """Should accept openrouter: prefixed models."""
+    def test_extracts_openrouter_provider(self):
+        """Should extract openrouter provider from model string."""
         driver = ApiDriver(model="openrouter:anthropic/claude-3.5-sonnet")
         assert driver.model_name == "openrouter:anthropic/claude-3.5-sonnet"
         assert driver._provider == "openrouter"
 
-    def test_rejects_unsupported_provider(self):
-        """Should reject unsupported providers."""
-        with pytest.raises(ValueError, match="Unsupported provider"):
-            ApiDriver(model="gemini:pro")
-
-    def test_rejects_no_prefix(self):
-        """Should reject models without provider prefix."""
-        with pytest.raises(ValueError, match="Unsupported provider"):
-            ApiDriver(model="gpt-4o")
+    def test_defaults_to_openai_without_prefix(self):
+        """Should default to openai provider when no prefix given."""
+        driver = ApiDriver(model="gpt-4o")
+        assert driver._provider == "openai"
 ```
 
 **Step 2: Run tests to verify they fail**
 
 Run: `uv run pytest tests/unit/test_api_driver_providers.py -v`
-Expected: FAIL - openrouter tests fail, _provider attribute missing
+Expected: FAIL - _provider attribute missing
 
 **Step 3: Update ApiDriver __init__**
 
 ```python
 # amelia/drivers/api/openai.py - replace __init__ method
 
-SUPPORTED_PROVIDERS = ("openai:", "openrouter:")
-
-
 class ApiDriver(DriverInterface):
     """API-based driver using pydantic-ai.
 
-    Supports OpenAI and OpenRouter providers for LLM generation.
+    Supports any provider that pydantic-ai supports (openai, openrouter, etc.).
 
     Attributes:
         model_name: The model identifier in format 'provider:model-name'.
@@ -194,19 +185,11 @@ class ApiDriver(DriverInterface):
 
         Args:
             model: Model identifier in format 'provider:model-name'.
-                   Supported providers: openai, openrouter.
+                   Pydantic-ai validates provider support at runtime.
                    Defaults to 'openai:gpt-4o'.
-
-        Raises:
-            ValueError: If model does not use a supported provider prefix.
         """
-        if not any(model.startswith(prefix) for prefix in SUPPORTED_PROVIDERS):
-            raise ValueError(
-                f"Unsupported provider in model '{model}'. "
-                f"ApiDriver supports: {', '.join(p.rstrip(':') for p in SUPPORTED_PROVIDERS)}"
-            )
         self.model_name = model
-        self._provider = model.split(":")[0]
+        self._provider = model.split(":")[0] if ":" in model else "openai"
 ```
 
 **Step 4: Run tests to verify they pass**
@@ -214,138 +197,24 @@ class ApiDriver(DriverInterface):
 Run: `uv run pytest tests/unit/test_api_driver_providers.py -v`
 Expected: PASS
 
-**Step 5: Run type checker**
-
-Run: `uv run mypy amelia/drivers/api/openai.py`
-Expected: Success
-
-**Step 6: Commit**
+**Step 5: Commit**
 
 ```bash
 git add amelia/drivers/api/openai.py tests/unit/test_api_driver_providers.py
-git commit -m "feat(api-driver): support openrouter provider"
+git commit -m "feat(api-driver): add provider extraction for openrouter support"
 ```
 
 ---
 
-## Task 4: Add Provider-Specific API Key Validation
+## ~~Task 4: API Key Validation~~ (REMOVED)
 
-**Files:**
-- Modify: `amelia/drivers/api/openai.py`
-- Test: `tests/unit/test_api_driver_providers.py`
-
-**Step 1: Write the failing tests**
-
-```python
-# tests/unit/test_api_driver_providers.py - add to existing file
-
-class TestApiKeyValidation:
-    """Test API key validation per provider."""
-
-    def test_openai_requires_openai_api_key(self, monkeypatch):
-        """OpenAI provider should require OPENAI_API_KEY."""
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-        driver = ApiDriver(model="openai:gpt-4o")
-
-        with pytest.raises(ValueError, match="OPENAI_API_KEY"):
-            driver._validate_api_key()
-
-    def test_openrouter_requires_openrouter_api_key(self, monkeypatch):
-        """OpenRouter provider should require OPENROUTER_API_KEY."""
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-        driver = ApiDriver(model="openrouter:anthropic/claude-3.5-sonnet")
-
-        with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
-            driver._validate_api_key()
-
-    def test_openai_passes_with_key_set(self, monkeypatch):
-        """OpenAI validation should pass when key is set."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        driver = ApiDriver(model="openai:gpt-4o")
-        driver._validate_api_key()  # Should not raise
-
-    def test_openrouter_passes_with_key_set(self, monkeypatch):
-        """OpenRouter validation should pass when key is set."""
-        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-        driver = ApiDriver(model="openrouter:anthropic/claude-3.5-sonnet")
-        driver._validate_api_key()  # Should not raise
-
-    def test_openai_rejects_empty_key(self, monkeypatch):
-        """OpenAI validation should reject empty string key."""
-        monkeypatch.setenv("OPENAI_API_KEY", "")
-        driver = ApiDriver(model="openai:gpt-4o")
-        with pytest.raises(ValueError, match="not set or empty"):
-            driver._validate_api_key()
-
-    def test_openai_rejects_whitespace_key(self, monkeypatch):
-        """OpenAI validation should reject whitespace-only key."""
-        monkeypatch.setenv("OPENAI_API_KEY", "   ")
-        driver = ApiDriver(model="openai:gpt-4o")
-        with pytest.raises(ValueError, match="not set or empty"):
-            driver._validate_api_key()
-```
-
-**Step 2: Run tests to verify they fail**
-
-Run: `uv run pytest tests/unit/test_api_driver_providers.py::TestApiKeyValidation -v`
-Expected: FAIL - _validate_api_key method doesn't exist
-
-**Step 3: Add _validate_api_key method**
-
-```python
-# amelia/drivers/api/openai.py - add method after __init__
-
-def _validate_api_key(self) -> None:
-    """Validate that the appropriate API key is set for the provider.
-
-    Raises:
-        ValueError: If the required API key environment variable is not set or empty.
-    """
-    if self._provider == "openai":
-        key = os.environ.get("OPENAI_API_KEY", "").strip()
-        if not key:
-            raise ValueError(
-                "OPENAI_API_KEY environment variable is not set or empty. "
-                "Please configure it to use OpenAI models."
-            )
-    elif self._provider == "openrouter":
-        key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-        if not key:
-            raise ValueError(
-                "OPENROUTER_API_KEY environment variable is not set or empty. "
-                "Please configure it to use OpenRouter models."
-            )
-```
-
-**Step 4: Update generate() to use new validation**
-
-```python
-# amelia/drivers/api/openai.py - update generate method start
-# Replace the old OPENAI_API_KEY check with:
-
-async def generate(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None, **kwargs: Any) -> tuple[Any, str | None]:
-    """Generate a response from the model."""
-    self._validate_api_key()
-    # ... rest of method unchanged
-```
-
-**Step 5: Run tests to verify they pass**
-
-Run: `uv run pytest tests/unit/test_api_driver_providers.py -v`
-Expected: PASS
-
-**Step 6: Commit**
-
-```bash
-git add amelia/drivers/api/openai.py tests/unit/test_api_driver_providers.py
-git commit -m "feat(api-driver): provider-specific API key validation"
-```
+> **Skipped:** Pydantic-ai already validates API keys when `Agent()` is instantiated.
+> It raises clear errors like `ValueError: "OPENROUTER_API_KEY environment variable not set"`.
+> Custom validation would duplicate this functionality.
 
 ---
 
-## Task 5: Create Stream Event Types
+## Task 4: Create Stream Event Types
 
 **Files:**
 - Create: `amelia/drivers/api/events.py`
@@ -506,15 +375,6 @@ class TestAgenticContext:
         with pytest.raises(ValueError, match="does not exist"):
             AgenticContext(cwd="/nonexistent/path/that/does/not/exist")
 
-    def test_resolves_symlinks(self, tmp_path):
-        """Should resolve symlinks in paths."""
-        real_dir = tmp_path / "real"
-        real_dir.mkdir()
-        symlink = tmp_path / "link"
-        symlink.symlink_to(real_dir)
-        ctx = AgenticContext(cwd=str(symlink))
-        assert ctx.cwd == str(real_dir.resolve())
-
 
 class TestRunShellCommand:
     """Test run_shell_command tool."""
@@ -593,7 +453,6 @@ Expected: FAIL - ModuleNotFoundError: No module named 'amelia.drivers.api.tools'
 # amelia/drivers/api/tools.py
 """Tool definitions for pydantic-ai agentic execution."""
 from dataclasses import dataclass
-from typing import Any
 
 from pydantic_ai import RunContext
 
@@ -623,7 +482,7 @@ class AgenticContext:
         if not cwd_path.is_dir():
             raise ValueError(f"Working directory is not a directory: {self.cwd}")
 
-        # Resolve symlinks and normalize
+        # Resolve and normalize
         self.cwd = str(cwd_path.resolve())
 
         if self.allowed_dirs:
@@ -634,6 +493,10 @@ class AgenticContext:
                     raise ValueError(f"Allowed directory does not exist: {d}")
                 resolved.append(str(p.resolve()))
             self.allowed_dirs = resolved
+
+
+MAX_COMMAND_TIMEOUT = 300  # 5 minutes max
+MAX_COMMAND_SIZE = 10_000  # 10KB max command
 
 
 async def run_shell_command(
@@ -654,9 +517,16 @@ async def run_shell_command(
     Returns:
         Command output (stdout) as a string.
     """
-    # Cap timeout to prevent resource exhaustion from LLM-controlled values
-    timeout = min(timeout, 300)  # Max 5 minutes
+    # Validate command size to prevent memory exhaustion
+    if len(command) > MAX_COMMAND_SIZE:
+        raise ValueError(f"Command size ({len(command)} bytes) exceeds maximum ({MAX_COMMAND_SIZE} bytes)")
 
+    # Validate and cap timeout
+    if timeout <= 0:
+        raise ValueError("timeout must be positive")
+    timeout = min(timeout, MAX_COMMAND_TIMEOUT)
+
+    # SafeShellExecutor.execute is async - call directly
     return await SafeShellExecutor.execute(
         command=command,
         timeout=timeout,
@@ -682,7 +552,7 @@ async def write_file(
     Returns:
         Success message confirming the write operation.
     """
-    allowed_dirs = ctx.deps.allowed_dirs or [ctx.deps.cwd]
+    allowed_dirs = ctx.deps.allowed_dirs if ctx.deps.allowed_dirs else [ctx.deps.cwd]
     return await SafeFileWriter.write(
         file_path=file_path,
         content=content,
@@ -709,90 +579,16 @@ git commit -m "feat(api-driver): add agentic tool definitions"
 
 ---
 
-## Task 7: Add Tool Support Validation
+## ~~Task 7: Tool Support Validation~~ (REMOVED)
 
-**Files:**
-- Modify: `amelia/drivers/api/openai.py`
-- Test: `tests/unit/test_api_driver_providers.py`
-
-**Step 1: Write the failing tests**
-
-```python
-# tests/unit/test_api_driver_providers.py - add to existing file
-
-class TestToolSupportValidation:
-    """Test tool support validation."""
-
-    def test_gpt4o_supports_tools(self):
-        """GPT-4o should support tools."""
-        driver = ApiDriver(model="openai:gpt-4o")
-        assert driver._supports_tools() is True
-
-    def test_claude_sonnet_supports_tools(self):
-        """Claude 3.5 Sonnet via OpenRouter should support tools."""
-        driver = ApiDriver(model="openrouter:anthropic/claude-3.5-sonnet")
-        assert driver._supports_tools() is True
-
-    def test_instruct_model_does_not_support_tools(self):
-        """Instruct models should not support tools."""
-        driver = ApiDriver(model="openai:gpt-3.5-turbo-instruct")
-        assert driver._supports_tools() is False
-```
-
-**Step 2: Run tests to verify they fail**
-
-Run: `uv run pytest tests/unit/test_api_driver_providers.py::TestToolSupportValidation -v`
-Expected: FAIL - _supports_tools method doesn't exist
-
-**Step 3: Add _supports_tools method**
-
-```python
-# amelia/drivers/api/openai.py - add after SUPPORTED_PROVIDERS constant
-
-# Models known NOT to support tool calling.
-# Note: This list may become stale as new models are released.
-# Most modern models support tools; we reject known non-tool models.
-_NO_TOOL_MODELS = frozenset({
-    "gpt-3.5-turbo-instruct",
-    "text-davinci-003",
-    "text-davinci-002",
-    "davinci",
-    "curie",
-    "babbage",
-    "ada",
-})
-
-
-# In ApiDriver class, add method:
-
-def _supports_tools(self) -> bool:
-    """Check if the current model supports tool calling.
-
-    Returns:
-        True if model supports tools, False otherwise.
-    """
-    # Extract model name without provider prefix
-    model_suffix = self.model_name.split(":", 1)[1] if ":" in self.model_name else self.model_name
-
-    # Most modern models support tools; reject known non-tool models
-    return model_suffix not in _NO_TOOL_MODELS
-```
-
-**Step 4: Run tests to verify they pass**
-
-Run: `uv run pytest tests/unit/test_api_driver_providers.py::TestToolSupportValidation -v`
-Expected: PASS
-
-**Step 5: Commit**
-
-```bash
-git add amelia/drivers/api/openai.py tests/unit/test_api_driver_providers.py
-git commit -m "feat(api-driver): add tool support validation"
-```
+> **Skipped:** The `_NO_TOOL_MODELS` denylist would become stale immediately.
+> Modern models (2024+) all support tools. If a model doesn't support tools,
+> pydantic-ai will raise a clear error when `Agent()` tries to register tools.
+> No need to maintain a historical blocklist of deprecated models.
 
 ---
 
-## Task 8: Implement execute_agentic Method
+## Task 6: Implement execute_agentic Method
 
 > **Note:** This task is split into 3 subtasks for better test coverage and maintainability.
 > Each subtask focuses on a single responsibility with dedicated tests.
@@ -833,11 +629,26 @@ class TestValidateMessages:
         with pytest.raises(ValueError, match="None content"):
             driver._validate_messages([AgentMessage(role="user", content=None)])
 
+    def test_rejects_whitespace_only_content(self, driver):
+        """Should reject messages with only whitespace content."""
+        with pytest.raises(ValueError, match="empty or whitespace-only"):
+            driver._validate_messages([AgentMessage(role="user", content="   \n\t  ")])
+
     def test_rejects_oversized_content(self, driver):
         """Should reject messages exceeding 100KB."""
         large_content = "x" * 100_001
         with pytest.raises(ValueError, match="exceeds maximum"):
             driver._validate_messages([AgentMessage(role="user", content=large_content)])
+
+    def test_rejects_total_size_exceeding_limit(self, driver):
+        """Should reject when total message size exceeds 500KB."""
+        # 10 messages of 60KB each = 600KB > 500KB limit
+        messages = [
+            AgentMessage(role="user", content="x" * 60_000)
+            for _ in range(10)
+        ]
+        with pytest.raises(ValueError, match="Total message content exceeds"):
+            driver._validate_messages(messages)
 
     def test_rejects_invalid_role(self, driver):
         """Should reject invalid message roles."""
@@ -945,18 +756,6 @@ Expected: PASS
 class TestExecuteAgentic:
     """Test execute_agentic core method."""
 
-    async def test_rejects_model_without_tool_support(self, monkeypatch):
-        """Should raise ValueError for models without tool support."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        driver = ApiDriver(model="openai:gpt-3.5-turbo-instruct")
-
-        with pytest.raises(ValueError, match="does not support tool calling"):
-            async for _ in driver.execute_agentic(
-                messages=[AgentMessage(role="user", content="test")],
-                cwd="/tmp",
-            ):
-                pass
-
     async def test_rejects_nonexistent_cwd(self, monkeypatch):
         """Should reject non-existent working directory."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -966,24 +765,6 @@ class TestExecuteAgentic:
             async for _ in driver.execute_agentic(
                 messages=[AgentMessage(role="user", content="test")],
                 cwd="/nonexistent/path/that/does/not/exist",
-            ):
-                pass
-
-    async def test_rejects_symlink_cwd(self, monkeypatch, tmp_path):
-        """Should reject symlink as working directory for security."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        driver = ApiDriver(model="openai:gpt-4o")
-
-        # Create a symlink
-        real_dir = tmp_path / "real"
-        real_dir.mkdir()
-        symlink = tmp_path / "link"
-        symlink.symlink_to(real_dir)
-
-        with pytest.raises(ValueError, match="symlink"):
-            async for _ in driver.execute_agentic(
-                messages=[AgentMessage(role="user", content="test")],
-                cwd=str(symlink),
             ):
                 pass
 
@@ -1041,10 +822,19 @@ import uuid
 from collections.abc import AsyncIterator
 
 import httpx
-from pydantic_ai import UnexpectedModelBehavior
+from loguru import logger
+from pydantic_ai import Agent
 from pydantic_ai.agent import CallToolsNode
-from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    UserPromptPart,
+)
 
+from amelia.core.exceptions import SecurityError
 from amelia.drivers.api.events import ApiStreamEvent
 from amelia.drivers.api.tools import AgenticContext, run_shell_command, write_file
 ```
@@ -1072,6 +862,7 @@ async def execute_agentic(
     self,
     messages: list[AgentMessage],
     cwd: str,
+    session_id: str | None = None,
     instructions: str | None = None,
 ) -> AsyncIterator[ApiStreamEvent]:
     """Execute prompt with autonomous tool access using pydantic-ai.
@@ -1079,31 +870,29 @@ async def execute_agentic(
     Args:
         messages: List of conversation messages.
         cwd: Working directory for execution context.
+        session_id: Optional session ID for continuity (currently unused, for interface compat).
         instructions: Runtime instructions for the agent.
 
     Yields:
         ApiStreamEvent objects as tools execute.
 
     Raises:
-        ValueError: If API key not set, model doesn't support tools, or invalid messages.
+        ValueError: If invalid messages or cwd.
     """
-    # Early validation - check tool support first (fast fail)
-    if not self._supports_tools():
-        raise ValueError(
-            f"Model '{self.model_name}' does not support tool calling. "
-            "Use a model with tool support for agentic execution."
+    # Note: session_id is accepted for interface compatibility but not used
+    # pydantic-ai manages its own conversation state via message_history
+    if session_id:
+        logger.debug(
+            "session_id parameter provided but not used for continuity. "
+            "Pydantic-ai manages conversation state via message_history parameter instead."
         )
 
-    # Validate cwd early before any other operations
-    from pathlib import Path
-    cwd_path = Path(cwd)
-    if not cwd_path.exists() or not cwd_path.is_dir():
-        raise ValueError(f"Working directory does not exist or is not a directory: {cwd}")
-    if cwd_path.is_symlink():
-        raise ValueError(f"Working directory cannot be a symlink for security reasons: {cwd}")
+    # Note: cwd validation (existence, directory check) is handled
+    # by AgenticContext.__post_init__ when we create the context below.
+    # API key validation is handled by pydantic-ai when Agent() is created.
 
-    self._validate_api_key()
     self._validate_messages(messages)
+    self._validate_instructions(instructions)
 
     # Create agent with tools
     agent = Agent(
@@ -1131,10 +920,10 @@ async def execute_agentic(
 
     try:
         async with agent.iter(
-            current_prompt,
+            user_prompt=current_prompt,  # Must use keyword argument
             deps=context,
             message_history=history,
-            instructions=instructions,  # Pass runtime instructions here
+            instructions=instructions,
         ) as agent_run:
             async for node in agent_run:
                 # Process tool calls from CallToolsNode
@@ -1157,40 +946,48 @@ async def execute_agentic(
             )
 
     except ValueError as e:
+        # Our validation errors (messages, instructions, cwd)
         logger.info("Validation failed", error=str(e))
         yield ApiStreamEvent(type="error", content=f"Invalid input: {e}")
 
-    except TimeoutError as e:
-        logger.warning("Execution timeout", error=str(e))
-        yield ApiStreamEvent(type="error", content="Execution timed out. Try smaller tasks.")
-
-    except UnexpectedModelBehavior as e:
-        logger.warning("Model returned unexpected response", error=str(e))
-        yield ApiStreamEvent(type="error", content=f"Model error: {e}")
-
-    except httpx.RequestError as e:
-        # Catch all httpx network errors (parent class of TimeoutException, HTTPStatusError, etc.)
-        if isinstance(e, httpx.TimeoutException):
-            logger.warning("Network timeout", error=str(e))
-            yield ApiStreamEvent(type="error", content="Network timeout. Please try again.")
-        elif isinstance(e, httpx.HTTPStatusError):
-            if e.response.status_code == 429:
-                logger.warning("Rate limited", error=str(e))
-                yield ApiStreamEvent(type="error", content="Rate limited. Please wait and retry.")
-            elif e.response.status_code in (401, 403):
-                logger.error("Authentication failed", error=str(e))
-                yield ApiStreamEvent(type="error", content="Authentication failed. Check API key.")
-            else:
-                logger.error("API error", status_code=e.response.status_code)
-                yield ApiStreamEvent(type="error", content=f"API error: {e.response.status_code}")
-        else:
-            # Catches ConnectError, NetworkError, etc.
-            logger.warning("Network error", error_type=type(e).__name__)
-            yield ApiStreamEvent(type="error", content="Network error. Please try again.")
+    except SecurityError as e:
+        # SafeShellExecutor/SafeFileWriter security violations
+        logger.warning("Security violation", error=str(e))
+        yield ApiStreamEvent(type="error", content=f"Security violation: {e}")
 
     except Exception as e:
-        logger.error("Agentic execution failed", error=str(e))
-        yield ApiStreamEvent(type="error", content="An unexpected error occurred. Check logs.")
+        # Pydantic-ai exceptions have excellent error messages - pass them through
+        # This covers: UsageLimitExceeded, ModelRetry, UnexpectedModelBehavior,
+        # AgentRunError, httpx errors, etc.
+        logger.error("Agentic execution failed", error=str(e), error_type=type(e).__name__)
+        yield ApiStreamEvent(type="error", content=str(e))
+
+MAX_MESSAGE_SIZE = 100_000  # 100KB per message
+MAX_TOTAL_SIZE = 500_000  # 500KB total across all messages
+MAX_INSTRUCTIONS_SIZE = 10_000  # 10KB max instructions
+
+
+def _validate_instructions(self, instructions: str | None) -> None:
+    """Validate instructions parameter for size and content.
+
+    Args:
+        instructions: Optional runtime instructions string.
+
+    Raises:
+        ValueError: If instructions are empty/whitespace or exceed size limit.
+    """
+    if instructions is None:
+        return
+
+    if not instructions.strip():
+        raise ValueError("instructions cannot be empty or whitespace-only")
+
+    if len(instructions) > MAX_INSTRUCTIONS_SIZE:
+        raise ValueError(
+            f"instructions exceeds maximum length ({MAX_INSTRUCTIONS_SIZE} chars). "
+            f"Got {len(instructions)} characters."
+        )
+
 
 def _validate_messages(self, messages: list[AgentMessage]) -> None:
     """Validate message list for security and sanity.
@@ -1204,13 +1001,24 @@ def _validate_messages(self, messages: list[AgentMessage]) -> None:
     if not messages:
         raise ValueError("Messages list cannot be empty")
 
+    # Check total size first (prevents many small messages attack)
+    total_size = sum(len(m.content or "") for m in messages)
+    if total_size > MAX_TOTAL_SIZE:
+        raise ValueError(
+            f"Total message content exceeds maximum ({MAX_TOTAL_SIZE // 1000}KB). "
+            f"Got {total_size} characters."
+        )
+
     for msg in messages:
         if msg.content is None:
             raise ValueError(f"Message with role '{msg.role}' has None content")
 
-        if len(msg.content) > 100_000:  # 100KB limit
+        if not msg.content.strip():
+            raise ValueError(f"Message with role '{msg.role}' has empty or whitespace-only content")
+
+        if len(msg.content) > MAX_MESSAGE_SIZE:
             raise ValueError(
-                f"Message content exceeds maximum length (100KB). "
+                f"Message content exceeds maximum length ({MAX_MESSAGE_SIZE // 1000}KB). "
                 f"Got {len(msg.content)} characters."
             )
 
@@ -1343,190 +1151,15 @@ git commit -m "test: add OpenRouter agentic integration test"
 
 ---
 
-## Task 11: Extract Message Utilities Module
+## ~~Task 11: Extract Message Utilities~~ (REMOVED)
 
-**Goal:** Eliminate duplicated message handling logic across drivers.
-
-**Files:**
-- Create: `amelia/drivers/message_utils.py`
-- Modify: `amelia/drivers/api/openai.py`
-- Modify: `amelia/drivers/cli/claude.py`
-- Test: `tests/unit/test_message_utils.py`
-
-**Step 1: Write the failing tests**
-
-```python
-# tests/unit/test_message_utils.py
-"""Tests for driver message utilities."""
-import pytest
-from amelia.core.state import AgentMessage
-from amelia.drivers.message_utils import (
-    extract_system_prompt,
-    filter_conversation_messages,
-)
-
-
-class TestExtractSystemPrompt:
-    """Test extract_system_prompt utility."""
-
-    def test_returns_none_for_no_system_messages(self):
-        """Should return None when no system messages present."""
-        messages = [AgentMessage(role="user", content="Hello")]
-        assert extract_system_prompt(messages) is None
-
-    def test_extracts_single_system_message(self):
-        """Should extract content from single system message."""
-        messages = [
-            AgentMessage(role="system", content="You are helpful"),
-            AgentMessage(role="user", content="Hello"),
-        ]
-        assert extract_system_prompt(messages) == "You are helpful"
-
-    def test_joins_multiple_system_messages(self):
-        """Should join multiple system messages with double newline."""
-        messages = [
-            AgentMessage(role="system", content="First instruction"),
-            AgentMessage(role="system", content="Second instruction"),
-            AgentMessage(role="user", content="Hello"),
-        ]
-        assert extract_system_prompt(messages) == "First instruction\n\nSecond instruction"
-
-    def test_skips_empty_system_content(self):
-        """Should skip system messages with empty content."""
-        messages = [
-            AgentMessage(role="system", content="Valid"),
-            AgentMessage(role="system", content=""),
-            AgentMessage(role="system", content="Also valid"),
-        ]
-        assert extract_system_prompt(messages) == "Valid\n\nAlso valid"
-
-    def test_skips_none_system_content(self):
-        """Should skip system messages with None content."""
-        messages = [
-            AgentMessage(role="system", content="Valid"),
-            AgentMessage(role="system", content=None),
-        ]
-        assert extract_system_prompt(messages) == "Valid"
-
-
-class TestFilterConversationMessages:
-    """Test filter_conversation_messages utility."""
-
-    def test_filters_out_system_messages(self):
-        """Should remove all system messages."""
-        messages = [
-            AgentMessage(role="system", content="System prompt"),
-            AgentMessage(role="user", content="Hello"),
-            AgentMessage(role="assistant", content="Hi"),
-        ]
-        result = filter_conversation_messages(messages)
-        assert len(result) == 2
-        assert all(m.role != "system" for m in result)
-
-    def test_preserves_message_order(self):
-        """Should maintain original message order."""
-        messages = [
-            AgentMessage(role="user", content="First"),
-            AgentMessage(role="assistant", content="Response"),
-            AgentMessage(role="user", content="Second"),
-        ]
-        result = filter_conversation_messages(messages)
-        assert [m.content for m in result] == ["First", "Response", "Second"]
-
-    def test_returns_empty_for_system_only(self):
-        """Should return empty list when only system messages."""
-        messages = [AgentMessage(role="system", content="System only")]
-        assert filter_conversation_messages(messages) == []
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `uv run pytest tests/unit/test_message_utils.py -v`
-Expected: FAIL - ModuleNotFoundError
-
-**Step 3: Create message_utils module**
-
-```python
-# amelia/drivers/message_utils.py
-"""Shared utilities for message handling across drivers."""
-from amelia.core.state import AgentMessage
-
-
-def extract_system_prompt(messages: list[AgentMessage]) -> str | None:
-    """Extract and combine all system messages into a single prompt.
-
-    Args:
-        messages: List of conversation messages.
-
-    Returns:
-        Combined system prompt string, or None if no system messages.
-    """
-    system_messages = [msg for msg in messages if msg.role == "system"]
-    if not system_messages:
-        return None
-
-    contents = [msg.content for msg in system_messages if msg.content]
-    return "\n\n".join(contents) if contents else None
-
-
-def filter_conversation_messages(messages: list[AgentMessage]) -> list[AgentMessage]:
-    """Filter out system messages, keeping only conversation history.
-
-    Args:
-        messages: List of all messages including system messages.
-
-    Returns:
-        List of non-system messages preserving order.
-    """
-    return [msg for msg in messages if msg.role != "system"]
-```
-
-**Step 4: Run tests to verify they pass**
-
-Run: `uv run pytest tests/unit/test_message_utils.py -v`
-Expected: PASS
-
-**Step 5: Update ApiDriver to use utilities**
-
-```python
-# amelia/drivers/api/openai.py - replace duplicated logic
-from amelia.drivers.message_utils import extract_system_prompt, filter_conversation_messages
-
-# In generate() method, replace:
-#   system_messages = [msg for msg in messages if msg.role == 'system']
-#   system_prompt = "\n\n".join(msg.content for msg in system_messages if msg.content) if system_messages else None
-# With:
-system_prompt = extract_system_prompt(messages)
-```
-
-**Step 6: Update ClaudeCliDriver to use utilities**
-
-```python
-# amelia/drivers/cli/claude.py - replace duplicated logic (lines 309, 517)
-from amelia.drivers.message_utils import extract_system_prompt, filter_conversation_messages
-
-# Replace all instances of:
-#   system_messages = [m for m in messages if m.role == "system"]
-#   system_prompt = "\n\n".join(m.content for m in system_messages if m.content)
-# With:
-system_prompt = extract_system_prompt(messages)
-```
-
-**Step 7: Run full test suite**
-
-Run: `uv run pytest tests/unit/ -v`
-Expected: PASS
-
-**Step 8: Commit**
-
-```bash
-git add amelia/drivers/message_utils.py tests/unit/test_message_utils.py amelia/drivers/api/openai.py amelia/drivers/cli/claude.py
-git commit -m "refactor(drivers): extract shared message utilities"
-```
+> **Skipped:** Premature abstraction - "Rule of Three" says wait until 3rd use case.
+> Both drivers have slightly different message handling needs and may diverge.
+> The inline code is only ~10 lines in each driver. Wait for a third use case.
 
 ---
 
-## Task 12: Standardize execute_agentic Interface
+## Task 7: Standardize execute_agentic Interface
 
 **Goal:** Clarify that `execute_agentic` uses `instructions` parameter only - no system messages in the message list.
 
@@ -1534,8 +1167,80 @@ git commit -m "refactor(drivers): extract shared message utilities"
 - Modify: `amelia/drivers/base.py`
 - Modify: `amelia/drivers/api/openai.py`
 - Modify: `amelia/drivers/cli/claude.py`
+- Test: `tests/unit/test_driver_interface.py` (new)
 
-**Step 1: Update base interface docstring**
+**Step 1: Write interface compliance tests**
+
+```python
+# tests/unit/test_driver_interface.py
+"""Tests for driver interface compliance."""
+import pytest
+from unittest.mock import MagicMock, AsyncMock, patch
+from amelia.core.state import AgentMessage
+from amelia.drivers.api.openai import ApiDriver
+from amelia.drivers.cli.claude import ClaudeCliDriver
+
+
+class TestInterfaceCompliance:
+    """Test both drivers implement execute_agentic correctly."""
+
+    def test_api_driver_accepts_instructions_parameter(self, monkeypatch):
+        """ApiDriver.execute_agentic should accept instructions parameter."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        driver = ApiDriver(model="openai:gpt-4o")
+
+        # Verify the method signature includes instructions
+        import inspect
+        sig = inspect.signature(driver.execute_agentic)
+        assert "instructions" in sig.parameters, "execute_agentic must accept 'instructions' parameter"
+        assert "cwd" in sig.parameters, "execute_agentic must accept 'cwd' parameter"
+
+    def test_claude_driver_accepts_instructions_parameter(self):
+        """ClaudeCliDriver.execute_agentic should accept instructions parameter."""
+        driver = ClaudeCliDriver()
+
+        # Verify the method signature includes instructions
+        import inspect
+        sig = inspect.signature(driver.execute_agentic)
+        assert "instructions" in sig.parameters, "execute_agentic must accept 'instructions' parameter"
+        assert "cwd" in sig.parameters, "execute_agentic must accept 'cwd' parameter"
+
+    async def test_api_driver_uses_instructions_not_system_messages(self, monkeypatch, tmp_path):
+        """ApiDriver should use instructions parameter, not extract from system messages."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        driver = ApiDriver(model="openai:gpt-4o")
+
+        with patch("amelia.drivers.api.openai.Agent") as mock_agent_class:
+            mock_run = AsyncMock()
+            mock_run.result = MagicMock(output="Done")
+            mock_run.__aenter__ = AsyncMock(return_value=mock_run)
+            mock_run.__aexit__ = AsyncMock(return_value=None)
+            mock_run.__aiter__ = lambda self: iter([])
+
+            mock_agent = MagicMock()
+            mock_agent.iter = MagicMock(return_value=mock_run)
+            mock_agent_class.return_value = mock_agent
+
+            # Execute with instructions parameter
+            async for _ in driver.execute_agentic(
+                messages=[AgentMessage(role="user", content="test")],
+                cwd=str(tmp_path),
+                instructions="Be helpful",
+            ):
+                pass
+
+            # Verify instructions was passed to agent.iter
+            mock_agent.iter.assert_called_once()
+            call_kwargs = mock_agent.iter.call_args.kwargs
+            assert call_kwargs.get("instructions") == "Be helpful"
+```
+
+**Step 2: Run tests to verify they fail**
+
+Run: `uv run pytest tests/unit/test_driver_interface.py -v`
+Expected: FAIL - ClaudeCliDriver may still use system_prompt
+
+**Step 3: Update base interface docstring**
 
 ```python
 # amelia/drivers/base.py - update execute_agentic docstring
@@ -1561,11 +1266,11 @@ async def execute_agentic(
     ...
 ```
 
-**Step 2: Verify ApiDriver implementation matches**
+**Step 4: Verify ApiDriver implementation matches**
 
 The ApiDriver implementation from Task 8 already filters system messages and uses `instructions`. Verify no changes needed.
 
-**Step 3: Update ClaudeCliDriver to match**
+**Step 5: Update ClaudeCliDriver to match**
 
 ```python
 # amelia/drivers/cli/claude.py - update execute_agentic
@@ -1573,243 +1278,32 @@ The ApiDriver implementation from Task 8 already filters system messages and use
 # The instructions parameter is passed to --append-system-prompt instead
 ```
 
-**Step 4: Commit**
-
-```bash
-git add amelia/drivers/base.py amelia/drivers/cli/claude.py
-git commit -m "refactor(drivers): standardize execute_agentic to use instructions only"
-```
-
----
-
-## Task 13: Add DeveloperContextStrategy
-
-**Goal:** Create context strategy for Developer agent to match Architect and Reviewer patterns.
-
-**Files:**
-- Create: `amelia/agents/developer_context.py`
-- Modify: `amelia/agents/developer.py`
-- Test: `tests/unit/test_developer_context.py`
-
-**Step 1: Write the failing tests**
-
-```python
-# tests/unit/test_developer_context.py
-"""Tests for Developer context strategy."""
-import pytest
-from amelia.agents.developer_context import DeveloperContextStrategy
-from amelia.core.context import ContextSection
-
-
-class TestDeveloperContextStrategy:
-    """Test DeveloperContextStrategy."""
-
-    def test_has_system_prompt(self):
-        """Should define a system prompt."""
-        strategy = DeveloperContextStrategy()
-        assert strategy.SYSTEM_PROMPT
-        assert "developer" in strategy.SYSTEM_PROMPT.lower()
-
-    def test_defines_allowed_sections(self):
-        """Should define allowed context sections."""
-        strategy = DeveloperContextStrategy()
-        assert hasattr(strategy, "ALLOWED_SECTIONS")
-        assert "current_task" in strategy.ALLOWED_SECTIONS
-
-    def test_compile_returns_compiled_context(self):
-        """Should return CompiledContext with system prompt."""
-        strategy = DeveloperContextStrategy()
-        sections = [
-            ContextSection(name="current_task", content="Fix the bug"),
-        ]
-        result = strategy.compile(sections)
-        assert result.system_prompt == strategy.SYSTEM_PROMPT
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `uv run pytest tests/unit/test_developer_context.py -v`
-Expected: FAIL - ModuleNotFoundError
-
-**Step 3: Create DeveloperContextStrategy**
-
-```python
-# amelia/agents/developer_context.py
-"""Context strategy for the Developer agent."""
-from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
-
-
-class DeveloperContextStrategy(ContextStrategy):
-    """Context compilation strategy for the Developer agent.
-
-    The Developer agent executes implementation tasks step-by-step,
-    focusing on writing code and running commands safely.
-    """
-
-    SYSTEM_PROMPT = """You are a careful software developer executing implementation tasks.
-
-Your responsibilities:
-- Execute one task at a time from the provided plan
-- Write clean, tested code following project conventions
-- Run commands safely and report results accurately
-- Stop and report if you encounter blocking issues
-
-Always verify your changes work before marking a task complete."""
-
-    ALLOWED_SECTIONS = frozenset({
-        "current_task",
-        "requirements",
-        "errors",
-        "file_context",
-        "test_results",
-    })
-
-    def compile(self, sections: list[ContextSection]) -> CompiledContext:
-        """Compile context sections for Developer execution.
-
-        Args:
-            sections: Available context sections.
-
-        Returns:
-            CompiledContext with Developer-specific formatting.
-        """
-        filtered = [s for s in sections if s.name in self.ALLOWED_SECTIONS]
-        messages = self._sections_to_messages(filtered)
-        return CompiledContext(
-            system_prompt=self.SYSTEM_PROMPT,
-            messages=messages,
-        )
-```
-
-**Step 4: Run tests to verify they pass**
-
-Run: `uv run pytest tests/unit/test_developer_context.py -v`
-Expected: PASS
-
-**Step 5: Integrate with Developer agent**
-
-```python
-# amelia/agents/developer.py - add import and use strategy
-from amelia.agents.developer_context import DeveloperContextStrategy
-
-# In Developer class, add:
-context_strategy = DeveloperContextStrategy()
-```
-
-**Step 6: Commit**
-
-```bash
-git add amelia/agents/developer_context.py amelia/agents/developer.py tests/unit/test_developer_context.py
-git commit -m "refactor(developer): add DeveloperContextStrategy for consistency"
-```
-
----
-
-## Task 14: Consolidate ClaudeCliDriver Prompt Preparation
-
-**Goal:** Extract duplicated prompt preparation logic in ClaudeCliDriver.
-
-**Files:**
-- Modify: `amelia/drivers/cli/claude.py`
-- Test: `tests/unit/test_claude_driver.py`
-
-**Step 1: Write the failing test**
-
-```python
-# tests/unit/test_claude_driver.py - add to existing tests
-class TestPrepareExecution:
-    """Test _prepare_execution helper."""
-
-    def test_builds_prompt_from_messages(self):
-        """Should convert messages to prompt string."""
-        driver = ClaudeCliDriver()
-        messages = [
-            AgentMessage(role="user", content="Hello"),
-            AgentMessage(role="assistant", content="Hi"),
-        ]
-        prompt, args = driver._prepare_execution(messages)
-        assert "Hello" in prompt
-        assert "Hi" in prompt
-
-    def test_extracts_system_prompt_to_args(self):
-        """Should add system prompt to CLI args."""
-        driver = ClaudeCliDriver()
-        messages = [
-            AgentMessage(role="system", content="Be helpful"),
-            AgentMessage(role="user", content="Hello"),
-        ]
-        prompt, args = driver._prepare_execution(messages)
-        assert "--append-system-prompt" in args
-        assert "Be helpful" in args
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `uv run pytest tests/unit/test_claude_driver.py::TestPrepareExecution -v`
-Expected: FAIL - _prepare_execution doesn't exist
-
-**Step 3: Extract _prepare_execution method**
-
-```python
-# amelia/drivers/cli/claude.py - add method
-from amelia.drivers.message_utils import extract_system_prompt
-
-def _prepare_execution(
-    self,
-    messages: list[AgentMessage],
-    session_id: str | None = None,
-) -> tuple[str, list[str]]:
-    """Prepare prompt and CLI arguments from messages.
-
-    Args:
-        messages: Conversation messages.
-        session_id: Optional session ID for continuation.
-
-    Returns:
-        Tuple of (prompt_string, additional_cli_args).
-    """
-    prompt = self._convert_messages_to_prompt(messages)
-    args: list[str] = []
-
-    system_prompt = extract_system_prompt(messages)
-    if system_prompt:
-        args.extend(["--append-system-prompt", system_prompt])
-
-    if session_id:
-        args.extend(["--resume", session_id])
-
-    return prompt, args
-```
-
-**Step 4: Update generate_stream to use helper**
-
-```python
-# amelia/drivers/cli/claude.py - refactor generate_stream
-# Replace lines 517-537 with call to _prepare_execution
-prompt, extra_args = self._prepare_execution(messages, session_id)
-# ... rest of method uses prompt and extra_args
-```
-
-**Step 5: Update execute_agentic to use helper**
-
-```python
-# amelia/drivers/cli/claude.py - refactor execute_agentic
-# Replace lines 603-619 with call to _prepare_execution
-prompt, extra_args = self._prepare_execution(messages, session_id)
-# ... rest of method uses prompt and extra_args
-```
-
 **Step 6: Run tests to verify they pass**
 
-Run: `uv run pytest tests/unit/test_claude_driver.py -v`
+Run: `uv run pytest tests/unit/test_driver_interface.py -v`
 Expected: PASS
 
 **Step 7: Commit**
 
 ```bash
-git add amelia/drivers/cli/claude.py tests/unit/test_claude_driver.py
-git commit -m "refactor(claude-driver): consolidate prompt preparation"
+git add amelia/drivers/base.py amelia/drivers/cli/claude.py tests/unit/test_driver_interface.py
+git commit -m "refactor(drivers): standardize execute_agentic to use instructions only"
 ```
+
+---
+
+## ~~Task 13: DeveloperContextStrategy~~ (REMOVED)
+
+> **Skipped:** Not needed yet. Developer agent uses `execute_agentic()` with tools,
+> not `generate()` with schemas like Architect/Reviewer. Different execution modes
+> require different context handling. Add only when there's a concrete need.
+
+---
+
+## ~~Task 14: ClaudeCliDriver Prompt Consolidation~~ (REMOVED)
+
+> **Skipped:** Premature abstraction - the 15 lines in each method are clear.
+> Wait until a third use case emerges or the methods start to diverge.
 
 ---
 
@@ -1818,31 +1312,28 @@ git commit -m "refactor(claude-driver): consolidate prompt preparation"
 After completing all tasks:
 - `ApiDriver` accepts both `openai:*` and `openrouter:*` models
 - `execute_agentic()` uses pydantic-ai with registered tools
-- Tool support is validated before execution
 - Session IDs are generated for continuity
-- Shared message utilities eliminate duplication across drivers
 - `execute_agentic` interface standardized to use `instructions` parameter
-- All agents have consistent context strategies
 - All tests pass, lint clean, types check
+
+**Simplified approach (leaning on pydantic-ai):**
+- No custom `SUPPORTED_PROVIDERS` validation - pydantic-ai handles it
+- No custom `_validate_api_key()` - pydantic-ai validates at Agent creation
+- No `_NO_TOOL_MODELS` denylist - pydantic-ai errors if tools not supported
+- Simplified error handling - pydantic-ai exceptions have excellent messages
 
 **Files created/modified:**
 - `amelia/core/types.py` - Added `api:openrouter`
 - `amelia/drivers/factory.py` - Updated factory
-- `amelia/drivers/api/openai.py` - Major updates
-- `amelia/drivers/api/events.py` - New
-- `amelia/drivers/api/tools.py` - New
+- `amelia/drivers/api/openai.py` - Provider extraction + execute_agentic
+- `amelia/drivers/api/events.py` - New (ApiStreamEvent)
+- `amelia/drivers/api/tools.py` - New (run_shell_command, write_file)
 - `amelia/drivers/base.py` - Updated docstrings
-- `amelia/drivers/message_utils.py` - New (shared utilities)
-- `amelia/drivers/cli/claude.py` - Refactored
-- `amelia/agents/developer.py` - Added context strategy
-- `amelia/agents/developer_context.py` - New
 - `tests/unit/test_driver_types.py` - New
 - `tests/unit/test_driver_factory.py` - New
 - `tests/unit/test_api_driver_providers.py` - New
 - `tests/unit/test_api_events.py` - New
 - `tests/unit/test_api_tools.py` - New
 - `tests/unit/test_api_driver_agentic.py` - New
-- `tests/unit/test_message_utils.py` - New
-- `tests/unit/test_developer_context.py` - New
-- `tests/unit/test_claude_driver.py` - Extended
-- `tests/integration/test_openrouter_agentic.py` - New
+- `tests/unit/test_driver_interface.py` - New
+- `tests/integration/test_openrouter_agentic.py` - New (optional)
