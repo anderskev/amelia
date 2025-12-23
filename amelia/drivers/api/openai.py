@@ -33,18 +33,15 @@ class ApiDriver(DriverInterface):
     """
 
     def __init__(self, model: str = 'openai:gpt-4o'):
-        """Initialize the API driver with an OpenAI model.
+        """Initialize the API driver.
 
         Args:
-            model: Model identifier in format 'openai:model-name'. Defaults to 'openai:gpt-4o'.
-
-        Raises:
-            ValueError: If model does not start with 'openai:'.
+            model: Model identifier in format 'provider:model-name'.
+                   Pydantic-ai validates provider support at runtime.
+                   Defaults to 'openai:gpt-4o'.
         """
-        # Validate that model is OpenAI
-        if not model.startswith("openai:"):
-            raise ValueError(f"Unsupported provider in model '{model}'. ApiDriver only supports 'openai:' models.")
         self.model_name = model
+        self._provider = model.split(":")[0] if ":" in model else "openai"
 
     async def generate(self, messages: list[AgentMessage], schema: type[BaseModel] | None = None, **kwargs: Any) -> tuple[Any, str | None]:
         """Generate a response from the OpenAI model.
