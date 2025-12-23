@@ -1,4 +1,6 @@
 """Tests for ApiDriver OpenRouter integration."""
+from unittest.mock import patch
+
 from pydantic_ai.models.openrouter import OpenRouterModel
 
 from amelia.drivers.api.openai import OPENROUTER_APP_TITLE, OPENROUTER_APP_URL, ApiDriver
@@ -17,20 +19,9 @@ class TestApiDriverInit:
         driver = ApiDriver()
         assert driver.model_name == ApiDriver.DEFAULT_MODEL
 
-    def test_accepts_any_openrouter_model(self):
-        """Should accept any OpenRouter model identifier."""
-        driver = ApiDriver(model="openai/gpt-4o")
-        assert driver.model_name == "openai/gpt-4o"
-
 
 class TestBuildModel:
     """Test _build_model method."""
-
-    def test_returns_openrouter_model(self):
-        """Should return OpenRouterModel for any model."""
-        driver = ApiDriver(model="anthropic/claude-3.5-sonnet")
-        model = driver._build_model()
-        assert isinstance(model, OpenRouterModel)
 
     def test_model_name_passed_correctly(self):
         """Should pass model name to OpenRouterModel."""
@@ -42,9 +33,15 @@ class TestBuildModel:
     def test_openrouter_model_has_app_attribution(self):
         """Should configure OpenRouter provider with app URL and title."""
         driver = ApiDriver(model="meta-llama/llama-3-70b")
-        model = driver._build_model()
 
-        assert isinstance(model, OpenRouterModel)
-        # Verify the constants are set correctly
-        assert OPENROUTER_APP_URL == "https://github.com/existential-birds/amelia"
-        assert OPENROUTER_APP_TITLE == "Amelia"
+        # Mock OpenRouterProvider to capture constructor args
+        with patch("amelia.drivers.api.openai.OpenRouterProvider") as mock_provider_class:
+            driver._build_model()
+
+            # Verify OpenRouterProvider was constructed with correct app attribution
+            mock_provider_class.assert_called_once()
+            call_kwargs = mock_provider_class.call_args.kwargs
+            assert call_kwargs["app_url"] == OPENROUTER_APP_URL
+            assert call_kwargs["app_title"] == OPENROUTER_APP_TITLE
+            assert OPENROUTER_APP_URL == "https://github.com/existential-birds/amelia"
+            assert OPENROUTER_APP_TITLE == "Amelia"

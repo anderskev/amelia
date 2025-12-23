@@ -13,36 +13,30 @@ from amelia.drivers.factory import DriverFactory
 class TestDriverFactory:
     """Tests for DriverFactory."""
 
-    def test_get_cli_claude_driver(self):
-        driver = DriverFactory.get_driver("cli:claude")
-        assert isinstance(driver, ClaudeCliDriver)
+    @pytest.mark.parametrize(
+        "driver_key,expected_type,model,expected_model",
+        [
+            ("cli:claude", ClaudeCliDriver, None, None),
+            ("cli", ClaudeCliDriver, None, None),
+            ("api:openrouter", ApiDriver, "anthropic/claude-3.5-sonnet", "anthropic/claude-3.5-sonnet"),
+            ("api", ApiDriver, None, None),
+        ],
+    )
+    def test_get_driver(self, driver_key, expected_type, model, expected_model):
+        """Factory should return correct driver type for various driver keys."""
+        driver = DriverFactory.get_driver(driver_key, model=model)
+        assert isinstance(driver, expected_type)
+        if expected_model is not None:
+            assert driver.model_name == expected_model
 
-    def test_get_cli_shorthand(self):
-        """Factory should return ClaudeCliDriver for 'cli' shorthand."""
-        driver = DriverFactory.get_driver("cli")
-        assert isinstance(driver, ClaudeCliDriver)
-
-    def test_get_api_openrouter_driver(self):
-        """Factory should return ApiDriver for api:openrouter."""
-        driver = DriverFactory.get_driver("api:openrouter", model="anthropic/claude-3.5-sonnet")
-        assert isinstance(driver, ApiDriver)
-        assert driver.model_name == "anthropic/claude-3.5-sonnet"
-
-    def test_get_api_shorthand(self):
-        """Factory should return ApiDriver for 'api' shorthand."""
-        driver = DriverFactory.get_driver("api")
-        assert isinstance(driver, ApiDriver)
-
-    def test_passes_model_to_driver(self):
-        """Factory should pass model parameter to ApiDriver."""
-        driver = DriverFactory.get_driver("api:openrouter", model="openai/gpt-4o")
-        assert driver.model_name == "openai/gpt-4o"
-
-    def test_unknown_driver_raises(self):
-        with pytest.raises(ValueError, match="Unknown driver key"):
-            DriverFactory.get_driver("invalid:driver")
-
-    def test_api_openai_not_supported(self):
-        """api:openai is no longer supported - use OpenRouter instead."""
-        with pytest.raises(ValueError, match="Unknown driver key"):
-            DriverFactory.get_driver("api:openai")
+    @pytest.mark.parametrize(
+        "driver_key,error_match",
+        [
+            ("invalid:driver", "Unknown driver key"),
+            ("api:openai", "Unknown driver key"),
+        ],
+    )
+    def test_invalid_driver_raises(self, driver_key, error_match):
+        """Factory should raise ValueError for unknown or unsupported drivers."""
+        with pytest.raises(ValueError, match=error_match):
+            DriverFactory.get_driver(driver_key)
