@@ -1029,3 +1029,72 @@ class TestSyncPlanFromCheckpoint:
 
         # Repository.update should not be called
         mock_repository.update.assert_not_called()
+
+
+# =============================================================================
+# Worktree Settings Loading Tests
+# =============================================================================
+
+
+class TestLoadSettingsForWorktree:
+    """Tests for _load_settings_for_worktree helper method."""
+
+    async def test_loads_settings_from_worktree_path(
+        self,
+        orchestrator: OrchestratorService,
+        tmp_path: Path,
+    ):
+        """_load_settings_for_worktree loads settings from worktree directory."""
+        # Create settings file in worktree
+        settings_content = """
+active_profile: local
+profiles:
+  local:
+    name: local
+    driver: cli:claude
+    tracker: github
+    strategy: single
+"""
+        settings_file = tmp_path / "settings.amelia.yaml"
+        settings_file.write_text(settings_content)
+
+        settings = orchestrator._load_settings_for_worktree(str(tmp_path))
+
+        assert settings is not None
+        assert settings.active_profile == "local"
+        assert "local" in settings.profiles
+        assert settings.profiles["local"].tracker == "github"
+
+    async def test_returns_none_when_settings_file_missing(
+        self,
+        orchestrator: OrchestratorService,
+        tmp_path: Path,
+    ):
+        """_load_settings_for_worktree returns None when file not found."""
+        settings = orchestrator._load_settings_for_worktree(str(tmp_path))
+        assert settings is None
+
+    async def test_returns_none_for_invalid_yaml(
+        self,
+        orchestrator: OrchestratorService,
+        tmp_path: Path,
+    ):
+        """_load_settings_for_worktree returns None for malformed YAML."""
+        settings_file = tmp_path / "settings.amelia.yaml"
+        settings_file.write_text("invalid: yaml: content: [")
+
+        settings = orchestrator._load_settings_for_worktree(str(tmp_path))
+        assert settings is None
+
+    async def test_returns_none_for_validation_error(
+        self,
+        orchestrator: OrchestratorService,
+        tmp_path: Path,
+    ):
+        """_load_settings_for_worktree returns None for invalid config structure."""
+        settings_file = tmp_path / "settings.amelia.yaml"
+        # Missing required 'profiles' field
+        settings_file.write_text("active_profile: test\n")
+
+        settings = orchestrator._load_settings_for_worktree(str(tmp_path))
+        assert settings is None

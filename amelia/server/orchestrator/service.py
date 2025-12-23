@@ -166,6 +166,49 @@ class OrchestratorService:
 
         return profile
 
+    def _load_settings_for_worktree(self, worktree_path: str) -> Settings | None:
+        """Load settings from a worktree directory.
+
+        Attempts to load settings.amelia.yaml from the worktree directory.
+        Returns None on any error (file not found, invalid YAML, validation error)
+        to allow graceful fallback to server settings.
+
+        Args:
+            worktree_path: Absolute path to the worktree directory.
+
+        Returns:
+            Settings if successfully loaded, None otherwise.
+        """
+        import yaml
+
+        settings_path = Path(worktree_path) / "settings.amelia.yaml"
+
+        if not settings_path.exists():
+            logger.debug(
+                "No settings file in worktree",
+                worktree_path=worktree_path,
+            )
+            return None
+
+        try:
+            with open(settings_path) as f:
+                data = yaml.safe_load(f)
+            return Settings(**data)
+        except yaml.YAMLError as e:
+            logger.warning(
+                "Invalid YAML in worktree settings",
+                worktree_path=worktree_path,
+                error=str(e),
+            )
+            return None
+        except Exception as e:
+            logger.warning(
+                "Failed to load worktree settings",
+                worktree_path=worktree_path,
+                error=str(e),
+            )
+            return None
+
     async def start_workflow(
         self,
         issue_id: str,
