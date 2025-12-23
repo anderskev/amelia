@@ -1125,7 +1125,7 @@ profiles:
         (worktree / "settings.amelia.yaml").write_text(settings_content)
 
         with patch.object(orchestrator, "_run_workflow_with_retry", new=AsyncMock()):
-            workflow_id = await orchestrator.start_workflow(
+            await orchestrator.start_workflow(
                 issue_id="ISSUE-123",
                 worktree_path=str(worktree),
                 worktree_name="feat-123",
@@ -1169,7 +1169,7 @@ profiles:
     ):
         """start_workflow uses server settings when worktree has no settings file."""
         with patch.object(orchestrator, "_run_workflow_with_retry", new=AsyncMock()):
-            workflow_id = await orchestrator.start_workflow(
+            await orchestrator.start_workflow(
                 issue_id="ISSUE-123",
                 worktree_path=valid_worktree,
                 worktree_name="feat-123",
@@ -1204,7 +1204,7 @@ profiles:
         (worktree / "settings.amelia.yaml").write_text(settings_content)
 
         with patch.object(orchestrator, "_run_review_workflow", new=AsyncMock()):
-            workflow_id = await orchestrator.start_review_workflow(
+            await orchestrator.start_review_workflow(
                 diff_content="--- a/file.py\n+++ b/file.py\n@@ -1 +1 @@\n-old\n+new",
                 worktree_path=str(worktree),
                 worktree_name="review-test",
