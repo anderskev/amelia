@@ -544,8 +544,8 @@ class TestClaudeCliDriverAgentic:
             assert len(driver.tool_call_history) == 1
             assert driver.tool_call_history[0].tool_name == "Read"
 
-    async def test_execute_agentic_with_system_prompt(self, driver, mock_subprocess_process_factory, agentic_test_messages):
-        """execute_agentic should use --append-system-prompt when system_prompt is provided."""
+    async def test_execute_agentic_with_instructions(self, driver, mock_subprocess_process_factory, agentic_test_messages):
+        """execute_agentic should use --append-system-prompt when instructions is provided."""
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working with persona..."}]}}\n',
             b'{"type":"result","session_id":"sess_002","subtype":"success"}\n',
@@ -558,7 +558,7 @@ class TestClaudeCliDriverAgentic:
             async for event in driver.execute_agentic(
                 agentic_test_messages,
                 "/tmp",
-                system_prompt="You are a senior software engineer."
+                instructions="You are a senior software engineer."
             ):
                 events.append(event)
 
@@ -568,8 +568,8 @@ class TestClaudeCliDriverAgentic:
             sys_idx = args.index("--append-system-prompt")
             assert args[sys_idx + 1] == "You are a senior software engineer."
 
-    async def test_execute_agentic_without_system_prompt(self, driver, mock_subprocess_process_factory, agentic_test_messages):
-        """execute_agentic should not use --append-system-prompt when system_prompt is None."""
+    async def test_execute_agentic_without_instructions(self, driver, mock_subprocess_process_factory, agentic_test_messages):
+        """execute_agentic should not use --append-system-prompt when instructions is None."""
         stream_lines = [
             b'{"type":"assistant","message":{"content":[{"type":"text","text":"Working..."}]}}\n',
             b'{"type":"result","session_id":"sess_003","subtype":"success"}\n',
