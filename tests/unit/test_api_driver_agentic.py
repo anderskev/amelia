@@ -8,7 +8,7 @@ from amelia.drivers.api.openai import ApiDriver
 @pytest.fixture
 def driver():
     """Create ApiDriver instance for all tests."""
-    return ApiDriver(model="openai:gpt-4o")
+    return ApiDriver(model="openai/gpt-4o")  # OpenRouter format
 
 
 @pytest.fixture
