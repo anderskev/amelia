@@ -2,6 +2,27 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
+---
+
+## Progress Tracker
+
+| Task | Status | Commit |
+|------|--------|--------|
+| Task 1: Add OpenRouter to DriverType | ✅ Complete | `feat(types): add api:openrouter to DriverType` |
+| Task 2: Update DriverFactory for OpenRouter | ✅ Complete | `feat(factory): add api:openrouter driver key` |
+| Task 3: Add Provider Extraction to ApiDriver | ✅ Complete | `feat(api-driver): add provider extraction for openrouter support` |
+| Task 4: Create Stream Event Types | ✅ Complete | `feat(api-driver): add ApiStreamEvent for agentic execution` |
+| Task 6: Create Agentic Context and Tool Definitions | ✅ Complete | `feat(api-driver): add agentic tool definitions` |
+| Task 6: Implement execute_agentic Method (8a/8b/8c) | ✅ Complete | `feat(api-driver): implement execute_agentic with pydantic-ai` |
+| Task 7: Standardize execute_agentic Interface | ⏳ Pending | |
+| Task 9: Run Full Test Suite and Lint | ⏳ Pending | |
+| Task 10: Integration Test (Optional) | ⏳ Pending | |
+
+**Last Updated:** 2025-12-22
+**Next Task:** Task 7: Standardize execute_agentic Interface
+
+---
+
 **Goal:** Make ApiDriver OpenRouter-compatible with full agentic tool execution for the Developer agent.
 
 **Architecture:** Generalize ApiDriver to accept both `openai:*` and `openrouter:*` models via pydantic-ai's native provider support. Implement `execute_agentic()` using pydantic-ai's `agent.iter()` API with registered tools for shell commands and file writes. Keep existing `generate()` method unchanged for Architect/Reviewer structured output.
