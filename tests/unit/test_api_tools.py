@@ -1,6 +1,8 @@
 """Tests for API driver tool definitions."""
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+
 from amelia.drivers.api.tools import AgenticContext, run_shell_command, write_file
 
 
@@ -87,6 +89,6 @@ class TestWriteFile:
         """Should create parent directories if needed."""
         file_path = str(tmp_path / "subdir" / "nested" / "test.py")
 
-        result = await write_file(run_context, file_path, "# nested file")
+        await write_file(run_context, file_path, "# nested file")
 
         assert (tmp_path / "subdir" / "nested" / "test.py").exists()

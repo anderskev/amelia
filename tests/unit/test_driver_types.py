@@ -1,6 +1,6 @@
 """Tests for driver type definitions."""
-import pytest
 from typing import get_args
+
 from amelia.core.types import DriverType
 
 

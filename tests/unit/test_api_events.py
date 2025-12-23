@@ -1,6 +1,5 @@
 """Tests for API driver stream events."""
-import pytest
-from amelia.drivers.api.events import ApiStreamEvent, ApiStreamEventType
+from amelia.drivers.api.events import ApiStreamEvent
 
 
 class TestApiStreamEvent:

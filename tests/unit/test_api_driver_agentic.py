@@ -1,6 +1,8 @@
 """Tests for ApiDriver agentic execution."""
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+
 from amelia.core.state import AgentMessage
 from amelia.drivers.api.openai import ApiDriver
 
@@ -145,7 +147,7 @@ class TestExecuteAgentic:
                 events.append(event)
 
             # Should have at least a result event
-            assert len(events) >= 1, f"No events yielded"
+            assert len(events) >= 1, "No events yielded"
             if events[-1].type == "error":
                 print(f"Error event: {events[-1].content}")
             assert events[-1].type == "result", f"Expected result, got {events[-1].type}: {events[-1].content if events[-1].type == 'error' else ''}"

@@ -1,5 +1,4 @@
 """Tests for ApiDriver provider extraction."""
-import pytest
 from amelia.drivers.api.openai import ApiDriver
 
 

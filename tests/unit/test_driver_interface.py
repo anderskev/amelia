@@ -3,9 +3,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for driver interface compliance."""
 import inspect
-
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from amelia.core.state import AgentMessage
 from amelia.drivers.api.openai import ApiDriver
