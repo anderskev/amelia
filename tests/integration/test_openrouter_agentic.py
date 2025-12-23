@@ -4,14 +4,54 @@
 """Integration tests for OpenRouter agentic execution.
 
 These tests require a valid OPENROUTER_API_KEY environment variable.
-They make real API calls and incur costs, so they're skipped by default.
+They make real API calls to OpenRouter's free models, so no costs are incurred.
+
+Note: Free models may be rate-limited or occasionally fail. These tests are marked
+as integration tests and excluded from the default test run. Run explicitly with:
+    pytest -m integration
 """
 import os
+from pathlib import Path
 
 import pytest
 
 from amelia.core.state import AgentMessage
+from amelia.drivers.api.events import ApiStreamEvent
 from amelia.drivers.api.openai import ApiDriver
+
+from .conftest import OPENROUTER_FREE_MODEL
+
+
+# Maximum retries for flaky free model API calls
+MAX_RETRIES = 3
+
+
+async def _execute_with_retry(
+    driver: ApiDriver,
+    messages: list[AgentMessage],
+    cwd: str,
+    instructions: str,
+) -> list[ApiStreamEvent]:
+    """Execute agentic call with retry logic for flaky free models."""
+    for attempt in range(MAX_RETRIES):
+        events = []
+        async for event in driver.execute_agentic(
+            messages=messages,
+            cwd=cwd,
+            instructions=instructions,
+        ):
+            events.append(event)
+
+        event_types = [e.type for e in events]
+        # Success if we got a tool_use event (model used tools as expected)
+        if "tool_use" in event_types:
+            return events
+        # If error or no tool use, retry
+        if attempt < MAX_RETRIES - 1:
+            continue
+
+    # Return last attempt's events for assertion
+    return events
 
 
 @pytest.mark.integration
@@ -20,31 +60,34 @@ from amelia.drivers.api.openai import ApiDriver
     reason="OPENROUTER_API_KEY not set",
 )
 class TestOpenRouterAgenticIntegration:
-    """Integration tests requiring real OpenRouter API."""
+    """Integration tests requiring real OpenRouter API.
 
-    async def test_simple_shell_command(self, tmp_path):
+    These tests use free models which may be rate-limited or occasionally skip
+    tool calls. Retry logic is used to improve reliability.
+    """
+
+    async def test_simple_shell_command(self, tmp_path: Path) -> None:
         """Should execute a simple shell command via OpenRouter."""
-        driver = ApiDriver(model="anthropic/claude-3.5-sonnet")
+        driver = ApiDriver(model=OPENROUTER_FREE_MODEL)
 
-        events = []
-        async for event in driver.execute_agentic(
+        events = await _execute_with_retry(
+            driver=driver,
             messages=[AgentMessage(role="user", content="Run 'echo hello' and tell me the output")],
             cwd=str(tmp_path),
             instructions="You are a helpful assistant. Use tools to complete tasks.",
-        ):
-            events.append(event)
+        )
 
         # Should have tool_use and result events
         event_types = [e.type for e in events]
-        assert "tool_use" in event_types
+        assert "tool_use" in event_types, f"Expected tool_use event, got: {event_types}"
         assert "result" in event_types
 
-    async def test_file_write(self, tmp_path):
+    async def test_file_write(self, tmp_path: Path) -> None:
         """Should write a file via OpenRouter."""
-        driver = ApiDriver(model="anthropic/claude-3.5-sonnet")
+        driver = ApiDriver(model=OPENROUTER_FREE_MODEL)
 
-        events = []
-        async for event in driver.execute_agentic(
+        events = await _execute_with_retry(
+            driver=driver,
             messages=[
                 AgentMessage(
                     role="user",
@@ -53,8 +96,7 @@ class TestOpenRouterAgenticIntegration:
             ],
             cwd=str(tmp_path),
             instructions="You are a helpful assistant. Use tools to complete tasks.",
-        ):
-            events.append(event)
+        )
 
         # Verify file was created
         hello_file = tmp_path / "hello.txt"
