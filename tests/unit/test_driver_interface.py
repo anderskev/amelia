@@ -15,7 +15,7 @@ class TestInterfaceCompliance:
 
     def test_api_driver_accepts_required_parameters(self, monkeypatch):
         """ApiDriver.execute_agentic should accept all interface parameters."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
         driver = ApiDriver(model="openai:gpt-4o")
 
         # Verify the method signature includes all required parameters
@@ -47,7 +47,7 @@ class TestInterfaceCompliance:
 
     async def test_api_driver_uses_instructions_not_system_messages(self, monkeypatch, tmp_path):
         """ApiDriver should use instructions parameter, not extract from system messages."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
         driver = ApiDriver(model="openai:gpt-4o")
 
         with patch("amelia.drivers.api.openai.Agent") as mock_agent_class:

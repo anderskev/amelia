@@ -65,7 +65,7 @@ class Profile(BaseModel):
 
     Attributes:
         name: Profile name (e.g., 'work', 'personal').
-        driver: LLM driver type (e.g., 'api:openai', 'cli:claude').
+        driver: LLM driver type (e.g., 'api:openrouter', 'cli:claude').
         model: LLM model identifier (e.g., 'openai:gpt-4o', 'openrouter:anthropic/claude-3.5-sonnet').
             Required for api:openrouter driver to specify which model to use.
         tracker: Issue tracker type (jira, github, none, noop).

@@ -378,7 +378,7 @@ sequenceDiagram
 ```python
 class Profile(BaseModel):
     name: str
-    driver: DriverType                             # "api:openai" | "cli:claude" | "cli" | "api"
+    driver: DriverType                             # "api:openrouter" | "cli:claude" | "cli" | "api"
     tracker: TrackerType = "none"                  # "jira" | "github" | "none" | "noop"
     strategy: StrategyType = "single"              # "single" | "competitive"
     execution_mode: ExecutionMode = "structured"   # "structured" | "agentic"

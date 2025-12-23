@@ -107,7 +107,7 @@ class TestExecuteAgentic:
 
     async def test_rejects_nonexistent_cwd(self, monkeypatch):
         """Should reject non-existent working directory."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
         driver = ApiDriver(model="openai:gpt-4o")
 
         with pytest.raises(ValueError, match="does not exist"):
@@ -119,7 +119,7 @@ class TestExecuteAgentic:
 
     async def test_yields_result_event(self, monkeypatch, tmp_path):
         """Should yield result event at end of execution."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
         driver = ApiDriver(model="openai:gpt-4o")
 
         # Mock the pydantic-ai Agent
@@ -155,7 +155,7 @@ class TestExecuteAgentic:
 
     async def test_generates_unique_session_id(self, monkeypatch):
         """Should generate unique session IDs."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
         driver = ApiDriver(model="openai:gpt-4o")
 
         session_ids = set()

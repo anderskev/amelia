@@ -6,7 +6,7 @@ This document describes the core data structures used throughout the Amelia orch
 
 | Type | Definition | Description |
 |------|------------|-------------|
-| `DriverType` | `"cli:claude" \| "api:openai" \| "cli" \| "api"` | LLM driver type. |
+| `DriverType` | `"cli:claude" \| "api:openrouter" \| "cli" \| "api"` | LLM driver type. |
 | `TrackerType` | `"jira" \| "github" \| "none" \| "noop"` | Issue tracker type. |
 | `StrategyType` | `"single" \| "competitive"` | Review strategy. |
 | `ExecutionMode` | `"structured" \| "agentic"` | Execution mode. |
@@ -34,7 +34,7 @@ Defines the runtime environment and constraints.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `name` | `str` | — | Profile name (e.g., "work", "personal"). |
-| `driver` | `DriverType` | — | LLM driver type (e.g., "api:openai", "cli:claude"). |
+| `driver` | `DriverType` | — | LLM driver type (e.g., "api:openrouter", "cli:claude"). |
 | `tracker` | `TrackerType` | `"none"` | Issue tracker type. |
 | `strategy` | `StrategyType` | `"single"` | Review strategy (single or competitive). |
 | `execution_mode` | `ExecutionMode` | `"structured"` | Execution mode (structured or agentic). |

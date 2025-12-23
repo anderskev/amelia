@@ -29,7 +29,7 @@ profiles:
   # Personal profile - direct API access
   home:
     name: home
-    driver: api:openai        # LLM via OpenAI API
+    driver: api:openrouter    # LLM via OpenRouter API
     tracker: github           # Issues from GitHub
     strategy: single          # Single reviewer
     execution_mode: structured
@@ -38,7 +38,7 @@ profiles:
   # Testing profile
   test:
     name: test
-    driver: api:openai
+    driver: api:openrouter
     tracker: noop             # No real tracker
     strategy: single
 ```
@@ -69,8 +69,8 @@ How Amelia communicates with LLMs.
 
 | Value | Description | Requirements | Notes |
 |-------|-------------|--------------|-------|
-| `api:openai` | Direct OpenAI API calls | `OPENAI_API_KEY` env var | Full functionality, structured outputs |
-| `api` | Alias for `api:openai` | Same as above | Shorthand |
+| `api:openrouter` | Direct OpenRouter API calls | `OPENROUTER_API_KEY` env var | Full functionality, structured outputs |
+| `api` | Alias for `api:openrouter` | Same as above | Shorthand |
 | `cli:claude` | Wraps claude CLI tool | `claude` CLI installed & authenticated | LLM generation is stub, tool execution works |
 | `cli` | Alias for `cli:claude` | Same as above | Shorthand |
 
@@ -183,11 +183,11 @@ amelia server
 |----------|----------|-------------|
 | `AMELIA_SETTINGS` | No | Custom path to settings.amelia.yaml (default: `./settings.amelia.yaml`) |
 
-### OpenAI API Driver
+### OpenRouter API Driver
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | Your OpenAI API key |
+| `OPENROUTER_API_KEY` | Yes | Your OpenRouter API key |
 
 ### Jira Tracker
 
@@ -210,7 +210,7 @@ gh auth login
 Amelia validates profiles on startup:
 
 - Required fields (`name`, `driver`) must be present
-- Driver values must be one of: `api`, `api:openai`, `cli`, `cli:claude`
+- Driver values must be one of: `api`, `api:openrouter`, `cli`, `cli:claude`
 - Tracker values must be one of: `jira`, `github`, `none`, `noop`
 - Strategy must be `single` or `competitive`
 - Execution mode must be `structured` or `agentic`
@@ -229,7 +229,7 @@ active_profile: dev
 profiles:
   dev:
     name: dev
-    driver: api:openai
+    driver: api:openrouter
 ```
 
 This uses: `tracker: none`, `strategy: single`, `execution_mode: structured`, default retry settings.
@@ -264,13 +264,13 @@ profiles:
 
   home:
     name: home
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
     strategy: single
 
   test:
     name: test
-    driver: api:openai
+    driver: api:openrouter
     tracker: noop
     strategy: single
 ```
@@ -291,14 +291,14 @@ Ensure the profile name matches exactly (case-sensitive) in both `active_profile
 
 ### "Driver not recognized"
 
-Valid driver values are: `api`, `api:openai`, `cli`, `cli:claude`
+Valid driver values are: `api`, `api:openrouter`, `cli`, `cli:claude`
 
-### "Missing OPENAI_API_KEY"
+### "Missing OPENROUTER_API_KEY"
 
 Set the environment variable:
 
 ```bash
-export OPENAI_API_KEY="sk-..."
+export OPENROUTER_API_KEY="sk-..."
 ```
 
 ### "Jira authentication failed"

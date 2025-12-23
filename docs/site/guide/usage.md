@@ -9,7 +9,7 @@ Complete reference for using Amelia in your projects.
 uv tool install git+https://github.com/existential-birds/amelia.git
 
 # Set your API key
-export OPENAI_API_KEY="sk-..."
+export OPENROUTER_API_KEY="sk-..."
 ```
 
 ## Project Setup
@@ -21,7 +21,7 @@ active_profile: dev
 profiles:
   dev:
     name: dev
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
     strategy: single
 ```
@@ -35,7 +35,7 @@ Amelia uses profile-based configuration in `settings.amelia.yaml`. See [Configur
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `name` | Yes | - | Profile identifier (should match the key) |
-| `driver` | Yes | - | LLM driver: `api:openai`, `api`, `cli:claude`, or `cli` |
+| `driver` | Yes | - | LLM driver: `api:openrouter`, `api`, `cli:claude`, or `cli` |
 | `tracker` | No | `none` | Issue source: `github`, `jira`, `none`, or `noop` |
 | `strategy` | No | `single` | Review strategy: `single` or `competitive` |
 | `execution_mode` | No | `structured` | Execution mode: `structured` or `agentic` |
@@ -57,8 +57,8 @@ The `retry` parameter accepts these sub-fields:
 
 | Driver | Description | Requirements |
 |--------|-------------|--------------|
-| `api:openai` | Direct OpenAI API calls via pydantic-ai | `OPENAI_API_KEY` environment variable |
-| `api` | Alias for `api:openai` | Same as above |
+| `api:openrouter` | Direct OpenRouter API calls via pydantic-ai | `OPENROUTER_API_KEY` environment variable |
+| `api` | Alias for `api:openrouter` | Same as above |
 | `cli:claude` | Wraps Claude CLI tool | `claude` CLI installed and authenticated |
 | `cli` | Alias for `cli:claude` | Same as above |
 
@@ -79,7 +79,7 @@ active_profile: dev
 profiles:
   dev:
     name: dev
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
     strategy: single
     execution_mode: structured
@@ -295,7 +295,7 @@ curl -X POST http://localhost:8420/api/workflows \
 | `worktree_path` | string | Yes | Absolute path to worktree directory |
 | `worktree_name` | string | No | Custom worktree display name |
 | `profile` | string | No | Profile name from settings |
-| `driver` | string | No | Driver override (e.g., `api:openai`) |
+| `driver` | string | No | Driver override (e.g., `api:openrouter`) |
 
 **Response:** `201 Created`
 ```json
@@ -697,7 +697,7 @@ done
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENAI_API_KEY` | - | OpenAI API key (required for `api:openai` driver) |
+| `OPENROUTER_API_KEY` | - | OpenRouter API key (required for `api:openrouter` driver) |
 | `ANTHROPIC_API_KEY` | - | Anthropic API key (for future `api:claude` driver) |
 | `AMELIA_SETTINGS` | `./settings.amelia.yaml` | Path to settings file |
 | `AMELIA_PORT` | `8420` | Server port |

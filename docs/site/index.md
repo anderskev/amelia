@@ -24,7 +24,7 @@ cat > settings.amelia.yaml << 'EOF'
 active_profile: dev
 profiles:
   dev:
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
 EOF
 

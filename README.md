@@ -27,7 +27,7 @@ See the [**Roadmap**](https://existential-birds.github.io/amelia/reference/roadm
 - **uv** - Fast Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
 - **Git** - For version control operations
 - **LLM access** - Either:
-  - OpenAI API key (for `api:openai` driver)
+  - OpenRouter API key (for `api:openrouter` driver)
   - Claude CLI installed (for `cli:claude` driver)
 
 ## Quick Start
@@ -47,7 +47,7 @@ uv tool install git+https://github.com/existential-birds/amelia.git
 uv tool install /path/to/amelia
 
 # Set your API key
-export OPENAI_API_KEY="sk-..."
+export OPENROUTER_API_KEY="sk-..."
 ```
 
 ### 2. Configure Your Project
@@ -62,7 +62,7 @@ active_profile: dev
 profiles:
   dev:
     name: dev
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
     strategy: single
 EOF
@@ -158,7 +158,7 @@ active_profile: home
 profiles:
   home:
     name: home
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
     strategy: single
 ```

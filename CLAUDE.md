@@ -81,14 +81,14 @@ The orchestrator loops between Developer and Reviewer until changes are approved
 |-------|----------|---------|
 | **Core** | `amelia/core/` | LangGraph orchestrator, state types (`ExecutionState`, `ExecutionPlan`), shared types (`Profile`, `Issue`) |
 | **Agents** | `amelia/agents/` | Architect (planning), Developer (execution), Reviewer (review) |
-| **Drivers** | `amelia/drivers/` | LLM abstraction - `api:openai` (pydantic-ai) or `cli:claude` (CLI wrapper) |
+| **Drivers** | `amelia/drivers/` | LLM abstraction - `api:openrouter` (pydantic-ai) or `cli:claude` (CLI wrapper) |
 | **Trackers** | `amelia/trackers/` | Issue source abstraction - `jira`, `github`, `noop` |
 | **Tools** | `amelia/tools/` | Shell execution, git utilities |
 | **Extensions** | `amelia/ext/` | Protocols for optional integrations (policy hooks, audit exporters, analytics sinks) |
 
 ### Driver Abstraction
 
-The driver abstraction allows switching between direct API calls (`api:openai`) and CLI-wrapped tools (`cli:claude`) without code changes. This enables enterprise compliance where direct API calls may be prohibited.
+The driver abstraction allows switching between direct API calls (`api:openrouter`) and CLI-wrapped tools (`cli:claude`) without code changes. This enables enterprise compliance where direct API calls may be prohibited.
 
 ### Configuration
 

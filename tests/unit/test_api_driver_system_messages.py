@@ -22,7 +22,7 @@ class TestApiDriverSystemMessages:
     @pytest.fixture
     def mock_openai_agent(self):  # type: ignore[no-untyped-def]
         """Mock OpenAI Agent for testing API driver."""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}), \
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}), \
              patch("amelia.drivers.api.openai.Agent") as MockAgent:
             mock_agent_instance = AsyncMock()
             mock_result = MagicMock()
