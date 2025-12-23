@@ -75,7 +75,7 @@ class CreateWorkflowRequest(BaseModel):
         worktree_path: Absolute path to worktree directory
         worktree_name: Optional custom worktree name
         profile: Optional profile name (lowercase alphanumeric with dashes/underscores)
-        driver: Optional driver override in type:name format (e.g., sdk:claude, api:openai)
+        driver: Optional driver override in type:name format (e.g., sdk:claude, api:openrouter)
     """
 
     issue_id: Annotated[

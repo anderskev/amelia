@@ -13,14 +13,30 @@ from amelia.drivers.factory import DriverFactory
 class TestDriverFactory:
     """Tests for DriverFactory."""
 
-    def test_get_cli_claude_driver(self):
-        driver = DriverFactory.get_driver("cli:claude")
-        assert isinstance(driver, ClaudeCliDriver)
+    @pytest.mark.parametrize(
+        "driver_key,expected_type,model,expected_model",
+        [
+            ("cli:claude", ClaudeCliDriver, None, None),
+            ("cli", ClaudeCliDriver, None, None),
+            ("api:openrouter", ApiDriver, "anthropic/claude-3.5-sonnet", "anthropic/claude-3.5-sonnet"),
+            ("api", ApiDriver, None, None),
+        ],
+    )
+    def test_get_driver(self, driver_key, expected_type, model, expected_model):
+        """Factory should return correct driver type for various driver keys."""
+        driver = DriverFactory.get_driver(driver_key, model=model)
+        assert isinstance(driver, expected_type)
+        if expected_model is not None:
+            assert driver.model_name == expected_model
 
-    def test_get_api_openai_driver(self):
-        driver = DriverFactory.get_driver("api:openai")
-        assert isinstance(driver, ApiDriver)
-
-    def test_unknown_driver_raises(self):
-        with pytest.raises(ValueError, match="Unknown driver key"):
-            DriverFactory.get_driver("invalid:driver")
+    @pytest.mark.parametrize(
+        "driver_key,error_match",
+        [
+            ("invalid:driver", "Unknown driver key"),
+            ("api:openai", "Unknown driver key"),
+        ],
+    )
+    def test_invalid_driver_raises(self, driver_key, error_match):
+        """Factory should raise ValueError for unknown or unsupported drivers."""
+        with pytest.raises(ValueError, match=error_match):
+            DriverFactory.get_driver(driver_key)

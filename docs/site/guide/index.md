@@ -21,7 +21,7 @@ This guide gets you from zero to orchestrating AI agents in about three minutes.
    active_profile: dev
    profiles:
      dev:
-       driver: api:openai
+       driver: api:openrouter
        tracker: github
    ```
 

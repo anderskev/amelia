@@ -25,7 +25,7 @@
 - **Template-driven**: Output structure defined by markdown templates with frontmatter
 - **Conversation-guided**: Chat interface with multiple choice suggestions
 - **Issue-linked**: Sessions tied to tracker issue IDs, enabling seamless handoff to Architect
-- **Driver-agnostic**: Uses Amelia's existing LLM drivers (`api:openai`, `cli:claude`)
+- **Driver-agnostic**: Uses Amelia's existing LLM drivers (`api:openrouter`, `cli:claude`)
 
 ---
 

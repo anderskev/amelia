@@ -107,9 +107,9 @@ def mock_profile_factory(tmp_path_factory: TempPathFactory) -> Callable[..., Pro
         if preset == "cli_single":
             return Profile(name="test_cli", driver="cli:claude", tracker="noop", strategy="single", **kwargs)
         elif preset == "api_single":
-            return Profile(name="test_api", driver="api:openai", tracker="noop", strategy="single", **kwargs)
+            return Profile(name="test_api", driver="api:openrouter", tracker="noop", strategy="single", **kwargs)
         elif preset == "api_competitive":
-            return Profile(name="test_comp", driver="api:openai", tracker="noop", strategy="competitive", **kwargs)
+            return Profile(name="test_comp", driver="api:openrouter", tracker="noop", strategy="competitive", **kwargs)
         return Profile(name=name, driver=driver, tracker=tracker, strategy=strategy, **kwargs)
     return _create
 
@@ -508,6 +508,58 @@ def sample_stream_event() -> StreamEvent:
         agent="developer",
         workflow_id="wf-123",
     )
+
+
+@pytest.fixture
+def mock_pydantic_agent() -> Callable[..., Any]:
+    """Factory fixture for creating mock pydantic-ai Agent instances.
+
+    Returns a context manager that patches pydantic-ai Agent and yields
+    a dict containing the mock agent class and instance.
+
+    Example usage:
+        async def test_example(mock_pydantic_agent):
+            with mock_pydantic_agent() as mocks:
+                driver = ApiDriver(model="openai:gpt-4o")
+                result = await driver.generate(messages)
+                mocks["agent_class"].assert_called_once()
+    """
+    from collections.abc import AsyncIterator, Iterator
+    from contextlib import contextmanager
+    from unittest.mock import patch
+
+    @contextmanager
+    def _create() -> Iterator[dict[str, Any]]:
+        with patch("amelia.drivers.api.openai.Agent") as mock_agent_class:
+            # Create an async iterator that yields nothing (for iter() calls)
+            async def empty_async_iter() -> AsyncIterator[None]:
+                return
+                yield  # Make it a generator
+
+            # Create mock run context for iter() calls
+            mock_run = AsyncMock()
+            mock_run.result = MagicMock(output="Done")
+            mock_run.__aenter__ = AsyncMock(return_value=mock_run)
+            mock_run.__aexit__ = AsyncMock(return_value=None)
+            mock_run.__aiter__ = lambda self: empty_async_iter()
+
+            # Create mock agent instance for run() calls
+            mock_agent_instance = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.output = "Test response"
+            mock_agent_instance.run = AsyncMock(return_value=mock_result)
+            mock_agent_instance.iter = MagicMock(return_value=mock_run)
+
+            mock_agent_class.return_value = mock_agent_instance
+
+            yield {
+                "agent_class": mock_agent_class,
+                "agent_instance": mock_agent_instance,
+                "result": mock_result,
+                "run": mock_run,
+            }
+
+    return _create
 
 
 class LangGraphMocks(NamedTuple):

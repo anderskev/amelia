@@ -290,22 +290,22 @@ FileNotFoundError: Configuration file not found at settings.amelia.yaml
 
 ### Invalid API key
 
-**Error for OpenAI driver:**
+**Error for OpenRouter driver:**
 ```
-Error: OPENAI_API_KEY environment variable not set
+Error: OPENROUTER_API_KEY environment variable not set
 ```
 
-**Cause:** Using `driver: api:openai` without credentials.
+**Cause:** Using `driver: api:openrouter` without credentials.
 
 **Solutions:**
 
 **Driver → Required Credentials:**
-- `api:openai` → `OPENAI_API_KEY`
+- `api:openrouter` → `OPENROUTER_API_KEY`
 - `cli:claude` → Claude CLI authenticated (`claude auth login`)
 
 1. Set API key:
    ```bash
-   export OPENAI_API_KEY=sk-...
+   export OPENROUTER_API_KEY=sk-...
    ```
 
 2. Or switch to CLI driver (no API key needed):

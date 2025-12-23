@@ -27,7 +27,7 @@ See the [**Roadmap**](https://existential-birds.github.io/amelia/reference/roadm
 - **uv** - Fast Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
 - **Git** - For version control operations
 - **LLM access** - Either:
-  - OpenAI API key (for `api:openai` driver)
+  - OpenRouter API key (for `api:openrouter` driver)
   - Claude CLI installed (for `cli:claude` driver)
 
 ## Quick Start
@@ -43,8 +43,11 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install amelia as a global tool
 uv tool install git+https://github.com/existential-birds/amelia.git
 
+# Or install from a local path
+uv tool install /path/to/amelia
+
 # Set your API key
-export OPENAI_API_KEY="sk-..."
+export OPENROUTER_API_KEY="sk-..."
 ```
 
 ### 2. Configure Your Project
@@ -59,7 +62,7 @@ active_profile: dev
 profiles:
   dev:
     name: dev
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
     strategy: single
 EOF
@@ -82,10 +85,10 @@ gh issue list
 ### 4. Run Amelia
 
 ```bash
-# Generate a plan (dry run - no code changes)
-amelia plan-only 123
+# Start the server (opens dashboard at localhost:8420)
+amelia dev
 
-# Execute the full workflow (plan → approve → develop → review)
+# In another terminal, start a workflow for an issue
 amelia start 123
 
 # Review uncommitted changes
@@ -109,14 +112,14 @@ uv sync
 
 # Run from your project directory
 cd /path/to/your/project
-/path/to/amelia/uv run amelia plan-only 123
+/path/to/amelia/uv run amelia dev
 ```
 
 Or use the `AMELIA_SETTINGS` environment variable:
 
 ```bash
 cd /path/to/amelia
-AMELIA_SETTINGS=/path/to/your/project/settings.amelia.yaml uv run amelia plan-only 123
+AMELIA_SETTINGS=/path/to/your/project/settings.amelia.yaml uv run amelia dev
 ```
 
 > [!NOTE]
@@ -141,7 +144,6 @@ amelia reject "feedback"      # Reject with feedback
 amelia cancel                 # Cancel active workflow
 
 # Local commands (no server required)
-amelia plan-only 123          # Generate plan without executing
 amelia review --local         # Review uncommitted changes
 ```
 
@@ -156,7 +158,7 @@ active_profile: home
 profiles:
   home:
     name: home
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
     strategy: single
 ```

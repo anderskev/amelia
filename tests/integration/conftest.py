@@ -6,6 +6,7 @@
 This module provides:
 - Factory functions for creating test data (make_step, make_batch, make_blocker, etc.)
 - Assertion helpers (assert_workflow_status, assert_step_skipped, assert_step_not_skipped)
+- Constants for integration test configuration
 """
 
 import socket
@@ -37,6 +38,15 @@ from amelia.core.types import (
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.events.connection_manager import ConnectionManager
+
+
+# =============================================================================
+# Constants
+# =============================================================================
+
+# Free model for OpenRouter integration tests (incurs no costs)
+# Must support tool use - see https://openrouter.ai/models?q=:free
+OPENROUTER_FREE_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 
 
 # =============================================================================
@@ -149,7 +159,7 @@ def make_issue(
 
 def make_profile(
     name: str = "test",
-    driver: str = "api:openai",
+    driver: str = "api:openrouter",
     tracker: str = "noop",
     strategy: str = "single",
     trust_level: TrustLevel = TrustLevel.STANDARD,
