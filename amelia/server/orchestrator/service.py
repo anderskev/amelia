@@ -179,6 +179,41 @@ class OrchestratorService:
 
         return profile
 
+    def _resolve_safe_worktree_path(self, worktree_path: str) -> Path | None:
+        """Resolve and validate a worktree path to prevent path traversal attacks.
+
+        Normalizes the path by expanding ~ and resolving to an absolute path,
+        then validates that the resulting path is a directory.
+
+        Args:
+            worktree_path: Path to the worktree directory.
+
+        Returns:
+            Resolved absolute Path if valid, None if validation fails.
+        """
+        try:
+            # Normalize path: expand ~ and resolve to absolute canonical path
+            # This prevents path traversal attacks like "../../../etc"
+            resolved = Path(worktree_path).expanduser().resolve()
+
+            # Validate the resolved path is a directory
+            if not resolved.is_dir():
+                logger.warning(
+                    "Worktree path is not a directory",
+                    worktree_path=worktree_path,
+                    resolved_path=str(resolved),
+                )
+                return None
+
+            return resolved
+        except (OSError, ValueError) as e:
+            logger.warning(
+                "Failed to resolve worktree path",
+                worktree_path=worktree_path,
+                error=str(e),
+            )
+            return None
+
     def _load_settings_for_worktree(self, worktree_path: str) -> Settings | None:
         """Load settings from a worktree directory.
 
@@ -192,7 +227,24 @@ class OrchestratorService:
         Returns:
             Settings if successfully loaded, None otherwise.
         """
-        settings_path = Path(worktree_path) / "settings.amelia.yaml"
+        # Resolve and validate the worktree path to prevent path traversal
+        resolved_worktree = self._resolve_safe_worktree_path(worktree_path)
+        if resolved_worktree is None:
+            return None
+
+        settings_path = resolved_worktree / "settings.amelia.yaml"
+
+        # Verify the settings path is still within the worktree directory
+        # (prevents path traversal via symlinks)
+        try:
+            settings_path.resolve().relative_to(resolved_worktree)
+        except ValueError:
+            logger.warning(
+                "Settings path escapes worktree directory",
+                worktree_path=worktree_path,
+                settings_path=str(settings_path),
+            )
+            return None
 
         if not settings_path.exists():
             logger.debug(
@@ -202,7 +254,7 @@ class OrchestratorService:
             return None
 
         try:
-            with open(settings_path) as f:
+            with settings_path.open() as f:
                 data = yaml.safe_load(f)
             return Settings(**data)
         except yaml.YAMLError as e:
