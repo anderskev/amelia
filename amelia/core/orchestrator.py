@@ -558,13 +558,18 @@ def route_after_developer(
         - 'blocker_resolution' if BLOCKED (execution blocked, needs human help)
         - 'developer' if EXECUTING (continue executing steps)
     """
-    logger.debug(
-        "Routing after developer",
+    # Diagnostic logging - INFO level to help debug routing issues
+    total_batches = len(state.execution_plan.batches) if state.execution_plan else 0
+    logger.info(
+        "route_after_developer called",
         developer_status=state.developer_status.value if state.developer_status else None,
+        developer_status_type=type(state.developer_status).__name__,
         has_execution_plan=state.execution_plan is not None,
         current_batch_index=state.current_batch_index,
+        total_batches=total_batches,
     )
     if state.developer_status == DeveloperStatus.ALL_DONE:
+        logger.info("route_after_developer: returning 'reviewer' (ALL_DONE)")
         return "reviewer"
     elif state.developer_status == DeveloperStatus.BATCH_COMPLETE:
         # Check if we should checkpoint for human approval
@@ -591,18 +596,24 @@ def route_after_developer(
 
         current_batch = state.execution_plan.batches[state.current_batch_index]
         if should_checkpoint(current_batch, profile):
+            logger.info("route_after_developer: returning 'batch_approval' (BATCH_COMPLETE, checkpoint)")
             return "batch_approval"
         else:
             logger.info(
-                "Skipping batch approval checkpoint",
+                "route_after_developer: returning 'developer' (skipping batch approval)",
                 batch_number=current_batch.batch_number,
                 risk_summary=current_batch.risk_summary,
                 trust_level=profile.trust_level.value,
             )
             return "developer"
     elif state.developer_status == DeveloperStatus.BLOCKED:
+        logger.info("route_after_developer: returning 'blocker_resolution' (BLOCKED)")
         return "blocker_resolution"
     else:  # EXECUTING or default
+        logger.info(
+            "route_after_developer: returning 'developer' (EXECUTING or default)",
+            actual_status=state.developer_status,
+        )
         return "developer"
 
 def route_batch_approval(state: ExecutionState) -> Literal["developer", "__end__"]:

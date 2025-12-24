@@ -159,7 +159,9 @@ export default function WorkflowDetailPage() {
     .slice(0, completedBatches)
     .reduce((sum, batch) => sum + batch.steps.length, 0) || 0;
 
-  const needsApproval = workflow.status === 'blocked';
+  // Only show plan approval controls when blocked AND not at a blocker
+  // (blockers have their own resolution UI)
+  const needsApproval = workflow.status === 'blocked' && !workflow.current_blocker;
   const planSummary = workflow.execution_plan
     ? `Plan with ${totalTasks} steps in ${workflow.execution_plan.batches.length} batches`
     : 'No plan generated';
