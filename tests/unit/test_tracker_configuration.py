@@ -3,6 +3,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for tracker factory configuration."""
 
+from unittest.mock import MagicMock, patch
 
 from amelia.core.types import Profile
 from amelia.trackers.factory import create_tracker
@@ -23,15 +24,21 @@ def test_tracker_factory_creates_noop_tracker():
 
 def test_tracker_factory_creates_github_tracker():
     """Factory creates GithubTracker for github tracker type."""
-    profile = Profile(
-        name="test",
-        driver="cli:claude",
-        tracker="github",
-        strategy="single",
-    )
-    tracker = create_tracker(profile)
-    assert tracker is not None
-    assert hasattr(tracker, "get_issue")
+    # Mock gh auth status to avoid requiring real GitHub authentication
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stderr = ""
+
+    with patch("subprocess.run", return_value=mock_result):
+        profile = Profile(
+            name="test",
+            driver="cli:claude",
+            tracker="github",
+            strategy="single",
+        )
+        tracker = create_tracker(profile)
+        assert tracker is not None
+        assert hasattr(tracker, "get_issue")
 
 
 def test_tracker_factory_creates_none_tracker():
