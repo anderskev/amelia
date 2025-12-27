@@ -125,49 +125,6 @@ def start_command(
         _handle_workflow_api_error(e, worktree_path=worktree_path)
 
 
-def plan_command(
-    issue_id: Annotated[str, typer.Argument(help="Issue ID to work on (e.g., ISSUE-123)")],
-    profile: Annotated[
-        str | None,
-        typer.Option("--profile", "-p", help="Profile name for configuration"),
-    ] = None,
-) -> None:
-    """Generate an implementation plan for an issue without executing it.
-
-    Creates a plan-only workflow via the API server. The Architect agent
-    generates a detailed plan saved to docs/plans/ without executing code changes.
-
-    Args:
-        issue_id: Issue identifier to generate plan for (e.g., ISSUE-123).
-        profile: Optional profile name for LLM driver configuration.
-    """
-    worktree_path, worktree_name = _get_worktree_context()
-
-    client = AmeliaClient()
-
-    async def _create() -> CreateWorkflowResponse:
-        return await client.create_workflow(
-            issue_id=issue_id,
-            worktree_path=worktree_path,
-            worktree_name=worktree_name,
-            profile=profile,
-            plan_only=True,
-        )
-
-    try:
-        workflow = asyncio.run(_create())
-
-        console.print(f"[green]✓[/green] Plan generation started: [bold]{workflow.id}[/bold]")
-        console.print(f"  Issue: {issue_id}")
-        console.print(f"  Worktree: {worktree_path}")
-        console.print(f"  Status: {workflow.status}")
-        console.print("\n[dim]Plan will be saved to docs/plans/ when complete[/dim]")
-        console.print("[dim]View in dashboard: http://127.0.0.1:8420[/dim]")
-
-    except (ServerUnreachableError, WorkflowConflictError, RateLimitError, InvalidRequestError) as e:
-        _handle_workflow_api_error(e, worktree_path=worktree_path)
-
-
 def reject_command(
     reason: str,
 ) -> None:
