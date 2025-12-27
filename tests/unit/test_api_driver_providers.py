@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from pydantic_ai.models.openrouter import OpenRouterModel
 
-from amelia.drivers.api.openai import OPENROUTER_APP_TITLE, OPENROUTER_APP_URL, ApiDriver
+from amelia.drivers.api.openai import ApiDriver
 
 
 class TestApiDriverInit:
