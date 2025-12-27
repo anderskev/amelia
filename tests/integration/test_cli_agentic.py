@@ -469,7 +469,7 @@ class TestCLIErrorHandling:
     def test_cli_not_in_git_repo(self, tmp_path: Path) -> None:
         """CLI should error gracefully when not in a git repo."""
         with patch("amelia.client.cli.get_worktree_context") as mock_ctx:
-            mock_ctx.side_effect = ValueError("Not in a git repository")
+            mock_ctx.side_effect = ValueError("Not inside a git repository")
 
             result = runner.invoke(app, ["status"])
 
