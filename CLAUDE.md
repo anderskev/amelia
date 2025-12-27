@@ -149,6 +149,28 @@ with patch("httpx.AsyncClient.post") as mock_http:
     result = await call_architect_node(state, config)  # Real Architect runs
 ```
 
+**High-Fidelity Mocks:**
+
+Mock return values must match production types exactly. When mocking external boundaries, return the same type the real code returns—not a serialized or converted form that happens to work.
+
+**Example - WRONG (lower fidelity):**
+
+```python
+# pydantic-ai returns Pydantic instances, not dicts
+mock_llm_response = MarkdownPlanOutput(goal="X", plan_markdown="...")
+mock_result.output = mock_llm_response.model_dump()  # Returns dict, not instance
+```
+
+**Example - CORRECT (production fidelity):**
+
+```python
+# Match what pydantic-ai actually returns: a Pydantic model instance
+mock_llm_response = MarkdownPlanOutput(goal="X", plan_markdown="...")
+mock_result.output = mock_llm_response  # Same type as production
+```
+
+This matters because downstream code may rely on type-specific behavior. Even if both happen to work today, the lower-fidelity version could mask bugs or break when code evolves.
+
 ## Manual Test Plans
 
 For PRs with significant changes, create a manual test plan that the `amelia-qa` GitHub Action will post as a PR comment.

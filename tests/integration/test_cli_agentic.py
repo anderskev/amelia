@@ -91,7 +91,7 @@ class TestPlanCommand:
         )
 
         mock_result = MagicMock()
-        mock_result.output = mock_llm_response.model_dump()
+        mock_result.output = mock_llm_response
 
         mock_issue = Issue(
             id="TEST-123",
@@ -148,7 +148,7 @@ class TestPlanCommand:
         )
 
         mock_result = MagicMock()
-        mock_result.output = mock_llm_response.model_dump()
+        mock_result.output = mock_llm_response
 
         mock_issue = Issue(
             id="WORK-456",
