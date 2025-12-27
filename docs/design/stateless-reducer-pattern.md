@@ -424,11 +424,11 @@ async def developer_node(state: ExecutionState, config: RunnableConfig) -> dict:
         cwd=profile.working_dir,
         session_id=session.conversation_id,
     ):
-        if event.type == "tool_call":
-            call = ToolCall(id=event.call_id, tool_name=event.tool_name, tool_input=event.tool_input)
+        if event.type == "tool_use":
+            call = ToolCall(id=f"call-{len(tool_calls)}", tool_name=event.tool_name, tool_input=event.tool_input)
             tool_calls.append(call)
         elif event.type == "tool_result":
-            result = ToolResult(call_id=event.call_id, tool_name=event.tool_name, output=event.output, success=True)
+            result = ToolResult(call_id=f"call-{len(tool_results)}", tool_name=event.tool_name, output=event.tool_result or "", success=True)
             tool_results.append(result)
         elif event.type == "result":
             return {

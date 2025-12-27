@@ -23,7 +23,7 @@ Each agent has:
 | Output | `PlanOutput` (markdown_content, markdown_path, goal, key_files) |
 | Key Feature | Generates rich markdown plans saved to `docs/plans/` |
 
-The Architect examines an issue and generates a comprehensive markdown implementation plan. This plan includes a clear goal statement that guides the Developer's agentic execution. The markdown format is human-readable and compatible with external tools.
+The Architect examines an issue and generates a comprehensive Markdown implementation plan. This plan includes a clear goal statement that guides the Developer's agentic execution. The Markdown format is human-readable and compatible with external tools.
 
 **Note**: The Architect's `plan()` method accepts an optional `Design` parameter for incorporating design specifications from brainstorming sessions.
 
