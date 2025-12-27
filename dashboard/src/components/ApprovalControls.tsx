@@ -146,6 +146,7 @@ export function ApprovalControls({
                   onChange={(e) => setRejectionFeedback(e.target.value)}
                   placeholder="Explain why this plan needs revision..."
                   rows={3}
+                  autoFocus
                   required
                   disabled={isPending}
                   className={cn(
