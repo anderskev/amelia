@@ -8,11 +8,11 @@ used throughout the test suite for the agentic execution model.
 """
 import os
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import yaml
@@ -344,43 +344,53 @@ def sample_stream_event() -> StreamEvent:
 
 
 @pytest.fixture
-def mock_pydantic_agent() -> Callable[..., Any]:
-    """Factory fixture for creating mock pydantic-ai Agent instances."""
-    from collections.abc import AsyncIterator, Iterator
-    from contextlib import contextmanager
-    from unittest.mock import patch
+def mock_deepagents() -> Generator[MagicMock, None, None]:
+    """Fixture for mocking DeepAgents library calls.
 
-    @contextmanager
-    def _create() -> Iterator[dict[str, Any]]:
-        with patch("amelia.drivers.api.openai.Agent") as mock_agent_class:
-            async def empty_async_iter() -> AsyncIterator[None]:
-                # Empty async generator - yield statement makes this a generator,
-                # but never executes since there's nothing to iterate over
-                if False:
-                    yield
+    Mocks create_deep_agent, init_chat_model, and FilesystemBackend.
+    The returned mock object contains references to all mocked components
+    and allows setting return values for agent.ainvoke() and agent.astream().
 
-            mock_run = AsyncMock()
-            mock_run.result = MagicMock(output="Done")
-            mock_run.__aenter__ = AsyncMock(return_value=mock_run)
-            mock_run.__aexit__ = AsyncMock(return_value=None)
-            mock_run.__aiter__ = lambda self: empty_async_iter()
+    Usage:
+        def test_example(mock_deepagents):
+            mock_deepagents.agent_result["messages"] = [AIMessage(content="response")]
+            # ... call driver.generate() ...
+            mock_deepagents.create_deep_agent.assert_called_once()
+    """
+    from collections.abc import AsyncIterator
 
-            mock_agent_instance = AsyncMock()
-            mock_result = MagicMock()
-            mock_result.output = "Test response"
-            mock_agent_instance.run = AsyncMock(return_value=mock_result)
-            mock_agent_instance.iter = MagicMock(return_value=mock_run)
+    with patch("amelia.drivers.api.deepagents.create_deep_agent") as mock_create_agent, \
+         patch("amelia.drivers.api.deepagents.init_chat_model") as mock_init_model, \
+         patch("amelia.drivers.api.deepagents.FilesystemBackend") as mock_backend_class:
 
-            mock_agent_class.return_value = mock_agent_instance
+        # Set up default agent result (can be modified by tests)
+        agent_result: dict[str, Any] = {"messages": []}
+        stream_chunks: list[dict[str, Any]] = []
 
-            yield {
-                "agent_class": mock_agent_class,
-                "agent_instance": mock_agent_instance,
-                "result": mock_result,
-                "run": mock_run,
-            }
+        # Create mock agent
+        mock_agent = AsyncMock()
+        mock_agent.ainvoke = AsyncMock(return_value=agent_result)
 
-    return _create
+        async def mock_astream(*args: Any, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
+            for chunk in stream_chunks:
+                yield chunk
+
+        mock_agent.astream = mock_astream
+
+        mock_create_agent.return_value = mock_agent
+        mock_init_model.return_value = MagicMock()
+        mock_backend_class.return_value = MagicMock()
+
+        # Create container for all mocks
+        mocks = MagicMock()
+        mocks.create_deep_agent = mock_create_agent
+        mocks.init_chat_model = mock_init_model
+        mocks.backend_class = mock_backend_class
+        mocks.agent = mock_agent
+        mocks.agent_result = agent_result
+        mocks.stream_chunks = stream_chunks
+
+        yield mocks
 
 
 class LangGraphMocks(NamedTuple):
