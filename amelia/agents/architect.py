@@ -14,8 +14,7 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 
-from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
-from amelia.core.state import AgentMessage, ExecutionState
+from amelia.core.state import ExecutionState
 from amelia.core.types import Design, Issue, Profile, StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import DriverInterface
 
@@ -94,11 +93,14 @@ class MarkdownPlanOutput(BaseModel):
     key_files: list[str] = []
 
 
-class ArchitectContextStrategy(ContextStrategy):
-    """Context compilation strategy for the Architect agent.
+class Architect:
+    """Agent responsible for creating implementation plans from issues.
 
-    Compiles context for plan generation by including issue information
-    and optional design context.
+    Generates rich markdown plans that the Developer agent can follow
+    agentically, or provides simplified analysis when full plans aren't needed.
+
+    Attributes:
+        driver: LLM driver interface for plan generation.
     """
 
     SYSTEM_PROMPT = """You are a senior software architect creating implementation plans.
@@ -156,29 +158,61 @@ Guidelines:
 - Be specific about file paths, commands, and expected outputs
 - Keep steps granular (2-5 minutes of work each)"""
 
-    ALLOWED_SECTIONS = {"issue", "design", "codebase"}
+    def __init__(
+        self,
+        driver: DriverInterface,
+        stream_emitter: StreamEmitter | None = None,
+    ):
+        """Initialize the Architect agent.
 
-    def get_plan_generation_prompt(self) -> str:
-        """Get user prompt for markdown plan generation.
+        Args:
+            driver: LLM driver interface for plan generation.
+            stream_emitter: Optional callback for streaming events.
+        """
+        self.driver = driver
+        self._stream_emitter = stream_emitter
+
+    def _build_prompt(self, state: ExecutionState, profile: Profile) -> str:
+        """Build user prompt from execution state and profile.
+
+        Combines issue information, optional design context, and codebase
+        structure into a single prompt string.
+
+        Args:
+            state: The current execution state.
+            profile: The profile containing working directory settings.
 
         Returns:
-            User prompt string for plan generation.
+            Formatted prompt string with all context sections.
+
+        Raises:
+            ValueError: If no issue is present in the state.
         """
-        return """Analyze the issue and generate a complete implementation plan in markdown format.
+        if not state.issue:
+            raise ValueError("Issue context is required for planning")
 
-The plan should:
-1. Include the Claude skill instruction at the top: > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans
-2. Break work into logical Phases (## headers)
-3. Each Phase contains Tasks (### headers)
-4. Each Task has Steps with code blocks, commands, and success criteria
-5. Follow TDD approach where applicable
-6. Be specific about file paths and commands
-7. Include success criteria for each step
+        parts: list[str] = []
 
-Return the plan as a MarkdownPlanOutput with:
-- goal: A clear 1-2 sentence goal statement
-- plan_markdown: The full markdown plan content
-- key_files: List of files that will be modified"""
+        # Issue section (required)
+        issue_parts = []
+        if state.issue.title:
+            issue_parts.append(f"**{state.issue.title}**")
+        if state.issue.description:
+            issue_parts.append(state.issue.description)
+        issue_summary = "\n\n".join(issue_parts) if issue_parts else ""
+        parts.append(f"## Issue\n\n{issue_summary}")
+
+        # Design section (optional)
+        if state.design:
+            design_content = self._format_design_section(state.design)
+            parts.append(f"## Design\n\n{design_content}")
+
+        # Codebase section (optional)
+        if profile.working_dir:
+            codebase_content = self._scan_codebase(profile.working_dir)
+            parts.append(f"## Codebase\n\n{codebase_content}")
+
+        return "\n\n".join(parts)
 
     def _format_design_section(self, design: Design) -> str:
         """Format Design into structured markdown for context.
@@ -191,32 +225,32 @@ Return the plan as a MarkdownPlanOutput with:
         """
         parts = []
 
-        parts.append(f"## Goal\n\n{design.goal}")
-        parts.append(f"## Architecture\n\n{design.architecture}")
+        parts.append(f"### Goal\n\n{design.goal}")
+        parts.append(f"### Architecture\n\n{design.architecture}")
 
         if design.tech_stack:
             tech_list = "\n".join(f"- {tech}" for tech in design.tech_stack)
-            parts.append(f"## Tech Stack\n\n{tech_list}")
+            parts.append(f"### Tech Stack\n\n{tech_list}")
 
         if design.components:
             comp_list = "\n".join(f"- {comp}" for comp in design.components)
-            parts.append(f"## Components\n\n{comp_list}")
+            parts.append(f"### Components\n\n{comp_list}")
 
         if design.data_flow:
-            parts.append(f"## Data Flow\n\n{design.data_flow}")
+            parts.append(f"### Data Flow\n\n{design.data_flow}")
 
         if design.error_handling:
-            parts.append(f"## Error Handling\n\n{design.error_handling}")
+            parts.append(f"### Error Handling\n\n{design.error_handling}")
 
         if design.testing_strategy:
-            parts.append(f"## Testing Strategy\n\n{design.testing_strategy}")
+            parts.append(f"### Testing Strategy\n\n{design.testing_strategy}")
 
         if design.conventions:
-            parts.append(f"## Conventions\n\n{design.conventions}")
+            parts.append(f"### Conventions\n\n{design.conventions}")
 
         if design.relevant_files:
             files_list = "\n".join(f"- `{f}`" for f in design.relevant_files)
-            parts.append(f"## Relevant Files\n\n{files_list}")
+            parts.append(f"### Relevant Files\n\n{files_list}")
 
         return "\n\n".join(parts)
 
@@ -274,98 +308,12 @@ Return the plan as a MarkdownPlanOutput with:
 
         # Format as a simple file list
         file_list = "\n".join(f"- {f}" for f in files)
-        header = f"## File Structure ({len(files)} files)\n\n"
+        header = f"### File Structure ({len(files)} files)\n\n"
 
         if len(files) >= max_files:
             header += f"(Truncated to first {max_files} files)\n\n"
 
         return header + file_list
-
-    def compile(self, state: ExecutionState, profile: Profile) -> CompiledContext:
-        """Compile ExecutionState into context for analysis.
-
-        Args:
-            state: The current execution state.
-            profile: The profile containing working directory settings.
-
-        Returns:
-            CompiledContext with system prompt and relevant sections.
-
-        Raises:
-            ValueError: If required sections are missing.
-        """
-        sections: list[ContextSection] = []
-
-        # Issue section (required)
-        issue_summary = self.get_issue_summary(state)
-        if not issue_summary:
-            raise ValueError("Issue context is required for planning")
-
-        sections.append(
-            ContextSection(
-                name="issue",
-                content=issue_summary,
-                source="state.issue",
-            )
-        )
-
-        # Design section (optional)
-        if state.design:
-            design_content = self._format_design_section(state.design)
-            sections.append(
-                ContextSection(
-                    name="design",
-                    content=design_content,
-                    source="state.design",
-                )
-            )
-
-        # Codebase section (optional - when working_dir is set)
-        if profile.working_dir:
-            codebase_content = self._scan_codebase(profile.working_dir)
-            sections.append(
-                ContextSection(
-                    name="codebase",
-                    content=codebase_content,
-                    source="profile.working_dir",
-                )
-            )
-
-        # Validate all sections before returning
-        self.validate_sections(sections)
-
-        return CompiledContext(
-            system_prompt=self.SYSTEM_PROMPT,
-            sections=sections,
-        )
-
-
-class Architect:
-    """Agent responsible for creating implementation plans from issues.
-
-    Generates rich markdown plans that the Developer agent can follow
-    agentically, or provides simplified analysis when full plans aren't needed.
-
-    Attributes:
-        driver: LLM driver interface for plan generation.
-        context_strategy: Strategy for compiling context from ExecutionState.
-    """
-
-    context_strategy: type[ArchitectContextStrategy] = ArchitectContextStrategy
-
-    def __init__(
-        self,
-        driver: DriverInterface,
-        stream_emitter: StreamEmitter | None = None,
-    ):
-        """Initialize the Architect agent.
-
-        Args:
-            driver: LLM driver interface for plan generation.
-            stream_emitter: Optional callback for streaming events.
-        """
-        self.driver = driver
-        self._stream_emitter = stream_emitter
 
     async def plan(
         self,
@@ -406,23 +354,36 @@ class Architect:
         if not output_path.is_absolute() and profile.working_dir:
             output_dir = str(Path(profile.working_dir) / output_path)
 
-        # Compile context using strategy
-        strategy = self.context_strategy()
-        compiled_context = strategy.compile(state, profile)
+        # Build prompt from state
+        context_prompt = self._build_prompt(state, profile)
 
-        # Build messages with plan generation system prompt
-        system_message = AgentMessage(role="system", content=strategy.SYSTEM_PROMPT_PLAN)
-        context_messages = strategy.to_messages(compiled_context)
-        user_message = AgentMessage(role="user", content=strategy.get_plan_generation_prompt())
+        # Build user prompt for plan generation
+        user_prompt = f"""{context_prompt}
 
-        messages = [system_message, *context_messages, user_message]
+---
+
+Analyze the issue and generate a complete implementation plan in markdown format.
+
+The plan should:
+1. Include the Claude skill instruction at the top: > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans
+2. Break work into logical Phases (## headers)
+3. Each Phase contains Tasks (### headers)
+4. Each Task has Steps with code blocks, commands, and success criteria
+5. Follow TDD approach where applicable
+6. Be specific about file paths and commands
+7. Include success criteria for each step
+
+Return the plan as a MarkdownPlanOutput with:
+- goal: A clear 1-2 sentence goal statement
+- plan_markdown: The full markdown plan content
+- key_files: List of files that will be modified"""
 
         # Call driver with MarkdownPlanOutput schema
         raw_response, _session_id = await self.driver.generate(
-            messages=messages,
+            prompt=user_prompt,
+            system_prompt=self.SYSTEM_PROMPT_PLAN,
             schema=MarkdownPlanOutput,
             cwd=profile.working_dir,
-            session_id=state.driver_session_id,
         )
         response = MarkdownPlanOutput.model_validate(raw_response)
 
@@ -515,15 +476,15 @@ class Architect:
         if not state.issue:
             raise ValueError("Cannot analyze: no issue in ExecutionState")
 
-        # Compile context using strategy
-        strategy = self.context_strategy()
-        compiled_context = strategy.compile(state, profile)
+        # Build prompt from state
+        context_prompt = self._build_prompt(state, profile)
 
-        # Convert compiled context to messages
-        base_messages = strategy.to_messages(compiled_context)
+        # Build user prompt for analysis
+        user_prompt = f"""{context_prompt}
 
-        # Add user prompt requesting analysis
-        user_prompt = """Analyze this issue and provide:
+---
+
+Analyze this issue and provide:
 1. A clear goal statement describing what needs to be accomplished
 2. A high-level strategy for how to approach the implementation
 3. Key files that will likely need to be modified
@@ -531,17 +492,12 @@ class Architect:
 
 Respond with a structured ArchitectOutput."""
 
-        messages = [
-            *base_messages,
-            AgentMessage(role="user", content=user_prompt),
-        ]
-
         # Call driver with ArchitectOutput schema
         raw_response, _ = await self.driver.generate(
-            messages=messages,
+            prompt=user_prompt,
+            system_prompt=self.SYSTEM_PROMPT,
             schema=ArchitectOutput,
             cwd=profile.working_dir,
-            session_id=state.driver_session_id,
         )
         response = ArchitectOutput.model_validate(raw_response)
 
