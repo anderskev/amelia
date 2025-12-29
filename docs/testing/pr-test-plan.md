@@ -307,33 +307,30 @@ asyncio.run(test())
 
 ---
 
-### TC-07: Driver Factory (cli:claude Profile)
+### TC-07: Driver Factory (cli:claude)
 
-**Objective:** Verify DriverFactory creates ClaudeCliDriver for cli:claude profile
+**Objective:** Verify DriverFactory creates ClaudeCliDriver for cli:claude driver key
 
 **Steps:**
-1. Create a Profile with driver='cli:claude'
-2. Use DriverFactory to create driver
+1. Call DriverFactory.get_driver() with driver_key='cli:claude'
+2. Pass driver-specific kwargs (model, skip_permissions)
 3. Verify correct driver type is returned
 
 **Expected Result:**
-- DriverFactory.create_driver() returns ClaudeCliDriver instance
-- Driver is configured with profile settings
+- DriverFactory.get_driver() returns ClaudeCliDriver instance
+- Driver is configured with provided kwargs
 
 **Verification Commands:**
 ```bash
 uv run python -c "
-from amelia.core.types import Profile
 from amelia.drivers.factory import DriverFactory
 from amelia.drivers.cli.claude import ClaudeCliDriver
 
-profile = Profile(
-    name='test',
-    driver='cli:claude',
+driver = DriverFactory.get_driver(
+    'cli:claude',
     model='sonnet',
-    tracker='noop'
+    skip_permissions=True
 )
-driver = DriverFactory.create_driver(profile)
 assert isinstance(driver, ClaudeCliDriver), f'Expected ClaudeCliDriver, got {type(driver)}'
 print(f'Driver type: {type(driver).__name__}')
 print('Driver factory cli:claude test PASSED')
@@ -342,33 +339,30 @@ print('Driver factory cli:claude test PASSED')
 
 ---
 
-### TC-08: Driver Factory (api:openrouter Profile)
+### TC-08: Driver Factory (api:openrouter)
 
-**Objective:** Verify DriverFactory creates ApiDriver for api:openrouter profile
+**Objective:** Verify DriverFactory creates ApiDriver for api:openrouter driver key
 
 **Steps:**
-1. Create a Profile with driver='api:openrouter'
-2. Use DriverFactory to create driver
+1. Call DriverFactory.get_driver() with driver_key='api:openrouter'
+2. Pass driver-specific kwargs (model, cwd)
 3. Verify correct driver type is returned
 
 **Expected Result:**
-- DriverFactory.create_driver() returns ApiDriver instance
-- Driver is configured with profile model
+- DriverFactory.get_driver() returns ApiDriver instance
+- Driver is configured with provided model
 
 **Verification Commands:**
 ```bash
 uv run python -c "
-from amelia.core.types import Profile
 from amelia.drivers.factory import DriverFactory
 from amelia.drivers.api.deepagents import ApiDriver
 
-profile = Profile(
-    name='test',
-    driver='api:openrouter',
+driver = DriverFactory.get_driver(
+    'api:openrouter',
     model='openrouter:anthropic/claude-sonnet-4-20250514',
-    tracker='noop'
+    cwd='.'
 )
-driver = DriverFactory.create_driver(profile)
 assert isinstance(driver, ApiDriver), f'Expected ApiDriver, got {type(driver)}'
 print(f'Driver type: {type(driver).__name__}')
 print(f'Driver model: {driver.model}')
