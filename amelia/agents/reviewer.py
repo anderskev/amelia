@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
 from amelia.core.state import ExecutionState, ReviewResult, Severity
 from amelia.core.types import Profile, StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import DriverInterface
@@ -27,136 +26,15 @@ class ReviewResponse(BaseModel):
     severity: Severity = Field(description="Overall severity of the review findings.")
 
 
-class ReviewerContextStrategy(ContextStrategy):
-    """Context compilation strategy for code review.
-
-    Compiles minimal context for reviewing code changes against task requirements.
-    Uses a templated system prompt with {persona} placeholder to maximize cache hits
-    across same-persona reviews.
-    """
-
-    SYSTEM_PROMPT_TEMPLATE = """You are an expert code reviewer with a focus on {persona} aspects.
-Analyze the provided code changes and provide a comprehensive review."""
-
-    ALLOWED_SECTIONS = {"task", "issue", "diff", "criteria"}
-
-    def __init__(self, persona: str = "General"):
-        """Initialize the strategy with a review persona.
-
-        Args:
-            persona: Review perspective (e.g., "Security", "Performance", "General").
-        """
-        self.persona = persona
-
-    def _get_task_context(self, state: ExecutionState) -> str | None:
-        """Get context description for the current task.
-
-        For agentic execution, this returns the goal. Previously this
-        extracted batch context from step-by-step plans.
-
-        Args:
-            state: The current execution state.
-
-        Returns:
-            Formatted task context string, or None if no goal.
-        """
-        if not state.goal:
-            return None
-
-        return f"**Task Goal:**\n\n{state.goal}"
-
-    def compile(self, state: ExecutionState, _profile: Profile) -> CompiledContext:
-        """Compile ExecutionState into review context.
-
-        Args:
-            state: Current execution state containing task and code changes.
-            _profile: The profile configuration for this workflow (unused in reviewer).
-
-        Returns:
-            CompiledContext with system prompt and relevant sections.
-
-        Raises:
-            ValueError: If code_changes_for_review is missing or sections are invalid.
-        """
-        # Format system prompt with persona
-        system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(persona=self.persona)
-
-        # Get context for what was supposed to be done
-        # Priority: task context (goal) > issue summary
-        task_context = self._get_task_context(state)
-        current_task = self.get_current_task(state)
-        issue_summary = self.get_issue_summary(state)
-
-        if not task_context and not current_task and not issue_summary:
-            raise ValueError("No task or issue context found for review")
-
-        # Get code changes
-        code_changes = state.code_changes_for_review
-        if not code_changes:
-            raise ValueError("No code changes provided for review")
-
-        # Build sections
-        sections: list[ContextSection] = []
-
-        # Task/issue section - what was supposed to be done
-        if task_context:
-            sections.append(
-                ContextSection(
-                    name="task",
-                    content=task_context,
-                    source="state.goal"
-                )
-            )
-        elif current_task:
-            sections.append(
-                ContextSection(
-                    name="task",
-                    content=current_task,
-                    source="state.goal"
-                )
-            )
-        elif issue_summary:
-            # issue_summary is guaranteed non-None here due to validation check above
-            sections.append(
-                ContextSection(
-                    name="issue",
-                    content=issue_summary,
-                    source="state.issue"
-                )
-            )
-
-        # Diff section - code changes to review (required)
-        sections.append(
-            ContextSection(
-                name="diff",
-                content=f"```diff\n{code_changes}\n```",
-                source="state.code_changes_for_review"
-            )
-        )
-
-        # Criteria section - acceptance criteria (optional, if available)
-        # Note: Current Task model doesn't have acceptance_criteria field
-        # This is a placeholder for when it's added to the schema
-        # For now, we'll skip this section since it's optional
-
-        # Validate sections before returning
-        self.validate_sections(sections)
-
-        return CompiledContext(
-            system_prompt=system_prompt,
-            sections=sections
-        )
-
-
 class Reviewer:
     """Agent responsible for reviewing code changes against requirements.
 
     Attributes:
         driver: LLM driver interface for generating reviews.
-        context_strategy: Strategy for compiling review context.
     """
 
-    context_strategy: type[ReviewerContextStrategy] = ReviewerContextStrategy
+    SYSTEM_PROMPT_TEMPLATE = """You are an expert code reviewer with a focus on {persona} aspects.
+Analyze the provided code changes and provide a comprehensive review."""
 
     def __init__(
         self,
@@ -171,6 +49,42 @@ class Reviewer:
         """
         self.driver = driver
         self._stream_emitter = stream_emitter
+
+    def _build_prompt(self, state: ExecutionState, code_changes: str) -> str:
+        """Build the user prompt for review from state.
+
+        Args:
+            state: Current execution state containing task and issue context.
+            code_changes: The diff or description of code changes to review.
+
+        Returns:
+            Formatted user prompt string for the reviewer.
+
+        Raises:
+            ValueError: If no task or issue context is found for review.
+        """
+        parts: list[str] = []
+
+        # Get context for what was supposed to be done
+        # Priority: goal > issue
+        if state.goal:
+            parts.append(f"## Task\n\n**Task Goal:**\n\n{state.goal}")
+        elif state.issue:
+            issue_parts = []
+            if state.issue.title:
+                issue_parts.append(f"**{state.issue.title}**")
+            if state.issue.description:
+                issue_parts.append(state.issue.description)
+            if issue_parts:
+                parts.append(f"## Issue\n\n" + "\n\n".join(issue_parts))
+
+        if not parts:
+            raise ValueError("No task or issue context found for review")
+
+        # Add code changes section (required)
+        parts.append(f"## Diff\n\n```diff\n{code_changes}\n```")
+
+        return "\n\n".join(parts)
 
     async def review(
         self,
@@ -245,28 +159,21 @@ class Reviewer:
             )
             return result, state.driver_session_id
 
-        # Prepare state for context strategy
-        # Set code_changes_for_review if not already set (passed as parameter)
-        review_state = state
-        if not state.code_changes_for_review:
-            review_state = state.model_copy(update={"code_changes_for_review": code_changes})
-
-        # Use context strategy to compile review context
-        strategy = self.context_strategy(persona=persona)
-        compiled_context = strategy.compile(review_state, profile)
+        # Build prompt and system prompt
+        prompt = self._build_prompt(state, code_changes)
+        system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(persona=persona)
 
         logger.debug(
-            "Compiled context",
+            "Built review prompt",
             agent="reviewer",
-            sections=[s.name for s in compiled_context.sections],
-            system_prompt_length=len(compiled_context.system_prompt) if compiled_context.system_prompt else 0
+            persona=persona,
+            prompt_length=len(prompt),
+            system_prompt_length=len(system_prompt),
         )
 
-        # Convert to messages
-        prompt_messages = strategy.to_messages(compiled_context)
-
         response, new_session_id = await self.driver.generate(
-            messages=prompt_messages,
+            prompt=prompt,
+            system_prompt=system_prompt,
             schema=ReviewResponse,
             cwd=profile.working_dir,
             session_id=state.driver_session_id,
