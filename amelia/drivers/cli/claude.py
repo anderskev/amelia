@@ -11,7 +11,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from claude_agent_sdk import ClaudeAgentOptions, query
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, query
 from claude_agent_sdk.types import (
     AssistantMessage,
     Message,
@@ -423,10 +423,10 @@ class ClaudeCliDriver:
         session_id: str | None = None,
         instructions: str | None = None,
     ) -> AsyncIterator[Message]:
-        """Execute prompt with full autonomous tool access.
+        """Execute prompt with full autonomous tool access using ClaudeSDKClient.
 
-        Uses the claude-agent-sdk to run Claude with full tool access,
-        yielding SDK Message objects as they arrive.
+        Uses the claude-agent-sdk ClaudeSDKClient for agentic execution, which
+        provides interrupt support, hooks, and session continuity.
 
         Args:
             prompt: The user prompt to execute.
@@ -447,16 +447,18 @@ class ClaudeCliDriver:
         logger.info(f"Starting agentic execution in {cwd}")
 
         try:
-            async for message in query(prompt=prompt, options=options):
-                _log_sdk_message(message)
+            async with ClaudeSDKClient(options=options) as client:
+                await client.query(prompt)
+                async for message in client.receive_response():
+                    _log_sdk_message(message)
 
-                # Track tool calls in history
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, ToolUseBlock):
-                            self.tool_call_history.append(block)
+                    # Track tool calls in history
+                    if isinstance(message, AssistantMessage):
+                        for block in message.content:
+                            if isinstance(block, ToolUseBlock):
+                                self.tool_call_history.append(block)
 
-                yield message
+                    yield message
 
         except Exception as e:
             logger.error(f"Error in agentic execution: {e}")

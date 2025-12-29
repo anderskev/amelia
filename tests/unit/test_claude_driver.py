@@ -102,6 +102,31 @@ def create_mock_query(messages: list[Any]) -> AsyncMock:
     return mock_query
 
 
+def create_mock_sdk_client(messages: list[Any]) -> MagicMock:
+    """Create a mock ClaudeSDKClient that yields the given messages.
+
+    The mock supports the async context manager pattern and provides:
+    - __aenter__ / __aexit__ for `async with` support
+    - query() method for sending prompts
+    - receive_response() async iterator for receiving messages
+    """
+    mock_client = MagicMock()
+    mock_client.query = AsyncMock()
+
+    async def mock_receive_response() -> AsyncIterator[Any]:
+        for msg in messages:
+            yield msg
+
+    mock_client.receive_response = mock_receive_response
+
+    # Create the class mock that returns the client instance
+    mock_class = MagicMock()
+    mock_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_class.return_value.__aexit__ = AsyncMock(return_value=None)
+
+    return mock_class
+
+
 def _patch_sdk_types():
     """Create a context manager that patches SDK types for isinstance checks."""
     return patch.multiple(
@@ -400,10 +425,10 @@ class TestClaudeCliDriverConfiguration:
 
 
 class TestClaudeCliDriverAgentic:
-    """Tests for execute_agentic method."""
+    """Tests for execute_agentic method using ClaudeSDKClient."""
 
     async def test_execute_agentic_yields_messages(self, driver: ClaudeCliDriver) -> None:
-        """Test that execute_agentic yields SDK messages."""
+        """Test that execute_agentic yields SDK messages via ClaudeSDKClient."""
         messages = [
             MockAssistantMessage([MockTextBlock("Working on it...")]),
             MockAssistantMessage([MockToolUseBlock("Read", {"file_path": "/test.py"})]),
@@ -412,7 +437,7 @@ class TestClaudeCliDriverAgentic:
 
         with (
             _patch_sdk_types(),
-            patch("amelia.drivers.cli.claude.query", side_effect=create_mock_query(messages)),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
         ):
             collected: list[Any] = []
             async for msg in driver.execute_agentic("Do something", "/workspace"):
@@ -428,11 +453,9 @@ class TestClaudeCliDriverAgentic:
             MockResultMessage(result="Done", session_id="sess_tools"),
         ]
 
-        # Need to make the mock tool block pass isinstance checks
-        # We'll patch the isinstance check indirectly by using the real types
         with (
             _patch_sdk_types(),
-            patch("amelia.drivers.cli.claude.query", side_effect=create_mock_query(messages)),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
         ):
             driver.clear_tool_history()
             async for _ in driver.execute_agentic("Write file", "/workspace"):
@@ -446,25 +469,28 @@ class TestClaudeCliDriverAgentic:
         """Test that execute_agentic always bypasses permissions."""
         driver = ClaudeCliDriver(skip_permissions=False)  # Default is False
         messages = [MockResultMessage(result="Done")]
+        mock_sdk_class = create_mock_sdk_client(messages)
 
         with (
             _patch_sdk_types(),
-            patch("amelia.drivers.cli.claude.query", side_effect=create_mock_query(messages)) as mock_q,
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", mock_sdk_class),
         ):
             async for _ in driver.execute_agentic("Do something", "/workspace"):
                 pass
 
-            call_kwargs = mock_q.call_args[1]
+            # Verify ClaudeSDKClient was instantiated with correct options
+            call_kwargs = mock_sdk_class.call_args[1]
             assert call_kwargs["options"].permission_mode == "bypassPermissions"
 
     async def test_execute_agentic_with_instructions(self) -> None:
         """Test that instructions are passed as system_prompt."""
         driver = ClaudeCliDriver()
         messages = [MockResultMessage(result="Done")]
+        mock_sdk_class = create_mock_sdk_client(messages)
 
         with (
             _patch_sdk_types(),
-            patch("amelia.drivers.cli.claude.query", side_effect=create_mock_query(messages)) as mock_q,
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", mock_sdk_class),
         ):
             async for _ in driver.execute_agentic(
                 "Do something",
@@ -473,17 +499,18 @@ class TestClaudeCliDriverAgentic:
             ):
                 pass
 
-            call_kwargs = mock_q.call_args[1]
+            call_kwargs = mock_sdk_class.call_args[1]
             assert call_kwargs["options"].system_prompt == "You are a senior engineer."
 
     async def test_execute_agentic_with_session_resume(self) -> None:
         """Test that session_id enables resumption."""
         driver = ClaudeCliDriver()
         messages = [MockResultMessage(result="Continued")]
+        mock_sdk_class = create_mock_sdk_client(messages)
 
         with (
             _patch_sdk_types(),
-            patch("amelia.drivers.cli.claude.query", side_effect=create_mock_query(messages)) as mock_q,
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", mock_sdk_class),
         ):
             async for _ in driver.execute_agentic(
                 "Continue",
@@ -492,8 +519,25 @@ class TestClaudeCliDriverAgentic:
             ):
                 pass
 
-            call_kwargs = mock_q.call_args[1]
+            call_kwargs = mock_sdk_class.call_args[1]
             assert call_kwargs["options"].resume == "prev_session"
+
+    async def test_execute_agentic_calls_client_query(self) -> None:
+        """Test that execute_agentic calls client.query() with the prompt."""
+        driver = ClaudeCliDriver()
+        messages = [MockResultMessage(result="Done")]
+        mock_sdk_class = create_mock_sdk_client(messages)
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", mock_sdk_class),
+        ):
+            async for _ in driver.execute_agentic("My prompt", "/workspace"):
+                pass
+
+            # Get the mock client that was returned from __aenter__
+            mock_client = await mock_sdk_class.return_value.__aenter__()
+            mock_client.query.assert_called_once_with("My prompt")
 
     def test_clear_tool_history(self, driver: ClaudeCliDriver) -> None:
         """Test clearing tool history."""
