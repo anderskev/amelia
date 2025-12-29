@@ -36,22 +36,6 @@ class ReviewResult(BaseModel):
     severity: Severity
 
 
-class AgentMessage(BaseModel):
-    """Message from an agent in the orchestrator conversation.
-
-    Attributes:
-        role: Role of the message sender (system, assistant, user).
-        content: The message content.
-        tool_calls: Optional list of tool calls made by the agent.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    role: str
-    content: str
-    tool_calls: list[Any] | None = None
-
-
 class ExecutionState(BaseModel):
     """State for the LangGraph orchestrator execution.
 
