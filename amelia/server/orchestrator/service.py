@@ -17,6 +17,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
+from pydantic import ValidationError
 
 from amelia.core.orchestrator import create_orchestrator_graph, create_review_graph
 from amelia.core.state import ExecutionState
@@ -148,7 +149,19 @@ class OrchestratorService:
         Returns:
             Profile if found, None if not found (after setting workflow to failed).
         """
-        settings = self._load_settings_for_worktree(worktree_path)
+        try:
+            settings = self._load_settings_for_worktree(worktree_path)
+        except ValidationError as e:
+            logger.error(
+                "Invalid settings file in worktree",
+                workflow_id=workflow_id,
+                worktree_path=worktree_path,
+                error=str(e),
+            )
+            await self._repository.set_status(
+                workflow_id, "failed", failure_reason=f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+            )
+            return None
         if settings is None:
             logger.error(
                 "No settings file found in worktree",
@@ -261,6 +274,11 @@ class OrchestratorService:
                 error=str(e),
             )
             return None
+        except ValidationError:
+            # Let Pydantic validation errors propagate so callers can show
+            # the actual validation error (e.g., missing required fields)
+            # instead of a misleading "file not found" message
+            raise
         except Exception as e:
             logger.warning(
                 "Failed to load worktree settings",
@@ -319,7 +337,12 @@ class OrchestratorService:
             workflow_id = str(uuid4())
 
             # Load settings from worktree (required - no fallback)
-            settings = self._load_settings_for_worktree(worktree_path)
+            try:
+                settings = self._load_settings_for_worktree(worktree_path)
+            except ValidationError as e:
+                raise ValueError(
+                    f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+                ) from e
             if settings is None:
                 raise ValueError(
                     f"No settings.amelia.yaml found in {worktree_path}. "
@@ -452,7 +475,12 @@ class OrchestratorService:
             workflow_id = str(uuid4())
 
             # Load settings from worktree (required - no fallback)
-            settings = self._load_settings_for_worktree(worktree_path)
+            try:
+                settings = self._load_settings_for_worktree(worktree_path)
+            except ValidationError as e:
+                raise ValueError(
+                    f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+                ) from e
             if settings is None:
                 raise ValueError(
                     f"No settings.amelia.yaml found in {worktree_path}. "
