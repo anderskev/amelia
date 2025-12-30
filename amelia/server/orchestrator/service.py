@@ -59,6 +59,30 @@ TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
 )
 
 
+async def get_git_head(cwd: str | None) -> str | None:
+    """Get current git HEAD commit SHA.
+
+    Args:
+        cwd: Working directory for git command.
+
+    Returns:
+        Current HEAD commit SHA or None if not a git repo.
+    """
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "rev-parse", "HEAD",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode == 0:
+            return stdout.decode().strip()
+    except (FileNotFoundError, OSError):
+        pass
+    return None
+
+
 class OrchestratorService:
     """Manages concurrent workflow executions across worktrees.
 
@@ -385,8 +409,15 @@ class OrchestratorService:
             tracker = create_tracker(loaded_profile)
             issue = tracker.get_issue(issue_id, cwd=worktree_path)
 
-            # Initialize ExecutionState with profile_id and issue
-            execution_state = ExecutionState(profile_id=loaded_profile.name, issue=issue)
+            # Get current HEAD to track changes from workflow start
+            base_commit = await get_git_head(worktree_path)
+
+            # Initialize ExecutionState with profile_id, issue, and base commit
+            execution_state = ExecutionState(
+                profile_id=loaded_profile.name,
+                issue=issue,
+                base_commit=base_commit,
+            )
 
             state = ServerExecutionState(
                 id=workflow_id,
@@ -502,11 +533,15 @@ class OrchestratorService:
                 description="Review local uncommitted changes."
             )
 
+            # Get current HEAD for tracking (even though diff is provided)
+            base_commit = await get_git_head(worktree_path)
+
             # Initialize ExecutionState with diff content
             execution_state = ExecutionState(
                 profile_id=loaded_profile.name,
                 issue=dummy_issue,
                 code_changes_for_review=diff_content,
+                base_commit=base_commit,
                 review_iteration=0,
             )
 

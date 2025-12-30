@@ -52,7 +52,10 @@ def server(
         return
 
     # Configure logging with dashboard colors
-    configure_logging()
+    # Read log level from environment variable (default to INFO)
+    import os
+    log_level = os.environ.get("AMELIA_LOG_LEVEL", "INFO").upper()
+    configure_logging(level=log_level)
 
     # Load config (respects environment variables)
     config = ServerConfig()
