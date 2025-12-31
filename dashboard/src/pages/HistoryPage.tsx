@@ -40,7 +40,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex flex-col h-full w-full">
       <PageHeader>
         <PageHeader.Left>
           <PageHeader.Label>HISTORY</PageHeader.Label>
@@ -52,7 +52,7 @@ export default function HistoryPage() {
         </PageHeader.Center>
       </PageHeader>
 
-      <div className="flex flex-col gap-2 p-6">
+      <div className="flex-1 flex flex-col gap-2 p-6 overflow-y-auto">
         {workflows.map((workflow) => (
           <Link
             key={workflow.id}
