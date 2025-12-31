@@ -23,7 +23,7 @@ Each agent has:
 | Output | `PlanOutput` (markdown plan, goal, key files) |
 | Key Feature | Generates rich markdown plans for agentic execution |
 
-The Architect examines an issue and produces a detailed markdown implementation plan with phases, tasks, and steps. This plan is presented for human approval before execution.
+The Architect examines an issue and produces a detailed Markdown implementation plan with phases, tasks, and steps. This plan is presented for human approval before execution.
 
 **Plan Structure**:
 - **Goal**: Clear description of what needs to be accomplished
