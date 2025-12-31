@@ -14,6 +14,8 @@ import {
   MessageSquare,
   Filter,
 } from 'lucide-react';
+import Markdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { useStreamStore } from '@/store/stream-store';
@@ -77,9 +79,9 @@ function StreamLogItem({ event }: { event: StreamEvent }) {
           )}
         </div>
         {event.content && (
-          <p className="mt-1 text-sm text-foreground/80 break-words whitespace-pre-wrap">
-            {event.content}
-          </p>
+          <div className="mt-1 prose prose-sm prose-invert max-w-none prose-p:my-1 prose-p:first:mt-0 prose-p:last:mb-0 prose-headings:text-foreground prose-p:text-foreground/80 prose-strong:text-foreground prose-code:text-accent prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-li:text-foreground/80 [&_pre]:whitespace-pre-wrap [&_code]:break-all">
+            <Markdown remarkPlugins={[remarkBreaks]}>{event.content}</Markdown>
+          </div>
         )}
       </div>
     </div>
