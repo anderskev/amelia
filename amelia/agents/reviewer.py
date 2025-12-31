@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -519,14 +520,20 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
                 driver_type=type(self.driver).__name__,
             )
             # Get diff the traditional way and use _single_review
-            import asyncio as aio  # noqa: PLC0415
-            proc = await aio.create_subprocess_exec(
+            proc = await asyncio.create_subprocess_exec(
                 "git", "diff", base_commit,
-                stdout=aio.subprocess.PIPE,
-                stderr=aio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=profile.working_dir,
             )
-            stdout, _ = await proc.communicate()
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                logger.debug(
+                    "git diff failed",
+                    agent="reviewer",
+                    stderr=stderr.decode(),
+                    returncode=proc.returncode,
+                )
             code_changes = stdout.decode() if proc.returncode == 0 else ""
             return await self._single_review(
                 state, code_changes, profile, persona="General", workflow_id=workflow_id
@@ -673,7 +680,6 @@ The changes are in git - diff against commit: {base_commit}"""
             )
 
         # Try to find JSON in the output
-        import re  # noqa: PLC0415
 
         # Look for JSON block in markdown code fence
         json_match = re.search(r"```json\s*\n(.*?)\n```", output, re.DOTALL)
