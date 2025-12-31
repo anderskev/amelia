@@ -1,16 +1,12 @@
 ---
-description: create a release from the previous tag through PR creation
+description: create a release PR (auto-detects previous tag)
 ---
 
 # Release Automation
 
 Automate the full release process: generate notes, update files, create branch, and open PR.
 
-**Input**: Previous tag (e.g., `v0.1.0`)
-
-```text
-$ARGUMENTS
-```
+No arguments required - automatically detects the previous tag.
 
 ---
 
@@ -26,9 +22,20 @@ git status --short
 
 If there are uncommitted changes, abort and ask the user to resolve them first.
 
+Detect the previous tag:
+
+```bash
+PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
+if [ -z "$PREV_TAG" ]; then
+  echo "No previous tags found. This appears to be the first release."
+  PREV_TAG="HEAD~100"  # Fallback to analyze recent history
+fi
+echo "Previous tag: $PREV_TAG"
+```
+
 ## Step 1: Generate Release Notes
 
-Run `/gen-release-notes $ARGUMENTS` to:
+Run `/gen-release-notes ${PREV_TAG}` to:
 1. Analyze commits since the previous tag
 2. Categorize changes (Added, Changed, Fixed, Security, etc.)
 3. Determine the next version number
@@ -67,12 +74,6 @@ Push the branch and create a pull request:
 git push -u origin "chore/release-${VERSION}"
 ```
 
-Get the previous tag for the PR description:
-
-```bash
-PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-```
-
 Create the PR with this structure (adapt summary based on actual changes):
 
 ```bash
@@ -84,14 +85,10 @@ gh pr create --title "chore(release): ${VERSION}" --body "$(cat <<EOF
 
 ## Post-merge steps
 
-After merging:
-\`\`\`bash
-git checkout main && git pull
-git tag -a v${VERSION} -m "Release v${VERSION}"
-git push origin v${VERSION}
+After merging, run:
 \`\`\`
-
-GitHub Action creates the release automatically from the tag.
+/release-tag ${VERSION}
+\`\`\`
 
 ---
 
@@ -113,13 +110,11 @@ Release PR created: <URL>
 
 After the PR is merged, run:
   /release-tag ${VERSION}
-
-This will tag and push, triggering the GitHub Action to create the release.
 ```
 
 ## Error Handling
 
 - If main has uncommitted changes: abort and notify user
-- If tag doesn't exist: abort and list available tags
+- If no tags exist: treat as first release, analyze recent commits
 - If no changes since tag: abort and notify user
 - If PR creation fails: provide manual steps
