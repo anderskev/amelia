@@ -354,8 +354,10 @@ def mock_pydantic_agent() -> Callable[..., Any]:
     def _create() -> Iterator[dict[str, Any]]:
         with patch("amelia.drivers.api.openai.Agent") as mock_agent_class:
             async def empty_async_iter() -> AsyncIterator[None]:
-                return
-                yield
+                # Empty async generator - yield statement makes this a generator,
+                # but never executes since there's nothing to iterate over
+                if False:
+                    yield
 
             mock_run = AsyncMock()
             mock_run.result = MagicMock(output="Done")

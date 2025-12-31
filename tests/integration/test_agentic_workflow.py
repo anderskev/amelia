@@ -86,9 +86,9 @@ class TestArchitectNodeIntegration:
             key_files=["src/component.py"],
         )
 
-        # Create a mock result object with output attribute
+        # pydantic-ai returns the schema instance directly in result.output
         mock_result = MagicMock()
-        mock_result.output = mock_llm_response.model_dump()
+        mock_result.output = mock_llm_response  # Return instance, not dict
 
         with patch("pydantic_ai.Agent.run", new_callable=AsyncMock) as mock_agent_run:
             mock_agent_run.return_value = mock_result
