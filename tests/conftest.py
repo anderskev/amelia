@@ -6,21 +6,16 @@
 This module provides factory fixtures for creating test data and mocks
 used throughout the test suite for the agentic execution model.
 """
-import os
-import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, NamedTuple
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import yaml
 from pytest import TempPathFactory
-from typer.testing import CliRunner
 
 from amelia.core.agentic_state import ToolCall, ToolResult
-from amelia.core.state import ExecutionState, ReviewResult, Severity
+from amelia.core.state import ExecutionState
 from amelia.core.types import (
     Design,
     DriverType,
@@ -169,166 +164,12 @@ def mock_execution_state_factory(
 
 
 @pytest.fixture
-def mock_config_factory(mock_profile_factory: Callable[..., Profile]) -> Callable[..., dict[str, Any]]:
-    """Factory fixture for creating LangGraph config with configurable profile.
-
-    Creates a config dict with profile in config["configurable"]["profile"]
-    as expected by the orchestrator nodes.
-    """
-    def _create(profile: Profile | None = None, **kwargs: Any) -> dict[str, Any]:
-        if profile is None:
-            profile = mock_profile_factory()
-        return {
-            "configurable": {
-                "thread_id": kwargs.get("workflow_id", "test-wf"),
-                "profile": profile,
-                **kwargs,
-            }
-        }
-    return _create
-
-
-@pytest.fixture
 def mock_driver() -> MagicMock:
     """Returns a mock driver that implements DriverInterface."""
     mock = MagicMock(spec=DriverInterface)
     mock.generate = AsyncMock(return_value=("mocked AI response", None))
     mock.execute_agentic = AsyncMock(return_value=AsyncIteratorMock([]))
     return mock
-
-
-@pytest.fixture
-def mock_async_driver_factory() -> Callable[..., AsyncMock]:
-    """Factory fixture for creating mock DriverInterface instances."""
-    def _create(
-        generate_return: Any = ("mocked AI response", None),
-    ) -> AsyncMock:
-        mock = AsyncMock(spec=DriverInterface)
-        mock.generate = AsyncMock(return_value=generate_return)
-        mock.execute_agentic = AsyncMock(return_value=AsyncIteratorMock([]))
-        return mock
-    return _create
-
-
-@pytest.fixture
-def mock_review_result_factory() -> Callable[..., ReviewResult]:
-    """Factory fixture for creating ReviewResult instances."""
-    def _create(
-        approved: bool = True,
-        comments: list[str] | None = None,
-        severity: Severity = "low",
-        reviewer_persona: str = "Test Reviewer",
-    ) -> ReviewResult:
-        return ReviewResult(
-            approved=approved,
-            comments=comments or (["Looks good"] if approved else ["Needs changes"]),
-            severity=severity,
-            reviewer_persona=reviewer_persona
-        )
-    return _create
-
-
-@pytest.fixture
-def mock_design_factory() -> Callable[..., Design]:
-    """Factory fixture for creating Design instances."""
-    def _create(
-        title: str = "Test Feature",
-        goal: str = "Build test feature",
-        architecture: str = "Simple architecture",
-        tech_stack: list[str] | None = None,
-        components: list[str] | None = None,
-        raw_content: str = "",
-        **kwargs: Any
-    ) -> Design:
-        return Design(
-            title=title,
-            goal=goal,
-            architecture=architecture,
-            tech_stack=tech_stack or ["Python"],
-            components=components or ["ComponentA"],
-            raw_content=raw_content,
-            **kwargs
-        )
-    return _create
-
-
-@pytest.fixture
-def mock_subprocess_process_factory() -> Callable[..., AsyncMock]:
-    """Factory fixture for creating mock subprocess processes."""
-    def _create_mock_process(
-        stdout_lines: list[bytes] | None = None,
-        stderr_output: bytes = b"",
-        return_code: int = 0
-    ) -> AsyncMock:
-        if stdout_lines is None:
-            stdout_lines = [b""]
-
-        filtered_lines = [line for line in stdout_lines if line]
-        stdout_data = b"\n".join(filtered_lines)
-        read_position = [0]
-
-        async def mock_read(n: int = -1) -> bytes:
-            if read_position[0] >= len(stdout_data):
-                return b""
-            if n == -1:
-                chunk = stdout_data[read_position[0]:]
-                read_position[0] = len(stdout_data)
-            else:
-                chunk = stdout_data[read_position[0]:read_position[0] + n]
-                read_position[0] += n
-            return chunk
-
-        mock_process = AsyncMock()
-        mock_process.stdin = MagicMock()
-        mock_process.stdin.drain = AsyncMock()
-        mock_process.stdout.read = mock_read
-        mock_process.stderr.read = AsyncMock(return_value=stderr_output)
-        mock_process.returncode = return_code
-        mock_process.wait = AsyncMock(return_value=return_code)
-        return mock_process
-
-    return _create_mock_process
-
-
-@pytest.fixture
-def settings_file_factory(tmp_path: Path) -> Callable[[Any], Path]:
-    """Factory for creating settings.amelia.yaml files."""
-    def _create(settings_data: Any) -> Path:
-        path = tmp_path / "settings.amelia.yaml"
-        with open(path, "w") as f:
-            yaml.dump(settings_data, f)
-        return path
-    return _create
-
-
-@pytest.fixture
-def git_repo_with_changes(tmp_path: Path) -> Path:
-    """Create a git repo with initial commit and unstaged changes."""
-    git_env = {
-        **os.environ,
-        "GIT_AUTHOR_NAME": "Test",
-        "GIT_AUTHOR_EMAIL": "test@test.com",
-        "GIT_COMMITTER_NAME": "Test",
-        "GIT_COMMITTER_EMAIL": "test@test.com",
-    }
-
-    for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
-                "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_QUARANTINE_PATH"]:
-        git_env.pop(var, None)
-
-    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True, env=git_env)
-    (tmp_path / "file.txt").write_text("initial")
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, env=git_env)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, env=git_env)
-    (tmp_path / "file.txt").write_text("modified")
-
-    return tmp_path
-
-
-@pytest.fixture
-def cli_runner() -> CliRunner:
-    """Typer CLI test runner for command testing."""
-    return CliRunner()
 
 
 @pytest.fixture
@@ -344,43 +185,55 @@ def sample_stream_event() -> StreamEvent:
 
 
 @pytest.fixture
-def mock_pydantic_agent() -> Callable[..., Any]:
-    """Factory fixture for creating mock pydantic-ai Agent instances."""
-    from collections.abc import AsyncIterator, Iterator
-    from contextlib import contextmanager
-    from unittest.mock import patch
+def mock_deepagents() -> Generator[MagicMock, None, None]:
+    """Fixture for mocking DeepAgents library calls.
 
-    @contextmanager
-    def _create() -> Iterator[dict[str, Any]]:
-        with patch("amelia.drivers.api.openai.Agent") as mock_agent_class:
-            async def empty_async_iter() -> AsyncIterator[None]:
-                # Empty async generator - yield statement makes this a generator,
-                # but never executes since there's nothing to iterate over
-                if False:
-                    yield
+    Mocks create_deep_agent, init_chat_model, and FilesystemBackend.
+    The returned mock object contains references to all mocked components
+    and allows setting return values for agent.ainvoke() and agent.astream().
 
-            mock_run = AsyncMock()
-            mock_run.result = MagicMock(output="Done")
-            mock_run.__aenter__ = AsyncMock(return_value=mock_run)
-            mock_run.__aexit__ = AsyncMock(return_value=None)
-            mock_run.__aiter__ = lambda self: empty_async_iter()
+    Usage:
+        def test_example(mock_deepagents):
+            mock_deepagents.agent_result["messages"] = [AIMessage(content="response")]
+            # ... call driver.generate() ...
+            mock_deepagents.create_deep_agent.assert_called_once()
+    """
+    from collections.abc import AsyncIterator
 
-            mock_agent_instance = AsyncMock()
-            mock_result = MagicMock()
-            mock_result.output = "Test response"
-            mock_agent_instance.run = AsyncMock(return_value=mock_result)
-            mock_agent_instance.iter = MagicMock(return_value=mock_run)
+    with patch("amelia.drivers.api.deepagents.create_deep_agent") as mock_create_agent, \
+         patch("amelia.drivers.api.deepagents.init_chat_model") as mock_init_model, \
+         patch("amelia.drivers.api.deepagents.FilesystemBackend") as mock_backend_class:
 
-            mock_agent_class.return_value = mock_agent_instance
+        # Set up default agent result (can be modified by tests)
+        agent_result: dict[str, Any] = {"messages": []}
 
-            yield {
-                "agent_class": mock_agent_class,
-                "agent_instance": mock_agent_instance,
-                "result": mock_result,
-                "run": mock_run,
-            }
+        # Create container for all mocks first so closures can reference it
+        mocks = MagicMock()
+        mocks.stream_chunks = []  # Initialize default stream chunks
 
-    return _create
+        # Create mock agent
+        mock_agent = AsyncMock()
+        mock_agent.ainvoke = AsyncMock(return_value=agent_result)
+
+        async def mock_astream(*args: Any, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
+            # Look up stream_chunks on mocks dynamically to allow test modification
+            for chunk in mocks.stream_chunks:
+                yield chunk
+
+        mock_agent.astream = mock_astream
+
+        mock_create_agent.return_value = mock_agent
+        mock_init_model.return_value = MagicMock()
+        mock_backend_class.return_value = MagicMock()
+
+        # Set remaining attributes on mocks container
+        mocks.create_deep_agent = mock_create_agent
+        mocks.init_chat_model = mock_init_model
+        mocks.backend_class = mock_backend_class
+        mocks.agent = mock_agent
+        mocks.agent_result = agent_result
+
+        yield mocks
 
 
 class LangGraphMocks(NamedTuple):

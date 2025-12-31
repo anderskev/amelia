@@ -3,7 +3,6 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 from pathlib import Path
 
-from amelia.core.state import AgentMessage
 from amelia.core.types import Design
 from amelia.drivers.base import DriverInterface
 
@@ -47,12 +46,11 @@ async def parse_design(path: str | Path, driver: DriverInterface) -> Design:
 
     content = path.read_text()
 
-    messages = [
-        AgentMessage(role="system", content=PARSER_SYSTEM_PROMPT),
-        AgentMessage(role="user", content=content)
-    ]
-
-    parsed_result, _session_id = await driver.generate(messages=messages, schema=Design)
+    parsed_result, _session_id = await driver.generate(
+        prompt=content,
+        system_prompt=PARSER_SYSTEM_PROMPT,
+        schema=Design
+    )
     design: Design = parsed_result  # Type assertion - schema was provided
     design.raw_content = content
     return design

@@ -17,8 +17,9 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
+from pydantic import ValidationError
 
-from amelia.core.orchestrator import create_orchestrator_graph
+from amelia.core.orchestrator import create_orchestrator_graph, create_review_graph
 from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile, Settings, StreamEmitter, StreamEvent
 from amelia.ext import WorkflowEventType as ExtWorkflowEventType
@@ -56,6 +57,30 @@ TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
     TimeoutException,
     ConnectionError,
 )
+
+
+async def get_git_head(cwd: str | None) -> str | None:
+    """Get current git HEAD commit SHA.
+
+    Args:
+        cwd: Working directory for git command.
+
+    Returns:
+        Current HEAD commit SHA or None if not a git repo.
+    """
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "rev-parse", "HEAD",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode == 0:
+            return stdout.decode().strip()
+    except (FileNotFoundError, OSError):
+        pass
+    return None
 
 
 class OrchestratorService:
@@ -148,7 +173,19 @@ class OrchestratorService:
         Returns:
             Profile if found, None if not found (after setting workflow to failed).
         """
-        settings = self._load_settings_for_worktree(worktree_path)
+        try:
+            settings = self._load_settings_for_worktree(worktree_path)
+        except ValidationError as e:
+            logger.error(
+                "Invalid settings file in worktree",
+                workflow_id=workflow_id,
+                worktree_path=worktree_path,
+                error=str(e),
+            )
+            await self._repository.set_status(
+                workflow_id, "failed", failure_reason=f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+            )
+            return None
         if settings is None:
             logger.error(
                 "No settings file found in worktree",
@@ -261,6 +298,11 @@ class OrchestratorService:
                 error=str(e),
             )
             return None
+        except ValidationError:
+            # Let Pydantic validation errors propagate so callers can show
+            # the actual validation error (e.g., missing required fields)
+            # instead of a misleading "file not found" message
+            raise
         except Exception as e:
             logger.warning(
                 "Failed to load worktree settings",
@@ -319,7 +361,12 @@ class OrchestratorService:
             workflow_id = str(uuid4())
 
             # Load settings from worktree (required - no fallback)
-            settings = self._load_settings_for_worktree(worktree_path)
+            try:
+                settings = self._load_settings_for_worktree(worktree_path)
+            except ValidationError as e:
+                raise ValueError(
+                    f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+                ) from e
             if settings is None:
                 raise ValueError(
                     f"No settings.amelia.yaml found in {worktree_path}. "
@@ -362,8 +409,15 @@ class OrchestratorService:
             tracker = create_tracker(loaded_profile)
             issue = tracker.get_issue(issue_id, cwd=worktree_path)
 
-            # Initialize ExecutionState with profile_id and issue
-            execution_state = ExecutionState(profile_id=loaded_profile.name, issue=issue)
+            # Get current HEAD to track changes from workflow start
+            base_commit = await get_git_head(worktree_path)
+
+            # Initialize ExecutionState with profile_id, issue, and base commit
+            execution_state = ExecutionState(
+                profile_id=loaded_profile.name,
+                issue=issue,
+                base_commit=base_commit,
+            )
 
             state = ServerExecutionState(
                 id=workflow_id,
@@ -452,7 +506,12 @@ class OrchestratorService:
             workflow_id = str(uuid4())
 
             # Load settings from worktree (required - no fallback)
-            settings = self._load_settings_for_worktree(worktree_path)
+            try:
+                settings = self._load_settings_for_worktree(worktree_path)
+            except ValidationError as e:
+                raise ValueError(
+                    f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+                ) from e
             if settings is None:
                 raise ValueError(
                     f"No settings.amelia.yaml found in {worktree_path}. "
@@ -474,11 +533,15 @@ class OrchestratorService:
                 description="Review local uncommitted changes."
             )
 
+            # Get current HEAD for tracking (even though diff is provided)
+            base_commit = await get_git_head(worktree_path)
+
             # Initialize ExecutionState with diff content
             execution_state = ExecutionState(
                 profile_id=loaded_profile.name,
                 issue=dummy_issue,
                 code_changes_for_review=diff_content,
+                base_commit=base_commit,
                 review_iteration=0,
             )
 
@@ -888,10 +951,14 @@ class OrchestratorService:
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
         ) as checkpointer:
-            # Create orchestrator graph (no interrupt_before - runs autonomously)
-            graph = create_orchestrator_graph(
+            # Determine interrupt settings based on auto_approve
+            auto_approve = state.execution_state.auto_approve or profile.auto_approve_reviews
+            interrupt_before: list[str] | None = [] if auto_approve else None  # None = use defaults
+
+            # Use dedicated review graph for review workflows
+            graph = create_review_graph(
                 checkpoint_saver=checkpointer,
-                interrupt_before=[],  # No interrupts for autonomous review workflow
+                interrupt_before=interrupt_before,
             )
 
             # Create stream emitter and pass it via config
@@ -917,6 +984,9 @@ class OrchestratorService:
 
                 # Convert Pydantic model to JSON-serializable dict for checkpointing
                 initial_state = state.execution_state.model_dump(mode="json")
+                # Ensure auto_approve is set from profile if not already in state
+                if profile.auto_approve_reviews and not initial_state.get("auto_approve"):
+                    initial_state["auto_approve"] = True
 
                 async for chunk in graph.astream(
                     initial_state,

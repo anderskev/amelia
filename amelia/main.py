@@ -46,7 +46,8 @@ def main_callback() -> None:
     Configures logging with the Amelia dashboard color palette.
     Called automatically by Typer before any subcommand execution.
     """
-    configure_logging()
+    log_level = os.environ.get("AMELIA_LOG_LEVEL", "INFO").upper()
+    configure_logging(level=log_level)
 
 def _get_active_profile(settings: Settings, profile_name: str | None) -> Profile:
     """Get the active profile from settings.

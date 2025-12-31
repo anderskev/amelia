@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.runnables.config import RunnableConfig
+from pydantic import ValidationError
 
 from amelia.core.state import ExecutionState
 from amelia.core.types import Settings
@@ -1101,18 +1102,18 @@ profiles:
         settings = orchestrator._load_settings_for_worktree(str(tmp_path))
         assert settings is None
 
-    async def test_returns_none_for_validation_error(
+    async def test_raises_validation_error_for_invalid_structure(
         self,
         orchestrator: OrchestratorService,
         tmp_path: Path,
     ) -> None:
-        """_load_settings_for_worktree returns None for invalid config structure."""
+        """_load_settings_for_worktree raises ValidationError for invalid config structure."""
         settings_file = tmp_path / "settings.amelia.yaml"
         # Missing required 'profiles' field
         settings_file.write_text("active_profile: test\n")
 
-        settings = orchestrator._load_settings_for_worktree(str(tmp_path))
-        assert settings is None
+        with pytest.raises(ValidationError, match="profiles"):
+            orchestrator._load_settings_for_worktree(str(tmp_path))
 
     async def test_start_workflow_uses_worktree_settings(
         self,
