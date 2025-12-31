@@ -384,6 +384,9 @@ class TestStatusCommand:
 
         assert result.exit_code == 0
         assert "2" in result.stdout  # Total count
+        # Verify both worktrees appear
+        assert "worktree-1" in result.stdout or "wf-1" in result.stdout
+        assert "worktree-2" in result.stdout or "wf-2" in result.stdout
 
     def test_status_command_no_workflows(
         self, tmp_path: Path, mock_worktree_context: MagicMock
