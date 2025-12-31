@@ -286,7 +286,7 @@ Requirements:
 
 Per-Agent Minimal Context:
 - **Architect**: Issue description, design doc reference (if any)
-- **Developer**: Current task from TaskDAG, relevant file paths
+- **Developer**: Current goal from plan, relevant file paths
 - **Reviewer**: Diff reference, task description, acceptance criteria
 
 Consider:

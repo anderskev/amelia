@@ -47,7 +47,7 @@ The foundation: specialized AI agents working in sequence with explicit approval
 - Jira and GitHub issue tracker integrations
 
 **12-Factor Compliance:**
-- **F1 (Natural Language → Tool Calls)**: Issues converted to structured `TaskDAG` with Pydantic validation
+- **F1 (Natural Language → Tool Calls)**: Issues converted to structured markdown plans with extracted goals and Pydantic validation
 - **F4 (Tools = Structured Outputs)**: `DeveloperResponse`, `ReviewResponse` enforce schema compliance
 - **F8 (Own Control Flow)**: LangGraph provides full control over transitions and routing
 - **F10 (Small Focused Agents)**: Architect/Developer/Reviewer separation with ~3-5 steps per task

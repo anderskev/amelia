@@ -431,14 +431,14 @@ class SpecGenerationEngine:
 
 ```python
 class ArchitectAgent:
-    async def plan(self, issue: Issue) -> TaskDAG:
+    async def plan(self, state: ExecutionState, design: Design | None = None) -> PlanOutput:
         # Check for attached spec
-        spec = await self.spec_repository.get_latest_for_issue(issue.id)
+        spec = await self.spec_repository.get_latest_for_issue(state.issue.id)
 
         if spec:
-            context = f"{issue.description}\n\n## Design Spec\n{spec.content}"
+            context = f"{state.issue.description}\n\n## Design Spec\n{spec.content}"
         else:
-            context = issue.description
+            context = state.issue.description
 
         # Continue with planning...
 ```

@@ -37,34 +37,29 @@
 Amelia excels here:
 
 ```python
-# Architect produces TaskDAG from natural language issue
-class TaskListResponse(BaseModel):
-    tasks: list[Task]
-
-class Task(BaseModel):
-    name: str
-    description: str
-    steps: list[Step]          # Structured sub-tasks
-    dependencies: list[str]     # DAG edges
-    files_modified: list[str]
+# Architect produces PlanOutput from natural language issue
+class PlanOutput(BaseModel):
+    goal: str
+    plan_markdown: str
+    goals: list[str]  # Extracted from plan
 ```
 
 **What we do well:**
-- Issues are converted to structured `TaskDAG` objects
+- Issues are converted to structured markdown plans with extracted goals
 - Schema validation via Pydantic ensures LLM outputs conform
 - CLI driver uses `--json-schema` for structured generation
 - Tasks contain explicit steps (TDD structure: test → implement → commit)
 
 **Evidence:**
 - `amelia/agents/architect.py:62-68` - Schema-validated task generation
-- `amelia/core/state.py:45-89` - Task/TaskDAG models with validators
+- `amelia/agents/architect.py` - PlanOutput model with markdown plan
 
 #### Gap: None significant
 
 #### Roadmap Alignment
 
 **Addressed in Phase 1 (Complete)**:
-- TaskDAG generation with Pydantic validation
+- PlanOutput generation with Pydantic validation
 - Schema-enforced structured outputs
 
 ---
