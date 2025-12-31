@@ -155,10 +155,15 @@ InvalidStateError: Cannot approve workflow in status 'executing'
 - Trying to reject a completed workflow
 
 **Valid state transitions:**
-- `planning` → `pending_approval` (after plan generated)
+- `pending` → `planning` (workflow started)
+- `planning` → `pending_approval` (after Architect generates plan)
 - `pending_approval` → `executing` (after approval)
 - `pending_approval` → `planning` (after rejection with feedback)
+- `executing` → `reviewing` (after Developer completes changes)
+- `reviewing` → `executing` (after Reviewer requests fixes, if iteration < max)
+- `reviewing` → `completed` (after Reviewer approves)
 - Any state → `cancelled` (via cancel operation)
+- Any state → `failed` (on error)
 
 **Solution:**
 
@@ -219,7 +224,7 @@ uv sync
 
 If using `uv tool install`, reinstall:
 ```bash
-uv tool install --reinstall git+https://github.com/anderskev/amelia.git
+uv tool install --reinstall git+https://github.com/existential-birds/amelia.git
 ```
 
 ### Profile not found
@@ -290,22 +295,22 @@ FileNotFoundError: Configuration file not found at settings.amelia.yaml
 
 ### Invalid API key
 
-**Error for OpenAI driver:**
+**Error for OpenRouter driver:**
 ```
-Error: OPENAI_API_KEY environment variable not set
+Error: OPENROUTER_API_KEY environment variable not set
 ```
 
-**Cause:** Using `driver: api:openai` without credentials.
+**Cause:** Using `driver: api:openrouter` without credentials.
 
 **Solutions:**
 
 **Driver → Required Credentials:**
-- `api:openai` → `OPENAI_API_KEY`
+- `api:openrouter` → `OPENROUTER_API_KEY`
 - `cli:claude` → Claude CLI authenticated (`claude auth login`)
 
 1. Set API key:
    ```bash
-   export OPENAI_API_KEY=sk-...
+   export OPENROUTER_API_KEY=sk-...
    ```
 
 2. Or switch to CLI driver (no API key needed):
@@ -533,7 +538,7 @@ git push
 
 3. Reinstall with uv:
    ```bash
-   uv tool install --reinstall git+https://github.com/anderskev/amelia.git
+   uv tool install --reinstall git+https://github.com/existential-birds/amelia.git
    ```
 
 4. Or run from source with uv:
@@ -605,5 +610,5 @@ If issues persist:
    ```
 
 4. **File an issue:**
-   - GitHub: https://github.com/anderskev/amelia/issues
+   - GitHub: https://github.com/existential-birds/amelia/issues
    - Include: error message, logs, `amelia --version`, OS/Python version

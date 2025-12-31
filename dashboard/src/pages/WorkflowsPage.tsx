@@ -1,9 +1,3 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
-
 /**
  * @fileoverview Main workflows listing page with canvas visualization.
  *
@@ -12,6 +6,7 @@
  */
 import { useCallback } from 'react';
 import { useLoaderData, useNavigate, useParams } from 'react-router-dom';
+import { Copy } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { WorkflowEmptyState } from '@/components/WorkflowEmptyState';
@@ -21,6 +16,9 @@ import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { ActivityLog } from '@/components/ActivityLog';
 import { JobQueue } from '@/components/JobQueue';
 import { ApprovalControls } from '@/components/ApprovalControls';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { success, error } from '@/components/Toast';
 import { getActiveWorkflow } from '@/utils/workflow';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
 import { buildPipeline } from '@/utils/pipeline';
@@ -44,7 +42,7 @@ import type { workflowsLoader } from '@/loaders/workflows';
  * @returns The workflows page UI
  */
 export default function WorkflowsPage() {
-  const { workflows, detail } = useLoaderData<typeof workflowsLoader>();
+  const { workflows, detail, detailError } = useLoaderData<typeof workflowsLoader>();
   const navigate = useNavigate();
   const params = useParams<{ id?: string }>();
 
@@ -65,6 +63,15 @@ export default function WorkflowsPage() {
     }
   }, [navigate]);
 
+  const handleCopy = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      success('Issue ID copied to clipboard');
+    } catch {
+      error('Failed to copy to clipboard');
+    }
+  }, []);
+
   if (workflows.length === 0 && !detail) {
     return <WorkflowEmptyState variant="no-workflows" />;
   }
@@ -79,7 +86,25 @@ export default function WorkflowsPage() {
         <PageHeader.Left>
           <PageHeader.Label>WORKFLOW</PageHeader.Label>
           <div className="flex items-center gap-3">
-            <PageHeader.Title>{detail?.issue_id ?? 'SELECT JOB'}</PageHeader.Title>
+            <div className="flex items-center gap-2">
+              <PageHeader.Title>{detail?.issue_id ?? 'SELECT JOB'}</PageHeader.Title>
+              {detail?.issue_id && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => handleCopy(detail.issue_id)}
+                      aria-label="Copy Issue ID"
+                    >
+                      <Copy className="size-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Copy Issue ID</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             {detail?.worktree_name && (
               <PageHeader.Subtitle>{detail.worktree_name}</PageHeader.Subtitle>
             )}
@@ -115,7 +140,11 @@ export default function WorkflowsPage() {
           />
         </ScrollArea>
         <ScrollArea className="h-full overflow-hidden">
-          {detail ? (
+          {detailError ? (
+            <div className="p-4 text-destructive text-sm">
+              Failed to load workflow details: {detailError}
+            </div>
+          ) : detail ? (
             <ActivityLog workflowId={detail.id} initialEvents={detail.recent_events} />
           ) : null}
         </ScrollArea>

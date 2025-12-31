@@ -1,13 +1,9 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for LangGraph to WorkflowEvent mapping."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from amelia.core.types import Settings
 from amelia.server.models.events import EventType
 from amelia.server.orchestrator.service import STAGE_NODES, OrchestratorService
 
@@ -29,12 +25,12 @@ class TestHandleGraphEvent:
     """Test _handle_graph_event method."""
 
     @pytest.fixture
-    def service(self, mock_settings: Settings):
+    def service(self):
         """Create OrchestratorService with mocked dependencies."""
         event_bus = MagicMock()
         repository = AsyncMock()
         repository.get_max_event_sequence.return_value = 0
-        return OrchestratorService(event_bus, repository, mock_settings)
+        return OrchestratorService(event_bus, repository)
 
     async def test_on_chain_start_emits_stage_started(self, service):
         """on_chain_start for stage node emits STAGE_STARTED event."""

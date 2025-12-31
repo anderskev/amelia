@@ -1,6 +1,20 @@
 # Contributing to Amelia
 
-Thank you for your interest in contributing to Amelia! This document provides guidelines and information for contributors.
+Thank you for your interest in Amelia!
+
+## External Contributions
+
+We welcome bug reports, feature requests, and feedback via [GitHub Issues](https://github.com/existential-birds/amelia/issues).
+
+**Code contributions (pull requests) are not accepted from external contributors.** Amelia uses a dual-licensing model that requires all code to be authored by the project maintainers. See [LICENSING.md](docs/legal/LICENSING.md) for details.
+
+If you've found a bug or have an idea for improvement, please open an issue - we appreciate the feedback.
+
+---
+
+## Internal Development Guide
+
+*The following sections are for internal contributors.*
 
 ## Table of Contents
 
@@ -27,7 +41,7 @@ Thank you for your interest in contributing to Amelia! This document provides gu
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone the repository
-git clone https://github.com/anderskev/amelia.git
+git clone https://github.com/existential-birds/amelia.git
 cd amelia
 
 # Sync dependencies (installs runtime + dev dependencies)
@@ -185,11 +199,12 @@ For PRs with significant changes, create a manual test plan at `docs/testing/pr-
 
 ### Using Claude Code
 
-If you're using [Claude Code](https://claude.ai/code), these commands streamline the PR process:
+If you're using [Claude Code](https://claude.ai/code), install the [beagle](https://github.com/anderskev/beagle) plugin for PR workflow commands:
 
 ```bash
-/amelia:review           # Self-review before creating PR
-/amelia:create-pr        # Create PR with standardized description
-/amelia:commit-push      # Commit and push with proper format
+/beagle:create-pr        # Create PR with standardized description
+/beagle:commit-push      # Commit and push with proper format
+/beagle:review-backend   # Review Python/FastAPI code
+/beagle:review-frontend  # Review React/TypeScript code
 /amelia:gen-test-plan    # Generate manual test plan
 ```

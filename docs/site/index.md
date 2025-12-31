@@ -17,14 +17,14 @@ hero:
 
 ```bash
 # Install amelia globally
-uv tool install git+https://github.com/anderskev/amelia.git
+uv tool install git+https://github.com/existential-birds/amelia.git
 
 # Configure in your project
 cat > settings.amelia.yaml << 'EOF'
 active_profile: dev
 profiles:
   dev:
-    driver: api:openai
+    driver: api:openrouter
     tracker: github
 EOF
 

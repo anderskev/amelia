@@ -403,8 +403,6 @@ Color tokens are also available as JSON:
 }
 ```
 
-**Location**: [design-system/tokens/colors.json](https://github.com/anderskev/amelia/blob/main/design-system/tokens/colors.json)
-
 ## Theme Switching
 
 ### Automatic (System Preference)

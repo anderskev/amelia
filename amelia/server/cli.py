@@ -1,7 +1,5 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """CLI commands for the Amelia server."""
+import os
 from typing import Annotated
 
 import typer
@@ -52,7 +50,9 @@ def server(
         return
 
     # Configure logging with dashboard colors
-    configure_logging()
+    # Read log level from environment variable (default to INFO)
+    log_level = os.environ.get("AMELIA_LOG_LEVEL", "INFO").upper()
+    configure_logging(level=log_level)
 
     # Load config (respects environment variables)
     config = ServerConfig()

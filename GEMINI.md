@@ -8,7 +8,7 @@ This document provides context and instructions for working on the Amelia projec
 **Amelia** is a local agentic coding system that orchestrates software development tasks through multiple AI agents. It uses a LangGraph-based state machine to coordinate planning, coding, and reviewing.
 
 *   **Orchestrator:** LangGraph state machine (`amelia/core/orchestrator.py`).
-*   **Dual Driver:** Supports `api:openai` (pydantic-ai) and `cli:claude` (for compliance).
+*   **Dual Driver:** Supports `api:openrouter` (pydantic-ai) and `cli:claude` (for compliance).
 *   **Privacy:** Designed to run locally.
 
 ## 2. Environment & Commands

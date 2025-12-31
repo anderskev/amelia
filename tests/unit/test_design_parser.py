@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -11,16 +8,17 @@ from amelia.utils.design_parser import parse_design
 
 @pytest.fixture
 def mock_driver_for_parser():
-    """Mock driver that returns a Design-like response."""
+    """Mock driver that returns a (Design, session_id) tuple."""
     mock = MagicMock()
-    mock.generate = AsyncMock(return_value=Design(
+    design = Design(
         title="Test Feature",
         goal="Build test feature",
         architecture="Simple architecture",
         tech_stack=["Python"],
         components=["ComponentA"],
         raw_content=""
-    ))
+    )
+    mock.generate = AsyncMock(return_value=(design, None))
     return mock
 
 

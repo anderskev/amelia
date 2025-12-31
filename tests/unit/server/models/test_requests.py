@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for request schema validation.
 
 These tests verify security validators and format constraints.
@@ -124,7 +121,7 @@ class TestCreateWorkflowRequest:
 
     @pytest.mark.parametrize(
         "driver",
-        ["sdk:claude", "api:openai", "cli:claude", "custom:my-driver"],
+        ["sdk:claude", "api:openrouter", "cli:claude", "custom:my-driver"],
     )
     def test_driver_valid_patterns(self, driver):
         """Test driver accepts valid type:name patterns."""

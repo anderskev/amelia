@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for human_approval_node execution mode behavior."""
 
 from unittest.mock import patch
@@ -15,8 +12,9 @@ from amelia.core.types import Profile
 @pytest.fixture
 def base_state():
     """Create a base ExecutionState for testing."""
+    profile = Profile(name="test", driver="cli:claude", model="sonnet")
     return ExecutionState(
-        profile=Profile(name="test", driver="cli:claude"),
+        profile_id=profile.name,
         human_approved=None,
     )
 

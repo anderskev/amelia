@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """WebSocket endpoint for real-time event streaming."""
 import asyncio
 import contextlib
@@ -120,11 +117,11 @@ async def websocket_endpoint(
 
 
 async def _heartbeat_loop(websocket: WebSocket, interval: float = 30.0) -> None:
-    """Send periodic ping messages to keep connection alive.
+    """Send periodic ping messages to keep WebSocket connection alive.
 
     Args:
-        websocket: The WebSocket to send pings to.
-        interval: Seconds between pings (default 30s).
+        websocket: The WebSocket connection to send pings to.
+        interval: Seconds between ping messages. Defaults to 30.0.
     """
     try:
         while True:

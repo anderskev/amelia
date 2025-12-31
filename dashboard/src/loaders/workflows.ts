@@ -1,9 +1,3 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
-
 import { api } from '@/api/client';
 import { getActiveWorkflow } from '@/utils/workflow';
 import type { LoaderFunctionArgs } from 'react-router-dom';
@@ -50,16 +44,17 @@ export async function workflowsLoader({ request, params }: LoaderFunctionArgs): 
   // 2. Otherwise, fetch the active workflow detail
   const targetId = params?.id ?? active?.id;
   let detail = null;
+  let detailError: string | null = null;
   if (targetId) {
     try {
       detail = await api.getWorkflow(targetId);
     } catch (error) {
       logger.warn('Failed to fetch workflow detail', { workflowId: targetId, error });
-      // Continue with null - page will show list without canvas
+      detailError = error instanceof Error ? error.message : 'Failed to load workflow details';
     }
   }
 
-  return { workflows, detail };
+  return { workflows, detail, detailError };
 }
 
 /**

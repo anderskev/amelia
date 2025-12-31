@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """FastAPI application setup and configuration.
 
 Note: Imports are intentionally placed after _check_dependencies() to provide
@@ -28,7 +25,7 @@ def _check_dependencies() -> None:
             f"\n[ERROR] Missing required dependencies: {', '.join(missing)}\n\n"
             "The Amelia server requires these packages to be installed.\n\n"
             "If you installed Amelia as a tool, reinstall with:\n\n"
-            "    uv tool install --reinstall git+https://github.com/anderskev/amelia.git\n\n"
+            "    uv tool install --reinstall git+https://github.com/existential-birds/amelia.git\n\n"
             "If you're running from source, use:\n\n"
             "    uv run amelia server\n\n"
             "Or install the missing packages directly:\n\n"
@@ -50,7 +47,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from amelia import __version__
-from amelia.config import load_settings
 from amelia.logging import log_server_startup
 from amelia.server.config import ServerConfig
 from amelia.server.database import WorkflowRepository
@@ -101,9 +97,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Initialize configuration
     _config = ServerConfig()
 
-    # Load Amelia settings for profile management
-    settings = load_settings()
-
     # Connect to database and ensure schema exists
     database = Database(_config.database_path)
     await database.connect()
@@ -125,7 +118,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     orchestrator = OrchestratorService(
         event_bus=event_bus,
         repository=repository,
-        settings=settings,
         max_concurrent=_config.max_concurrent,
     )
     set_orchestrator(orchestrator)

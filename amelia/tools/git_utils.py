@@ -1,16 +1,21 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Git utilities for snapshot and revert operations.
 
-Provides batch-level rollback capability for the intelligent execution model.
+Provides rollback capability for agentic execution.
 """
 
 import asyncio
 import shlex
 from pathlib import Path
 
-from amelia.core.state import GitSnapshot
+from pydantic import BaseModel
+
+
+class GitSnapshot(BaseModel):
+    """Captures git state at a point in time for potential rollback."""
+
+    head_commit: str
+    dirty_files: tuple[str, ...]
+    stash_ref: str | None = None
 
 
 async def _run_git_command(

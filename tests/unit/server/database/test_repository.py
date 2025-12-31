@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for WorkflowRepository."""
 
 from datetime import UTC, datetime
@@ -232,7 +229,7 @@ class TestWorkflowRepository:
         await repository.create(state)
 
         # Create event with Pydantic model in data
-        profile = Profile(name="test", driver="cli:claude")
+        profile = Profile(name="test", driver="cli:claude", model="sonnet")
         event = make_event(
             id="evt-pydantic",
             workflow_id="wf-pydantic",

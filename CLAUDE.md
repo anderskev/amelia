@@ -28,11 +28,39 @@ uv run pytest -k "test_name"           # By name pattern
 
 # CLI commands
 uv run amelia start ISSUE-123 --profile work     # Full orchestrator loop
-uv run amelia plan-only ISSUE-123                # Generate plan only
 uv run amelia review --local                     # Review uncommitted changes
 ```
 
-**Pre-push hook**: A git pre-push hook runs `ruff check`, `mypy`, `check_boundaries.py`, and `pytest` before every push. All checks must pass to push to remote.
+**Pre-push hook**: A git pre-push hook runs `ruff check`, `mypy`, and `pytest` before every push. All checks must pass to push to remote.
+
+## Graphite Stacked PRs
+
+This repo uses [Graphite](https://graphite.dev/) for stacked PRs. **Always use `gt` commands instead of raw `git push`** to keep the stack properly tracked.
+
+```bash
+# Before starting work - sync with remote
+gt sync
+
+# After making changes
+git add -A && git commit -m "message"
+gt restack              # If Graphite asks for it
+gt submit --stack       # Push all branches in stack
+
+# View stack structure
+gt ls
+
+# Switch branches within stack
+gt checkout <branch>
+```
+
+**Why this matters**: Graphite tracks version history for each PR. Using raw `git push` bypasses this tracking and can cause sync errors like `refs/gt-fetch-head` issues. Always use `gt submit` to push changes.
+
+**If sync breaks**: If you see errors about missing refs (e.g., `graphite-base/XXX`), try:
+```bash
+gt untrack <branch>
+gt track <branch> --parent <parent-branch>
+gt sync
+```
 
 ## Dashboard Frontend
 
@@ -79,16 +107,16 @@ The orchestrator loops between Developer and Reviewer until changes are approved
 
 | Layer | Location | Purpose |
 |-------|----------|---------|
-| **Core** | `amelia/core/` | LangGraph orchestrator, state types (`ExecutionState`, `TaskDAG`), shared types (`Profile`, `Issue`) |
-| **Agents** | `amelia/agents/` | Architect (planning), Developer (execution), Reviewer (review), Project Manager (issue fetch) |
-| **Drivers** | `amelia/drivers/` | LLM abstraction - `api:openai` (pydantic-ai) or `cli:claude` (CLI wrapper) |
+| **Core** | `amelia/core/` | LangGraph orchestrator, state types (`ExecutionState`), shared types (`Profile`, `Issue`) |
+| **Agents** | `amelia/agents/` | Architect (planning), Developer (execution), Reviewer (review) |
+| **Drivers** | `amelia/drivers/` | LLM abstraction - `api:openrouter` (pydantic-ai) or `cli:claude` (CLI wrapper) |
 | **Trackers** | `amelia/trackers/` | Issue source abstraction - `jira`, `github`, `noop` |
 | **Tools** | `amelia/tools/` | Shell execution, git utilities |
 | **Extensions** | `amelia/ext/` | Protocols for optional integrations (policy hooks, audit exporters, analytics sinks) |
 
 ### Driver Abstraction
 
-The driver abstraction allows switching between direct API calls (`api:openai`) and CLI-wrapped tools (`cli:claude`) without code changes. This enables enterprise compliance where direct API calls may be prohibited.
+The driver abstraction allows switching between direct API calls (`api:openrouter`) and CLI-wrapped tools (`cli:claude`) without code changes. This enables enterprise compliance where direct API calls may be prohibited.
 
 ### Configuration
 
@@ -126,6 +154,52 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`.
 **Test Principles:**
 - **Don't Repeat Yourself (DRY)** - Extract common setup, assertions, and utilities into fixtures and helper functions. Avoid duplicating test logic across test files.
 
+**Integration Tests Must Be Real Integration Tests:**
+
+- Integration tests (`tests/integration/`) must test actual component interactions, not mocked components.
+- Only mock at the **external boundary** (e.g., HTTP calls to LLM APIs). Never mock internal classes like `Architect`, `Developer`, `Reviewer`, or `DriverFactory`.
+- If you find yourself patching internal components, you're writing a unit test - move it to `tests/unit/`.
+- The purpose of integration tests is to verify that real components work together correctly. Mocking them defeats this purpose entirely.
+
+**Example - WRONG (this is a unit test pretending to be an integration test):**
+
+```python
+with patch("amelia.core.orchestrator.Architect") as mock_architect:
+    mock_architect.return_value.plan = AsyncMock(return_value=mock_plan)
+    result = await call_architect_node(state, config)  # Testing nothing real
+```
+
+**Example - CORRECT (real integration test):**
+
+```python
+# Real Architect instance, only mock the LLM HTTP boundary
+with patch("httpx.AsyncClient.post") as mock_http:
+    mock_http.return_value = Response(200, json={"choices": [...]})
+    result = await call_architect_node(state, config)  # Real Architect runs
+```
+
+**High-Fidelity Mocks:**
+
+Mock return values must match production types exactly. When mocking external boundaries, return the same type the real code returns—not a serialized or converted form that happens to work.
+
+**Example - WRONG (lower fidelity):**
+
+```python
+# pydantic-ai returns Pydantic instances, not dicts
+mock_llm_response = MarkdownPlanOutput(goal="X", plan_markdown="...")
+mock_result.output = mock_llm_response.model_dump()  # Returns dict, not instance
+```
+
+**Example - CORRECT (production fidelity):**
+
+```python
+# Match what pydantic-ai actually returns: a Pydantic model instance
+mock_llm_response = MarkdownPlanOutput(goal="X", plan_markdown="...")
+mock_result.output = mock_llm_response  # Same type as production
+```
+
+This matters because downstream code may rely on type-specific behavior. Even if both happen to work today, the lower-fidelity version could mask bugs or break when code evolves.
+
 ## Manual Test Plans
 
 For PRs with significant changes, create a manual test plan that the `amelia-qa` GitHub Action will post as a PR comment.
@@ -135,92 +209,3 @@ For PRs with significant changes, create a manual test plan that the `amelia-qa`
 - The file is auto-detected when the PR is opened and posted as a comment
 - After the PR is merged, delete the test plan file (it's preserved in the PR comment)
 
-## Slash Commands
-
-Custom slash commands are in `.claude/commands/amelia/`. Key commands:
-
-| Command | Purpose |
-|---------|---------|
-| `/amelia:create-pr` | Create PR with standardized description template |
-| `/amelia:update-pr-desc` | Update existing PR description after changes |
-| `/amelia:commit-push` | Commit and push with Conventional Commits format |
-| `/amelia:review` | Launch code review agent for production readiness |
-| `/amelia:review-frontend` | Comprehensive React Router v7 frontend review |
-| `/amelia:review-tests` | Review test code for usefulness and conciseness |
-| `/amelia:gen-test-plan` | Generate manual test plan for PR |
-| `/amelia:run-test-plan` | Execute test plan in isolated worktree |
-| `/amelia:gen-release-notes` | Generate release notes since a tag |
-| `/amelia:greptile-review` | Fetch and evaluate greptile-apps bot comments |
-| `/amelia:respond-review` | Reply to review comments after fixes |
-| `/amelia:eval-feedback` | Evaluate code review feedback |
-| `/amelia:ensure-doc` | Verify code documentation (OpenAPI, docstrings) |
-| `/amelia:review-plan` | Review implementation plans with parallel agents |
-| `/amelia:skill-builder` | Create Claude Code skills with best practices |
-| `/amelia:12-factor-agents-analysis` | Analyze codebase against 12-Factor Agents methodology |
-| `/amelia:12-factor-apps-analysis` | Analyze codebase against 12-Factor App methodology |
-
-## Skills
-
-Custom skills are in `.claude/skills/`. These provide domain-specific knowledge:
-
-**LangGraph:**
-| Skill | Purpose |
-|-------|---------|
-| `langgraph-architecture` | Architectural decisions for LangGraph applications |
-| `langgraph-implementation` | Implementing stateful agent graphs, nodes/edges, state schemas |
-| `langgraph-code-review` | Review LangGraph code for bugs and anti-patterns |
-
-**PydanticAI:**
-| Skill | Purpose |
-|-------|---------|
-| `pydantic-ai-agent-creation` | Create PydanticAI agents with type-safe dependencies |
-| `pydantic-ai-tool-system` | Register and implement PydanticAI tools |
-| `pydantic-ai-dependency-injection` | Dependency injection using RunContext |
-| `pydantic-ai-model-integration` | Configure LLM providers, fallback models |
-| `pydantic-ai-testing` | Test PydanticAI agents using TestModel, FunctionModel |
-| `pydantic-ai-common-pitfalls` | Avoid common mistakes in PydanticAI agents |
-
-**React Flow:**
-| Skill | Purpose |
-|-------|---------|
-| `react-flow-architecture` | Architectural guidance for node-based UIs with React Flow |
-| `react-flow-implementation` | Implementing React Flow nodes, edges, handles, state |
-| `react-flow-advanced` | Advanced patterns: sub-flows, layouts, drag-and-drop |
-| `react-flow-code-review` | Review React Flow code for anti-patterns |
-| `react-flow` | React Flow workflow visualization, custom nodes/edges |
-
-**Frontend:**
-| Skill | Purpose |
-|-------|---------|
-| `shadcn-ui` | shadcn/ui components, CVA patterns, Radix primitives |
-| `tailwind-v4` | Tailwind CSS v4 with CSS-first config, @theme directive |
-| `react-router-v7` | React Router v7 patterns and navigation |
-| `zustand-state` | Zustand state management patterns |
-
-**AI Integration:**
-| Skill | Purpose |
-|-------|---------|
-| `vercel-ai-sdk` | Chat interfaces with streaming, useChat hook |
-| `ai-elements` | Vercel AI Elements for chat interfaces, tool execution, reasoning displays |
-
-**Data Processing:**
-| Skill | Purpose |
-|-------|---------|
-| `docling` | Document parsing for PDF, DOCX, PPTX, HTML, images (15+ formats) |
-| `sqlite-vec` | Vector similarity search in SQLite for embeddings and semantic search |
-
-**Testing:**
-| Skill | Purpose |
-|-------|---------|
-| `vitest-testing` | Vitest patterns, mocking, async testing |
-
-**Tooling:**
-| Skill | Purpose |
-|-------|---------|
-| `github-projects` | GitHub Projects v2 via gh CLI
-
-**Architecture Analysis:**
-| Skill | Purpose |
-|-------|---------|
-| `agent-architecture-analysis` | Evaluate agentic codebases against 12-Factor Agents methodology |
-| `12-factor-apps` | Evaluate applications against 12-Factor App methodology |

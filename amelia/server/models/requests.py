@@ -1,11 +1,8 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Request schemas for REST API endpoints."""
 
 import os
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -75,7 +72,7 @@ class CreateWorkflowRequest(BaseModel):
         worktree_path: Absolute path to worktree directory
         worktree_name: Optional custom worktree name
         profile: Optional profile name (lowercase alphanumeric with dashes/underscores)
-        driver: Optional driver override in type:name format (e.g., sdk:claude, api:openai)
+        driver: Optional driver override in type:name format (e.g., sdk:claude, api:openrouter)
     """
 
     issue_id: Annotated[
@@ -108,14 +105,6 @@ class CreateWorkflowRequest(BaseModel):
             description="Optional driver override in type:name format (e.g., sdk:claude)",
         ),
     ] = None
-    plan_only: Annotated[
-        bool,
-        Field(
-            default=False,
-            description="If True, stop after planning and save markdown without executing",
-        ),
-    ] = False
-
     @field_validator("issue_id", mode="after")
     @classmethod
     def validate_issue_id(cls, v: str) -> str:
@@ -240,19 +229,3 @@ class RejectRequest(BaseModel):
     ]
 
 
-class BlockerResolutionRequest(BaseModel):
-    """Request to resolve a blocker.
-
-    Attributes:
-        action: Resolution action to take (skip, retry, abort, abort_revert, fix)
-        feedback: Optional feedback or fix instruction
-    """
-
-    action: Annotated[
-        Literal["skip", "retry", "abort", "abort_revert", "fix"],
-        Field(description="Resolution action to take"),
-    ]
-    feedback: Annotated[
-        str | None,
-        Field(default=None, description="Optional feedback or fix instruction"),
-    ] = None

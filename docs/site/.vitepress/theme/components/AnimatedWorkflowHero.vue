@@ -1,9 +1,3 @@
-<!--
-  This Source Code Form is subject to the terms of the Mozilla Public
-  License, v. 2.0. If a copy of the MPL was not distributed with this
-  file, You can obtain one at https://mozilla.org/MPL/2.0/.
--->
-
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 
@@ -17,7 +11,7 @@ let animationTimeout: ReturnType<typeof setTimeout> | null = null
 
 const agents = [
   { id: 'architect', label: 'Architect', sublabel: 'plans' },
-  { id: 'developer', label: 'Developer', sublabel: 'executes' },
+  { id: 'developer', label: 'Developer', sublabel: 'calls tools' },
   { id: 'reviewer', label: 'Reviewer', sublabel: 'validates' }
 ] as const
 
@@ -156,7 +150,7 @@ const isApproved = () => currentAgent.value === 'approved'
           :filter="isActive('developer') ? 'url(#glow)' : ''"
         />
         <text x="200" y="160" class="node-label">Developer</text>
-        <text x="200" y="180" class="node-sublabel">executes</text>
+        <text x="200" y="180" class="node-sublabel">calls tools</text>
       </g>
 
       <!-- Arrow: Developer -> Reviewer -->

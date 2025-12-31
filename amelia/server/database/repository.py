@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Repository for workflow persistence operations."""
 
 import json
@@ -21,16 +18,19 @@ from amelia.server.models.state import (
 
 
 def _pydantic_encoder(obj: Any) -> Any:
-    """JSON encoder that handles Pydantic models.
+    """Encode Pydantic models to JSON-serializable dictionaries.
+
+    Custom JSON encoder for use with json.dumps() that converts Pydantic
+    BaseModel instances to dictionaries using model_dump().
 
     Args:
-        obj: Object to encode.
+        obj: Object to encode, typically a Pydantic model.
 
     Returns:
-        JSON-serializable representation.
+        JSON-serializable dictionary representation of the object.
 
     Raises:
-        TypeError: If object is not JSON serializable.
+        TypeError: If object is not a Pydantic model or JSON serializable.
     """
     if isinstance(obj, BaseModel):
         return obj.model_dump(mode="json")
@@ -413,13 +413,16 @@ class WorkflowRepository:
         return result is not None
 
     def _row_to_event(self, row: aiosqlite.Row) -> WorkflowEvent:
-        """Convert database row to WorkflowEvent.
+        """Convert database row to WorkflowEvent model.
+
+        Handles conversion of the data_json column to the data field,
+        parsing JSON when present.
 
         Args:
-            row: Database row.
+            row: Database row from events table.
 
         Returns:
-            WorkflowEvent model.
+            Validated WorkflowEvent model instance.
         """
         event_data = dict(row)
         # Parse JSON data field if present (column is data_json, model field is data)

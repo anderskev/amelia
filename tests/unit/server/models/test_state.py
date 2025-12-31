@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for workflow state models."""
 
 from datetime import datetime
@@ -124,8 +121,9 @@ class TestServerExecutionStateComposition:
 
     def test_server_state_accepts_execution_state(self) -> None:
         """ServerExecutionState can hold an ExecutionState."""
+        profile = Profile(name="test", driver="cli:claude", model="sonnet")
         core_state = ExecutionState(
-            profile=Profile(name="test", driver="cli:claude"),
+            profile_id=profile.name,
         )
         server_state = ServerExecutionState(
             id="wf-123",
@@ -135,5 +133,5 @@ class TestServerExecutionStateComposition:
             execution_state=core_state,
         )
         assert server_state.execution_state is not None
-        assert server_state.execution_state.profile.name == "test"
+        assert server_state.execution_state.profile_id == "test"
 

@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Health check endpoints for liveness and readiness probes."""
 from datetime import UTC, datetime
 from typing import Literal
@@ -50,13 +47,13 @@ class HealthResponse(BaseModel):
 
 
 def get_database_status() -> DatabaseStatus:
-    """Return database status.
+    """Return database health status for local orchestrator.
 
     For a local orchestrator, if the app started successfully,
     the database is operational. No active probing needed.
 
     Returns:
-        DatabaseStatus indicating healthy state.
+        DatabaseStatus indicating healthy state with WAL mode.
     """
     return DatabaseStatus(status="healthy", mode="wal")
 

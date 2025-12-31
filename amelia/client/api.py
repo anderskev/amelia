@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """REST API client for Amelia server."""
 from typing import Any
 
@@ -89,7 +86,6 @@ class AmeliaClient:
         worktree_path: str,
         worktree_name: str | None = None,
         profile: str | None = None,
-        plan_only: bool = False,
     ) -> CreateWorkflowResponse:
         """Create a new workflow.
 
@@ -98,7 +94,6 @@ class AmeliaClient:
             worktree_path: Absolute path to git worktree
             worktree_name: Human-readable name for worktree
             profile: Optional profile name for configuration
-            plan_only: If True, only generate plan without executing
 
         Returns:
             CreateWorkflowResponse with workflow id and initial status
@@ -114,7 +109,6 @@ class AmeliaClient:
             worktree_path=worktree_path,
             worktree_name=worktree_name,
             profile=profile,
-            plan_only=plan_only,
         )
 
         try:

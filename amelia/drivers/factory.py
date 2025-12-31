@@ -1,9 +1,6 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 from typing import Any
 
-from amelia.drivers.api.openai import ApiDriver
+from amelia.drivers.api import ApiDriver
 from amelia.drivers.base import DriverInterface
 from amelia.drivers.cli.claude import ClaudeCliDriver
 
@@ -16,7 +13,7 @@ class DriverFactory:
         """Factory method to get a concrete driver implementation.
 
         Args:
-            driver_key: Driver identifier (e.g., "cli:claude", "api:openai").
+            driver_key: Driver identifier (e.g., "cli:claude", "api:openrouter").
             **kwargs: Driver-specific configuration passed to constructor.
 
         Returns:
@@ -25,9 +22,9 @@ class DriverFactory:
         Raises:
             ValueError: If driver_key is not recognized.
         """
-        if driver_key == "cli:claude" or driver_key == "cli":
+        if driver_key in ("cli:claude", "cli"):
             return ClaudeCliDriver(**kwargs)
-        elif driver_key == "api:openai" or driver_key == "api":
+        elif driver_key in ("api:openrouter", "api"):
             return ApiDriver(**kwargs)
         else:
             raise ValueError(f"Unknown driver key: {driver_key}")

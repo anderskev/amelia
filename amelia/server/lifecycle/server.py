@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Server lifecycle management for startup and shutdown."""
 
 import asyncio
@@ -102,6 +99,9 @@ class ServerLifecycle:
         logger.info("Server shutdown complete")
 
     async def _wait_for_workflows_to_finish(self) -> None:
-        """Wait for all active workflows to complete."""
+        """Wait for all active workflows to complete by polling orchestrator.
+
+        Polls every second until no active workflows remain.
+        """
         while self._orchestrator.get_active_workflows():
             await asyncio.sleep(1)

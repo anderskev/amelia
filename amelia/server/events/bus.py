@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Event bus implementation for pub/sub workflow events."""
 import asyncio
 import contextlib
@@ -66,10 +63,13 @@ class EventBus:
         self._connection_manager = manager
 
     def _handle_broadcast_done(self, task: asyncio.Task[None]) -> None:
-        """Handle completion of broadcast task.
+        """Handle completion of WebSocket broadcast task.
+
+        Removes completed task from tracking set and logs any exceptions
+        that occurred during broadcast.
 
         Args:
-            task: The completed broadcast task.
+            task: The completed asyncio broadcast task.
         """
         self._broadcast_tasks.discard(task)
         if not task.cancelled():

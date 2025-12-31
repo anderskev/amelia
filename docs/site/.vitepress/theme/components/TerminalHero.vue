@@ -1,9 +1,3 @@
-<!--
-  This Source Code Form is subject to the terms of the Mozilla Public
-  License, v. 2.0. If a copy of the MPL was not distributed with this
-  file, You can obtain one at https://mozilla.org/MPL/2.0/.
--->
-
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 
@@ -35,14 +29,14 @@ const LINES = {
   PLAN: 6,
   PLAN_READY: 7,
   BLANK_3: 8,
-  TASKDAG: 9,
+  PLAN_GOAL: 9,
   BLANK_4: 10,
   APPROVAL: 11,
   APPROVED: 12,
   BLANK_5: 13,
-  EXECUTE_1: 14,
-  EXECUTE_2: 15,
-  EXECUTE_3: 16,
+  TOOL_1: 14,
+  TOOL_2: 15,
+  TOOL_3: 16,
   EXECUTE_DONE: 17,
   BLANK_6: 18,
   REVIEW: 19,
@@ -95,7 +89,7 @@ const startAnimation = async () => {
   await sleep(300)
   visibleLines.value = LINES.BLANK_3
   await sleep(150)
-  visibleLines.value = LINES.TASKDAG // TaskDAG appears
+  visibleLines.value = LINES.PLAN_GOAL // Plan goal appears
   await sleep(600)
 
   // Phase 4: Approval gate (3.0s - KEY pause)
@@ -115,10 +109,10 @@ const startAnimation = async () => {
   visibleLines.value = LINES.BLANK_5
   await sleep(150)
 
-  // Show execute steps 1/3, 2/3, 3/3
+  // Show agentic tool calls
   for (let step = 1; step <= 3; step++) {
     executeStep.value = step
-    visibleLines.value = LINES.EXECUTE_1 + (step - 1)
+    visibleLines.value = LINES.TOOL_1 + (step - 1)
     await sleep(700)
   }
 
@@ -220,22 +214,21 @@ onUnmounted(() => {
       <!-- Plan phase -->
       <div v-if="showLine(LINES.PLAN) && !showLine(LINES.PLAN_READY)" class="terminal-line progress">
         <span class="spinner">◐</span>
-        <span>Architect analyzing scope...</span>
+        <span>Architect generating plan...</span>
       </div>
 
       <div v-if="showLine(LINES.PLAN_READY)" class="terminal-line success">
         <span class="checkmark">✓</span>
-        <span>Plan ready (3 tasks)</span>
+        <span>Plan ready</span>
       </div>
 
       <div v-if="showLine(LINES.BLANK_3)" class="terminal-line blank"></div>
 
-      <!-- TaskDAG -->
-      <div v-if="showLine(LINES.TASKDAG)" class="task-dag">
-        <div class="dag-title">◆ TaskDAG</div>
-        <div class="dag-item">  ├─ Add rate limiter middleware</div>
-        <div class="dag-item">  ├─ Apply to /api/* routes</div>
-        <div class="dag-item">  └─ Add configuration to env</div>
+      <!-- Plan Goal -->
+      <div v-if="showLine(LINES.PLAN_GOAL)" class="plan-goal">
+        <div class="goal-title">◆ Goal</div>
+        <div class="goal-text">  Add rate limiting middleware to protect /api/* routes</div>
+        <div class="goal-files">  Key files: src/middleware/, src/routes/api.py</div>
       </div>
 
       <div v-if="showLine(LINES.BLANK_4)" class="terminal-line blank"></div>
@@ -253,20 +246,23 @@ onUnmounted(() => {
 
       <div v-if="showLine(LINES.BLANK_5)" class="terminal-line blank"></div>
 
-      <!-- Execute phase -->
-      <div v-if="showLine(LINES.EXECUTE_1) && executeStep >= 1 && !showLine(LINES.EXECUTE_DONE)" class="terminal-line progress">
-        <span class="spinner">◐</span>
-        <span>Developer executing 1/3...</span>
+      <!-- Execute phase - agentic tool calls -->
+      <div v-if="showLine(LINES.TOOL_1) && executeStep >= 1 && !showLine(LINES.EXECUTE_DONE)" class="terminal-line tool-call">
+        <span class="tool-icon">→</span>
+        <span class="tool-name">shell</span>
+        <span class="tool-cmd">mkdir -p src/middleware</span>
       </div>
 
-      <div v-if="showLine(LINES.EXECUTE_2) && executeStep >= 2 && !showLine(LINES.EXECUTE_DONE)" class="terminal-line progress">
-        <span class="spinner">◐</span>
-        <span>Developer executing 2/3...</span>
+      <div v-if="showLine(LINES.TOOL_2) && executeStep >= 2 && !showLine(LINES.EXECUTE_DONE)" class="terminal-line tool-call">
+        <span class="tool-icon">→</span>
+        <span class="tool-name">write</span>
+        <span class="tool-cmd">src/middleware/rate_limit.py</span>
       </div>
 
-      <div v-if="showLine(LINES.EXECUTE_3) && executeStep >= 3 && !showLine(LINES.EXECUTE_DONE)" class="terminal-line progress">
-        <span class="spinner">◐</span>
-        <span>Developer executing 3/3...</span>
+      <div v-if="showLine(LINES.TOOL_3) && executeStep >= 3 && !showLine(LINES.EXECUTE_DONE)" class="terminal-line tool-call">
+        <span class="tool-icon">→</span>
+        <span class="tool-name">edit</span>
+        <span class="tool-cmd">src/routes/api.py</span>
       </div>
 
       <div v-if="showLine(LINES.EXECUTE_DONE)" class="terminal-line success">
@@ -464,8 +460,8 @@ onUnmounted(() => {
   width: 32px;
 }
 
-/* TaskDAG box */
-.task-dag {
+/* Plan Goal box */
+.plan-goal {
   color: var(--terminal-text-dim);
   margin-left: 32px;
   font-family: inherit;
@@ -473,16 +469,46 @@ onUnmounted(() => {
   animation: fadeIn 0.3s ease-in;
 }
 
-.dag-title,
-.dag-item {
+.goal-title,
+.goal-text,
+.goal-files {
   margin: 0;
   padding: 0;
   line-height: 1.6;
 }
 
-.dag-title {
+.goal-title {
   color: var(--terminal-accent);
   font-weight: 500;
+}
+
+.goal-files {
+  color: var(--terminal-text-dim);
+  opacity: 0.8;
+}
+
+/* Agentic tool calls */
+.terminal-line.tool-call {
+  color: var(--terminal-text);
+}
+
+.tool-icon {
+  color: var(--terminal-accent);
+  margin-right: 8px;
+}
+
+.tool-name {
+  color: var(--terminal-success);
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.tool-name::after {
+  content: ':';
+}
+
+.tool-cmd {
+  color: var(--terminal-text-dim);
 }
 
 /* Reduced motion: disable animations */
@@ -508,7 +534,7 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-.terminal-hero.reduced-motion .task-dag {
+.terminal-hero.reduced-motion .plan-goal {
   animation: none;
 }
 

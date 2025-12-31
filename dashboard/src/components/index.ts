@@ -1,9 +1,3 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
-
 /**
  * @fileoverview Component barrel exports for the Amelia dashboard.
  *
@@ -27,11 +21,7 @@ export { ActivityLog } from './ActivityLog';
 // Workflow components
 export { AgentProgressBar } from './AgentProgressBar';
 export { ApprovalControls } from './ApprovalControls';
-export { BlockerResolutionDialog } from './BlockerResolutionDialog';
-export { CancelStepDialog } from './CancelStepDialog';
 export { WorkflowCanvas } from './WorkflowCanvas';
-export { BatchStepCanvas } from './BatchStepCanvas';
-// export { WorkflowHeader } from './WorkflowHeader';
 export { WorkflowProgress } from './WorkflowProgress';
 export { WorkflowEmptyState } from './WorkflowEmptyState';
 
@@ -48,8 +38,6 @@ export * from './flow';
 // =============================================================================
 // ai-elements (re-exported for direct use when needed)
 // =============================================================================
-export * from './ai-elements/queue';
-export * from './ai-elements/confirmation';
 export * from './ai-elements/loader';
 export * from './ai-elements/shimmer';
 

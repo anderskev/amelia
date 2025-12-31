@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Integration tests for the complete approval flow.
 
 These tests verify the interrupt/resume cycle works end-to-end:
@@ -19,7 +16,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from amelia.core.state import ExecutionState
-from amelia.core.types import Profile
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.models.events import EventType, WorkflowEvent
 from amelia.server.models.state import ServerExecutionState
@@ -92,13 +88,12 @@ class TestMissingExecutionState:
     """Test error handling for missing execution_state."""
 
     async def test_missing_execution_state_sets_status_to_failed(
-        self, event_tracker, mock_repository, temp_checkpoint_db, mock_settings
+        self, event_tracker, mock_repository, temp_checkpoint_db
     ):
         """When execution_state is None, status is set to failed."""
         service = OrchestratorService(
             event_tracker,
             mock_repository,
-            settings=mock_settings,
             checkpoint_path=temp_checkpoint_db,
         )
 
@@ -149,12 +144,11 @@ class TestLifecycleEvents:
         service = OrchestratorService(
             event_tracker,
             mock_repository,
-            settings=mock_settings,
             checkpoint_path=temp_checkpoint_db,
         )
 
         core_state = ExecutionState(
-            profile=Profile(name="test", driver="cli:claude"),
+            profile_id="test",
         )
         server_state = ServerExecutionState(
             id="wf-lifecycle-test",
@@ -166,7 +160,9 @@ class TestLifecycleEvents:
         )
 
         await mock_repository.create(server_state)
-        await service._run_workflow("wf-lifecycle-test", server_state)
+        # Mock settings loading to return valid settings
+        with patch.object(service, "_load_settings_for_worktree", return_value=mock_settings):
+            await service._run_workflow("wf-lifecycle-test", server_state)
 
         # Check WORKFLOW_STARTED was emitted
         started_events = event_tracker.get_by_type(EventType.WORKFLOW_STARTED)
@@ -203,12 +199,11 @@ class TestGraphInterruptHandling:
         service = OrchestratorService(
             event_tracker,
             mock_repository,
-            settings=mock_settings,
             checkpoint_path=temp_checkpoint_db,
         )
 
         core_state = ExecutionState(
-            profile=Profile(name="test", driver="cli:claude"),
+            profile_id="test",
         )
         server_state = ServerExecutionState(
             id="wf-interrupt-test",
@@ -220,7 +215,9 @@ class TestGraphInterruptHandling:
         )
 
         await mock_repository.create(server_state)
-        await service._run_workflow("wf-interrupt-test", server_state)
+        # Mock settings loading to return valid settings
+        with patch.object(service, "_load_settings_for_worktree", return_value=mock_settings):
+            await service._run_workflow("wf-interrupt-test", server_state)
 
         # Verify status is blocked
         persisted = await mock_repository.get("wf-interrupt-test")

@@ -1,9 +1,3 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/.
- */
-
 import { defineConfig } from 'vitepress'
 
 /**
@@ -16,9 +10,7 @@ const sharedSidebar = [
     items: [
       { text: 'Overview', link: '/ideas/' },
       { text: 'Session Continuity', link: '/ideas/session-continuity' },
-      { text: 'CAPEX Tracking', link: '/ideas/capex-tracking' },
       { text: 'Knowledge Library', link: '/ideas/knowledge-library' },
-      { text: 'AWS AgentCore', link: '/ideas/aws-agentcore' },
       { text: 'Debate Mode', link: '/ideas/debate-mode' },
       { text: 'Spec Builder', link: '/ideas/spec-builder' },
       { text: 'Planning Workflows', link: '/ideas/planning-workflows' }
@@ -123,13 +115,13 @@ export default defineConfig({
 
     // Social links
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/anderskev/amelia' }
+      { icon: 'github', link: 'https://github.com/existential-birds/amelia' }
     ],
 
     // Footer
     footer: {
-      message: 'Built by hey-amelia bot. Released under the <a href="https://github.com/anderskev/amelia/blob/main/LICENSE">MPL-2.0 License</a>.',
-      copyright: 'Copyright © 2024-2025 <a href="https://anderskev.com">@anderskev</a>'
+      message: 'Built by hey-amelia bot. Released under the <a href="https://github.com/existential-birds/amelia/blob/main/LICENSE">MPL-2.0 License</a>.',
+      copyright: 'Copyright © 2024-2025 <a href="https://github.com/existential-birds">@existential-birds</a>'
     },
 
     // Search configuration

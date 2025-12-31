@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """ASCII banner with gradient colors for server startup including an airplane."""
 import random
 
@@ -37,7 +34,7 @@ BANNER_ART = """\
 
 
 def _interpolate_color(color1: str, color2: str, factor: float) -> str:
-    """Interpolate between two hex colors.
+    """Interpolate between two hex colors using linear interpolation.
 
     Args:
         color1: Starting hex color.
@@ -65,7 +62,7 @@ def _interpolate_color(color1: str, color2: str, factor: float) -> str:
 
 
 def get_gradient_banner(start_color: str, end_color: str) -> Text:
-    """Generate ASCII banner with horizontal gradient using specific colors.
+    """Generate ASCII banner with horizontal gradient from left to right.
 
     Args:
         start_color: The hex code for the left side of the gradient.
@@ -97,7 +94,9 @@ def get_gradient_banner(start_color: str, end_color: str) -> Text:
 
 
 def get_agi_banner() -> Text:
-    """Generate the AGI countdown banner with gradient.
+    """Generate the AGI countdown banner with gradient styling.
+
+    Uses a random countdown value between 14 and 1000 days.
 
     Returns:
         Rich Text object with the styled AGI countdown banner.
@@ -137,7 +136,7 @@ def get_service_urls_display(
     api_port: int,
     is_dev_mode: bool,
 ) -> Text:
-    """Generate styled display of service URLs.
+    """Generate styled display of service URLs for dashboard and API.
 
     Args:
         api_host: Host the API is bound to.
@@ -173,7 +172,7 @@ def get_service_urls_display(
 
 
 def print_banner(console: Console) -> None:
-    """Print the gradient ASCII banner.
+    """Print the gradient ASCII banner with AGI countdown to console.
 
     Args:
         console: Rich Console instance to print to.
