@@ -8,7 +8,7 @@ Generate professional release notes following the Keep a Changelog standard.
 
 **Input**: Previous tag (e.g., `v0.0.1`)
 
-```
+```text
 $ARGUMENTS
 ```
 
@@ -180,7 +180,7 @@ After updating the files, provide:
 4. Confirmation that CHANGELOG.md and pyproject.toml were updated
 5. Next steps for the release:
 
-```
+```text
 Next steps:
 1. Review the CHANGELOG.md changes
 2. Commit: git commit -am "chore(release): bump version to X.Y.Z"
