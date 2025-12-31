@@ -3,9 +3,9 @@
  */
 import { useFetcher } from 'react-router-dom';
 import { useState } from 'react';
+import Markdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Loader } from '@/components/ai-elements/loader';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -78,12 +78,15 @@ export function ApprovalControls({
     <div
       data-slot="approval-controls"
       className={cn(
-        'p-4 border border-border rounded-lg bg-card',
+        'p-4 border border-border rounded-lg bg-card flex flex-col min-w-0 overflow-hidden',
         className
       )}
     >
+      <h4 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-2">
+        PLAN REVIEW
+      </h4>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-heading text-lg font-semibold">
+        <h3 className="font-heading text-lg font-semibold leading-tight">
           {planSummary}
         </h3>
         {planMarkdown && (
@@ -110,11 +113,11 @@ export function ApprovalControls({
       </div>
 
       {planMarkdown && showPlanDetails && (
-        <ScrollArea className="max-h-96 mb-4 border border-border rounded-md bg-muted/30">
-          <pre className="p-4 text-sm text-foreground/90 whitespace-pre-wrap font-mono leading-relaxed">
-            {planMarkdown}
-          </pre>
-        </ScrollArea>
+        <div className="min-h-48 max-h-[60vh] mb-4 border border-border rounded-md bg-muted/30 overflow-y-auto">
+          <div className="p-4 text-sm text-foreground/90 leading-relaxed prose prose-sm prose-invert max-w-none prose-headings:font-heading prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-code:text-accent prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-pre:overflow-x-auto prose-li:text-foreground/90 prose-blockquote:border-accent prose-blockquote:text-foreground/70 [&_pre]:max-w-full [&_pre]:whitespace-pre-wrap [&_code]:break-all">
+            <Markdown>{planMarkdown}</Markdown>
+          </div>
+        </div>
       )}
 
       {!planMarkdown && (
