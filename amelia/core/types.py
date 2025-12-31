@@ -51,8 +51,8 @@ class Profile(BaseModel):
     Attributes:
         name: Profile name (e.g., 'work', 'personal').
         driver: LLM driver type (e.g., 'api:openrouter', 'cli:claude').
-        model: LLM model identifier (e.g., 'openai:gpt-4o', 'openrouter:anthropic/claude-3.5-sonnet').
-            Required for api:openrouter driver to specify which model to use.
+        model: LLM model identifier. For cli:claude use 'sonnet', 'opus', or 'haiku'.
+            For api:openrouter use 'provider:model' format (e.g., 'anthropic/claude-3.5-sonnet').
         tracker: Issue tracker type (jira, github, none, noop).
         strategy: Review strategy (single or competitive).
         working_dir: Working directory for agentic execution.
@@ -65,7 +65,7 @@ class Profile(BaseModel):
 
     name: str
     driver: DriverType
-    model: str | None = None
+    model: str
     tracker: TrackerType = "none"
     strategy: StrategyType = "single"
     working_dir: str | None = None
