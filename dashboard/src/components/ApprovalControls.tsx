@@ -144,10 +144,10 @@ export function ApprovalControls({
                     id="feedback-counter"
                     className={cn(
                       "text-xs text-muted-foreground",
-                      rejectionFeedback.length >= 500 && "text-destructive"
+                      rejectionFeedback.length >= 1000 && "text-destructive"
                     )}
                   >
-                    {rejectionFeedback.length}/500
+                    {rejectionFeedback.length}/1000
                   </span>
                 </div>
                 <textarea
@@ -159,7 +159,7 @@ export function ApprovalControls({
                   rows={3}
                   required
                   autoFocus
-                  maxLength={500}
+                  maxLength={1000}
                   aria-describedby="feedback-counter"
                   disabled={isPending}
                   className={cn(
