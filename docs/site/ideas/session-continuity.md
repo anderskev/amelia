@@ -4,44 +4,60 @@
 
 ## Overview
 
-**Session Continuity** enables long-running workflows to survive context window boundaries. When a workflow pauses—whether due to explicit request, context exhaustion, or timeout—the system captures a structured snapshot that allows any future agent session to resume where the previous one left off.
+**Session Continuity** enables long-running workflows to survive context window boundaries. When a workflow pauses--whether due to explicit request, context exhaustion, or timeout--the system captures a structured snapshot that allows any future agent session to resume where the previous one left off.
 
 ### Core Problem
 
+**What the CLI driver handles (low-level)**:
+- Conversation history within a single workflow run
+- Automatic context management via `--resume session_id`
+- Token-efficient continuation of agent conversations
+
+**What this design addresses (orchestrator-level)**:
+- User-initiated pause/resume at task boundaries
+- Extended workflow suspension (hours, days)
+- Structured decision and error capture for visibility
+- Cross-session state transfer when driver session expires or workflow restarts
+
 ```
-Session N                          Session N+1
-┌─────────────────────────────────┐           ┌─────────────────────────────────┐
-│ Agent has accumulated context:  │           │ Agent starts fresh:             │
-│ • Issue understanding           │           │ • No memory of Session N        │
-│ • Plan decisions & rationale    │  ──X──►   │ • Must rediscover everything    │
-│ • Files modified + git state    │  (lost)   │ • Repeats mistakes              │
-│ • Errors hit + resolutions      │           │ • Loses decision rationale      │
-│ • Reviewer feedback history     │           │ • Context exhaustion inevitable │
-└─────────────────────────────────┘           └─────────────────────────────────┘
+Workflow Run A (may span multiple driver sessions)    Workflow Run B (resumed after pause)
++-----------------------------------------+           +-----------------------------------------+
+| Orchestrator accumulated state:         |           | New orchestrator run receives:          |
+| - Task DAG progress                     |           | - Compiled resume context (structured)  |
+| - Key decisions + rationale             |           | - Task status: what's done, what's next |
+| - Errors encountered + resolutions      |  ----->   | - Decisions made (extracted from hist.) |
+| - Reviewer feedback cycles              |           | - Git state verification                |
+| - Git state at pause                    |           | - TDD phase if mid-cycle                |
++-----------------------------------------+           +-----------------------------------------+
+                  |                                               |
+          SessionSnapshot                              ResumeContextCompiler
+          persisted to SQLite                          injects into system prompt
 ```
 
 ### Solution: Structured Handoff Protocol
 
 ```
-Session N                                      Session N+1
-┌─────────────────────────────────┐           ┌─────────────────────────────────┐
-│ Agent working on tasks...       │           │ Agent receives:                 │
-│                                 │           │ • Compiled resume context       │
-│ [Pause triggered]               │           │ • Task status summary           │
-│     │                           │           │ • Key decisions made            │
-│     ▼                           │           │ • Errors + resolutions          │
-│ Create SessionSnapshot          │           │ • What's next                   │
-│ Extract decisions (LLM)         │  ─────►   │                                 │
-│ Persist to SQLite               │ (restore) │ [Continues from task boundary]  │
-│ Emit WORKFLOW_PAUSED            │           │                                 │
-└─────────────────────────────────┘           └─────────────────────────────────┘
+Workflow Run A                                 Workflow Run B (after pause)
++---------------------------------+           +---------------------------------+
+| Orchestrator running...         |           | Orchestrator receives:          |
+|                                 |           | - Compiled resume context       |
+| [Pause triggered]               |           | - Task status summary           |
+|     |                           |           | - Key decisions made            |
+|     v                           |           | - Errors + resolutions          |
+| Create SessionSnapshot          |           | - What's next                   |
+| Extract decisions from history  |  ------>  |                                 |
+| Persist to SQLite               | (restore) | [Continues from task boundary]  |
+| Emit WORKFLOW_PAUSED            |           | (driver session_id NOT preserved|
++---------------------------------+           +---------------------------------+
 ```
+
+When a workflow is resumed after a pause, the driver `session_id` from the previous run is NOT reused. The CLI driver's `--resume` is designed for continuation within a single orchestrator run, not across pause/resume boundaries. The `ResumeContextCompiler` provides the necessary context for the new driver session.
 
 ### Key Characteristics
 
 - **Task-boundary pauses**: Workflows pause only at clean task boundaries, not mid-execution
 - **Server-side state**: All snapshots stored in SQLite, queryable via API
-- **LLM-extracted decisions**: Key choices automatically extracted from agent messages
+- **History-based decision extraction**: Key choices extracted from `agent_history` (list of strings in ExecutionState)
 - **Adaptive resume context**: Summary provided by default, detailed history retrievable on demand
 - **TDD-friendly**: Supports pausing mid-TDD cycle with expected failing tests tracked
 - **CLI + Dashboard parity**: Both interfaces use identical server endpoints
@@ -53,78 +69,78 @@ Session N                                      Session N+1
 ### System Components
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Amelia Server                                   │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                        OrchestratorService                             │ │
-│  │                                                                        │ │
-│  │  pause_workflow(workflow_id, reason, trigger)                          │ │
-│  │    • Waits for current task to complete (task boundary)                │ │
-│  │    • Creates SessionSnapshot with full state                           │ │
-│  │    • Extracts decisions via LLM summarization                          │ │
-│  │    • Persists snapshot to SQLite                                       │ │
-│  │    • Emits WORKFLOW_PAUSED event                                       │ │
-│  │                                                                        │ │
-│  │  resume_workflow(workflow_id)                                          │ │
-│  │    • Loads latest SessionSnapshot                                      │ │
-│  │    • Compiles resume context (summary + retrieval API)                 │ │
-│  │    • Restarts LangGraph from checkpoint                                │ │
-│  │    • Continues from next pending task                                  │ │
-│  │    • Emits WORKFLOW_RESUMED event                                      │ │
-│  │                                                                        │ │
-│  │  _check_capacity(usage_metadata)                                       │ │
-│  │    • Monitors context utilization after each agent call                │ │
-│  │    • Triggers pause when threshold exceeded (default 85%)              │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                      │                                       │
-│  ┌───────────────────────────────────▼──────────────────────────────────┐   │
-│  │                         SQLite Database                               │   │
-│  │                                                                       │   │
-│  │  workflows                                                            │   │
-│  │    + paused_at: datetime | null                                       │   │
-│  │    + pause_reason: str | null                                         │   │
-│  │    + session_count: int (default 1)                                   │   │
-│  │                                                                       │   │
-│  │  session_snapshots (NEW)                                              │   │
-│  │    workflow_id, session_number, trigger, snapshot_json, created_at    │   │
-│  │                                                                       │   │
-│  │  workflow_events                                                      │   │
-│  │    + WORKFLOW_PAUSED, WORKFLOW_RESUMED event types                    │   │
-│  └───────────────────────────────────────────────────────────────────────┘   │
-│                                                                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                      DecisionExtractor                                │   │
-│  │                                                                       │   │
-│  │  extract_decisions(messages: list[AgentMessage]) -> list[Decision]   │   │
-│  │    • LLM-based extraction of key decisions from agent messages        │   │
-│  │    • Structured output: decision_type, description, rationale         │   │
-│  │                                                                       │   │
-│  │  extract_errors(messages: list[AgentMessage]) -> list[ErrorRecord]   │   │
-│  │    • Identifies errors encountered and their resolutions              │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-│                                                                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                     ResumeContextCompiler                             │   │
-│  │                                                                       │   │
-│  │  compile_resume_context(snapshot: SessionSnapshot) -> str            │   │
-│  │    • Generates structured summary for new session                     │   │
-│  │    • Includes: issue, plan status, decisions, errors, next steps      │   │
-│  │    • Schema-driven format (not prose soup)                            │   │
-│  │                                                                       │   │
-│  │  get_detailed_history(snapshot_id, category) -> str                  │   │
-│  │    • On-demand retrieval for agents needing more context              │   │
-│  │    • Categories: decisions, errors, reviewer_feedback, git_changes   │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────────┘
-                    │                              │
-                    ▼                              ▼
-         ┌─────────────────────┐        ┌─────────────────────┐
-         │     Dashboard       │        │        CLI          │
-         │                     │        │                     │
-         │  [Pause] [Resume]   │        │  amelia pause       │
-         │  Session timeline   │        │  amelia resume      │
-         │  Snapshot viewer    │        │  amelia status      │
-         └─────────────────────┘        └─────────────────────┘
++-----------------------------------------------------------------------------+
+|                              Amelia Server                                   |
+|  +------------------------------------------------------------------------+ |
+|  |                        OrchestratorService                             | |
+|  |                                                                        | |
+|  |  pause_workflow(workflow_id, reason, trigger)                          | |
+|  |    - Waits for current task to complete (task boundary)                | |
+|  |    - Creates SessionSnapshot with full state                           | |
+|  |    - Extracts decisions via LLM summarization                          | |
+|  |    - Persists snapshot to SQLite                                       | |
+|  |    - Emits WORKFLOW_PAUSED event                                       | |
+|  |                                                                        | |
+|  |  resume_workflow(workflow_id)                                          | |
+|  |    - Loads latest SessionSnapshot                                      | |
+|  |    - Compiles resume context (summary + retrieval API)                 | |
+|  |    - Restarts LangGraph from checkpoint                                | |
+|  |    - Continues from next pending task                                  | |
+|  |    - Emits WORKFLOW_RESUMED event                                      | |
+|  |                                                                        | |
+|  |  _check_capacity(usage_metadata)                                       | |
+|  |    - Monitors context utilization after each agent call                | |
+|  |    - Triggers pause when threshold exceeded (default 85%)              | |
+|  +------------------------------------------------------------------------+ |
+|                                      |                                       |
+|  +-----------------------------------v--------------------------------------+ |
+|  |                         SQLite Database                                  | |
+|  |                                                                          | |
+|  |  workflows                                                               | |
+|  |    + paused_at: datetime | null                                          | |
+|  |    + pause_reason: str | null                                            | |
+|  |    + session_count: int (default 1)                                      | |
+|  |                                                                          | |
+|  |  session_snapshots (NEW)                                                 | |
+|  |    workflow_id, session_number, trigger, snapshot_json, created_at       | |
+|  |                                                                          | |
+|  |  workflow_events                                                         | |
+|  |    + WORKFLOW_PAUSED, WORKFLOW_RESUMED event types                       | |
+|  +--------------------------------------------------------------------------+ |
+|                                                                              |
+|  +------------------------------------------------------------------------+  |
+|  |                      DecisionExtractor                                 |  |
+|  |                                                                        |  |
+|  |  extract_decisions(history: list[str]) -> list[Decision]              |  |
+|  |    - LLM-based extraction from agent_history strings                   |  |
+|  |    - Structured output: decision_type, description, rationale          |  |
+|  |                                                                        |  |
+|  |  extract_errors(history: list[str]) -> list[ErrorRecord]              |  |
+|  |    - Identifies errors from history and their resolutions              |  |
+|  +------------------------------------------------------------------------+  |
+|                                                                              |
+|  +------------------------------------------------------------------------+  |
+|  |                     ResumeContextCompiler                              |  |
+|  |                                                                        |  |
+|  |  compile_resume_context(snapshot: SessionSnapshot) -> str             |  |
+|  |    - Generates structured summary for new session                      |  |
+|  |    - Includes: issue, plan status, decisions, errors, next steps       |  |
+|  |    - Schema-driven format (not prose soup)                             |  |
+|  |                                                                        |  |
+|  |  get_detailed_history(snapshot_id, category) -> str                   |  |
+|  |    - On-demand retrieval for agents needing more context               |  |
+|  |    - Categories: decisions, errors, reviewer_feedback, git_changes    |  |
+|  +------------------------------------------------------------------------+  |
++------------------------------------------------------------------------------+
+                    |                              |
+                    v                              v
+         +---------------------+        +---------------------+
+         |     Dashboard       |        |        CLI          |
+         |                     |        |                     |
+         |  [Pause] [Resume]   |        |  amelia pause       |
+         |  Session timeline   |        |  amelia resume      |
+         |  Snapshot viewer    |        |  amelia status      |
+         +---------------------+        +---------------------+
 ```
 
 ### Component Responsibilities
@@ -133,9 +149,9 @@ Session N                                      Session N+1
 |-----------|---------|
 | **OrchestratorService** | Coordinates pause/resume lifecycle, monitors capacity, manages snapshots |
 | **SessionSnapshot** | Point-in-time capture of all workflow state needed for resume |
-| **DecisionExtractor** | LLM-based extraction of key decisions from agent message history |
-| **ResumeContextCompiler** | Generates structured summary for new sessions, provides retrieval API |
-| **DriverInterface** | Extended to report token usage and remaining capacity |
+| **DecisionExtractor** | LLM-based extraction of key decisions from `agent_history` strings in ExecutionState |
+| **ResumeContextCompiler** | Generates structured summary for new workflow runs, provides retrieval API |
+| **ClaudeStreamEvent** | Reports usage metrics (cost_usd, duration_ms, num_turns) for capacity monitoring |
 
 ---
 
@@ -147,8 +163,10 @@ Session N                                      Session N+1
 class SessionSnapshot(BaseModel):
     """Point-in-time capture of workflow state for resume.
 
-    Contains everything needed to resume a workflow in a new agent session,
-    including task progress, decisions made, errors encountered, and git state.
+    Contains orchestrator-level state needed to resume a workflow after a pause.
+    Note: Does NOT contain raw message history - the driver handles conversation
+    continuity within a workflow run. This captures higher-level state for
+    cross-run resume scenarios.
     """
     id: str = Field(description="Unique snapshot identifier")
     workflow_id: str = Field(description="Parent workflow")
@@ -213,7 +231,7 @@ class GitState(BaseModel):
 class Decision(BaseModel):
     """Structured record of a significant choice made during execution.
 
-    Extracted automatically from agent messages via LLM summarization.
+    Extracted automatically from agent_history via LLM summarization.
     """
     id: str
     timestamp: datetime
@@ -297,46 +315,85 @@ class UsageMetrics(BaseModel):
     session_duration_seconds: int = Field(description="Wall clock time")
 ```
 
-### Driver Capacity Reporting
+### Driver Usage Tracking
+
+The Claude CLI driver emits `ClaudeStreamEvent` objects that include usage information from result events:
+
+```python
+class ClaudeStreamEvent(BaseModel):
+    """Event from Claude CLI stream-json output.
+
+    Result events contain usage metrics for capacity monitoring:
+    - session_id: Session ID for driver-level continuity
+    - duration_ms: Execution duration in milliseconds
+    - num_turns: Number of conversation turns
+    - cost_usd: Total cost in USD
+    """
+    type: Literal["assistant", "tool_use", "result", "error", "system"]
+    content: str | None = None
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
+    session_id: str | None = None
+    result_text: str | None = None
+    subtype: str | None = None
+    duration_ms: int | None = None
+    num_turns: int | None = None
+    cost_usd: float | None = None
+```
+
+Capacity estimation from cost (for token-based thresholds):
 
 ```python
 class UsageMetadata(BaseModel):
-    """Token usage and capacity info returned by drivers.
+    """Token usage and capacity info derived from driver results.
+
+    For CLI driver: Token counts estimated from cost_usd using approximate pricing.
+    For API driver: Direct token counts available from response metadata.
 
     Enables orchestrator to detect approaching context exhaustion
     and trigger proactive pause before failure.
     """
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    # Available from ClaudeStreamEvent result events
+    cost_usd: float | None = Field(description="Total cost in USD")
+    duration_ms: int | None = Field(description="Execution duration")
+    num_turns: int | None = Field(description="Number of conversation turns")
 
-    # Capacity tracking
+    # Estimated for CLI driver, exact for API driver
+    total_tokens: int | None = Field(
+        description="Total tokens (exact for API, estimated for CLI)"
+    )
     context_window_size: int = Field(
+        default=200_000,
         description="Model's maximum context (e.g., 200000 for Claude)"
     )
-    tokens_remaining: int = Field(
-        description="Estimated remaining capacity"
-    )
-    utilization_percent: float = Field(
-        description="Current utilization (0.0-1.0)"
+    utilization_percent: float | None = Field(
+        default=None,
+        description="Estimated utilization (0.0-1.0)"
     )
 
     @classmethod
-    def from_pydantic_ai_usage(
+    def from_claude_stream_event(
         cls,
-        usage: "pydantic_ai.Usage",
+        event: ClaudeStreamEvent,
         context_window: int = 200_000,
     ) -> "UsageMetadata":
-        """Create from pydantic-ai usage object."""
-        total = (usage.request_tokens or 0) + (usage.response_tokens or 0)
-        remaining = context_window - total
+        """Create from Claude CLI result event.
+
+        Token count estimated from cost using approximate pricing.
+        """
+        # Rough estimate: ~$3 per 1M input tokens, ~$15 per 1M output tokens
+        # Assume 50/50 split for estimation
+        cost = event.cost_usd or 0
+        estimated_tokens = int(cost / 9 * 1_000_000) if cost else None
+        utilization = estimated_tokens / context_window if estimated_tokens else None
+
         return cls(
-            prompt_tokens=usage.request_tokens or 0,
-            completion_tokens=usage.response_tokens or 0,
-            total_tokens=total,
+            cost_usd=event.cost_usd,
+            duration_ms=event.duration_ms,
+            num_turns=event.num_turns,
+            total_tokens=estimated_tokens,
             context_window_size=context_window,
-            tokens_remaining=max(0, remaining),
-            utilization_percent=min(1.0, total / context_window),
+            utilization_percent=min(1.0, utilization) if utilization else None,
         )
 ```
 
@@ -401,116 +458,116 @@ VALID_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
 ### Pause Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Pause Triggers                                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│  1. Explicit pause     │ User clicks Pause or runs `amelia pause`       │
-│  2. Context exhaustion │ Driver reports >85% utilization                │
-│  3. Task completion    │ Configurable auto-pause after N tasks          │
-│  4. Timeout            │ Workflow exceeds configured duration           │
-│  5. Crash recovery     │ Server restart with in_progress workflows      │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    1. Wait for Task Boundary                             │
-│                                                                          │
-│  • If mid-task, set pause_requested flag                                │
-│  • Continue until current task completes or fails                       │
-│  • Timeout: force pause after 5 minutes with warning                    │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    2. Gather State                                       │
-│                                                                          │
-│  • Snapshot TaskDAG with current statuses                               │
-│  • Capture git state (branch, commits, modified files)                  │
-│  • Collect agent message history for decision extraction                │
-│  • Record test state if TDD in progress                                 │
-│  • Calculate usage metrics                                              │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    3. Extract Decisions & Errors                         │
-│                                                                          │
-│  • Send recent messages to LLM for structured extraction                │
-│  • Identify key decisions with rationale                                │
-│  • Identify errors and their resolutions                                │
-│  • Extract reviewer feedback status                                     │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    4. Create & Persist Snapshot                          │
-│                                                                          │
-│  • Build SessionSnapshot with all gathered data                         │
-│  • Increment session_count on workflow                                  │
-│  • Serialize to JSON and store in session_snapshots                     │
-│  • Update workflow status to "paused"                                   │
-│  • Emit WORKFLOW_PAUSED event                                           │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    5. Notify                                             │
-│                                                                          │
-│  • WebSocket event to dashboard                                         │
-│  • Log pause reason and snapshot ID                                     │
-│  • (Future: Slack/Discord notification)                                 │
-└─────────────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------------------+
+|                           Pause Triggers                                 |
++-------------------------------------------------------------------------+
+|  1. Explicit pause     | User clicks Pause or runs `amelia pause`       |
+|  2. Context exhaustion | Driver reports >85% utilization                |
+|  3. Task completion    | Configurable auto-pause after N tasks          |
+|  4. Timeout            | Workflow exceeds configured duration           |
+|  5. Crash recovery     | Server restart with in_progress workflows      |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    1. Wait for Task Boundary                             |
+|                                                                          |
+|  - If mid-task, set pause_requested flag                                |
+|  - Continue until current task completes or fails                       |
+|  - Timeout: force pause after 5 minutes with warning                    |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    2. Gather State                                       |
+|                                                                          |
+|  - Snapshot TaskDAG with current statuses                               |
+|  - Capture git state (branch, commits, modified files)                  |
+|  - Collect agent_history (list[str]) from ExecutionState                |
+|  - Record test state if TDD in progress                                 |
+|  - Calculate usage metrics from accumulated ClaudeStreamEvent results   |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    3. Extract Decisions & Errors                         |
+|                                                                          |
+|  - Send agent_history strings to LLM for structured extraction          |
+|  - Identify key decisions with rationale                                |
+|  - Identify errors and their resolutions                                |
+|  - Extract reviewer feedback status from last_review in state           |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    4. Create & Persist Snapshot                          |
+|                                                                          |
+|  - Build SessionSnapshot with all gathered data                         |
+|  - Increment session_count on workflow                                  |
+|  - Serialize to JSON and store in session_snapshots                     |
+|  - Update workflow status to "paused"                                   |
+|  - Emit WORKFLOW_PAUSED event                                           |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    5. Notify                                             |
+|                                                                          |
+|  - WebSocket event to dashboard                                         |
+|  - Log pause reason and snapshot ID                                     |
+|  - (Future: Slack/Discord notification)                                 |
++-------------------------------------------------------------------------+
 ```
 
 ### Resume Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Resume Trigger                                   │
-│                                                                          │
-│  • Dashboard: User clicks [Resume] button                               │
-│  • CLI: User runs `amelia resume` in worktree                           │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    1. Load Latest Snapshot                               │
-│                                                                          │
-│  • Fetch most recent SessionSnapshot for workflow                       │
-│  • Validate workflow status is "paused"                                 │
-│  • Check git state matches (warn if diverged)                           │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    2. Compile Resume Context                             │
-│                                                                          │
-│  • Generate structured summary from snapshot                            │
-│  • Include: issue, plan status, key decisions, recent errors            │
-│  • Format as schema-driven context (not prose)                          │
-│  • Register retrieval endpoints for detailed history                    │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    3. Restore Workflow State                             │
-│                                                                          │
-│  • Update ExecutionState with snapshot.task_dag                         │
-│  • Set current_task_id to snapshot.next_task_id                         │
-│  • Increment session_count                                              │
-│  • Update workflow status to "in_progress"                              │
-│  • Emit WORKFLOW_RESUMED event                                          │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    4. Continue Execution                                 │
-│                                                                          │
-│  • Inject resume context into agent system prompt                       │
-│  • Resume LangGraph from checkpoint (or create new run)                 │
-│  • Continue from next pending task in DAG                               │
-│  • Normal execution flow resumes                                        │
-└─────────────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------------------+
+|                         Resume Trigger                                   |
+|                                                                          |
+|  - Dashboard: User clicks [Resume] button                               |
+|  - CLI: User runs `amelia resume` in worktree                           |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    1. Load Latest Snapshot                               |
+|                                                                          |
+|  - Fetch most recent SessionSnapshot for workflow                       |
+|  - Validate workflow status is "paused"                                 |
+|  - Check git state matches (warn if diverged)                           |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    2. Compile Resume Context                             |
+|                                                                          |
+|  - Generate structured summary from snapshot                            |
+|  - Include: issue, plan status, key decisions, recent errors            |
+|  - Format as schema-driven context (not prose)                          |
+|  - Register retrieval endpoints for detailed history                    |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    3. Restore Workflow State                             |
+|                                                                          |
+|  - Update ExecutionState with snapshot.task_dag                         |
+|  - Set current_task_id to snapshot.next_task_id                         |
+|  - Increment session_count                                              |
+|  - Update workflow status to "in_progress"                              |
+|  - Emit WORKFLOW_RESUMED event                                          |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                    4. Continue Execution                                 |
+|                                                                          |
+|  - Inject resume context into agent system prompt                       |
+|  - Resume LangGraph from checkpoint (or create new run)                 |
+|  - Continue from next pending task in DAG                               |
+|  - Normal execution flow resumes                                        |
++-------------------------------------------------------------------------+
 ```
 
 ---
@@ -520,7 +577,10 @@ VALID_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
 ### Extraction Prompt
 
 ```python
-DECISION_EXTRACTION_PROMPT = """Analyze the following agent conversation and extract key decisions that were made.
+DECISION_EXTRACTION_PROMPT = """Analyze the following agent execution history and extract key decisions that were made.
+
+The history consists of structured entries from the orchestrator's agent_history field,
+which tracks high-level actions and outcomes from each agent phase.
 
 A "decision" is a significant choice that:
 - Affects how the task is implemented
@@ -557,9 +617,9 @@ Return as JSON matching this schema:
   ]
 }
 
-<conversation>
-{messages}
-</conversation>
+<execution_history>
+{history}
+</execution_history>
 """
 ```
 
@@ -567,41 +627,43 @@ Return as JSON matching this schema:
 
 ```python
 class DecisionExtractor:
-    """Extract structured decisions from agent message history."""
+    """Extract structured decisions from agent execution history.
+
+    Works with the agent_history field in ExecutionState, which is a list[str]
+    containing high-level execution records. This is separate from the driver's
+    internal conversation history.
+    """
 
     def __init__(self, driver: DriverInterface):
         self.driver = driver
 
     async def extract(
         self,
-        messages: list[AgentMessage],
-        max_messages: int = 50,
+        history: list[str],
+        max_entries: int = 50,
     ) -> tuple[list[Decision], list[ErrorRecord]]:
-        """Extract decisions and errors from recent messages.
+        """Extract decisions and errors from agent execution history.
 
         Args:
-            messages: Agent message history.
-            max_messages: Limit to most recent N messages for context.
+            history: Agent history entries (list[str] from ExecutionState.agent_history).
+            max_entries: Limit to most recent N entries for context.
 
         Returns:
-            Tuple of (decisions, errors) extracted from messages.
+            Tuple of (decisions, errors) extracted from history.
         """
-        # Take most recent messages
-        recent = messages[-max_messages:] if len(messages) > max_messages else messages
+        # Take most recent entries
+        recent = history[-max_entries:] if len(history) > max_entries else history
 
         # Format for extraction
-        formatted = "\n\n".join(
-            f"[{msg.role}]: {msg.content}"
-            for msg in recent
-            if msg.content
-        )
+        formatted = "\n\n".join(f"Entry {i+1}:\n{entry}" for i, entry in enumerate(recent))
 
-        # Extract via LLM
-        result = await self.driver.generate(
-            messages=[
-                AgentMessage(role="system", content=DECISION_EXTRACTION_PROMPT),
-                AgentMessage(role="user", content=formatted),
-            ],
+        # Build messages for driver
+        system_msg = AgentMessage(role="system", content=DECISION_EXTRACTION_PROMPT)
+        user_msg = AgentMessage(role="user", content=formatted)
+
+        # Extract via LLM (returns tuple of (result, session_id))
+        result, _ = await self.driver.generate(
+            messages=[system_msg, user_msg],
             schema=ExtractionResult,
         )
 
@@ -705,14 +767,14 @@ class ResumeContextCompiler:
         # Format completed tasks
         completed = [t for t in snapshot.task_dag.tasks if t.status == "completed"]
         completed_list = "\n".join(
-            f"  ✓ [{t.id}] {t.description}"
+            f"  [x] [{t.id}] {t.description}"
             for t in completed
         )
 
         # Format pending tasks
         pending = [t for t in snapshot.task_dag.tasks if t.status in ("pending", "blocked")]
         pending_list = "\n".join(
-            f"  ○ [{t.id}] {t.description}"
+            f"  [ ] [{t.id}] {t.description}"
             for t in pending
         )
 
@@ -765,7 +827,7 @@ class ResumeContextCompiler:
         recent = decisions[-5:]
         lines = []
         for d in recent:
-            lines.append(f"  • [{d.decision_type}] {d.description}")
+            lines.append(f"  - [{d.decision_type}] {d.description}")
             lines.append(f"    Rationale: {d.rationale}")
 
         if len(decisions) > 5:
@@ -783,9 +845,9 @@ class ResumeContextCompiler:
 
         lines = []
         for e in unresolved:
-            lines.append(f"  ⚠ UNRESOLVED: {e.error_type}: {e.error_message}")
+            lines.append(f"  ! UNRESOLVED: {e.error_type}: {e.error_message}")
         for e in resolved:
-            lines.append(f"  ✓ {e.error_type}: {e.error_message} [{e.resolution}]")
+            lines.append(f"  - {e.error_type}: {e.error_message} [{e.resolution}]")
 
         return "\n".join(lines) or "  (no errors encountered)"
 
@@ -1016,7 +1078,7 @@ def pause_command(
         typer.echo(f"Pausing workflow {wf_id}...")
         result = await client.pause_workflow(wf_id, reason=reason)
 
-        typer.echo(f"✓ Workflow paused (snapshot: {result.snapshot_id})")
+        typer.echo(f"Workflow paused (snapshot: {result.snapshot_id})")
         typer.echo(f"  Resume with: amelia resume --workflow-id {wf_id}")
 
     asyncio.run(_run())
@@ -1064,7 +1126,7 @@ def resume_command(
         typer.echo(f"\nResuming workflow {wf_id}...")
         await client.resume_workflow(wf_id)
 
-        typer.echo("✓ Workflow resumed")
+        typer.echo("Workflow resumed")
 
     asyncio.run(_run())
 ```
@@ -1077,11 +1139,11 @@ def resume_command(
 
 ```
 dashboard/src/components/workflow/
-├── PauseButton.tsx          # Pause action button
-├── ResumeButton.tsx         # Resume action button
-├── SessionTimeline.tsx      # Visual timeline of sessions
-├── SnapshotDetail.tsx       # Detailed snapshot view
-└── PauseReasonDialog.tsx    # Dialog for entering pause reason
+  PauseButton.tsx          # Pause action button
+  ResumeButton.tsx         # Resume action button
+  SessionTimeline.tsx      # Visual timeline of sessions
+  SnapshotDetail.tsx       # Detailed snapshot view
+  PauseReasonDialog.tsx    # Dialog for entering pause reason
 ```
 
 ### PauseButton Component
@@ -1156,7 +1218,7 @@ export function SessionTimeline({ workflowId }: SessionTimelineProps) {
                 </Badge>
               </div>
               <div className="mt-2 text-sm">
-                <span className="text-green-600">✓ {snapshot.tasks_completed}</span>
+                <span className="text-green-600">{snapshot.tasks_completed} done</span>
                 {" / "}
                 <span>{snapshot.tasks_completed + snapshot.tasks_remaining} tasks</span>
               </div>
@@ -1215,19 +1277,19 @@ export function SessionTimeline({ workflowId }: SessionTimelineProps) {
 - Context compilation
 - Workflow continuation
 
-### Phase 4: Driver Capacity Reporting
+### Phase 4: Capacity Monitoring
 
 - Add UsageMetadata model
-- Extend DriverInterface with capacity reporting
-- Update ApiDriver to return usage metadata
-- Update ClaudeCliDriver with estimation
+- Extract usage from ClaudeStreamEvent result events (cost_usd, duration_ms, num_turns)
+- Estimate token usage from cost for CLI driver
+- Track cumulative usage across workflow execution
 - Implement capacity monitoring in OrchestratorService
-- Add auto-pause on exhaustion threshold
+- Add auto-pause on exhaustion threshold (based on estimated utilization)
 
 **Deliverables:**
-- Driver interface extension
-- Capacity monitoring
-- Auto-pause on exhaustion
+- UsageMetadata model with CLI result parsing
+- Cumulative usage tracking
+- Auto-pause on estimated exhaustion
 
 ### Phase 5: API & CLI
 
@@ -1256,18 +1318,18 @@ export function SessionTimeline({ workflowId }: SessionTimelineProps) {
 ### Dependency Graph
 
 ```
-Phase 1 ──────► Phase 2 ──────► Phase 3
+Phase 1 ------> Phase 2 ------> Phase 3
 (Infrastructure) (Pause)        (Resume)
-                    │               │
-                    └───────┬───────┘
-                            ▼
+                    |               |
+                    +-------+-------+
+                            |
                        Phase 4
                     (Capacity)
-                            │
-            ┌───────────────┼───────────────┐
-            ▼               ▼               ▼
+                            |
+            +---------------+---------------+
+            |               |               |
         Phase 5         Phase 6          Tests
-        (API/CLI)      (Dashboard)     (E2E)
+        (API/CLI)      (Dashboard)       (E2E)
 ```
 
 ---
@@ -1278,9 +1340,9 @@ Phase 1 ──────► Phase 2 ──────► Phase 3
 
 ```python
 # tests/unit/session_continuity/test_decision_extractor.py
-- test_extract_decisions_from_messages
-- test_extract_errors_from_messages
-- test_handles_empty_messages
+- test_extract_decisions_from_history
+- test_extract_errors_from_history
+- test_handles_empty_history
 - test_handles_no_decisions
 
 # tests/unit/session_continuity/test_resume_context_compiler.py
@@ -1327,14 +1389,14 @@ Phase 1 ──────► Phase 2 ──────► Phase 3
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Session boundary | Workflow execution | Aligns with existing workflow model |
+| Session boundary | Workflow execution (orchestrator-level) | Driver handles low-level session continuity; this handles user-controlled pause/resume |
 | State storage | SQLite (server-side) | Consistent with existing architecture |
 | Pause granularity | Task boundaries only | Simpler state, cleaner handoffs |
-| Decision capture | LLM extraction | Automatic, no manual annotation needed |
+| Decision capture | LLM extraction from agent_history | Automatic, uses existing ExecutionState field |
 | Resume context | Summary + retrieval | Balance between context size and completeness |
-| Capacity detection | Driver metadata | Non-invasive, aligns with API patterns |
+| Capacity detection | ClaudeStreamEvent result parsing | Extract cost_usd, estimate tokens, non-invasive |
 | CLI/Dashboard parity | Identical endpoints | Consistent UX, simpler maintenance |
-| Mergeable guarantee | Flexible with warning | Supports TDD red phase, pragmatic |
+| Driver session on resume | New session (not preserved) | Driver sessions designed for single workflow run, not cross-pause continuity |
 | Snapshot storage | JSON blob in SQLite | Self-contained, easy to query |
 | Test state tracking | Explicit TDD model | Enables intelligent resume mid-cycle |
 

@@ -3,7 +3,6 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 from pathlib import Path
 
-from amelia.core.state import AgentMessage
 from amelia.core.types import Design
 from amelia.drivers.base import DriverInterface
 
@@ -26,20 +25,20 @@ Extract only what is explicitly stated or clearly implied. Use null for fields n
 
 
 async def parse_design(path: str | Path, driver: DriverInterface) -> Design:
-    """
-    Parse a brainstorming markdown file into a structured Design.
+    """Parse a brainstorming markdown file into structured Design object.
 
-    Uses the LLM driver to extract structured fields from freeform markdown.
+    Uses the LLM driver to extract structured fields from freeform markdown
+    design documents. The raw markdown content is preserved in the Design object.
 
     Args:
-        path: Path to the markdown design document
-        driver: LLM driver for structured extraction
+        path: Path to the markdown design document.
+        driver: LLM driver interface for structured extraction.
 
     Returns:
-        Design object with extracted fields
+        Design object with extracted structured fields and raw content.
 
     Raises:
-        FileNotFoundError: If the design file does not exist
+        FileNotFoundError: If the design file does not exist at the specified path.
     """
     path = Path(path)
     if not path.exists():
@@ -47,11 +46,11 @@ async def parse_design(path: str | Path, driver: DriverInterface) -> Design:
 
     content = path.read_text()
 
-    messages = [
-        AgentMessage(role="system", content=PARSER_SYSTEM_PROMPT),
-        AgentMessage(role="user", content=content)
-    ]
-
-    result: Design = await driver.generate(messages=messages, schema=Design)
-    result.raw_content = content
-    return result
+    parsed_result, _session_id = await driver.generate(
+        prompt=content,
+        system_prompt=PARSER_SYSTEM_PROMPT,
+        schema=Design
+    )
+    design: Design = parsed_result  # Type assertion - schema was provided
+    design.raw_content = content
+    return design

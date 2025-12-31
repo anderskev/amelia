@@ -9,9 +9,7 @@ These documents are created using the [superpowers:brainstorming](https://github
 | Idea | Description | Status |
 |------|-------------|--------|
 | [Session Continuity](./session-continuity) | Structured handoff protocol for long-running workflows | Draft |
-| [CAPEX Tracking](./capex-tracking) | Attribute engineering work to initiatives for financial reporting | Draft |
 | [Knowledge Library](./knowledge-library) | Co-learning system for developers and agents | Draft |
-| [AWS AgentCore](./aws-agentcore) | Deploy Amelia to AWS for parallel cloud execution | Draft |
 | [Debate Mode](./debate-mode) | Multi-agent deliberation for design decisions | Draft |
 | [Spec Builder](./spec-builder) | Document-assisted technical design tool | Draft |
 | [Planning Workflows](./planning-workflows) | Variations on the planning workflow | Draft |

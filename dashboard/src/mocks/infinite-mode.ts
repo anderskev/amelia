@@ -10,7 +10,7 @@ import type {
   WorkflowSummary,
   WorkflowDetail,
   WorkflowEvent,
-  TaskDAG,
+  ExecutionPlan,
   TokenSummary,
 } from '@/types';
 
@@ -411,241 +411,206 @@ function getEscapeVelocityEvents(workflowId: string, startedAt: string): Workflo
 }
 
 // ============================================================================
-// Task DAGs for Canvas
+// Execution Plans for Batch Visualization
 // ============================================================================
 
 /**
- * Task DAG for INFRA-2847 (heat shields)
+ * Execution plan for INFRA-2847 (heat shields)
  */
-function getHeatShieldsDAG(): TaskDAG {
+function getHeatShieldsExecutionPlan(): ExecutionPlan {
   return {
-    tasks: [
+    goal: 'Implement thermal protection system for re-entry',
+    batches: [
       {
-        id: 'task-1',
-        description: 'Analyze thermal requirements for re-entry',
-        dependencies: [],
-        status: 'completed',
+        batch_number: 1,
+        description: 'Analysis and design phase',
+        risk_summary: 'low',
+        steps: [
+          { id: 'step-1', description: 'Analyze thermal requirements for re-entry', action_type: 'code' },
+          { id: 'step-2', description: 'Design 47-tile ceramic heat shield array', action_type: 'code' },
+        ],
       },
       {
-        id: 'task-2',
-        description: 'Design 47-tile ceramic heat shield array',
-        dependencies: ['task-1'],
-        status: 'completed',
+        batch_number: 2,
+        description: 'Implementation phase',
+        risk_summary: 'medium',
+        steps: [
+          { id: 'step-3', description: 'Implement heat_shield.py module', action_type: 'code', file_path: 'src/thermal/heat_shield.py' },
+          { id: 'step-4', description: 'Implement tile_array.py with ablation simulation', action_type: 'code', file_path: 'src/thermal/tile_array.py' },
+        ],
       },
       {
-        id: 'task-3',
-        description: 'Implement heat_shield.py module',
-        dependencies: ['task-2'],
-        status: 'completed',
-      },
-      {
-        id: 'task-4',
-        description: 'Implement tile_array.py with ablation simulation',
-        dependencies: ['task-3'],
-        status: 'in_progress',
-      },
-      {
-        id: 'task-5',
-        description: 'Add thermal-dynamics dependency to pyproject.toml',
-        dependencies: ['task-4'],
-        status: 'pending',
-      },
-      {
-        id: 'task-6',
-        description: 'Review thermal protection implementation',
-        dependencies: ['task-5'],
-        status: 'pending',
+        batch_number: 3,
+        description: 'Dependencies and review',
+        risk_summary: 'low',
+        steps: [
+          { id: 'step-5', description: 'Add thermal-dynamics dependency to pyproject.toml', action_type: 'code', file_path: 'pyproject.toml' },
+          { id: 'step-6', description: 'Review thermal protection implementation', action_type: 'validation' },
+        ],
       },
     ],
-    execution_order: ['task-1', 'task-2', 'task-3', 'task-4', 'task-5', 'task-6'],
+    total_estimated_minutes: 90,
+    tdd_approach: true,
   };
 }
 
 /**
- * Task DAG for DEVOPS-∞ (orbital deployment)
+ * Execution plan for DEVOPS-∞ (orbital deployment)
  */
-function getOrbitalDeploymentDAG(): TaskDAG {
+function getOrbitalDeploymentExecutionPlan(): ExecutionPlan {
   return {
-    tasks: [
+    goal: 'Design and implement Kubernetes-in-space architecture',
+    batches: [
       {
-        id: 'task-1',
-        description: 'Research existing orbital deployment patterns',
-        dependencies: [],
-        status: 'completed',
+        batch_number: 1,
+        description: 'Research and architecture',
+        risk_summary: 'low',
+        steps: [
+          { id: 'step-1', description: 'Research existing orbital deployment patterns', action_type: 'code' },
+          { id: 'step-2', description: 'Design Kubernetes-but-in-space architecture', action_type: 'code' },
+          { id: 'step-3', description: 'Document orbital-k8s architecture', action_type: 'code', file_path: 'docs/orbital-k8s-architecture.md' },
+        ],
       },
       {
-        id: 'task-2',
-        description: 'Design Kubernetes-but-in-space architecture',
-        dependencies: ['task-1'],
-        status: 'completed',
+        batch_number: 2,
+        description: 'Implementation',
+        risk_summary: 'high',
+        steps: [
+          { id: 'step-4', description: 'Implement zero-gravity container orchestration', action_type: 'code' },
+          { id: 'step-5', description: 'Add rocket emoji validation to CI/CD pipeline', action_type: 'code' },
+        ],
       },
       {
-        id: 'task-3',
-        description: 'Document orbital-k8s architecture',
-        dependencies: ['task-2'],
-        status: 'completed',
-      },
-      {
-        id: 'task-4',
-        description: 'Implement zero-gravity container orchestration',
-        dependencies: ['task-3'],
-        status: 'pending',
-      },
-      {
-        id: 'task-5',
-        description: 'Add rocket emoji validation to CI/CD pipeline',
-        dependencies: ['task-4'],
-        status: 'pending',
-      },
-      {
-        id: 'task-6',
-        description: 'Review for orbital stability',
-        dependencies: ['task-5'],
-        status: 'pending',
+        batch_number: 3,
+        description: 'Review',
+        risk_summary: 'medium',
+        steps: [
+          { id: 'step-6', description: 'Review for orbital stability', action_type: 'validation' },
+        ],
       },
     ],
-    execution_order: ['task-1', 'task-2', 'task-3', 'task-4', 'task-5', 'task-6'],
+    total_estimated_minutes: 120,
+    tdd_approach: true,
   };
 }
 
 /**
- * Task DAG for ARCH-42 (solar distributed)
+ * Execution plan for ARCH-42 (solar distributed)
  */
-function getSolarDistributedDAG(): TaskDAG {
+function getSolarDistributedExecutionPlan(): ExecutionPlan {
   return {
-    tasks: [
+    goal: 'Build inter-planetary distributed computing system',
+    batches: [
       {
-        id: 'task-1',
-        description: 'Calculate light-speed latency across solar system',
-        dependencies: [],
-        status: 'completed',
+        batch_number: 1,
+        description: 'Latency analysis',
+        risk_summary: 'low',
+        steps: [
+          { id: 'step-1', description: 'Calculate light-speed latency across solar system', action_type: 'code' },
+          { id: 'step-2', description: 'Design inter-planetary message queue', action_type: 'code' },
+        ],
       },
       {
-        id: 'task-2',
-        description: 'Design inter-planetary message queue',
-        dependencies: ['task-1'],
-        status: 'completed',
+        batch_number: 2,
+        description: 'Core implementation',
+        risk_summary: 'medium',
+        steps: [
+          { id: 'step-3', description: 'Implement solar_mq.py with eventual consistency', action_type: 'code', file_path: 'src/distributed/solar_mq.py' },
+          { id: 'step-4', description: 'Implement light_speed_cache.py (299,792 km/s)', action_type: 'code', file_path: 'src/distributed/light_speed_cache.py' },
+        ],
       },
       {
-        id: 'task-3',
-        description: 'Implement solar_mq.py with eventual consistency',
-        dependencies: ['task-2'],
-        status: 'completed',
-      },
-      {
-        id: 'task-4',
-        description: 'Implement light_speed_cache.py (299,792 km/s)',
-        dependencies: ['task-3'],
-        status: 'completed',
-      },
-      {
-        id: 'task-5',
-        description: 'Add philosophical comments every 200 lines',
-        dependencies: ['task-4'],
-        status: 'completed',
-      },
-      {
-        id: 'task-6',
-        description: 'Review distributed system implementation',
-        dependencies: ['task-5'],
-        status: 'in_progress',
-      },
-      {
-        id: 'task-7',
-        description: 'Add support for parallel universes (optional)',
-        dependencies: ['task-6'],
-        status: 'pending',
+        batch_number: 3,
+        description: 'Polish and review',
+        risk_summary: 'low',
+        steps: [
+          { id: 'step-5', description: 'Add philosophical comments every 200 lines', action_type: 'code' },
+          { id: 'step-6', description: 'Review distributed system implementation', action_type: 'validation' },
+          { id: 'step-7', description: 'Add support for parallel universes (optional)', action_type: 'code' },
+        ],
       },
     ],
-    execution_order: ['task-1', 'task-2', 'task-3', 'task-4', 'task-5', 'task-6', 'task-7'],
+    total_estimated_minutes: 150,
+    tdd_approach: true,
   };
 }
 
 /**
- * Task DAG for SPEC-322 (microservices-thrust)
+ * Execution plan for SPEC-322 (microservices-thrust)
  */
-function getMicroservicesThrustDAG(): TaskDAG {
+function getMicroservicesThrustExecutionPlan(): ExecutionPlan {
   return {
-    tasks: [
+    goal: 'Implement thruster control microservices',
+    batches: [
       {
-        id: 'task-1',
-        description: 'Analyze thrust-to-weight ratio',
-        dependencies: [],
-        status: 'completed',
+        batch_number: 1,
+        description: 'Analysis and design',
+        risk_summary: 'low',
+        steps: [
+          { id: 'step-1', description: 'Analyze thrust-to-weight ratio', action_type: 'code' },
+          { id: 'step-2', description: 'Design container orchestration for zero-g', action_type: 'code' },
+        ],
       },
       {
-        id: 'task-2',
-        description: 'Design container orchestration for zero-g',
-        dependencies: ['task-1'],
-        status: 'completed',
+        batch_number: 2,
+        description: 'Implementation',
+        risk_summary: 'medium',
+        steps: [
+          { id: 'step-3', description: 'Implement thruster microservice', action_type: 'code', file_path: 'src/thrust/engine_controller.py' },
+          { id: 'step-4', description: 'Add fuel injection endpoints', action_type: 'code', file_path: 'src/thrust/fuel_injection.py' },
+        ],
       },
       {
-        id: 'task-3',
-        description: 'Implement thruster microservice',
-        dependencies: ['task-2'],
-        status: 'in_progress',
-      },
-      {
-        id: 'task-4',
-        description: 'Add fuel injection endpoints',
-        dependencies: ['task-3'],
-        status: 'pending',
-      },
-      {
-        id: 'task-5',
-        description: 'Review for orbital stability',
-        dependencies: ['task-4'],
-        status: 'pending',
+        batch_number: 3,
+        description: 'Review',
+        risk_summary: 'low',
+        steps: [
+          { id: 'step-5', description: 'Review for orbital stability', action_type: 'validation' },
+        ],
       },
     ],
-    execution_order: ['task-1', 'task-2', 'task-3', 'task-4', 'task-5'],
+    total_estimated_minutes: 75,
+    tdd_approach: true,
   };
 }
 
 /**
- * Task DAG for PERF-9000 (escape velocity)
+ * Execution plan for PERF-9000 (escape velocity)
  */
-function getEscapeVelocityDAG(): TaskDAG {
+function getEscapeVelocityExecutionPlan(): ExecutionPlan {
   return {
-    tasks: [
+    goal: 'Optimize velocity to achieve escape from Earth gravity',
+    batches: [
       {
-        id: 'task-1',
-        description: 'Calculate escape velocity from Earth (11.2 km/s)',
-        dependencies: [],
-        status: 'completed',
+        batch_number: 1,
+        description: 'Velocity analysis',
+        risk_summary: 'low',
+        steps: [
+          { id: 'step-1', description: 'Calculate escape velocity from Earth (11.2 km/s)', action_type: 'code' },
+          { id: 'step-2', description: 'Analyze current velocity (0 km/s)', action_type: 'code' },
+          { id: 'step-3', description: 'Design acceleration optimization strategy', action_type: 'code' },
+        ],
       },
       {
-        id: 'task-2',
-        description: 'Analyze current velocity (0 km/s)',
-        dependencies: ['task-1'],
-        status: 'completed',
+        batch_number: 2,
+        description: 'Optimizer implementation',
+        risk_summary: 'high',
+        steps: [
+          { id: 'step-4', description: 'Implement velocity optimizer with gravitational slingshot', action_type: 'code' },
+          { id: 'step-5', description: 'Add trajectory calculation module', action_type: 'code' },
+        ],
       },
       {
-        id: 'task-3',
-        description: 'Design acceleration optimization strategy',
-        dependencies: ['task-2'],
-        status: 'completed',
-      },
-      {
-        id: 'task-4',
-        description: 'Implement velocity optimizer with gravitational slingshot',
-        dependencies: ['task-3'],
-        status: 'pending',
-      },
-      {
-        id: 'task-5',
-        description: 'Add trajectory calculation module',
-        dependencies: ['task-4'],
-        status: 'pending',
-      },
-      {
-        id: 'task-6',
-        description: 'Review for one-way trip implications',
-        dependencies: ['task-5'],
-        status: 'pending',
+        batch_number: 3,
+        description: 'Final review',
+        risk_summary: 'high',
+        steps: [
+          { id: 'step-6', description: 'Review for one-way trip implications', action_type: 'validation' },
+        ],
       },
     ],
-    execution_order: ['task-1', 'task-2', 'task-3', 'task-4', 'task-5', 'task-6'],
+    total_estimated_minutes: 180,
+    tdd_approach: true,
   };
 }
 
@@ -704,7 +669,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
   }
 
   // Generate detailed information based on issue_id
-  let plan: TaskDAG | null = null;
+  let executionPlan: ExecutionPlan | null = null;
   let events: WorkflowEvent[] = [];
   let completedAt: string | null = null;
   let failureReason: string | null = null;
@@ -714,23 +679,23 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
   switch (summary.issue_id) {
     // Active workflows
     case 'INFRA-2847':
-      plan = getHeatShieldsDAG();
+      executionPlan = getHeatShieldsExecutionPlan();
       events = getHeatShieldsEvents(id, startedAt);
       break;
     case 'DEVOPS-∞':
-      plan = getOrbitalDeploymentDAG();
+      executionPlan = getOrbitalDeploymentExecutionPlan();
       events = getOrbitalDeploymentEvents(id, startedAt);
       break;
     case 'ARCH-42':
-      plan = getSolarDistributedDAG();
+      executionPlan = getSolarDistributedExecutionPlan();
       events = getSolarDistributedEvents(id, startedAt);
       break;
     case 'SPEC-322':
-      plan = getMicroservicesThrustDAG();
+      executionPlan = getMicroservicesThrustExecutionPlan();
       events = getMicroservicesThrustEvents(id, startedAt);
       break;
     case 'PERF-9000':
-      plan = getEscapeVelocityDAG();
+      executionPlan = getEscapeVelocityExecutionPlan();
       events = getEscapeVelocityEvents(id, startedAt);
       break;
 
@@ -1004,8 +969,9 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
     worktree_path: `/Users/amelia/worktrees/${summary.worktree_name}`,
     completed_at: completedAt,
     failure_reason: failureReason,
-    plan,
     token_usage: getTokenUsage(summary.issue_id),
     recent_events: events,
+    // Agentic execution fields
+    execution_plan: executionPlan,
   };
 }

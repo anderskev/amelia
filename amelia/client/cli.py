@@ -3,12 +3,14 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Thin client CLI commands that delegate to the REST API."""
 import asyncio
+from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from amelia.agents.architect import Architect, PlanOutput
 from amelia.client.api import (
     AmeliaClient,
     InvalidRequestError,
@@ -17,10 +19,75 @@ from amelia.client.api import (
     WorkflowConflictError,
 )
 from amelia.client.git import get_worktree_context
-from amelia.client.models import CreateWorkflowResponse
+from amelia.client.models import CreateWorkflowResponse, WorkflowSummary
+from amelia.config import load_settings
+from amelia.core.state import ExecutionState
+from amelia.drivers.factory import DriverFactory
+from amelia.trackers.factory import create_tracker
 
 
 console = Console()
+
+
+def _get_worktree_context() -> tuple[str, str]:
+    """Get current git worktree context with error handling.
+
+    Wraps get_worktree_context() and converts exceptions to user-friendly
+    error messages before exiting.
+
+    Returns:
+        Tuple of (worktree_path, worktree_name).
+
+    Raises:
+        typer.Exit: If not in a git repository or worktree detection fails.
+    """
+    try:
+        return get_worktree_context()
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        console.print("\nMake sure you're in a git repository working directory.")
+        raise typer.Exit(1) from None
+    except RuntimeError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+
+
+def _handle_workflow_api_error(
+    exc: ServerUnreachableError | WorkflowConflictError | RateLimitError | InvalidRequestError,
+    worktree_path: str | None = None,
+) -> None:
+    """Handle workflow API errors with user-friendly messaging and guidance.
+
+    Displays error-specific messages with suggested actions for recovery.
+    Always exits with code 1.
+
+    Args:
+        exc: The exception to handle from the API client.
+        worktree_path: Optional worktree path for context in error messages.
+
+    Raises:
+        typer.Exit: Always exits with code 1 after displaying error.
+    """
+    if isinstance(exc, ServerUnreachableError):
+        console.print(f"[red]Error:[/red] {exc}")
+        console.print("\n[yellow]Start the server:[/yellow] amelia server")
+
+    elif isinstance(exc, WorkflowConflictError):
+        console.print(f"[red]Error:[/red] Workflow already active in {worktree_path}")
+
+        if exc.active_workflow:
+            active = exc.active_workflow
+            console.print(f"\n  Active workflow: [bold]{active['id']}[/bold] ({active['issue_id']})")
+            console.print(f"  Status: {active['status']}")
+
+        console.print("\n[yellow]To start a new workflow:[/yellow]")
+        console.print("  - Cancel the existing one: [bold]amelia cancel[/bold]")
+        console.print("  - Or use a different worktree: [bold]git worktree add ../project-issue-123[/bold]")
+
+    elif isinstance(exc, (RateLimitError, InvalidRequestError)):
+        console.print(f"[red]Error:[/red] {exc}")
+
+    raise typer.Exit(1) from None
 
 
 def start_command(
@@ -30,26 +97,17 @@ def start_command(
         typer.Option("--profile", "-p", help="Profile name for configuration"),
     ] = None,
 ) -> None:
-    """Start a workflow for an issue.
+    """Start a new workflow for an issue in the current worktree.
 
-    Detects the current git worktree and creates a new workflow via the API server.
+    Detects the current git worktree context and creates a new workflow
+    via the Amelia API server. Displays workflow details and dashboard URL.
 
     Args:
-        issue_id: Issue ID to work on (e.g., ISSUE-123).
-        profile: Profile name for configuration.
+        issue_id: Issue identifier to work on (e.g., ISSUE-123).
+        profile: Optional profile name for driver and tracker configuration.
     """
-    # Detect worktree context
-    try:
-        worktree_path, worktree_name = get_worktree_context()
-    except ValueError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        console.print("\nMake sure you're in a git repository working directory.")
-        raise typer.Exit(1) from None
-    except RuntimeError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1) from None
+    worktree_path, worktree_name = _get_worktree_context()
 
-    # Create workflow via API
     client = AmeliaClient()
 
     async def _create() -> CreateWorkflowResponse:
@@ -69,42 +127,20 @@ def start_command(
         console.print(f"  Status: {workflow.status}")
         console.print("\n[dim]View in dashboard: http://127.0.0.1:8420[/dim]")
 
-    except ServerUnreachableError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        console.print("\n[yellow]Start the server:[/yellow] amelia server")
-        raise typer.Exit(1) from None
-
-    except WorkflowConflictError as e:
-        console.print(f"[red]Error:[/red] Workflow already active in {worktree_path}")
-
-        if e.active_workflow:
-            active = e.active_workflow
-            console.print(f"\n  Active workflow: [bold]{active['id']}[/bold] ({active['issue_id']})")
-            console.print(f"  Status: {active['status']}")
-
-        console.print("\n[yellow]To start a new workflow:[/yellow]")
-        console.print("  - Cancel the existing one: [bold]amelia cancel[/bold]")
-        console.print("  - Or use a different worktree: [bold]git worktree add ../project-issue-123[/bold]")
-        raise typer.Exit(1) from None
-
-    except RateLimitError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1) from None
-
-    except InvalidRequestError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1) from None
+    except (ServerUnreachableError, WorkflowConflictError, RateLimitError, InvalidRequestError) as e:
+        _handle_workflow_api_error(e, worktree_path=worktree_path)
 
 
 def reject_command(
     reason: str,
 ) -> None:
-    """Reject the workflow plan in the current worktree.
+    """Reject the workflow plan in the current worktree with feedback.
 
-    Provide a reason that will be sent to the Architect agent for replanning.
+    Sends rejection reason to the Architect agent, which will replan
+    based on the provided feedback.
 
     Args:
-        reason: Reason for rejecting the plan
+        reason: Detailed reason for rejecting the plan to guide replanning.
     """
     # Detect worktree context
     try:
@@ -148,7 +184,8 @@ def reject_command(
 def approve_command() -> None:
     """Approve the workflow plan in the current worktree.
 
-    Auto-detects the workflow from the current git worktree.
+    Auto-detects the active workflow from the current git worktree context
+    and approves the pending plan, allowing execution to continue.
     """
     # Detect worktree context
     try:
@@ -197,13 +234,13 @@ def status_command(
         typer.Option("--all", "-a", help="Show workflows from all worktrees"),
     ] = False,
 ) -> None:
-    """Show status of active workflows.
+    """Show status of active workflows in a formatted table.
 
-    By default, shows workflow for the current worktree only.
-    Use --all to see workflows from all worktrees.
+    By default shows the workflow for the current worktree only.
+    Use --all to display workflows across all worktrees.
 
     Args:
-        all_worktrees: Show workflows from all worktrees.
+        all_worktrees: If True, show workflows from all worktrees instead of current only.
     """
     # Detect worktree context (if filtering to current)
     worktree_path = None
@@ -264,10 +301,11 @@ def cancel_command(
 ) -> None:
     """Cancel the active workflow in the current worktree.
 
-    Requires confirmation unless --force is used.
+    Auto-detects the workflow from the current git worktree and cancels it.
+    Prompts for confirmation unless --force is specified.
 
     Args:
-        force: Skip confirmation prompt.
+        force: If True, skip the confirmation prompt.
     """
     # Detect worktree context
     try:
@@ -279,31 +317,113 @@ def cancel_command(
     # Find workflow in this worktree
     client = AmeliaClient()
 
-    async def _cancel() -> None:
-        # Get workflows for this worktree
+    async def _get_workflow() -> WorkflowSummary:
+        """Fetch the active workflow for the current worktree."""
         result = await client.get_active_workflows(worktree_path=worktree_path)
 
         if not result.workflows:
             console.print(f"[red]Error:[/red] No workflow active in {worktree_path}")
             raise typer.Exit(1)
 
-        workflow = result.workflows[0]
+        return result.workflows[0]
 
-        # Confirm cancellation
-        if not force:
-            console.print(f"Cancel workflow [bold]{workflow.id}[/bold] ({workflow.issue_id})?")
-            confirm = typer.confirm("Are you sure?")
-            if not confirm:
-                console.print("[dim]Aborted.[/dim]")
-                raise typer.Exit(0)
+    async def _do_cancel(workflow_id: str) -> None:
+        """Cancel the workflow via API."""
+        await client.cancel_workflow(workflow_id=workflow_id)
 
-        # Cancel it
-        await client.cancel_workflow(workflow_id=workflow.id)
-        console.print(f"[yellow]✗[/yellow] Workflow [bold]{workflow.id}[/bold] cancelled")
-
+    # Step 1: Get workflow info (async)
     try:
-        asyncio.run(_cancel())
+        workflow = asyncio.run(_get_workflow())
     except ServerUnreachableError as e:
         console.print(f"[red]Error:[/red] {e}")
         console.print("\n[yellow]Start the server:[/yellow] amelia server")
+        raise typer.Exit(1) from None
+
+    # Step 2: Confirm cancellation (sync - must be outside async context)
+    if not force:
+        console.print(f"Cancel workflow [bold]{workflow.id}[/bold] ({workflow.issue_id})?")
+        confirm = typer.confirm("Are you sure?")
+        if not confirm:
+            console.print("[dim]Aborted.[/dim]")
+            raise typer.Exit(0)
+
+    # Step 3: Cancel it (async)
+    try:
+        asyncio.run(_do_cancel(workflow.id))
+        console.print(f"[yellow]✗[/yellow] Workflow [bold]{workflow.id}[/bold] cancelled")
+    except ServerUnreachableError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        console.print("\n[yellow]Start the server:[/yellow] amelia server")
+        raise typer.Exit(1) from None
+
+
+def plan_command(
+    issue_id: Annotated[str, typer.Argument(help="Issue ID to generate a plan for (e.g., ISSUE-123)")],
+    profile_name: Annotated[
+        str | None,
+        typer.Option("--profile", "-p", help="Profile name for configuration"),
+    ] = None,
+) -> None:
+    """Generate an implementation plan for an issue without executing it.
+
+    Creates a markdown implementation plan in docs/plans/ that can be
+    reviewed before execution. Calls the Architect directly without
+    going through the full LangGraph orchestration.
+
+    Args:
+        issue_id: Issue identifier to generate a plan for (e.g., ISSUE-123).
+        profile_name: Optional profile name for driver and tracker configuration.
+    """
+    worktree_path, _worktree_name = _get_worktree_context()
+
+    async def _generate_plan() -> PlanOutput:
+        # Load settings from worktree
+        settings_path = Path(worktree_path) / "settings.amelia.yaml"
+        settings = load_settings(settings_path)
+
+        # Get profile (use specified or active profile)
+        selected_profile = profile_name or settings.active_profile
+        if selected_profile not in settings.profiles:
+            raise ValueError(f"Profile '{selected_profile}' not found in settings")
+        profile = settings.profiles[selected_profile]
+
+        # Update profile with worktree path
+        profile = profile.model_copy(update={"working_dir": worktree_path})
+
+        # Fetch issue using tracker
+        tracker = create_tracker(profile)
+        issue = tracker.get_issue(issue_id, cwd=worktree_path)
+
+        # Create minimal execution state
+        state = ExecutionState(
+            profile_id=profile.name,
+            issue=issue,
+        )
+
+        # Create driver and architect
+        driver = DriverFactory.get_driver(profile.driver, model=profile.model)
+        architect = Architect(driver)
+
+        # Generate plan directly
+        return await architect.plan(
+            state=state,
+            profile=profile,
+            workflow_id=f"plan-{issue_id}",
+        )
+
+    try:
+        console.print(f"[dim]Generating plan for {issue_id}...[/dim]")
+        plan_output = asyncio.run(_generate_plan())
+
+        console.print("\n[green]✓[/green] Plan generated successfully!")
+        console.print(f"  Goal: {plan_output.goal}")
+        console.print(f"  Saved to: [bold]{plan_output.markdown_path}[/bold]")
+        if plan_output.key_files:
+            console.print(f"  Key files: {', '.join(plan_output.key_files[:5])}")
+
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+    except Exception as e:
+        console.print(f"[red]Error generating plan:[/red] {e}")
         raise typer.Exit(1) from None

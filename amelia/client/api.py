@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from amelia.client.models import (
+    CreateReviewWorkflowRequest,
     CreateWorkflowRequest,
     CreateWorkflowResponse,
     RejectWorkflowRequest,
@@ -149,6 +150,74 @@ class AmeliaClient:
 
         # This should never be reached, but mypy needs it
         raise RuntimeError("Unexpected code path in create_workflow")
+
+    async def create_review_workflow(
+        self,
+        diff_content: str,
+        worktree_path: str,
+        worktree_name: str | None = None,
+        profile: str | None = None,
+    ) -> CreateWorkflowResponse:
+        """Create a review-fix workflow.
+
+        Args:
+            diff_content: The git diff to review.
+            worktree_path: Absolute path to git worktree.
+            worktree_name: Human-readable name for worktree.
+            profile: Optional profile name for configuration.
+
+        Returns:
+            CreateWorkflowResponse with workflow id and initial status.
+
+        Raises:
+            WorkflowConflictError: If workflow already active in this worktree.
+            RateLimitError: If concurrent workflow limit exceeded.
+            ServerUnreachableError: If server is not running.
+            InvalidRequestError: If request validation fails.
+        """
+        request = CreateReviewWorkflowRequest(
+            diff_content=diff_content,
+            worktree_path=worktree_path,
+            worktree_name=worktree_name,
+            profile=profile,
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/workflows/review",
+                    json=request.model_dump(exclude_none=True),
+                )
+
+                if response.status_code in (200, 201):
+                    return CreateWorkflowResponse.model_validate(response.json())
+                elif response.status_code == 409:
+                    data = response.json()
+                    detail = data.get("detail", {})
+                    active = detail.get("active_workflow")
+                    raise WorkflowConflictError(
+                        detail.get("message", "Workflow already active"),
+                        active_workflow=active,
+                    )
+                elif response.status_code == 429:
+                    retry_after = response.headers.get("Retry-After")
+                    raise RateLimitError(
+                        f"Too many concurrent workflows. Retry after {retry_after} seconds.",
+                        retry_after=int(retry_after) if retry_after else None,
+                    )
+                elif response.status_code in (400, 422):
+                    raise InvalidRequestError(f"Invalid request: {response.json()}")
+                else:
+                    response.raise_for_status()
+
+        except httpx.ConnectError as e:
+            raise ServerUnreachableError(
+                f"Cannot connect to Amelia server at {self.base_url}. "
+                f"Is the server running? Try: amelia server"
+            ) from e
+
+        # This should never be reached, but mypy needs it
+        raise RuntimeError("Unexpected code path in create_review_workflow")
 
     async def approve_workflow(self, workflow_id: str) -> None:
         """Approve a workflow plan.

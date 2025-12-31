@@ -62,7 +62,7 @@ export interface WorkflowSummary {
 
 /**
  * Complete detailed information about a workflow.
- * Extends WorkflowSummary with additional metadata, execution plan, token usage, and event history.
+ * Extends WorkflowSummary with additional metadata, token usage, and event history.
  */
 export interface WorkflowDetail extends WorkflowSummary {
   /** Absolute filesystem path to the git worktree. */
@@ -74,14 +74,18 @@ export interface WorkflowDetail extends WorkflowSummary {
   /** Human-readable error message if the workflow failed, otherwise null. */
   failure_reason: string | null;
 
-  /** The execution plan (task DAG) created by the architect agent, or null if not yet planned. */
-  plan: TaskDAG | null;
-
   /** Token usage statistics grouped by agent name. */
   token_usage: Record<string, TokenSummary>;
 
   /** Recent workflow events for this workflow, ordered by sequence number. */
   recent_events: WorkflowEvent[];
+
+  // Agentic execution fields
+  /** High-level goal or task description for the developer. */
+  goal: string | null;
+
+  /** Path to the markdown plan file, if generated. */
+  plan_path: string | null;
 }
 
 // ============================================================================
@@ -188,104 +192,6 @@ export interface WorkflowEvent {
 
   /** Optional correlation ID for grouping related events. */
   correlation_id?: string;
-}
-
-// ============================================================================
-// Plan Types (TaskDAG)
-// ============================================================================
-
-/**
- * A file operation in a task.
- */
-export interface FileOperation {
-  /** Type of operation (create, modify, or test). */
-  operation: 'create' | 'modify' | 'test';
-  /** File path relative to project root. */
-  path: string;
-  /** Optional line range for modifications (e.g., "10-20"). */
-  line_range?: string | null;
-}
-
-/**
- * A single step within a task.
- */
-export interface TaskStep {
-  /** Description of what this step accomplishes. */
-  description: string;
-  /** Optional code snippet to execute. */
-  code?: string | null;
-  /** Optional command to run. */
-  command?: string | null;
-  /** Optional description of the expected output. */
-  expected_output?: string | null;
-}
-
-/**
- * A single task node in the execution plan.
- * Represents one unit of work to be performed by an agent.
- */
-export interface TaskNode {
-  /** Unique identifier for this task. */
-  id: string;
-
-  /** Human-readable description of what this task should accomplish. */
-  description: string;
-
-  /** List of task IDs that must complete before this task can start. */
-  dependencies: string[];
-
-  /** Current execution state of this task. */
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-
-  /** List of file operations involved in this task. */
-  files?: FileOperation[];
-
-  /** List of steps to execute for this task. */
-  steps?: TaskStep[];
-
-  /** Optional git commit message for this task. */
-  commit_message?: string | null;
-
-  /** Output or result from executing this task (populated after completion). */
-  result?: string;
-
-  /** Error message if the task failed (populated on failure). */
-  error?: string;
-
-  // TODO(#73): Wire up from backend
-  /** ISO 8601 timestamp when task execution started. */
-  started_at?: string;
-
-  // TODO(#73): Wire up from backend
-  /** ISO 8601 timestamp when task execution completed. */
-  completed_at?: string;
-
-  // TODO(#73): Wire up from backend
-  /** Total tokens used by this task. */
-  tokens?: number;
-}
-
-/**
- * Directed Acyclic Graph (DAG) representing the execution plan.
- * Created by the architect agent and used to coordinate workflow execution.
- *
- * @example
- * ```typescript
- * const plan: TaskDAG = {
- *   tasks: [
- *     { id: 'task1', description: 'Setup', agent: 'developer', dependencies: [], status: 'completed' },
- *     { id: 'task2', description: 'Implement', agent: 'developer', dependencies: ['task1'], status: 'in_progress' }
- *   ],
- *   execution_order: ['task1', 'task2']
- * };
- * ```
- */
-export interface TaskDAG {
-  /** All tasks in the plan, including their dependencies and status. */
-  tasks: TaskNode[];
-
-  /** Topologically sorted list of task IDs representing valid execution order. */
-  execution_order: string[];
 }
 
 // ============================================================================

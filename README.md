@@ -1,10 +1,25 @@
 # Amelia: Agentic Orchestrator
 
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
+
 ![Amelia Terminal](docs/design/terminal_screen.jpg)
 
-[Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is a local agentic coding system that orchestrates software development tasks through multiple AI agents with specialized roles.
+[Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is a local agentic coding system that orchestrates software development through Architect, Developer, and Reviewer agents. They argue about your code so you don't have to.
 
-See the [**Roadmap**](https://anderskev.github.io/amelia/reference/roadmap) for where we're headed and [**Current Status**](#current-status) for where we are.
+See the [**Roadmap**](https://existential-birds.github.io/amelia/reference/roadmap) for where we're headed.
+
+## Current Status
+
+> [!WARNING]
+> This is an experimental project. It will occasionally do something baffling. So will you. You'll figure it out together.
+
+- Full orchestrator loop with human approval gates (CLI and web dashboard)
+- CLI driver (Claude CLI wrapper) with structured outputs, streaming, and agentic execution
+- Local code review with competitive strategy
+- GitHub tracker integration (via `gh` CLI)
+- Real tool execution in Developer agent (shell commands, file writes)
+- FastAPI server with SQLite persistence and WebSocket event streaming
+- Web dashboard with workflow visualization, real-time activity log, and approval controls
 
 ## Prerequisites
 
@@ -12,12 +27,10 @@ See the [**Roadmap**](https://anderskev.github.io/amelia/reference/roadmap) for 
 - **uv** - Fast Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
 - **Git** - For version control operations
 - **LLM access** - Either:
-  - OpenAI API key (for `api:openai` driver)
+  - OpenRouter API key (for `api:openrouter` driver)
   - Claude CLI installed (for `cli:claude` driver)
 
 ## Quick Start
-
-Use Amelia in any existing Git repository to automate development tasks.
 
 ![Amelia Dashboard Design Mock](docs/design/desktop_screen.jpg)
 
@@ -28,10 +41,13 @@ Use Amelia in any existing Git repository to automate development tasks.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install amelia as a global tool
-uv tool install git+https://github.com/anderskev/amelia.git
+uv tool install git+https://github.com/existential-birds/amelia.git
+
+# Or install from a local path
+uv tool install /path/to/amelia
 
 # Set your API key
-export OPENAI_API_KEY="sk-..."
+export OPENROUTER_API_KEY="sk-..."
 ```
 
 ### 2. Configure Your Project
@@ -46,13 +62,14 @@ active_profile: dev
 profiles:
   dev:
     name: dev
-    driver: api:openai
+    driver: api:openrouter
+    model: "anthropic/claude-3.5-sonnet"
     tracker: github
     strategy: single
 EOF
 ```
 
-See **[Configuration](https://anderskev.github.io/amelia/guide/configuration)** for all available parameters including retry settings, execution modes, and driver options.
+See **[Configuration](https://existential-birds.github.io/amelia/guide/configuration)** for all available parameters including retry settings and driver options.
 
 ### 3. Create or Select an Issue
 
@@ -69,17 +86,18 @@ gh issue list
 ### 4. Run Amelia
 
 ```bash
-# Generate a plan (dry run - no code changes)
-amelia plan-only 123
+# Start the server (opens dashboard at localhost:8420)
+amelia dev
 
-# Execute the full workflow (plan → approve → develop → review)
+# In another terminal, start a workflow for an issue
 amelia start 123
 
 # Review uncommitted changes
 amelia review --local
 ```
 
-> **Tip:** Use `tracker: noop` in your config to test without a real issue tracker. This creates a mock issue from the ID you provide.
+> [!TIP]
+> Use `tracker: noop` to test without a real issue tracker. Amelia will pretend the issue exists. It's very committed to the bit.
 
 ## Alternative Installation
 
@@ -89,50 +107,28 @@ If you prefer not to install globally:
 
 ```bash
 # Clone the repo
-git clone https://github.com/anderskev/amelia.git
+git clone https://github.com/existential-birds/amelia.git
 cd amelia
 uv sync
 
 # Run from your project directory
 cd /path/to/your/project
-/path/to/amelia/uv run amelia plan-only 123
+/path/to/amelia/uv run amelia dev
 ```
 
 Or use the `AMELIA_SETTINGS` environment variable:
 
 ```bash
 cd /path/to/amelia
-AMELIA_SETTINGS=/path/to/your/project/settings.amelia.yaml uv run amelia plan-only 123
+AMELIA_SETTINGS=/path/to/your/project/settings.amelia.yaml uv run amelia dev
 ```
 
-> **Note:** Amelia reads `settings.amelia.yaml` from the current working directory (or via `AMELIA_SETTINGS`). Run commands from your project root so agents have access to your codebase context.
+> [!NOTE]
+> Amelia reads `settings.amelia.yaml` from the current working directory (or via `AMELIA_SETTINGS`). Run commands from your project root—agents can't help with code they can't see.
 
 ## How It Works
 
-### Agent Roles
-
-| Agent | Input | Output | Example |
-|-------|-------|--------|---------|
-| **Architect** | Issue description + codebase context | TaskDAG (ordered tasks with dependencies) | "Add login feature" → 5 tasks: create model, add routes, write tests... |
-| **Developer** | Single task from TaskDAG | Code changes via shell/git tools | Executes `git checkout -b`, writes files, runs tests |
-| **Reviewer** | Git diff of changes | Approval or rejection with feedback | "Missing input validation in login handler" |
-
-### Why Drivers?
-
-Enterprise environments often prohibit direct API calls to external LLMs. The driver abstraction lets you:
-
-- **`api:openai`** - Direct API calls via pydantic-ai (fastest, requires API key)
-- **`cli:claude`** - Wraps Claude CLI (works with enterprise SSO, no API key needed)
-
-Switch drivers without code changes:
-
-```yaml
-profiles:
-  work:
-    driver: cli:claude  # Uses approved enterprise CLI
-  home:
-    driver: api:openai  # Direct API access
-```
+Amelia orchestrates configurable AI agents through a workflow graph. See [Architecture](https://existential-birds.github.io/amelia/architecture/overview) for data flow and [Concepts](https://existential-birds.github.io/amelia/architecture/concepts) for how agents and drivers work.
 
 ## CLI Commands
 
@@ -149,11 +145,10 @@ amelia reject "feedback"      # Reject with feedback
 amelia cancel                 # Cancel active workflow
 
 # Local commands (no server required)
-amelia plan-only 123          # Generate plan without executing
 amelia review --local         # Review uncommitted changes
 ```
 
-See the **[Usage Guide](https://anderskev.github.io/amelia/guide/usage)** for complete CLI reference, API endpoints, and example workflows.
+See the **[Usage Guide](https://existential-birds.github.io/amelia/guide/usage)** for complete CLI reference, API endpoints, and example workflows.
 
 ## Configuration
 
@@ -164,64 +159,24 @@ active_profile: home
 profiles:
   home:
     name: home
-    driver: api:openai
+    driver: api:openrouter
+    model: "anthropic/claude-3.5-sonnet"
     tracker: github
     strategy: single
 ```
 
-See [Configuration Reference](https://anderskev.github.io/amelia/guide/configuration) for full details.
+See [Configuration Reference](https://existential-birds.github.io/amelia/guide/configuration) for full details.
 
-## Learn More
+## Documentation
 
-**[Documentation Site](https://anderskev.github.io/amelia/)** - Full VitePress documentation
+For full documentation, visit **[existential-birds.github.io/amelia](https://existential-birds.github.io/amelia/)**.
 
-- **[Usage Guide](https://anderskev.github.io/amelia/guide/usage)** - CLI commands, REST API reference, and example workflows
-- [Configuration Reference](https://anderskev.github.io/amelia/guide/configuration) - Full settings documentation
-- [Troubleshooting](https://anderskev.github.io/amelia/guide/troubleshooting) - Common issues and solutions
-- [Concepts: Understanding Agentic AI](https://anderskev.github.io/amelia/architecture/concepts) - How agents, drivers, and orchestration work
-- [Architecture & Data Flow](https://anderskev.github.io/amelia/architecture/overview) - Technical deep dive with diagrams
-- [Roadmap](https://anderskev.github.io/amelia/reference/roadmap) - Detailed development phases and vision
-- [Benchmarking LLM Agents](https://anderskev.github.io/amelia/ideas/research/benchmarking) - How to systematically evaluate and iterate on agents
-- [12-Factor Agents Compliance](https://anderskev.github.io/amelia/ideas/research/12-factor-compliance) - How Amelia aligns with the 12-Factor Agents methodology
-- [Ideas & Brainstorming](https://anderskev.github.io/amelia/ideas/) - Design explorations created using the superpowers:brainstorming skill
+## License
 
-> **Note:** `docs/plans/` contains temporary planning documents for in-progress work. These should be deleted once their corresponding plans are executed and merged.
+Amelia Core is licensed under the [Mozilla Public License 2.0](LICENSE).
 
-## Current Status
+### Commercial Licensing
 
-**What works:**
-- Full orchestrator loop with human approval gates (CLI and web dashboard)
-- CLI driver (Claude CLI wrapper) with structured outputs, streaming, and agentic execution
-- Local code review with competitive strategy
-- GitHub tracker integration (via `gh` CLI)
-- Real tool execution in Developer agent (shell commands, file writes)
-- FastAPI server with SQLite persistence and WebSocket event streaming
-- Web dashboard with workflow visualization, real-time activity log, and approval controls
+A commercial license is required only for restricted uses: reselling, repackaging, hosting as a service, or embedding Amelia in paid products. Internal use at your company does not require a commercial license.
 
-**Limitations:**
-
-_This is an experimental project. Set expectations accordingly._
-
-**Web Dashboard (early access):**
-- Core pages implemented: Workflows (with canvas visualization), Workflow Detail, History
-- Logs page still shows "Coming soon" placeholder
-- Real-time updates via WebSocket with connection status indicator
-- Approval controls functional (approve/reject plans from browser)
-- Not yet battle-tested in production workflows
-
-**API Driver (OpenAI):**
-- No agentic execution support (structured mode only)
-- API key validation is incomplete
-- Less tested than CLI driver
-
-**Orchestrator:**
-- Failed tasks permanently block all dependent tasks (no retry or skip mechanism)
-- `RetryConfig` is defined but not actually used anywhere
-- Server crash recovery is a placeholder (interrupted workflows not recovered)
-- Workflow detail API missing token usage and event history
-
-**Not Implemented:**
-- Checkpoint resumption after interruption
-- Session continuity across runs
-- Task prioritization (all ready tasks treated equally)
-- Structured error categories or retry strategies
+See [LICENSING.md](docs/legal/LICENSING.md) for details and examples.

@@ -1,119 +1,218 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""Architect agent for generating implementation plans.
+
+This module provides the Architect agent that analyzes issues and produces
+rich markdown implementation plans for agentic execution.
+"""
 import os
+import re
 from datetime import UTC, date, datetime
 from pathlib import Path
 
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
-from amelia.core.state import AgentMessage, ExecutionState, Task, TaskDAG
-from amelia.core.types import Design, Issue, StreamEmitter, StreamEvent, StreamEventType
+from amelia.core.state import ExecutionState
+from amelia.core.types import Design, Issue, Profile, StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import DriverInterface
 
 
-class TaskListResponse(BaseModel):
-    """Schema for LLM-generated list of tasks.
+def _slugify(text: str) -> str:
+    """Convert text to filesystem-safe slug.
 
-    Attributes:
-        tasks: List of actionable development tasks parsed from LLM output.
+    Args:
+        text: Input text to convert to slug format.
+
+    Returns:
+        Lowercase, hyphenated string with special chars removed, truncated to 50 characters.
     """
-
-    tasks: list[Task] = Field(description="A list of actionable development tasks.")
+    # Replace spaces and underscores with hyphens
+    slug = text.lower().replace(" ", "-").replace("_", "-")
+    # Remove filesystem-unsafe characters: / \ : * ? " < > |
+    slug = re.sub(r'[/\\:*?"<>|]', "", slug)
+    # Collapse multiple hyphens
+    slug = re.sub(r"-+", "-", slug)
+    # Strip leading/trailing hyphens
+    slug = slug.strip("-")
+    return slug[:50]
 
 
 class PlanOutput(BaseModel):
-    """Output from architect planning.
+    """Output from Architect plan generation.
 
     Attributes:
-        task_dag: The generated task dependency graph.
-        markdown_path: Path to the saved markdown plan file.
+        markdown_content: The full markdown plan content.
+        markdown_path: Path where the plan was saved.
+        goal: High-level goal extracted from the plan.
+        key_files: Files likely to be modified.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True)
 
-    task_dag: TaskDAG
+    markdown_content: str
     markdown_path: Path
+    goal: str
+    key_files: list[str] = []
 
 
-def _slugify(text: str) -> str:
-    """Convert text to URL-friendly slug.
+class ArchitectOutput(BaseModel):
+    """Output from Architect analysis (simplified form).
 
-    Args:
-        text: Input text to convert.
+    Used when only analysis is needed, not full plan generation.
 
-    Returns:
-        Lowercase, hyphenated string truncated to 50 characters.
+    Attributes:
+        goal: Clear description of what needs to be done.
+        strategy: High-level approach (not step-by-step).
+        key_files: Files likely to be modified.
+        risks: Potential risks to watch for.
     """
-    return text.lower().replace(" ", "-").replace("_", "-")[:50]
+
+    model_config = ConfigDict(frozen=True)
+
+    goal: str
+    strategy: str
+    key_files: list[str] = []
+    risks: list[str] = []
 
 
-class ArchitectContextStrategy(ContextStrategy):
-    """Context compilation strategy for the Architect agent.
+class MarkdownPlanOutput(BaseModel):
+    """Structured output for markdown plan generation.
 
-    Compiles minimal context for planning by including issue information
-    and optional design context. Excludes developer history and review history
-    to keep the context focused on planning.
+    This is the schema the LLM uses to generate the plan content.
+
+    Attributes:
+        goal: High-level goal for the implementation.
+        plan_markdown: The full markdown plan with phases, tasks, and steps.
+        key_files: Files that will likely be modified.
+    """
+
+    goal: str
+    plan_markdown: str
+    key_files: list[str] = []
+
+
+class Architect:
+    """Agent responsible for creating implementation plans from issues.
+
+    Generates rich markdown plans that the Developer agent can follow
+    agentically, or provides simplified analysis when full plans aren't needed.
+
+    Attributes:
+        driver: LLM driver interface for plan generation.
     """
 
     SYSTEM_PROMPT = """You are a senior software architect creating implementation plans.
-You analyze issues and produce structured task DAGs with clear dependencies."""
+Your role is to analyze issues and produce detailed markdown implementation plans."""
 
-    ALLOWED_SECTIONS = {"issue", "design", "codebase"}
+    SYSTEM_PROMPT_PLAN = """You are a senior software architect creating implementation plans.
 
-    def get_task_generation_system_prompt(self) -> str:
-        """Get the detailed system prompt for task DAG generation.
+Generate implementation plans in markdown format that follow this structure:
 
-        This prompt is used specifically when generating the structured task DAG
-        from the compiled context. It includes detailed TDD instructions and
-        task structure requirements.
+# [Title] Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** [Clear description of what needs to be accomplished]
+
+**Success Criteria:** [How we know when the task is complete]
+
+---
+
+## Phase 1: [Phase Name]
+
+### Task 1.1: [Task Name]
+
+**Step 1: [Step description]**
+
+```[language]
+[code block if applicable]
+```
+
+**Run:** `[command to run]`
+
+**Success criteria:** [How to verify this step worked]
+
+### Task 1.2: [Next Task]
+...
+
+---
+
+## Phase 2: [Next Phase]
+...
+
+---
+
+## Summary
+
+[Brief summary of what was accomplished]
+
+---
+
+Guidelines:
+- Each Phase groups related work with ## headers
+- Each Task is a discrete unit of work with ### headers
+- Each Step has code blocks, commands to run, and success criteria
+- Include TDD approach: write test first, run to verify it fails, implement, run to verify it passes
+- Be specific about file paths, commands, and expected outputs
+- Keep steps granular (2-5 minutes of work each)"""
+
+    def __init__(
+        self,
+        driver: DriverInterface,
+        stream_emitter: StreamEmitter | None = None,
+    ):
+        """Initialize the Architect agent.
+
+        Args:
+            driver: LLM driver interface for plan generation.
+            stream_emitter: Optional callback for streaming events.
+        """
+        self.driver = driver
+        self._stream_emitter = stream_emitter
+
+    def _build_prompt(self, state: ExecutionState, profile: Profile) -> str:
+        """Build user prompt from execution state and profile.
+
+        Combines issue information, optional design context, and codebase
+        structure into a single prompt string.
+
+        Args:
+            state: The current execution state.
+            profile: The profile containing working directory settings.
 
         Returns:
-            Detailed system prompt string for task generation.
+            Formatted prompt string with all context sections.
+
+        Raises:
+            ValueError: If no issue is present in the state.
         """
-        return """You are an expert software architect creating implementation plans.
+        if not state.issue:
+            raise ValueError("Issue context is required for planning")
 
-Your role is to break down the given context into a sequence of actionable development tasks.
-Each task MUST follow TDD (Test-Driven Development) principles.
+        parts: list[str] = []
 
-For each task, provide:
-- id: Unique identifier (e.g., "1", "2", "3")
-- description: Clear, concise description of what to build
-- dependencies: List of task IDs this task depends on
-- files: List of FileOperation objects with:
-  - operation: "create", "modify", or "test"
-  - path: Exact file path (e.g., "src/auth/middleware.py")
-  - line_range: Optional, for modify operations (e.g., "10-25")
-- steps: List of TaskStep objects following TDD:
-  1. Write the failing test (include actual code)
-  2. Run test to verify it fails (include command and expected output)
-  3. Write minimal implementation (include actual code)
-  4. Run test to verify it passes (include command and expected output)
-  5. Commit (include commit message)
-- commit_message: Conventional commit message (e.g., "feat: add auth middleware")
+        # Issue section (required)
+        issue_parts = []
+        if state.issue.title:
+            issue_parts.append(f"**{state.issue.title}**")
+        if state.issue.description:
+            issue_parts.append(state.issue.description)
+        issue_summary = "\n\n".join(issue_parts) if issue_parts else ""
+        parts.append(f"## Issue\n\n{issue_summary}")
 
-CRITICAL - Shell command restrictions:
-- Each command must be a SINGLE command - NO command chaining
-- NEVER use: && || ; | > >> < ` $( ${ or newlines in commands
-- WRONG: "cd src && npm test" or "npm install && npm run build"
-- CORRECT: Create separate steps for each command
-- If a command needs to run in a specific directory, use the full path or create separate cd step
+        # Design section (optional)
+        if state.design:
+            design_content = self._format_design_section(state.design)
+            parts.append(f"## Design\n\n{design_content}")
 
-Each step should be 2-5 minutes of work. Include complete code, not placeholders."""
+        # Codebase section (optional)
+        if profile.working_dir:
+            codebase_content = self._scan_codebase(profile.working_dir)
+            parts.append(f"## Codebase\n\n{codebase_content}")
 
-    def get_task_generation_user_prompt(self) -> str:
-        """Get the user prompt for task DAG generation.
-
-        This prompt is appended to the context to instruct the LLM to generate
-        the task DAG with specific formatting requirements.
-
-        Returns:
-            User prompt string for task generation.
-        """
-        return """Create a detailed implementation plan with bite-sized TDD tasks.
-Ensure exact file paths, complete code in steps, and single-command shell instructions (no && or chaining)."""
+        return "\n\n".join(parts)
 
     def _format_design_section(self, design: Design) -> str:
         """Format Design into structured markdown for context.
@@ -126,32 +225,32 @@ Ensure exact file paths, complete code in steps, and single-command shell instru
         """
         parts = []
 
-        parts.append(f"## Goal\n\n{design.goal}")
-        parts.append(f"## Architecture\n\n{design.architecture}")
+        parts.append(f"### Goal\n\n{design.goal}")
+        parts.append(f"### Architecture\n\n{design.architecture}")
 
         if design.tech_stack:
             tech_list = "\n".join(f"- {tech}" for tech in design.tech_stack)
-            parts.append(f"## Tech Stack\n\n{tech_list}")
+            parts.append(f"### Tech Stack\n\n{tech_list}")
 
         if design.components:
             comp_list = "\n".join(f"- {comp}" for comp in design.components)
-            parts.append(f"## Components\n\n{comp_list}")
+            parts.append(f"### Components\n\n{comp_list}")
 
         if design.data_flow:
-            parts.append(f"## Data Flow\n\n{design.data_flow}")
+            parts.append(f"### Data Flow\n\n{design.data_flow}")
 
         if design.error_handling:
-            parts.append(f"## Error Handling\n\n{design.error_handling}")
+            parts.append(f"### Error Handling\n\n{design.error_handling}")
 
         if design.testing_strategy:
-            parts.append(f"## Testing Strategy\n\n{design.testing_strategy}")
+            parts.append(f"### Testing Strategy\n\n{design.testing_strategy}")
 
         if design.conventions:
-            parts.append(f"## Conventions\n\n{design.conventions}")
+            parts.append(f"### Conventions\n\n{design.conventions}")
 
         if design.relevant_files:
             files_list = "\n".join(f"- `{f}`" for f in design.relevant_files)
-            parts.append(f"## Relevant Files\n\n{files_list}")
+            parts.append(f"### Relevant Files\n\n{files_list}")
 
         return "\n\n".join(parts)
 
@@ -180,23 +279,26 @@ Ensure exact file paths, complete code in steps, and single-command shell instru
         files: list[str] = []
         root_path = Path(working_dir)
 
-        for dirpath, dirnames, filenames in os.walk(root_path):
-            # Filter out ignored directories (modifies dirnames in-place)
-            dirnames[:] = [d for d in dirnames if d not in ignore_dirs and not d.endswith(".egg-info")]
+        try:
+            for dirpath, dirnames, filenames in os.walk(root_path):
+                # Filter out ignored directories (modifies dirnames in-place)
+                dirnames[:] = [d for d in dirnames if d not in ignore_dirs and not d.endswith(".egg-info")]
 
-            rel_dir = Path(dirpath).relative_to(root_path)
+                rel_dir = Path(dirpath).relative_to(root_path)
 
-            for filename in filenames:
-                if filename in ignore_files:
-                    continue
+                for filename in filenames:
+                    if filename in ignore_files:
+                        continue
+                    if len(files) >= max_files:
+                        break
+
+                    rel_path = rel_dir / filename if str(rel_dir) != "." else Path(filename)
+                    files.append(str(rel_path))
+
                 if len(files) >= max_files:
                     break
-
-                rel_path = rel_dir / filename if str(rel_dir) != "." else Path(filename)
-                files.append(str(rel_path))
-
-            if len(files) >= max_files:
-                break
+        except OSError as e:
+            logger.warning(f"Error scanning codebase: {e}")
 
         # Sort files for consistent output
         files.sort()
@@ -206,115 +308,36 @@ Ensure exact file paths, complete code in steps, and single-command shell instru
 
         # Format as a simple file list
         file_list = "\n".join(f"- {f}" for f in files)
-        header = f"## File Structure ({len(files)} files)\n\n"
+        header = f"### File Structure ({len(files)} files)\n\n"
 
         if len(files) >= max_files:
             header += f"(Truncated to first {max_files} files)\n\n"
 
         return header + file_list
 
-    def compile(self, state: ExecutionState) -> CompiledContext:
-        """Compile ExecutionState into context for planning.
-
-        Args:
-            state: The current execution state.
-
-        Returns:
-            CompiledContext with system prompt and relevant sections.
-
-        Raises:
-            ValueError: If required sections are missing.
-        """
-        sections: list[ContextSection] = []
-
-        # Issue section (required)
-        issue_summary = self.get_issue_summary(state)
-        if not issue_summary:
-            raise ValueError("Issue context is required for planning")
-
-        sections.append(
-            ContextSection(
-                name="issue",
-                content=issue_summary,
-                source="state.issue",
-            )
-        )
-
-        # Design section (optional)
-        if state.design:
-            design_content = self._format_design_section(state.design)
-            sections.append(
-                ContextSection(
-                    name="design",
-                    content=design_content,
-                    source="state.design",
-                )
-            )
-
-        # Codebase section (optional - when working_dir is set)
-        if state.profile.working_dir:
-            codebase_content = self._scan_codebase(state.profile.working_dir)
-            sections.append(
-                ContextSection(
-                    name="codebase",
-                    content=codebase_content,
-                    source="state.profile.working_dir",
-                )
-            )
-
-        # Validate all sections before returning
-        self.validate_sections(sections)
-
-        return CompiledContext(
-            system_prompt=self.SYSTEM_PROMPT,
-            sections=sections,
-        )
-
-
-class Architect:
-    """Agent responsible for creating implementation plans from issues and designs.
-
-    Attributes:
-        driver: LLM driver interface for generating plans.
-        context_strategy: Strategy for compiling context from ExecutionState.
-    """
-
-    context_strategy: type[ArchitectContextStrategy] = ArchitectContextStrategy
-
-    def __init__(
-        self,
-        driver: DriverInterface,
-        stream_emitter: StreamEmitter | None = None,
-    ):
-        """Initialize the Architect agent.
-
-        Args:
-            driver: LLM driver interface for generating plans.
-            stream_emitter: Optional callback for streaming events.
-        """
-        self.driver = driver
-        self._stream_emitter = stream_emitter
-
     async def plan(
         self,
         state: ExecutionState,
+        profile: Profile,
         output_dir: str | None = None,
         *,
         workflow_id: str,
     ) -> PlanOutput:
-        """Generate a development plan from an issue and optional design.
+        """Generate a markdown implementation plan from an issue.
 
-        Creates a structured TaskDAG and saves a markdown version for human review.
-        Design context is read from state.design if present.
+        Creates a rich markdown plan and saves it to docs/plans/. The plan
+        follows the superpowers:executing-plans format with phases, tasks,
+        and steps that the Developer agent can follow agentically.
 
         Args:
             state: The execution state containing the issue and optional design.
+            profile: The profile containing working directory settings.
             output_dir: Directory path where the markdown plan will be saved.
-                If None, uses profile's plan_output_dir from state.
+                If None, uses profile's plan_output_dir (defaults to docs/plans).
             workflow_id: Workflow ID for stream events (required).
 
         Returns:
-            PlanOutput containing the task DAG and path to the saved markdown file.
+            PlanOutput containing the markdown plan content and path.
 
         Raises:
             ValueError: If no issue is present in the state.
@@ -324,93 +347,91 @@ class Architect:
 
         # Use profile's output directory if not specified
         if output_dir is None:
-            output_dir = state.profile.plan_output_dir
+            output_dir = profile.plan_output_dir
 
         # Resolve relative paths to working_dir (not server CWD)
         output_path = Path(output_dir)
-        if not output_path.is_absolute() and state.profile.working_dir:
-            output_dir = str(Path(state.profile.working_dir) / output_path)
+        if not output_path.is_absolute() and profile.working_dir:
+            output_dir = str(Path(profile.working_dir) / output_path)
 
-        # Compile context using strategy
-        strategy = self.context_strategy()
-        compiled_context = strategy.compile(state)
+        # Build prompt from state
+        context_prompt = self._build_prompt(state, profile)
 
-        # Calculate system prompt length for logging
-        prompt_length = (
-            len(compiled_context.system_prompt)
-            if compiled_context.system_prompt
-            else 0
+        # Build user prompt for plan generation
+        user_prompt = f"""{context_prompt}
+
+---
+
+Analyze the issue and generate a complete implementation plan in markdown format.
+
+The plan should:
+1. Include the Claude skill instruction at the top: > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans
+2. Break work into logical Phases (## headers)
+3. Each Phase contains Tasks (### headers)
+4. Each Task has Steps with code blocks, commands, and success criteria
+5. Follow TDD approach where applicable
+6. Be specific about file paths and commands
+7. Include success criteria for each step
+
+Return the plan as a MarkdownPlanOutput with:
+- goal: A clear 1-2 sentence goal statement
+- plan_markdown: The full markdown plan content
+- key_files: List of files that will be modified"""
+
+        # Call driver with MarkdownPlanOutput schema
+        raw_response, _session_id = await self.driver.generate(
+            prompt=user_prompt,
+            system_prompt=self.SYSTEM_PROMPT_PLAN,
+            schema=MarkdownPlanOutput,
+            cwd=profile.working_dir,
         )
-        logger.debug(
-            "Compiled context",
+        response = MarkdownPlanOutput.model_validate(raw_response)
+
+        # Save markdown to file
+        markdown_path = self._save_markdown(
+            response.plan_markdown,
+            state.issue,
+            state.design,
+            output_dir,
+        )
+
+        logger.info(
+            "Architect plan generated",
             agent="architect",
-            sections=[s.name for s in compiled_context.sections],
-            system_prompt_length=prompt_length
+            goal=response.goal[:100] + "..." if len(response.goal) > 100 else response.goal,
+            key_files_count=len(response.key_files),
+            markdown_path=str(markdown_path),
         )
-
-        # Generate task DAG using compiled context
-        task_dag = await self._generate_task_dag(compiled_context, state.issue, strategy)
 
         # Emit completion event
         if self._stream_emitter is not None:
             event = StreamEvent(
                 type=StreamEventType.AGENT_OUTPUT,
-                content=f"Generated plan with {len(task_dag.tasks)} tasks",
+                content=f"Plan generated: {response.goal[:100]}...",
                 timestamp=datetime.now(UTC),
                 agent="architect",
                 workflow_id=workflow_id,
             )
             await self._stream_emitter(event)
 
-        # Save markdown
-        markdown_path = self._save_markdown(task_dag, state.issue, state.design, output_dir)
-
-        return PlanOutput(task_dag=task_dag, markdown_path=markdown_path)
-
-    async def _generate_task_dag(
-        self,
-        compiled_context: CompiledContext,
-        issue: Issue,
-        strategy: ArchitectContextStrategy,
-    ) -> TaskDAG:
-        """Generate TaskDAG using LLM.
-
-        Args:
-            compiled_context: Compiled context from the strategy.
-            issue: Original issue being planned.
-            strategy: The context strategy instance for prompt generation.
-
-        Returns:
-            TaskDAG containing structured tasks with TDD steps.
-        """
-        task_system_prompt = strategy.get_task_generation_system_prompt()
-        task_user_prompt = strategy.get_task_generation_user_prompt()
-
-        # Convert compiled context to messages (user messages only)
-        base_messages = strategy.to_messages(compiled_context)
-
-        # Prepend task-specific system prompt and append user prompt
-        messages = [
-            AgentMessage(role="system", content=task_system_prompt),
-            *base_messages,
-            AgentMessage(role="user", content=task_user_prompt),
-        ]
-
-        response = await self.driver.generate(messages=messages, schema=TaskListResponse)
-
-        return TaskDAG(tasks=response.tasks, original_issue=issue.id)
+        return PlanOutput(
+            markdown_content=response.plan_markdown,
+            markdown_path=markdown_path,
+            goal=response.goal,
+            key_files=response.key_files,
+        )
 
     def _save_markdown(
         self,
-        task_dag: TaskDAG,
+        markdown_content: str,
         issue: Issue,
         design: Design | None,
-        output_dir: str
+        output_dir: str,
     ) -> Path:
         """Save plan as markdown file.
 
         Args:
-            task_dag: Structured task DAG to render.
+            markdown_content: The markdown plan content to save.
             issue: Original issue being planned.
             design: Optional design context.
             output_dir: Directory path for saving the markdown file.
@@ -425,91 +446,78 @@ class Architect:
         filename = f"{date.today().isoformat()}-{_slugify(title)}.md"
         file_path = output_path / filename
 
-        md_content = self._render_markdown(task_dag, issue, design)
-        file_path.write_text(md_content)
+        file_path.write_text(markdown_content)
 
         return file_path
 
-    def _render_markdown(
+    async def analyze(
         self,
-        task_dag: TaskDAG,
-        issue: Issue,
-        design: Design | None
-    ) -> str:
-        """Render TaskDAG as markdown following writing-plans format.
+        state: ExecutionState,
+        profile: Profile,
+        *,
+        workflow_id: str,
+    ) -> ArchitectOutput:
+        """Analyze an issue and generate goal/strategy (simplified form).
+
+        Creates an ArchitectOutput with high-level goal and strategy
+        for quick analysis without full plan generation.
 
         Args:
-            task_dag: Structured task DAG to render.
-            issue: Original issue being planned.
-            design: Optional design context.
+            state: The execution state containing the issue and optional design.
+            profile: The profile containing working directory settings.
+            workflow_id: Workflow ID for stream events (required).
 
         Returns:
-            Markdown-formatted string representation of the plan.
-        """
-        title = design.title if design else issue.title
-        goal = design.goal if design else issue.description
-        architecture = design.architecture if design else "See task descriptions below."
-        tech_stack = ", ".join(design.tech_stack) if design else "See implementation details."
+            ArchitectOutput containing goal, strategy, key files, and risks.
 
-        # Build the markdown header with Claude instructions
-        claude_instruction = (
-            "> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans "
-            "to implement this plan task-by-task."
+        Raises:
+            ValueError: If no issue is present in the state.
+        """
+        if not state.issue:
+            raise ValueError("Cannot analyze: no issue in ExecutionState")
+
+        # Build prompt from state
+        context_prompt = self._build_prompt(state, profile)
+
+        # Build user prompt for analysis
+        user_prompt = f"""{context_prompt}
+
+---
+
+Analyze this issue and provide:
+1. A clear goal statement describing what needs to be accomplished
+2. A high-level strategy for how to approach the implementation
+3. Key files that will likely need to be modified
+4. Any potential risks or considerations
+
+Respond with a structured ArchitectOutput."""
+
+        # Call driver with ArchitectOutput schema
+        raw_response, _ = await self.driver.generate(
+            prompt=user_prompt,
+            system_prompt=self.SYSTEM_PROMPT,
+            schema=ArchitectOutput,
+            cwd=profile.working_dir,
+        )
+        response = ArchitectOutput.model_validate(raw_response)
+
+        logger.info(
+            "Architect analysis complete",
+            agent="architect",
+            goal=response.goal[:100] + "..." if len(response.goal) > 100 else response.goal,
+            key_files_count=len(response.key_files),
+            risks_count=len(response.risks),
         )
 
-        lines = [
-            f"# {title} Implementation Plan",
-            "",
-            claude_instruction,
-            "",
-            f"**Goal:** {goal}",
-            "",
-            f"**Architecture:** {architecture}",
-            "",
-            f"**Tech Stack:** {tech_stack}",
-            "",
-            "---",
-            "",
-        ]
+        # Emit completion event
+        if self._stream_emitter is not None:
+            event = StreamEvent(
+                type=StreamEventType.AGENT_OUTPUT,
+                content=f"Analysis complete: {response.goal[:100]}...",
+                timestamp=datetime.now(UTC),
+                agent="architect",
+                workflow_id=workflow_id,
+            )
+            await self._stream_emitter(event)
 
-        for i, task in enumerate(task_dag.tasks, 1):
-            lines.append(f"### Task {i}: {task.description}")
-            lines.append("")
-
-            if task.files:
-                lines.append("**Files:**")
-                for f in task.files:
-                    if f.line_range:
-                        lines.append(f"- {f.operation.capitalize()}: `{f.path}:{f.line_range}`")
-                    else:
-                        lines.append(f"- {f.operation.capitalize()}: `{f.path}`")
-                lines.append("")
-
-            for j, step in enumerate(task.steps, 1):
-                lines.append(f"**Step {j}: {step.description}**")
-                lines.append("")
-                if step.code:
-                    lines.append("```python")
-                    lines.append(step.code)
-                    lines.append("```")
-                    lines.append("")
-                if step.command:
-                    lines.append(f"Run: `{step.command}`")
-                if step.expected_output:
-                    lines.append(f"Expected: {step.expected_output}")
-                lines.append("")
-
-            if task.commit_message:
-                lines.append("**Commit:**")
-                lines.append("```bash")
-                if task.files:
-                    file_paths = " ".join(f.path for f in task.files)
-                    lines.append(f"git add {file_paths}")
-                lines.append(f'git commit -m "{task.commit_message}"')
-                lines.append("```")
-                lines.append("")
-
-            lines.append("---")
-            lines.append("")
-
-        return "\n".join(lines)
+        return response

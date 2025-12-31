@@ -14,13 +14,12 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-DriverType = Literal["cli:claude", "api:openai", "cli", "api"]
+DriverType = Literal["cli:claude", "api:openrouter", "cli", "api"]
 TrackerType = Literal["jira", "github", "none", "noop"]
 StrategyType = Literal["single", "competitive"]
-ExecutionMode = Literal["structured", "agentic"]
 
 
 class RetryConfig(BaseModel):
@@ -46,25 +45,35 @@ class RetryConfig(BaseModel):
 class Profile(BaseModel):
     """Configuration profile for Amelia execution.
 
+    This model is frozen (immutable) to support the stateless reducer pattern.
+    Use model_copy(update={...}) to create modified copies.
+
     Attributes:
         name: Profile name (e.g., 'work', 'personal').
-        driver: LLM driver type (e.g., 'api:openai', 'cli:claude').
+        driver: LLM driver type (e.g., 'api:openrouter', 'cli:claude').
+        model: LLM model identifier. For cli:claude use 'sonnet', 'opus', or 'haiku'.
+            For api:openrouter use 'provider:model' format (e.g., 'anthropic/claude-3.5-sonnet').
         tracker: Issue tracker type (jira, github, none, noop).
         strategy: Review strategy (single or competitive).
-        execution_mode: Execution mode (structured or agentic).
-        plan_output_dir: Directory for storing generated plans.
         working_dir: Working directory for agentic execution.
+        plan_output_dir: Directory for saving implementation plans (default: docs/plans).
         retry: Retry configuration for transient failures.
+        max_review_iterations: Maximum review-fix loop iterations before terminating.
+        auto_approve_reviews: Skip human approval steps in review workflow.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     name: str
     driver: DriverType
+    model: str
     tracker: TrackerType = "none"
     strategy: StrategyType = "single"
-    execution_mode: ExecutionMode = "structured"
-    plan_output_dir: str = "docs/plans"
     working_dir: str | None = None
+    plan_output_dir: str = "docs/plans"
     retry: RetryConfig = Field(default_factory=RetryConfig)
+    max_review_iterations: int = 3
+    auto_approve_reviews: bool = False
 
 class Settings(BaseModel):
     """Global settings for Amelia.

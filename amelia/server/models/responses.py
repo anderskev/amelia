@@ -101,9 +101,12 @@ class WorkflowDetailResponse(BaseModel):
         completed_at: When the workflow ended (optional)
         failure_reason: Error message when failed (optional)
         current_stage: Current agent stage (optional)
-        plan: Workflow plan/task DAG (optional)
+        goal: High-level goal for agentic execution (optional)
         token_usage: Token usage summary (optional)
         recent_events: Recent workflow events
+        tool_calls: History of tool calls made during agentic execution
+        tool_results: History of tool results from agentic execution
+        final_response: Final response from the agent when complete (optional)
     """
 
     id: Annotated[str, Field(description="Unique workflow identifier")]
@@ -127,9 +130,9 @@ class WorkflowDetailResponse(BaseModel):
         str | None,
         Field(default=None, description="Current agent stage"),
     ] = None
-    plan: Annotated[
-        dict[str, Any] | None,
-        Field(default=None, description="Workflow plan/task DAG"),
+    goal: Annotated[
+        str | None,
+        Field(default=None, description="High-level goal for agentic execution"),
     ] = None
     token_usage: Annotated[
         TokenSummary | None,
@@ -139,6 +142,19 @@ class WorkflowDetailResponse(BaseModel):
         list[dict[str, Any]],
         Field(description="Recent workflow events"),
     ]
+    # Agentic execution fields
+    tool_calls: Annotated[
+        list[dict[str, Any]],
+        Field(default_factory=list, description="History of tool calls"),
+    ]
+    tool_results: Annotated[
+        list[dict[str, Any]],
+        Field(default_factory=list, description="History of tool results"),
+    ]
+    final_response: Annotated[
+        str | None,
+        Field(default=None, description="Final response from the agent"),
+    ] = None
 
 
 class ActionResponse(BaseModel):

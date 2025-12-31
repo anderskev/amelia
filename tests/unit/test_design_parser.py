@@ -11,16 +11,17 @@ from amelia.utils.design_parser import parse_design
 
 @pytest.fixture
 def mock_driver_for_parser():
-    """Mock driver that returns a Design-like response."""
+    """Mock driver that returns a (Design, session_id) tuple."""
     mock = MagicMock()
-    mock.generate = AsyncMock(return_value=Design(
+    design = Design(
         title="Test Feature",
         goal="Build test feature",
         architecture="Simple architecture",
         tech_stack=["Python"],
         components=["ComponentA"],
         raw_content=""
-    ))
+    )
+    mock.generate = AsyncMock(return_value=(design, None))
     return mock
 
 

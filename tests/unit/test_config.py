@@ -17,12 +17,14 @@ def test_load_settings_valid(tmp_path):
             "work": {
                 "name": "work",
                 "driver": "cli:claude",
+                "model": "sonnet",
                 "tracker": "jira",
                 "strategy": "single"
             },
             "home": {
                 "name": "home",
-                "driver": "api:openai",
+                "driver": "api:openrouter",
+                "model": "anthropic/claude-3.5-sonnet",
                 "tracker": "github",
                 "strategy": "competitive"
             }
@@ -53,6 +55,7 @@ def test_load_settings_from_amelia_settings_env_var(tmp_path, monkeypatch):
             "env_test": {
                 "name": "env_test",
                 "driver": "cli:claude",
+                "model": "sonnet",
                 "tracker": "noop",
                 "strategy": "single"
             }
@@ -82,6 +85,7 @@ def test_load_settings_explicit_path_overrides_env_var(tmp_path, monkeypatch):
             "from_env": {
                 "name": "from_env",
                 "driver": "cli:claude",
+                "model": "sonnet",
                 "tracker": "noop",
                 "strategy": "single"
             }
@@ -93,7 +97,8 @@ def test_load_settings_explicit_path_overrides_env_var(tmp_path, monkeypatch):
         "profiles": {
             "from_explicit": {
                 "name": "from_explicit",
-                "driver": "api:openai",
+                "driver": "api:openrouter",
+                "model": "anthropic/claude-3.5-sonnet",
                 "tracker": "github",
                 "strategy": "competitive"
             }
@@ -115,4 +120,4 @@ def test_load_settings_explicit_path_overrides_env_var(tmp_path, monkeypatch):
     settings = load_settings(config_path=explicit_path)
 
     assert settings.active_profile == "from_explicit"
-    assert settings.profiles["from_explicit"].driver == "api:openai"
+    assert settings.profiles["from_explicit"].driver == "api:openrouter"

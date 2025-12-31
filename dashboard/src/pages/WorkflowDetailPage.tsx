@@ -10,21 +10,32 @@
 import { useLoaderData } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
-import { WorkflowProgress } from '@/components/WorkflowProgress';
 import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
+import { AgentProgressBar, type AgentStage } from '@/components/AgentProgressBar';
 import { buildPipeline } from '@/utils/pipeline';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
 import { workflowDetailLoader } from '@/loaders';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**
+ * Determines completed stages based on current stage.
+ * Stages progress: pm -> architect -> developer -> reviewer
+ */
+function getCompletedStages(currentStage: string | null): AgentStage[] {
+  const stageOrder: AgentStage[] = ['pm', 'architect', 'developer', 'reviewer'];
+  if (!currentStage) return [];
+  const currentIndex = stageOrder.indexOf(currentStage as AgentStage);
+  if (currentIndex === -1) return [];
+  return stageOrder.slice(0, currentIndex);
+}
+
+/**
  * Displays comprehensive workflow details with progress, pipeline, and activity.
  *
  * Shows header with status, progress bar, visual pipeline canvas,
  * approval controls (when blocked), and real-time activity log.
- * Converts plan tasks to pipeline nodes for visualization.
  *
  * @returns The workflow detail page UI
  */
@@ -48,16 +59,16 @@ export default function WorkflowDetailPage() {
     );
   }
 
-  const completedTasks = workflow.plan?.tasks.filter(t => t.status === 'completed').length || 0;
-  const totalTasks = workflow.plan?.tasks.length || 0;
-
+  // Show approval controls when blocked (awaiting human approval)
   const needsApproval = workflow.status === 'blocked';
-  const planSummary = workflow.plan
-    ? `Plan with ${workflow.plan.tasks.length} tasks`
-    : 'No plan generated';
+  const goalSummary = workflow.goal || 'Awaiting plan generation';
 
   // Build pipeline for visualization
   const pipeline = buildPipeline(workflow);
+
+  // Determine agent progress
+  const currentStage = workflow.current_stage as AgentStage | null;
+  const completedStages = getCompletedStages(workflow.current_stage);
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -79,7 +90,7 @@ export default function WorkflowDetailPage() {
           {needsApproval && (
             <ApprovalControls
               workflowId={workflow.id}
-              planSummary={planSummary}
+              planSummary={goalSummary}
               status="pending"
             />
           )}
@@ -87,20 +98,30 @@ export default function WorkflowDetailPage() {
         </PageHeader.Right>
       </PageHeader>
 
+      {/* Agent Progress Bar - shows workflow stage progress */}
+      {workflow.status === 'in_progress' && currentStage && (
+        <div className="px-6 py-3 border-b border-border bg-muted/10">
+          <AgentProgressBar
+            currentStage={currentStage}
+            completedStages={completedStages}
+          />
+        </div>
+      )}
+
       <div className="flex-1 overflow-hidden grid grid-cols-2 gap-4 p-6">
-        {/* Left column: Progress, Canvas */}
+        {/* Left column: Pipeline Canvas */}
         <div className="flex flex-col gap-4 overflow-y-auto">
-          {/* Progress */}
-          {workflow.status === 'in_progress' && (
+          {/* Goal display */}
+          {workflow.goal && (
             <div className="p-4 border border-border rounded-lg bg-card/50">
-              <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-3">
-                PROGRESS
+              <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-2">
+                GOAL
               </h3>
-              <WorkflowProgress completed={completedTasks} total={totalTasks} />
+              <p className="text-sm text-foreground">{workflow.goal}</p>
             </div>
           )}
 
-          {/* Workflow Canvas (visual pipeline) */}
+          {/* Workflow Canvas (pipeline visualization) */}
           <div className="p-4 border border-border rounded-lg bg-card/50">
             <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-3">
               PIPELINE

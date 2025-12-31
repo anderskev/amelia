@@ -1,352 +1,442 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
-import asyncio
-import os
-from typing import Any, Literal
+"""Developer agent for agentic code execution.
 
-import typer
+This module provides the Developer agent that executes code changes using
+autonomous tool-calling LLM execution rather than structured step-by-step plans.
+"""
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
 from loguru import logger
-from pydantic import BaseModel
 
-from amelia.core.constants import ToolName
-from amelia.core.context import CompiledContext, ContextSection, ContextStrategy
-from amelia.core.exceptions import AgenticExecutionError
-from amelia.core.state import AgentMessage, ExecutionState, Task
-from amelia.core.types import StreamEmitter
+from amelia.core.agentic_state import ToolCall, ToolResult
+from amelia.core.state import ExecutionState
+from amelia.core.types import Profile, StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import DriverInterface
-from amelia.drivers.cli.claude import convert_to_stream_event
 
 
-DeveloperStatus = Literal["completed", "failed", "in_progress"]
-ExecutionMode = Literal["structured", "agentic"]
-
-
-class DeveloperResponse(BaseModel):
-    """Schema for Developer agent's task execution output.
-
-    Attributes:
-        status: Execution status (completed, failed, or in_progress).
-        output: Human-readable description of what was accomplished.
-        error: Error message if status is failed, None otherwise.
-    """
-
-    status: DeveloperStatus
-    output: str
-    error: str | None = None
-
-
-class DeveloperContextStrategy(ContextStrategy):
-    """Context compilation strategy for the Developer agent.
-
-    Compiles minimal context for task execution, focusing only on the current task
-    from the TaskDAG without issue context or other agents' history.
-    """
-
-    SYSTEM_PROMPT = """You are a senior developer executing tasks following TDD principles.
-Run tests after each change. Follow the task steps exactly."""
-
-    ALLOWED_SECTIONS = {"task", "files", "steps"}
-
-    def compile(self, state: ExecutionState) -> CompiledContext:
-        """Compile ExecutionState into minimal task execution context.
-
-        Args:
-            state: The current execution state.
-
-        Returns:
-            CompiledContext with task-specific sections.
-
-        Raises:
-            ValueError: If no current task is found.
-        """
-        task = self.get_current_task(state)
-        if task is None:
-            raise ValueError("No current task found in execution state")
-
-        sections: list[ContextSection] = []
-
-        # Task section (required)
-        sections.append(
-            ContextSection(
-                name="task",
-                content=task.description,
-                source=f"task:{task.id}",
-            )
-        )
-
-        # Files section (optional, when task has files)
-        if task.files:
-            files_lines = [f"- {file_op.operation}: `{file_op.path}`" for file_op in task.files]
-            sections.append(
-                ContextSection(
-                    name="files",
-                    content="\n".join(files_lines),
-                    source=f"task:{task.id}:files",
-                )
-            )
-
-        # Steps section (optional)
-        if task.steps:
-            steps_lines = []
-            for i, step in enumerate(task.steps, 1):
-                steps_lines.append(f"### Step {i}: {step.description}")
-                if step.code:
-                    steps_lines.append(f"```\n{step.code}\n```")
-                if step.command:
-                    steps_lines.append(f"Run: `{step.command}`")
-                if step.expected_output:
-                    steps_lines.append(f"Expected: {step.expected_output}")
-                steps_lines.append("")  # Blank line between steps
-
-            sections.append(
-                ContextSection(
-                    name="steps",
-                    content="\n".join(steps_lines).rstrip(),
-                    source=f"task:{task.id}:steps",
-                )
-            )
-
-        # Validate sections before returning
-        self.validate_sections(sections)
-
-        return CompiledContext(
-            system_prompt=self.SYSTEM_PROMPT,
-            sections=sections,
-        )
+if TYPE_CHECKING:
+    from amelia.drivers.api.deepagents import ApiDriver
+    from amelia.drivers.cli.claude import ClaudeCliDriver
 
 
 class Developer:
-    """Agent responsible for executing development tasks following TDD principles.
+    """Developer agent that executes code changes agentically.
+
+    Uses LLM with tool access to autonomously complete coding tasks.
+    Replaces the structured batch/step execution model with autonomous
+    tool-calling execution.
 
     Attributes:
-        driver: LLM driver interface for task execution and tool access.
-        execution_mode: Execution mode (structured or agentic).
-        context_strategy: Context compilation strategy class.
+        driver: LLM driver interface for agentic execution.
     """
-
-    context_strategy: type[ContextStrategy] = DeveloperContextStrategy
 
     def __init__(
         self,
         driver: DriverInterface,
-        execution_mode: ExecutionMode = "structured",
         stream_emitter: StreamEmitter | None = None,
     ):
         """Initialize the Developer agent.
 
         Args:
-            driver: LLM driver interface for task execution and tool access.
-            execution_mode: Execution mode. Defaults to "structured".
+            driver: LLM driver interface for agentic execution.
             stream_emitter: Optional callback for streaming events.
         """
         self.driver = driver
-        self.execution_mode = execution_mode
         self._stream_emitter = stream_emitter
 
-    async def execute_current_task(
+    async def run(
         self,
         state: ExecutionState,
-        *,
-        workflow_id: str,
-    ) -> dict[str, Any]:
-        """Execute the current task from execution state.
+        profile: Profile,
+        workflow_id: str = "developer",
+    ) -> AsyncIterator[tuple[ExecutionState, StreamEvent]]:
+        """Execute development task agentically.
+
+        Uses the driver's execute_agentic method to let the LLM autonomously
+        decide what tools to use and when, rather than following a predefined
+        step-by-step plan.
+
+        The method dispatches to driver-specific handlers based on the driver type:
+        - ClaudeCliDriver: Yields claude_agent_sdk.types.Message
+        - ApiDriver: Yields langchain_core.messages.BaseMessage
 
         Args:
-            state: Full execution state containing profile, plan, and current_task_id.
-            workflow_id: Workflow ID for stream events (required).
+            state: Current execution state with goal.
+            profile: Execution profile with settings.
+            workflow_id: Unique workflow identifier for streaming events.
 
-        Returns:
-            Dict with status, task_id, and output.
+        Yields:
+            Tuples of (updated_state, event) as execution progresses.
 
         Raises:
-            ValueError: If current_task_id not found in plan.
-            AgenticExecutionError: If agentic execution fails.
+            ValueError: If ExecutionState has no goal set.
+            TypeError: If driver type is not supported.
         """
-        if not state.plan or not state.current_task_id:
-            raise ValueError("State must have plan and current_task_id")
+        if not state.goal:
+            raise ValueError("ExecutionState must have a goal set")
 
-        task = state.plan.get_task(state.current_task_id)
-        if not task:
-            raise ValueError(f"Task not found: {state.current_task_id}")
+        # Import drivers for isinstance checks (runtime imports to avoid circular deps)
+        from amelia.drivers.api.deepagents import ApiDriver  # noqa: PLC0415
+        from amelia.drivers.cli.claude import ClaudeCliDriver  # noqa: PLC0415
 
-        cwd = state.profile.working_dir or os.getcwd()
-
-        if self.execution_mode == "agentic":
-            return await self._execute_agentic(task, cwd, state, workflow_id=workflow_id)
+        if isinstance(self.driver, ClaudeCliDriver):
+            async for result in self._run_with_cli_driver(
+                state, profile, workflow_id, self.driver
+            ):
+                yield result
+        elif isinstance(self.driver, ApiDriver):
+            async for result in self._run_with_api_driver(
+                state, profile, workflow_id, self.driver
+            ):
+                yield result
         else:
-            result = await self._execute_structured(task, state)
-            # Ensure task_id is included for consistency with agentic path
-            result["task_id"] = task.id
-            return result
+            raise TypeError(f"Unsupported driver type: {type(self.driver).__name__}")
 
-    async def _execute_agentic(
+    async def _run_with_cli_driver(
         self,
-        task: Task,
-        cwd: str,
         state: ExecutionState,
-        *,
+        profile: Profile,
         workflow_id: str,
-    ) -> dict[str, Any]:
-        """Execute task autonomously with full Claude tool access.
+        driver: "ClaudeCliDriver",
+    ) -> AsyncIterator[tuple[ExecutionState, StreamEvent]]:
+        """Execute development task using the CLI driver.
 
         Args:
-            task: The task to execute.
-            cwd: Working directory for execution.
-            state: Full execution state for context compilation.
-            workflow_id: Workflow ID for stream events (required).
+            state: Current execution state.
+            profile: Execution profile.
+            workflow_id: Workflow identifier for events.
+            driver: The ClaudeCliDriver instance.
 
-        Returns:
-            Dict with status and output.
-
-        Raises:
-            AgenticExecutionError: If execution fails.
+        Yields:
+            Tuples of (updated_state, event) as execution progresses.
         """
-        # Use context strategy with full state (no longer creating fake state)
-        strategy = self.context_strategy()
-        context = strategy.compile(state)
-
-        logger.debug(
-            "Compiled context",
-            agent="developer",
-            sections=[s.name for s in context.sections],
-            system_prompt_length=len(context.system_prompt) if context.system_prompt else 0
+        from claude_agent_sdk.types import (  # noqa: PLC0415
+            AssistantMessage,
+            ResultMessage,
+            TextBlock,
+            ToolResultBlock,
+            ToolUseBlock,
         )
 
-        messages = strategy.to_messages(context)
+        cwd = profile.working_dir or "."
+        prompt = self._build_prompt(state, profile)
 
-        logger.info(f"Starting agentic execution for task {task.id}")
+        tool_calls: list[ToolCall] = list(state.tool_calls)
+        tool_results: list[ToolResult] = list(state.tool_results)
+        current_state = state
+        session_id = state.driver_session_id
 
-        async for event in self.driver.execute_agentic(messages, cwd, system_prompt=context.system_prompt):
-            self._handle_stream_event(event, workflow_id)
+        async for message in driver.execute_agentic(
+            prompt=prompt,
+            cwd=cwd,
+            session_id=session_id,
+            instructions=self._build_instructions(profile),
+        ):
+            event: StreamEvent | None = None
 
-            if event.type == "error":
-                raise AgenticExecutionError(event.content or "Unknown error")
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        event = StreamEvent(
+                            type=StreamEventType.CLAUDE_THINKING,
+                            content=block.text,
+                            timestamp=datetime.now(UTC),
+                            agent="developer",
+                            workflow_id=workflow_id,
+                        )
+                    elif isinstance(block, ToolUseBlock):
+                        call = ToolCall(
+                            id=f"call-{len(tool_calls)}",
+                            tool_name=block.name,
+                            tool_input=block.input if isinstance(block.input, dict) else {},
+                        )
+                        tool_calls.append(call)
+                        logger.debug(
+                            "Tool call recorded",
+                            tool_name=block.name,
+                            call_id=call.id,
+                        )
+                        event = StreamEvent(
+                            type=StreamEventType.CLAUDE_TOOL_CALL,
+                            content=None,
+                            timestamp=datetime.now(UTC),
+                            agent="developer",
+                            workflow_id=workflow_id,
+                            tool_name=block.name,
+                            tool_input=block.input if isinstance(block.input, dict) else None,
+                        )
+                    elif isinstance(block, ToolResultBlock):
+                        content = block.content if isinstance(block.content, str) else str(block.content)
+                        result = ToolResult(
+                            call_id=f"call-{len(tool_results)}",
+                            tool_name="unknown",  # ToolResultBlock doesn't have name
+                            output=content,
+                            success=not block.is_error,
+                        )
+                        tool_results.append(result)
+                        logger.debug(
+                            "Tool result recorded",
+                            call_id=result.call_id,
+                        )
+                        event = StreamEvent(
+                            type=StreamEventType.CLAUDE_TOOL_RESULT,
+                            content=content,
+                            timestamp=datetime.now(UTC),
+                            agent="developer",
+                            workflow_id=workflow_id,
+                        )
 
-        return {"status": "completed", "task_id": task.id, "output": "Agentic execution completed"}
+                    if event:
+                        current_state = state.model_copy(update={
+                            "tool_calls": tool_calls.copy(),
+                            "tool_results": tool_results.copy(),
+                            "driver_session_id": session_id,
+                        })
+                        yield current_state, event
 
-    def _handle_stream_event(self, event: Any, workflow_id: str) -> None:
-        """Display streaming event to terminal and emit via callback.
+            elif isinstance(message, ResultMessage):
+                session_id = message.session_id
+                is_complete = not message.is_error
 
-        Args:
-            event: Stream event to display.
-            workflow_id: Current workflow ID.
-        """
-        # Terminal display (existing logic)
-        if event.type == "tool_use":
-            typer.secho(f"  -> {event.tool_name}", fg=typer.colors.CYAN)
-            if event.tool_input:
-                preview = str(event.tool_input)[:100]
-                suffix = "..." if len(str(event.tool_input)) > 100 else ""
-                typer.echo(f"    {preview}{suffix}")
-
-        elif event.type == "result":
-            typer.secho("  Done", fg=typer.colors.GREEN)
-
-        elif event.type == "assistant" and event.content:
-            typer.echo(f"  {event.content[:200]}")
-
-        elif event.type == "error":
-            typer.secho(f"  Error: {event.content}", fg=typer.colors.RED)
-
-        # Emit via callback if configured
-        if self._stream_emitter is not None:
-            stream_event = convert_to_stream_event(event, "developer", workflow_id)
-            if stream_event is not None:
-                # Fire-and-forget: emit stream event without blocking
-                emit_task: asyncio.Task[None] = asyncio.create_task(self._stream_emitter(stream_event))  # type: ignore[arg-type]
-                emit_task.add_done_callback(
-                    lambda t: logger.exception("Stream emitter failed", exc_info=t.exception())
-                    if t.exception()
-                    else None
+                event = StreamEvent(
+                    type=StreamEventType.AGENT_OUTPUT,
+                    content=message.result,
+                    timestamp=datetime.now(UTC),
+                    agent="developer",
+                    workflow_id=workflow_id,
                 )
 
-    async def _execute_structured(self, task: Task, state: ExecutionState) -> dict[str, Any]:
-        """Execute task using structured step-by-step approach.
+                current_state = state.model_copy(update={
+                    "tool_calls": tool_calls.copy(),
+                    "tool_results": tool_results.copy(),
+                    "driver_session_id": session_id,
+                    "agentic_status": "completed" if is_complete else "failed",
+                    "final_response": message.result if is_complete else None,
+                    "error": message.result if message.is_error else None,
+                })
+                yield current_state, event
+
+    async def _run_with_api_driver(
+        self,
+        state: ExecutionState,
+        profile: Profile,
+        workflow_id: str,
+        driver: "ApiDriver",
+    ) -> AsyncIterator[tuple[ExecutionState, StreamEvent]]:
+        """Execute development task using the API driver.
 
         Args:
-            task: The task to execute.
-            state: Full execution state (for future context usage).
+            state: Current execution state.
+            profile: Execution profile.
+            workflow_id: Workflow identifier for events.
+            driver: The ApiDriver instance.
+
+        Yields:
+            Tuples of (updated_state, event) as execution progresses.
+        """
+        from langchain_core.messages import AIMessage, ToolMessage  # noqa: PLC0415
+
+        cwd = profile.working_dir or "."
+        prompt = self._build_prompt(state, profile)
+
+        # Set the cwd on the driver for agentic execution
+        driver.cwd = cwd
+
+        tool_calls: list[ToolCall] = list(state.tool_calls)
+        tool_results: list[ToolResult] = list(state.tool_results)
+        current_state = state
+        last_message: AIMessage | None = None
+
+        async for message in driver.execute_agentic(prompt=prompt):
+            event: StreamEvent | None = None
+
+            if isinstance(message, AIMessage):
+                last_message = message
+                content = message.content
+
+                # Handle text content
+                if isinstance(content, str) and content:
+                    event = StreamEvent(
+                        type=StreamEventType.CLAUDE_THINKING,
+                        content=content,
+                        timestamp=datetime.now(UTC),
+                        agent="developer",
+                        workflow_id=workflow_id,
+                    )
+                elif isinstance(content, list):
+                    # Handle list of content blocks
+                    for block in content:
+                        if isinstance(block, dict):
+                            if block.get("type") == "text":
+                                event = StreamEvent(
+                                    type=StreamEventType.CLAUDE_THINKING,
+                                    content=block.get("text", ""),
+                                    timestamp=datetime.now(UTC),
+                                    agent="developer",
+                                    workflow_id=workflow_id,
+                                )
+                            elif block.get("type") == "tool_use":
+                                tool_name = block.get("name", "unknown")
+                                tool_input = block.get("input", {})
+                                call = ToolCall(
+                                    id=f"call-{len(tool_calls)}",
+                                    tool_name=tool_name,
+                                    tool_input=tool_input if isinstance(tool_input, dict) else {},
+                                )
+                                tool_calls.append(call)
+                                logger.debug(
+                                    "Tool call recorded",
+                                    tool_name=tool_name,
+                                    call_id=call.id,
+                                )
+                                event = StreamEvent(
+                                    type=StreamEventType.CLAUDE_TOOL_CALL,
+                                    content=None,
+                                    timestamp=datetime.now(UTC),
+                                    agent="developer",
+                                    workflow_id=workflow_id,
+                                    tool_name=tool_name,
+                                    tool_input=tool_input if isinstance(tool_input, dict) else None,
+                                )
+
+                # Handle tool_calls from AIMessage
+                if message.tool_calls:
+                    for tc in message.tool_calls:
+                        call = ToolCall(
+                            id=tc.get("id") or f"call-{len(tool_calls)}",
+                            tool_name=tc.get("name") or "unknown",
+                            tool_input=tc.get("args") or {},
+                        )
+                        tool_calls.append(call)
+                        logger.debug(
+                            "Tool call recorded",
+                            tool_name=call.tool_name,
+                            call_id=call.id,
+                        )
+                        event = StreamEvent(
+                            type=StreamEventType.CLAUDE_TOOL_CALL,
+                            content=None,
+                            timestamp=datetime.now(UTC),
+                            agent="developer",
+                            workflow_id=workflow_id,
+                            tool_name=call.tool_name,
+                            tool_input=call.tool_input,
+                        )
+
+            elif isinstance(message, ToolMessage):
+                content = message.content if isinstance(message.content, str) else str(message.content)
+                result = ToolResult(
+                    call_id=message.tool_call_id or f"call-{len(tool_results)}",
+                    tool_name=message.name or "unknown",
+                    output=content,
+                    success=True,
+                )
+                tool_results.append(result)
+                logger.debug(
+                    "Tool result recorded",
+                    tool_name=result.tool_name,
+                    call_id=result.call_id,
+                )
+                event = StreamEvent(
+                    type=StreamEventType.CLAUDE_TOOL_RESULT,
+                    content=content,
+                    timestamp=datetime.now(UTC),
+                    agent="developer",
+                    workflow_id=workflow_id,
+                )
+
+            if event:
+                current_state = state.model_copy(update={
+                    "tool_calls": tool_calls.copy(),
+                    "tool_results": tool_results.copy(),
+                })
+                yield current_state, event
+
+        # Mark as completed after all messages are processed
+        if last_message:
+            final_content = last_message.content
+            if isinstance(final_content, list):
+                final_content = "".join(
+                    b.get("text", "") if isinstance(b, dict) else str(b)
+                    for b in final_content
+                )
+            elif not isinstance(final_content, str):
+                final_content = str(final_content)
+
+            final_event = StreamEvent(
+                type=StreamEventType.AGENT_OUTPUT,
+                content=final_content,
+                timestamp=datetime.now(UTC),
+                agent="developer",
+                workflow_id=workflow_id,
+            )
+            current_state = state.model_copy(update={
+                "tool_calls": tool_calls.copy(),
+                "tool_results": tool_results.copy(),
+                "agentic_status": "completed",
+                "final_response": final_content,
+            })
+            yield current_state, final_event
+
+    def _build_prompt(self, state: ExecutionState, profile: Profile) -> str:
+        """Build the prompt for agentic execution.
+
+        Combines the goal, review feedback (if any), and context into a single
+        prompt string for the driver.
+
+        Args:
+            state: Current execution state with goal and context.
+            profile: Execution profile with settings.
 
         Returns:
-            Dict with status and output.
+            Complete prompt string for the driver.
         """
-        try:
-            if task.steps:
-                logger.info(f"Developer executing {len(task.steps)} steps for task {task.id}")
-                results = []
-                for i, step in enumerate(task.steps, 1):
-                    logger.info(f"Executing step {i}: {step.description}")
-                    step_output = ""
+        parts = []
 
-                    if step.code:
-                        target_file = None
-                        if task.files:
-                            for f in task.files:
-                                if f.operation in ("create", "modify"):
-                                    target_file = f.path
-                                    break
+        # Context section
+        parts.append(f"Working directory: {profile.working_dir or '.'}")
 
-                        if target_file:
-                            logger.info(f"Writing code to {target_file}")
-                            await self.driver.execute_tool(ToolName.WRITE_FILE, file_path=target_file, content=step.code)
-                            step_output += f"Wrote to {target_file}. "
-                        else:
-                            logger.warning("Step has code but no target file could be determined from task.files.")
+        # Plan context (from Architect)
+        if state.plan_markdown:
+            parts.append("""
+You have a detailed implementation plan to follow. Execute it using your tools.
+Use your judgment to handle unexpected situations - the plan is a guide, not rigid steps.
 
-                    if step.command:
-                        logger.info(f"Running command: {step.command}")
-                        cmd_result = await self.driver.execute_tool(ToolName.RUN_SHELL_COMMAND, command=step.command)
-                        step_output += f"Command output: {cmd_result}"
+---
+IMPLEMENTATION PLAN:
+---
+""")
+            parts.append(state.plan_markdown)
 
-                    results.append(f"Step {i}: {step_output}")
+        # Design context (fallback if no plan)
+        elif state.design:
+            parts.append(f"\nDesign Context:\n{state.design.raw_content}")
 
-                return {"status": "completed", "output": "\n".join(results)}
+        # Issue context (fallback if no plan)
+        if state.issue and not state.plan_markdown:
+            parts.append(f"\nIssue: {state.issue.title}\n{state.issue.description}")
 
-            task_desc_lower = task.description.lower().strip()
+        # Main task
+        parts.append(f"\n\nPlease complete the following task:\n\n{state.goal}")
 
-            if task_desc_lower.startswith("run shell command:"):
-                prefix_len = len("run shell command:")
-                command = task.description[prefix_len:].strip()
-                logger.info(f"Developer executing shell command: {command}")
-                result = await self.driver.execute_tool(ToolName.RUN_SHELL_COMMAND, command=command)
-                return {"status": "completed", "output": result}
+        # Review feedback (if this is a review-fix iteration)
+        if state.last_review and not state.last_review.approved:
+            feedback = "\n".join(f"- {c}" for c in state.last_review.comments)
+            parts.append(f"\n\nThe reviewer requested the following changes:\n{feedback}")
 
-            elif task_desc_lower.startswith("write file:"):
-                logger.info(f"Developer executing write file task: {task.description}")
+        return "\n".join(parts)
 
-                # Using original description for content extraction
-                if " with " in task.description:
-                    parts = task.description.split(" with ", 1)
-                    path_part = parts[0]
-                    content = parts[1]
-                else:
-                    path_part = task.description
-                    content = ""
-                
-                file_path = path_part[len("write file:"):].strip()
+    def _build_instructions(self, profile: Profile) -> str | None:
+        """Build runtime instructions for the agent.
 
-                result = await self.driver.execute_tool(ToolName.WRITE_FILE, file_path=file_path, content=content)
-                return {"status": "completed", "output": result}
+        Args:
+            profile: Execution profile.
 
-            else:
-                logger.info(f"Developer generating response for task: {task.description}")
-                # Use context strategy for consistent message compilation
-                strategy = self.context_strategy()
-                context = strategy.compile(state)
-                # Build messages: prepend system prompt if present, then user messages
-                messages: list[AgentMessage] = []
-                if context.system_prompt:
-                    messages.append(AgentMessage(role="system", content=context.system_prompt))
-                messages.extend(strategy.to_messages(context))
-                llm_response = await self.driver.generate(messages=messages)
-                return {"status": "completed", "output": llm_response}
-
-        except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
-            raise
-        except Exception as e:
-            logger.exception(
-                "Developer task execution failed",
-                error_type=type(e).__name__,
-            )
-            return {"status": "failed", "output": str(e), "error": str(e)}
+        Returns:
+            Instructions string or None.
+        """
+        return None  # Default to no extra instructions

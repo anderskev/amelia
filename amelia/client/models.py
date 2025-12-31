@@ -23,6 +23,22 @@ class CreateWorkflowRequest(BaseModel):
     profile: str | None = Field(default=None, max_length=64)
 
 
+class CreateReviewWorkflowRequest(BaseModel):
+    """Request to create a review workflow.
+
+    Attributes:
+        diff_content: Git diff content to review.
+        worktree_path: Absolute path to the git worktree directory.
+        worktree_name: Optional human-readable name for the worktree.
+        profile: Optional profile name from settings to use.
+    """
+
+    diff_content: str = Field(..., min_length=1)
+    worktree_path: str = Field(..., min_length=1, max_length=4096)
+    worktree_name: str | None = Field(default=None, max_length=255)
+    profile: str | None = Field(default=None, max_length=64)
+
+
 class CreateWorkflowResponse(BaseModel):
     """Response from creating a new workflow.
 

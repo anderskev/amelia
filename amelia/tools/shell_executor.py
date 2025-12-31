@@ -16,6 +16,7 @@ async def run_shell_command(
     command: str,
     timeout: int | None = 30,
     strict_mode: bool = False,
+    cwd: str | None = None,
 ) -> str:
     """
     Execute a shell command safely.
@@ -26,6 +27,7 @@ async def run_shell_command(
         command: The command to execute
         timeout: Maximum execution time in seconds
         strict_mode: If True, only allow commands in strict allowlist
+        cwd: Working directory to execute the command in (None for current directory)
 
     Returns:
         Command stdout as string
@@ -42,6 +44,7 @@ async def run_shell_command(
         command=command,
         timeout=timeout,
         strict_mode=strict_mode,
+        cwd=cwd,
     )
 
 

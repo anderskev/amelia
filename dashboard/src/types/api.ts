@@ -36,6 +36,8 @@ export interface WorkflowsLoaderData {
   workflows: WorkflowSummary[];
   /** Pre-loaded detail for the selected or active workflow, or null if none/failed to load. */
   detail: WorkflowDetail | null;
+  /** Error message if detail failed to load, null otherwise. */
+  detailError?: string | null;
 }
 
 /**
@@ -62,6 +64,10 @@ export interface WorkflowDetailLoaderData {
 /**
  * Result object returned by React Router actions (approve, reject, cancel).
  * Indicates whether the action succeeded and which action was performed.
+ *
+ * @property success - Whether the action was successfully executed
+ * @property action - Which action was performed (approved, rejected, or cancelled)
+ * @property error - Error message if the action failed, otherwise undefined
  *
  * @example
  * ```typescript

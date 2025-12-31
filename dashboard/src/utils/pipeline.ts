@@ -1,9 +1,19 @@
 /**
  * @fileoverview Pipeline conversion utilities for workflow visualization.
+ *
+ * In the agentic execution model, the pipeline shows agent stages rather
+ * than individual batch/steps.
  */
-import type { WorkflowDetail, TaskNode } from '@/types';
+import type { WorkflowDetail } from '@/types';
 
-/** Node in the pipeline visualization. */
+/**
+ * Node in the pipeline visualization.
+ * @property id - Unique identifier for the node
+ * @property label - Primary label displayed in the node
+ * @property subtitle - Optional secondary text displayed below the label
+ * @property status - Current execution status of the node
+ * @property tokens - Optional token count to display
+ */
 export interface PipelineNode {
   id: string;
   label: string;
@@ -12,7 +22,13 @@ export interface PipelineNode {
   tokens?: string;
 }
 
-/** Edge connecting pipeline nodes. */
+/**
+ * Edge connecting pipeline nodes.
+ * @property from - Source node ID
+ * @property to - Target node ID
+ * @property label - Label displayed on the edge
+ * @property status - Status determining the edge's visual style
+ */
 export interface PipelineEdge {
   from: string;
   to: string;
@@ -20,149 +36,97 @@ export interface PipelineEdge {
   status: 'completed' | 'active' | 'pending';
 }
 
-/** Pipeline data structure for WorkflowCanvas. */
+/**
+ * Pipeline data structure for WorkflowCanvas.
+ * @property nodes - Array of pipeline nodes to render
+ * @property edges - Array of edges connecting the nodes
+ */
 export interface Pipeline {
   nodes: PipelineNode[];
   edges: PipelineEdge[];
 }
 
 /**
- * Formats a duration in milliseconds to a human-readable string.
- * @param ms - Duration in milliseconds
- * @returns Formatted string (e.g., "1m 23s", "45s", "2h 5m")
+ * Agent stages in the workflow.
  */
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
+const AGENT_STAGES = ['architect', 'developer', 'reviewer'] as const;
 
-  if (hours > 0) {
-    const remainingMinutes = minutes % 60;
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-  }
-  if (minutes > 0) {
-    const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-  }
-  return `${seconds}s`;
+/**
+ * Maps current_stage to a stage index for comparison.
+ */
+function getStageIndex(stage: string | null): number {
+  if (!stage) return -1;
+  // Map node names to stage names
+  const stageMap: Record<string, string> = {
+    'architect_node': 'architect',
+    'developer_node': 'developer',
+    'reviewer_node': 'reviewer',
+    'human_approval_node': 'architect', // Approval happens after architect
+  };
+  const mappedStage = stageMap[stage] || stage;
+  return AGENT_STAGES.indexOf(mappedStage as typeof AGENT_STAGES[number]);
 }
 
 /**
- * Formats a token count to a human-readable string.
- * @param tokens - Number of tokens
- * @returns Formatted string (e.g., "1.2k", "45.3k", "1.2M")
+ * Determines the status of a stage based on current execution position.
  */
-function formatTokens(tokens: number): string {
-  if (tokens >= 1_000_000) {
-    return `${(tokens / 1_000_000).toFixed(1)}M`;
+function getStageStatus(
+  stageIndex: number,
+  currentStageIndex: number,
+  workflowStatus: WorkflowDetail['status']
+): 'completed' | 'active' | 'blocked' | 'pending' {
+  if (stageIndex < currentStageIndex) {
+    return 'completed';
   }
-  if (tokens >= 1_000) {
-    return `${(tokens / 1_000).toFixed(1)}k`;
-  }
-  return `${tokens}`;
-}
-
-/**
- * Truncates text to a maximum length, adding ellipsis if needed.
- * @param text - Text to truncate
- * @param maxLength - Maximum length (default 20)
- * @returns Truncated text
- */
-function truncateText(text: string, maxLength = 20): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return text.slice(0, maxLength - 1) + '…';
-}
-
-/**
- * Generates a label for a task node from the task description.
- * Uses a truncated version of the description as the primary label.
- * @param task - The task node
- * @returns Short label for the task (e.g., "Setup test infra…")
- */
-function getTaskLabel(task: TaskNode): string {
-  return truncateText(task.description);
-}
-
-/**
- * Calculates the subtitle for a task node based on execution time.
- * TODO(#73): Wire up started_at/completed_at from backend
- * @param task - The task node
- * @returns Duration string, status indicator, or undefined
- */
-function getTaskSubtitle(task: TaskNode): string | undefined {
-  // Show duration for completed tasks with timing data
-  if (task.started_at && task.completed_at) {
-    const startTime = new Date(task.started_at).getTime();
-    const endTime = new Date(task.completed_at).getTime();
-    const duration = endTime - startTime;
-    if (duration > 0) {
-      return formatDuration(duration);
+  if (stageIndex === currentStageIndex) {
+    if (workflowStatus === 'blocked') {
+      return 'blocked';
     }
+    if (workflowStatus === 'completed' || workflowStatus === 'failed') {
+      return 'completed';
+    }
+    return 'active';
   }
-
-  // Show "Running..." for active tasks (could show elapsed time with started_at)
-  if (task.status === 'in_progress') {
-    return 'Running...';
-  }
-
-  return undefined;
+  return 'pending';
 }
 
 /**
  * Converts a workflow detail into a pipeline visualization format.
+ * Shows agent stages for agentic execution.
  *
- * Maps task statuses to node statuses:
- * - completed -> completed
- * - in_progress -> active
- * - failed -> blocked
- * - other -> pending
- *
- * @param workflow - The workflow detail containing the plan
- * @returns Pipeline data or null if no plan exists
+ * @param workflow - The workflow detail
+ * @returns Pipeline data with agent stage nodes
  */
 export function buildPipeline(workflow: WorkflowDetail): Pipeline | null {
-  if (!workflow.plan) {
-    return null;
-  }
+  const nodes: PipelineNode[] = [];
+  const edges: PipelineEdge[] = [];
 
-  const taskIds = new Set(workflow.plan.tasks.map((t) => t.id));
+  const currentStageIndex = getStageIndex(workflow.current_stage);
 
-  const nodes: PipelineNode[] = workflow.plan.tasks.map((task) => ({
-    id: task.id,
-    label: getTaskLabel(task),
-    subtitle: getTaskSubtitle(task),
-    status: task.status === 'completed'
-      ? 'completed'
-      : task.status === 'in_progress'
-      ? 'active'
-      : task.status === 'failed'
-      ? 'blocked'
-      : 'pending',
-    // TODO(#73): Wire up tokens from backend
-    tokens: task.tokens ? formatTokens(task.tokens) : undefined,
-  }));
+  // Create nodes for each agent stage
+  AGENT_STAGES.forEach((stage, index) => {
+    const status = getStageStatus(index, currentStageIndex, workflow.status);
 
-  // Filter edges to only include those where both source and target exist
-  // Compute edge status based on target task state:
-  // - If target is completed → edge is completed
-  // - If target is in_progress → edge is active
-  // - Otherwise → edge is pending
-  const edges: PipelineEdge[] = workflow.plan.tasks.flatMap((task) =>
-    task.dependencies
-      .filter((depId) => taskIds.has(depId))
-      .map((depId) => ({
-        from: depId,
-        to: task.id,
+    nodes.push({
+      id: stage,
+      label: stage.charAt(0).toUpperCase() + stage.slice(1),
+      subtitle: status === 'active' ? 'In progress...' : undefined,
+      status,
+    });
+
+    // Add edge from previous stage
+    // Edge status is based on the source node (previous stage), not the target
+    if (index > 0) {
+      const prevStage = AGENT_STAGES[index - 1];
+      const prevStatus = getStageStatus(index - 1, currentStageIndex, workflow.status);
+      edges.push({
+        from: prevStage,
+        to: stage,
         label: '',
-        status: task.status === 'completed'
-          ? 'completed'
-          : task.status === 'in_progress'
-          ? 'active'
-          : 'pending',
-      }))
-  );
+        status: prevStatus === 'completed' ? 'completed' : prevStatus === 'active' ? 'active' : 'pending',
+      });
+    }
+  });
 
   return { nodes, edges };
 }
