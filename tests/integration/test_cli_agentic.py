@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Integration tests for CLI commands in agentic execution mode.
 
 Tests the Amelia CLI commands: plan, start, approve, reject, status, cancel.
@@ -464,6 +461,74 @@ class TestCancelCommand:
 
         assert result.exit_code == 1
         assert "No workflow active" in result.stdout
+
+    def test_cancel_command_prompts_before_cancelling(
+        self, tmp_path: Path, mock_worktree_context: MagicMock
+    ) -> None:
+        """amelia cancel without --force should prompt and cancel only after user confirms."""
+        mock_workflows = WorkflowListResponse(
+            workflows=[
+                WorkflowSummary(
+                    id="wf-confirm",
+                    issue_id="TEST-CONFIRM",
+                    status="running",
+                    worktree_name="test-worktree",
+                    started_at=datetime.now(UTC),
+                )
+            ],
+            total=1,
+        )
+
+        with patch("amelia.client.cli.get_worktree_context") as mock_ctx, \
+             patch("amelia.client.cli.AmeliaClient") as mock_client_class:
+            mock_ctx.return_value = (str(tmp_path), "test-worktree")
+
+            mock_client = MagicMock()
+            mock_client.get_active_workflows = AsyncMock(return_value=mock_workflows)
+            mock_client.cancel_workflow = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            # Simulate user typing "y" to confirm
+            result = runner.invoke(app, ["cancel"], input="y\n")
+
+        assert result.exit_code == 0
+        assert "cancelled" in result.stdout.lower() or "wf-confirm" in result.stdout
+        # Verify cancel_workflow was called after confirmation
+        mock_client.cancel_workflow.assert_called_once_with(workflow_id="wf-confirm")
+
+    def test_cancel_command_aborts_on_decline(
+        self, tmp_path: Path, mock_worktree_context: MagicMock
+    ) -> None:
+        """amelia cancel should NOT cancel when user declines confirmation."""
+        mock_workflows = WorkflowListResponse(
+            workflows=[
+                WorkflowSummary(
+                    id="wf-decline",
+                    issue_id="TEST-DECLINE",
+                    status="running",
+                    worktree_name="test-worktree",
+                    started_at=datetime.now(UTC),
+                )
+            ],
+            total=1,
+        )
+
+        with patch("amelia.client.cli.get_worktree_context") as mock_ctx, \
+             patch("amelia.client.cli.AmeliaClient") as mock_client_class:
+            mock_ctx.return_value = (str(tmp_path), "test-worktree")
+
+            mock_client = MagicMock()
+            mock_client.get_active_workflows = AsyncMock(return_value=mock_workflows)
+            mock_client.cancel_workflow = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            # Simulate user typing "n" to decline
+            result = runner.invoke(app, ["cancel"], input="n\n")
+
+        assert result.exit_code == 0
+        assert "Aborted" in result.stdout
+        # CRITICAL: Verify cancel_workflow was NOT called when user declined
+        mock_client.cancel_workflow.assert_not_called()
 
 
 @pytest.mark.integration

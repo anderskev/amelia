@@ -1,7 +1,5 @@
 # Amelia: Agentic Orchestrator
 
-[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
-
 ![Amelia Terminal](docs/design/terminal_screen.jpg)
 
 [Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is a local agentic coding system that orchestrates software development through Architect, Developer, and Reviewer agents. They argue about your code so you don't have to.
@@ -63,12 +61,13 @@ profiles:
   dev:
     name: dev
     driver: api:openrouter
+    model: "anthropic/claude-3.5-sonnet"
     tracker: github
     strategy: single
 EOF
 ```
 
-See **[Configuration](https://existential-birds.github.io/amelia/guide/configuration)** for all available parameters including retry settings, execution modes, and driver options.
+See **[Configuration](https://existential-birds.github.io/amelia/guide/configuration)** for all available parameters including retry settings and driver options.
 
 ### 3. Create or Select an Issue
 
@@ -159,6 +158,7 @@ profiles:
   home:
     name: home
     driver: api:openrouter
+    model: "anthropic/claude-3.5-sonnet"
     tracker: github
     strategy: single
 ```

@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Thin client CLI commands that delegate to the REST API."""
 import asyncio
 from pathlib import Path
@@ -19,7 +16,7 @@ from amelia.client.api import (
     WorkflowConflictError,
 )
 from amelia.client.git import get_worktree_context
-from amelia.client.models import CreateWorkflowResponse
+from amelia.client.models import CreateWorkflowResponse, WorkflowSummary
 from amelia.config import load_settings
 from amelia.core.state import ExecutionState
 from amelia.drivers.factory import DriverFactory
@@ -317,30 +314,40 @@ def cancel_command(
     # Find workflow in this worktree
     client = AmeliaClient()
 
-    async def _cancel() -> None:
-        # Get workflows for this worktree
+    async def _get_workflow() -> WorkflowSummary:
+        """Fetch the active workflow for the current worktree."""
         result = await client.get_active_workflows(worktree_path=worktree_path)
 
         if not result.workflows:
             console.print(f"[red]Error:[/red] No workflow active in {worktree_path}")
             raise typer.Exit(1)
 
-        workflow = result.workflows[0]
+        return result.workflows[0]
 
-        # Confirm cancellation
-        if not force:
-            console.print(f"Cancel workflow [bold]{workflow.id}[/bold] ({workflow.issue_id})?")
-            confirm = typer.confirm("Are you sure?")
-            if not confirm:
-                console.print("[dim]Aborted.[/dim]")
-                raise typer.Exit(0)
+    async def _do_cancel(workflow_id: str) -> None:
+        """Cancel the workflow via API."""
+        await client.cancel_workflow(workflow_id=workflow_id)
 
-        # Cancel it
-        await client.cancel_workflow(workflow_id=workflow.id)
-        console.print(f"[yellow]✗[/yellow] Workflow [bold]{workflow.id}[/bold] cancelled")
-
+    # Step 1: Get workflow info (async)
     try:
-        asyncio.run(_cancel())
+        workflow = asyncio.run(_get_workflow())
+    except ServerUnreachableError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        console.print("\n[yellow]Start the server:[/yellow] amelia server")
+        raise typer.Exit(1) from None
+
+    # Step 2: Confirm cancellation (sync - must be outside async context)
+    if not force:
+        console.print(f"Cancel workflow [bold]{workflow.id}[/bold] ({workflow.issue_id})?")
+        confirm = typer.confirm("Are you sure?")
+        if not confirm:
+            console.print("[dim]Aborted.[/dim]")
+            raise typer.Exit(0)
+
+    # Step 3: Cancel it (async)
+    try:
+        asyncio.run(_do_cancel(workflow.id))
+        console.print(f"[yellow]✗[/yellow] Workflow [bold]{workflow.id}[/bold] cancelled")
     except ServerUnreachableError as e:
         console.print(f"[red]Error:[/red] {e}")
         console.print("\n[yellow]Start the server:[/yellow] amelia server")
