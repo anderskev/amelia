@@ -270,7 +270,9 @@ class TestLocalSandbox:
         whether to enable the 'execute' tool. Without explicit inheritance,
         the check fails since SandboxBackendProtocol is not @runtime_checkable.
         """
-        from deepagents.backends.protocol import SandboxBackendProtocol  # type: ignore[import-untyped]
+        from deepagents.backends.protocol import (
+            SandboxBackendProtocol,  # type: ignore[import-untyped]
+        )
 
         assert isinstance(sandbox, SandboxBackendProtocol)
 
