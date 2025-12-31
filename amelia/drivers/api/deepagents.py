@@ -2,12 +2,18 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """DeepAgents-based API driver for LLM generation and agentic execution."""
+import asyncio
 import os
+import subprocess
 from collections.abc import AsyncIterator
 from typing import Any
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend  # type: ignore[import-untyped]
+from deepagents.backends.protocol import (  # type: ignore[import-untyped]
+    ExecuteResponse,
+    SandboxBackendProtocol,
+)
 from langchain.agents.structured_output import ToolStrategy
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
@@ -16,6 +22,81 @@ from loguru import logger
 from pydantic import BaseModel
 
 from amelia.drivers.base import DriverInterface, GenerateResult
+
+
+# Maximum output size before truncation (100KB)
+_MAX_OUTPUT_SIZE = 100_000
+# Default command timeout in seconds
+_DEFAULT_TIMEOUT = 300
+
+
+class LocalSandbox(FilesystemBackend, SandboxBackendProtocol):  # type: ignore[misc]
+    """FilesystemBackend with local shell execution support.
+
+    Extends FilesystemBackend and implements SandboxBackendProtocol for shell
+    command execution. The explicit protocol inheritance is required because
+    SandboxBackendProtocol is not @runtime_checkable, so isinstance() checks
+    would fail without it.
+
+    WARNING: This runs commands directly on the local machine without
+    sandboxing. Only use in trusted environments (e.g., local development
+    by the repo owner).
+
+    Attributes:
+        cwd: Working directory for command execution.
+    """
+
+    @property
+    def id(self) -> str:
+        """Unique identifier for this sandbox instance."""
+        return f"local-{self.cwd}"
+
+    def execute(self, command: str) -> ExecuteResponse:
+        """Execute a shell command locally.
+
+        Args:
+            command: Shell command to execute.
+
+        Returns:
+            ExecuteResponse with output, exit code, and truncation status.
+        """
+        logger.debug("Executing command", command=command[:100], cwd=str(self.cwd))
+
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,  # noqa: S602 - intentional for local dev
+                cwd=self.cwd,
+                capture_output=True,
+                text=True,
+                timeout=_DEFAULT_TIMEOUT,
+            )
+            output = result.stdout + result.stderr
+            truncated = len(output) > _MAX_OUTPUT_SIZE
+            if truncated:
+                output = output[:_MAX_OUTPUT_SIZE] + "\n... [output truncated]"
+
+            return ExecuteResponse(
+                output=output,
+                exit_code=result.returncode,
+                truncated=truncated,
+            )
+        except subprocess.TimeoutExpired:
+            return ExecuteResponse(
+                output=f"Command timed out after {_DEFAULT_TIMEOUT} seconds",
+                exit_code=124,
+                truncated=False,
+            )
+        except Exception as e:
+            return ExecuteResponse(
+                output=f"Command execution failed: {e}",
+                exit_code=1,
+                truncated=False,
+            )
+
+    async def aexecute(self, command: str) -> ExecuteResponse:
+        """Async wrapper for execute (runs in thread pool)."""
+        return await asyncio.to_thread(self.execute, command)
 
 
 def _create_chat_model(model: str) -> BaseChatModel:
@@ -121,6 +202,7 @@ class ApiDriver(DriverInterface):
 
         try:
             chat_model = _create_chat_model(self.model)
+            # Use FilesystemBackend for non-agentic generation - no shell execution needed
             backend = FilesystemBackend(root_dir=self.cwd or ".")
 
             # Configure structured output via ToolStrategy when schema is provided
@@ -210,7 +292,7 @@ class ApiDriver(DriverInterface):
 
         try:
             chat_model = _create_chat_model(self.model)
-            backend = FilesystemBackend(root_dir=self.cwd)
+            backend = LocalSandbox(root_dir=self.cwd)
             agent = create_deep_agent(
                 model=chat_model,
                 system_prompt="",

@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from langchain.agents.structured_output import ToolStrategy
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 
@@ -93,9 +94,12 @@ class TestGenerate:
         assert result.message == "parsed response"
         assert session_id is None
 
-        # Verify response_format was passed to create_deep_agent
+        # Verify response_format was passed to create_deep_agent with correct schema
         call_kwargs = mock_deepagents.create_deep_agent.call_args.kwargs
         assert "response_format" in call_kwargs
+        response_format = call_kwargs["response_format"]
+        assert isinstance(response_format, ToolStrategy)
+        assert response_format.schema is ResponseSchema
 
     async def test_raises_on_missing_structured_output(
         self, driver: ApiDriver, mock_deepagents: MagicMock
@@ -250,3 +254,79 @@ class TestCreateChatModel:
             _create_chat_model("gpt-4")
 
             mock_init.assert_called_once_with("gpt-4")
+
+
+class TestLocalSandbox:
+    """Tests for LocalSandbox class."""
+
+    @pytest.fixture
+    def sandbox(self, tmp_path: Any) -> Any:
+        """Create LocalSandbox instance for tests."""
+        from amelia.drivers.api.deepagents import LocalSandbox
+
+        return LocalSandbox(root_dir=str(tmp_path))
+
+    def test_implements_sandbox_backend_protocol(self, sandbox: Any) -> None:
+        """Should pass isinstance check for SandboxBackendProtocol.
+
+        This is critical because deepagents uses isinstance() to decide
+        whether to enable the 'execute' tool. Without explicit inheritance,
+        the check fails since SandboxBackendProtocol is not @runtime_checkable.
+        """
+        from deepagents.backends.protocol import SandboxBackendProtocol
+
+        assert isinstance(sandbox, SandboxBackendProtocol)
+
+    def test_id_includes_cwd(self, sandbox: Any) -> None:
+        """Should return unique id based on cwd."""
+        assert sandbox.id.startswith("local-")
+        assert str(sandbox.cwd) in sandbox.id
+
+    def test_execute_returns_stdout(self, sandbox: Any) -> None:
+        """Should capture stdout from command."""
+        result = sandbox.execute("echo hello")
+        assert "hello" in result.output
+        assert result.exit_code == 0
+        assert result.truncated is False
+
+    def test_execute_returns_stderr(self, sandbox: Any) -> None:
+        """Should capture stderr from command."""
+        result = sandbox.execute("echo error >&2")
+        assert "error" in result.output
+
+    def test_execute_returns_exit_code(self, sandbox: Any) -> None:
+        """Should capture non-zero exit codes."""
+        result = sandbox.execute("exit 42")
+        assert result.exit_code == 42
+
+    def test_execute_runs_in_cwd(self, sandbox: Any, tmp_path: Any) -> None:
+        """Should execute commands in the sandbox cwd."""
+        result = sandbox.execute("pwd")
+        assert str(tmp_path) in result.output
+
+    def test_default_timeout_is_configured(self, sandbox: Any) -> None:
+        """Should have a reasonable default timeout configured."""
+        from amelia.drivers.api.deepagents import _DEFAULT_TIMEOUT
+
+        assert _DEFAULT_TIMEOUT == 300
+
+    def test_execute_returns_timeout_error_on_slow_command(
+        self, tmp_path: Any
+    ) -> None:
+        """Should return error response when command times out."""
+        from amelia.drivers.api.deepagents import LocalSandbox
+
+        sandbox = LocalSandbox(root_dir=str(tmp_path))
+
+        with patch("amelia.drivers.api.deepagents._DEFAULT_TIMEOUT", 0.01):
+            result = sandbox.execute("sleep 1")
+            assert result.exit_code == 124
+            assert "timed out" in result.output
+
+    async def test_aexecute_returns_same_as_execute(self, sandbox: Any) -> None:
+        """Async execute should return same result as sync."""
+        sync_result = sandbox.execute("echo test")
+        async_result = await sandbox.aexecute("echo test")
+
+        assert sync_result.output == async_result.output
+        assert sync_result.exit_code == async_result.exit_code
