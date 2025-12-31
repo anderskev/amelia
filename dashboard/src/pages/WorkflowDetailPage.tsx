@@ -85,6 +85,7 @@ export default function WorkflowDetailPage() {
             <ApprovalControls
               workflowId={workflow.id}
               planSummary={goalSummary}
+              planMarkdown={workflow.plan_markdown}
               status="pending"
             />
           )}

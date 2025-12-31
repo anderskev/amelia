@@ -119,7 +119,8 @@ export default function WorkflowsPage() {
             {detail.status === 'blocked' && (
               <ApprovalControls
                 workflowId={detail.id}
-                planSummary={detail.execution_plan ? `Plan with ${detail.execution_plan.batches.reduce((s, b) => s + b.steps.length, 0)} steps` : 'No plan generated'}
+                planSummary={detail.goal || 'Awaiting plan generation'}
+                planMarkdown={detail.plan_markdown}
                 status="pending"
               />
             )}
