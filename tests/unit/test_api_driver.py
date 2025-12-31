@@ -79,10 +79,10 @@ class TestGenerate:
     async def test_parses_schema_when_provided(
         self, driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
-        """Should parse response as schema when schema provided."""
-        mock_deepagents.agent_result["messages"] = [
-            AIMessage(content='{"message": "parsed response"}'),
-        ]
+        """Should extract structured_response when schema provided."""
+        mock_deepagents.agent_result["structured_response"] = ResponseSchema(
+            message="parsed response"
+        )
 
         result, session_id = await driver.generate(
             prompt="test prompt",
@@ -93,15 +93,22 @@ class TestGenerate:
         assert result.message == "parsed response"
         assert session_id is None
 
-    async def test_raises_on_schema_parse_failure(
+        # Verify response_format was passed to create_deep_agent
+        call_kwargs = mock_deepagents.create_deep_agent.call_args.kwargs
+        assert "response_format" in call_kwargs
+
+    async def test_raises_on_missing_structured_output(
         self, driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
-        """Should raise ValueError when schema parsing fails."""
+        """Should raise RuntimeError when schema provided but no structured_response returned."""
+        # structured_response is not set in agent_result (defaults to None)
         mock_deepagents.agent_result["messages"] = [
-            AIMessage(content="not valid json"),
+            AIMessage(content="some response"),
         ]
 
-        with pytest.raises(ValueError, match="Failed to parse response"):
+        with pytest.raises(
+            RuntimeError, match="Model did not return structured output"
+        ):
             await driver.generate(prompt="test", schema=ResponseSchema)
 
     async def test_handles_list_content_blocks(

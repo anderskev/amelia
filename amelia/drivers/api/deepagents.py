@@ -8,6 +8,7 @@ from typing import Any
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend  # type: ignore[import-untyped]
+from langchain.agents.structured_output import ToolStrategy
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -121,49 +122,56 @@ class ApiDriver(DriverInterface):
         try:
             chat_model = _create_chat_model(self.model)
             backend = FilesystemBackend(root_dir=self.cwd or ".")
-            agent = create_deep_agent(
-                model=chat_model,
-                system_prompt=system_prompt or "",
-                backend=backend,
-            )
+
+            # Configure structured output via ToolStrategy when schema is provided
+            agent_kwargs: dict[str, Any] = {
+                "model": chat_model,
+                "system_prompt": system_prompt or "",
+                "backend": backend,
+            }
+            if schema:
+                agent_kwargs["response_format"] = ToolStrategy(schema=schema)
+
+            agent = create_deep_agent(**agent_kwargs)
 
             result = await agent.ainvoke({"messages": [HumanMessage(content=prompt)]})
-            messages = result.get("messages", [])
 
-            if not messages:
-                raise RuntimeError("No response messages from agent")
-
-            final_message = messages[-1]
-
-            # Extract text content from AIMessage
-            if isinstance(final_message, AIMessage):
-                content = final_message.content
-                if isinstance(content, list):
-                    # Handle list of content blocks
-                    text_parts = [
-                        block.get("text", "") if isinstance(block, dict) else str(block)
-                        for block in content
-                    ]
-                    output_text = "".join(text_parts)
-                else:
-                    output_text = str(content)
-            else:
-                output_text = str(final_message.content)
-
-            # If schema is provided, parse the output
+            # If schema is provided, extract from structured_response
             output: Any
             if schema:
-                try:
-                    output = schema.model_validate_json(output_text)
-                except Exception as e:
-                    logger.warning(
-                        "Failed to parse response as schema",
+                structured_response = result.get("structured_response")
+                if structured_response is not None:
+                    output = structured_response
+                    logger.debug(
+                        "Extracted structured response via ToolStrategy",
                         schema=schema.__name__,
-                        error=str(e),
                     )
-                    raise ValueError(f"Failed to parse response as {schema.__name__}: {e}") from e
+                else:
+                    raise RuntimeError(
+                        "Model did not return structured output. "
+                        "Ensure the model supports tool-based structured output."
+                    )
             else:
-                output = output_text
+                # No schema - extract text from messages
+                messages = result.get("messages", [])
+                if not messages:
+                    raise RuntimeError("No response messages from agent")
+
+                final_message = messages[-1]
+                if isinstance(final_message, AIMessage):
+                    content = final_message.content
+                    if isinstance(content, list):
+                        text_parts = [
+                            block.get("text", "")
+                            if isinstance(block, dict)
+                            else str(block)
+                            for block in content
+                        ]
+                        output = "".join(text_parts)
+                    else:
+                        output = str(content)
+                else:
+                    output = str(final_message.content)
 
             logger.debug(
                 "DeepAgents generate completed",
