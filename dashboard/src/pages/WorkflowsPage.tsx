@@ -24,7 +24,7 @@ import { JobQueue } from '@/components/JobQueue';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { success } from '@/components/Toast';
+import { success, error } from '@/components/Toast';
 import { getActiveWorkflow } from '@/utils/workflow';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
 import { buildPipeline } from '@/utils/pipeline';
@@ -69,9 +69,13 @@ export default function WorkflowsPage() {
     }
   }, [navigate]);
 
-  const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
-    success('Issue ID copied to clipboard');
+  const handleCopy = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      success('Issue ID copied to clipboard');
+    } catch {
+      error('Failed to copy to clipboard');
+    }
   }, []);
 
   if (workflows.length === 0 && !detail) {
