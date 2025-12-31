@@ -36,6 +36,8 @@ async def stream_workflow_events(
                 break
             if event.get("type") == "workflow_failed":
                 break
+            if event.get("type") == "workflow_cancelled":
+                break
 
 
 def _display_event(console: Console, event: dict[str, Any]) -> None:

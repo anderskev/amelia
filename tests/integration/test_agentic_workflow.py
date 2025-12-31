@@ -25,6 +25,7 @@ from amelia.core.orchestrator import (
     route_approval,
 )
 from amelia.core.state import ExecutionState, ReviewResult
+from amelia.drivers.api.openai import ApiDriver
 from tests.integration.conftest import make_config, make_execution_state, make_issue, make_profile
 
 
@@ -155,11 +156,7 @@ class TestDeveloperNodeIntegration:
             for event in mock_events:
                 yield event
 
-        with patch.object(
-            __import__("amelia.drivers.api.openai", fromlist=["ApiDriver"]).ApiDriver,
-            "execute_agentic",
-            mock_execute_agentic,
-        ):
+        with patch.object(ApiDriver, "execute_agentic", mock_execute_agentic):
             result = await call_developer_node(state, cast(RunnableConfig, config))
 
         assert len(result["tool_calls"]) >= 1
