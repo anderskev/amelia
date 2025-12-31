@@ -40,7 +40,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-full w-full min-h-0">
       <PageHeader>
         <PageHeader.Left>
           <PageHeader.Label>HISTORY</PageHeader.Label>
