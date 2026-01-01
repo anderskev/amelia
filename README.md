@@ -62,8 +62,6 @@ Compare model performance and track token usage across runs.
 
 ## Quick Start
 
-![Amelia Dashboard Design Mock](docs/design/desktop_screen.jpg)
-
 ### 1. Install Prerequisites
 
 ```bash
