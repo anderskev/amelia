@@ -6,7 +6,6 @@ preventing regressions like the CreateWorkflowResponse/WorkflowResponse mismatch
 import asyncio
 from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
