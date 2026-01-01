@@ -12,13 +12,14 @@ interface ActivityLogItemProps {
   event: WorkflowEvent;
 }
 
-/** Color mapping for different agent types in the log. */
-const agentColors: Record<string, string> = {
-  ORCHESTRATOR: 'text-muted-foreground',
-  ARCHITECT: 'text-accent',
-  DEVELOPER: 'text-primary',
-  REVIEWER: 'text-status-completed',
-  SYSTEM: 'text-muted-foreground',
+/** Style mapping for different agent types in the log. */
+const agentStyles: Record<string, { text: string; bg: string }> = {
+  PM: { text: 'text-agent-pm', bg: 'bg-agent-pm-bg' },
+  ORCHESTRATOR: { text: 'text-muted-foreground', bg: '' },
+  ARCHITECT: { text: 'text-agent-architect', bg: 'bg-agent-architect-bg' },
+  DEVELOPER: { text: 'text-agent-developer', bg: 'bg-agent-developer-bg' },
+  REVIEWER: { text: 'text-agent-reviewer', bg: 'bg-agent-reviewer-bg' },
+  SYSTEM: { text: 'text-muted-foreground', bg: '' },
 };
 
 /**
@@ -31,17 +32,23 @@ const agentColors: Record<string, string> = {
  * @returns The log item UI
  */
 export function ActivityLogItem({ event }: ActivityLogItemProps) {
-  const agentColor = agentColors[event.agent.toUpperCase()] || 'text-muted-foreground';
+  const agentStyle = agentStyles[event.agent.toUpperCase()] || {
+    text: 'text-muted-foreground',
+    bg: '',
+  };
 
   return (
     <div
       data-slot="activity-log-item"
-      className="grid grid-cols-[100px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm"
+      className={cn(
+        'grid grid-cols-[100px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm',
+        agentStyle.bg
+      )}
     >
       <span className="text-muted-foreground tabular-nums">
         {formatTime(event.timestamp)}
       </span>
-      <span className={cn('font-semibold', agentColor)}>
+      <span className={cn('font-semibold', agentStyle.text)}>
         [{event.agent.toUpperCase()}]
       </span>
       <span className="text-foreground/80 break-words">

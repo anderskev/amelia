@@ -28,6 +28,16 @@ type LogEntry =
   | { kind: 'workflow'; event: WorkflowEvent }
   | { kind: 'stream'; event: StreamEvent };
 
+/** Style mapping for different agent types. */
+const agentStyles: Record<string, { text: string; bg: string }> = {
+  PM: { text: 'text-agent-pm', bg: 'bg-agent-pm-bg' },
+  ORCHESTRATOR: { text: 'text-muted-foreground', bg: '' },
+  ARCHITECT: { text: 'text-agent-architect', bg: 'bg-agent-architect-bg' },
+  DEVELOPER: { text: 'text-agent-developer', bg: 'bg-agent-developer-bg' },
+  REVIEWER: { text: 'text-agent-reviewer', bg: 'bg-agent-reviewer-bg' },
+  SYSTEM: { text: 'text-muted-foreground', bg: '' },
+};
+
 /**
  * Component to render stream events in the activity log.
  * Displays stream events with a distinctive visual style to differentiate from workflow events.
@@ -36,17 +46,23 @@ type LogEntry =
  * @param props.event - The stream event to display
  */
 function StreamLogEntry({ event }: { event: StreamEvent }) {
+  const agentKey = event.agent.toUpperCase();
+  const style = agentStyles[agentKey] ?? { text: 'text-muted-foreground', bg: '' };
+
   return (
     <div
       data-slot="stream-log-item"
-      className="relative grid grid-cols-[100px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm bg-primary/5"
+      className={cn(
+        'relative grid grid-cols-[100px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm bg-primary/5',
+        style.bg
+      )}
     >
       <Zap className="absolute -left-4 top-1/2 -translate-y-1/2 w-3 h-3 text-primary" aria-hidden="true" />
       <span className="text-muted-foreground tabular-nums">
         {formatTime(event.timestamp)}
       </span>
-      <span className="font-semibold text-primary">
-        [{event.agent.toUpperCase()}]
+      <span className={cn('font-semibold', style.text)}>
+        [{agentKey}]
       </span>
       <span className="text-foreground/80 break-words">
         {event.tool_name ? `→ ${event.tool_name}` : event.content || event.subtype}

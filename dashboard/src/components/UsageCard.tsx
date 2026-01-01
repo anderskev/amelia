@@ -5,6 +5,16 @@ import { cn } from '@/lib/utils';
 import { formatTokens, formatCost, formatDuration } from '@/utils/workflow';
 import type { TokenSummary } from '@/types';
 
+/** Style mapping for agent names in the usage table. */
+const agentStyles: Record<string, string> = {
+  PM: 'text-agent-pm',
+  ORCHESTRATOR: 'text-muted-foreground',
+  ARCHITECT: 'text-agent-architect',
+  DEVELOPER: 'text-agent-developer',
+  REVIEWER: 'text-agent-reviewer',
+  SYSTEM: 'text-muted-foreground',
+};
+
 interface UsageCardProps {
   /** Token usage summary with breakdown by agent. Null/undefined hides the card. */
   tokenUsage: TokenSummary | null | undefined;
@@ -39,14 +49,14 @@ export function UsageCard({ tokenUsage, className }: UsageCardProps) {
       </h3>
 
       {/* Summary line */}
-      <div className="flex items-center gap-2 text-sm text-foreground mb-4 flex-wrap">
-        <span className="font-medium">{formatCost(tokenUsage.total_cost_usd)}</span>
+      <div className="flex items-center gap-2 text-sm mb-4 flex-wrap">
+        <span className="text-primary font-semibold">{formatCost(tokenUsage.total_cost_usd)}</span>
         <span className="text-muted-foreground">|</span>
-        <span>{formatTokens(totalTokens)} tokens</span>
+        <span className="text-accent">{formatTokens(totalTokens)} tokens</span>
         <span className="text-muted-foreground">|</span>
-        <span>{formatDuration(tokenUsage.total_duration_ms)}</span>
+        <span className="text-muted-foreground">{formatDuration(tokenUsage.total_duration_ms)}</span>
         <span className="text-muted-foreground">|</span>
-        <span>{tokenUsage.total_turns} turns</span>
+        <span className="text-muted-foreground">{tokenUsage.total_turns} turns</span>
       </div>
 
       {/* Agent breakdown table */}
@@ -101,7 +111,7 @@ export function UsageCard({ tokenUsage, className }: UsageCardProps) {
           <tbody>
             {tokenUsage.breakdown.map((usage) => (
               <tr key={usage.id} className="border-b border-border/50 last:border-0">
-                <td className="py-2 pr-4 text-foreground">{usage.agent}</td>
+                <td className={cn('py-2 pr-4', agentStyles[usage.agent.toUpperCase()] || 'text-foreground')}>{usage.agent}</td>
                 <td className="py-2 px-3 text-muted-foreground">{usage.model}</td>
                 <td className="py-2 px-3 text-right text-muted-foreground tabular-nums">
                   {formatTokens(usage.input_tokens)}
@@ -112,7 +122,7 @@ export function UsageCard({ tokenUsage, className }: UsageCardProps) {
                 <td className="py-2 px-3 text-right text-muted-foreground tabular-nums">
                   {formatTokens(usage.cache_read_tokens)}
                 </td>
-                <td className="py-2 px-3 text-right text-foreground tabular-nums">
+                <td className="py-2 px-3 text-right text-primary tabular-nums">
                   {formatCost(usage.cost_usd)}
                 </td>
                 <td className="py-2 pl-3 text-right text-muted-foreground tabular-nums">
