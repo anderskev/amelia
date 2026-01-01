@@ -174,10 +174,14 @@ async def list_workflows(
 
     total = await repository.count_workflows(status=status, worktree_path=resolved_worktree)
 
+    # Fetch all token summaries in a single batch query (solves N+1 problem)
+    workflow_ids = [w.id for w in workflows]
+    token_summaries = await repository.get_token_summaries_batch(workflow_ids)
+
     # Build workflow summaries with token data
     workflow_summaries = []
     for w in workflows:
-        token_summary = await repository.get_token_summary(w.id)
+        token_summary = token_summaries.get(w.id)
         workflow_summaries.append(
             WorkflowSummary(
                 id=w.id,
@@ -225,10 +229,14 @@ async def list_active_workflows(
 
     workflows = await repository.list_active(worktree_path=resolved_worktree)
 
+    # Fetch all token summaries in a single batch query (solves N+1 problem)
+    workflow_ids = [w.id for w in workflows]
+    token_summaries = await repository.get_token_summaries_batch(workflow_ids)
+
     # Build workflow summaries with token data
     workflow_summaries = []
     for w in workflows:
-        token_summary = await repository.get_token_summary(w.id)
+        token_summary = token_summaries.get(w.id)
         workflow_summaries.append(
             WorkflowSummary(
                 id=w.id,

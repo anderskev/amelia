@@ -6,7 +6,9 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
-# Pricing per million tokens (as of 2025)
+# Pricing per million tokens
+# Source: https://www.anthropic.com/pricing (last updated: 2025-01-15)
+# Note: Update this when Anthropic changes pricing. Short aliases map to full model IDs.
 MODEL_PRICING: dict[str, dict[str, float]] = {
     "claude-opus-4-20250514": {
         "input": 15.0,
@@ -25,6 +27,19 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
         "output": 15.0,
         "cache_read": 0.3,
         "cache_write": 3.75,
+    },
+    # Short aliases for driver model strings (used when driver.model is "sonnet", "opus", etc.)
+    "sonnet": {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_read": 0.3,
+        "cache_write": 3.75,
+    },
+    "opus": {
+        "input": 15.0,
+        "output": 75.0,
+        "cache_read": 1.5,
+        "cache_write": 18.75,
     },
 }
 

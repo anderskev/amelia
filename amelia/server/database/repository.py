@@ -584,6 +584,66 @@ class WorkflowRepository:
             breakdown=usages,
         )
 
+    async def get_token_summaries_batch(
+        self, workflow_ids: list[str]
+    ) -> dict[str, TokenSummary | None]:
+        """Get aggregated token usage summaries for multiple workflows.
+
+        Fetches all token usage records for the given workflow IDs in a single
+        query, then groups and aggregates them in Python. This solves the N+1
+        query problem when listing workflows with token data.
+
+        Args:
+            workflow_ids: List of workflow IDs to get summaries for.
+
+        Returns:
+            Dict mapping workflow_id to TokenSummary (or None if no usage).
+            All requested workflow_ids are included as keys.
+        """
+        if not workflow_ids:
+            return {}
+
+        # Build parameterized query with IN clause
+        placeholders = ",".join("?" for _ in workflow_ids)
+        rows = await self._db.fetch_all(
+            f"""
+            SELECT id, workflow_id, agent, model, input_tokens, output_tokens,
+                   cache_read_tokens, cache_creation_tokens, cost_usd,
+                   duration_ms, num_turns, timestamp
+            FROM token_usage
+            WHERE workflow_id IN ({placeholders})
+            ORDER BY timestamp ASC
+            """,
+            list(workflow_ids),
+        )
+
+        # Group usages by workflow_id
+        usages_by_workflow: dict[str, list[TokenUsage]] = {
+            wid: [] for wid in workflow_ids
+        }
+        for row in rows:
+            usage = self._row_to_token_usage(row)
+            usages_by_workflow[usage.workflow_id].append(usage)
+
+        # Build summaries for each workflow
+        result: dict[str, TokenSummary | None] = {}
+        for wid in workflow_ids:
+            usages = usages_by_workflow[wid]
+            if not usages:
+                result[wid] = None
+            else:
+                result[wid] = TokenSummary(
+                    total_input_tokens=sum(u.input_tokens for u in usages),
+                    total_output_tokens=sum(u.output_tokens for u in usages),
+                    total_cache_read_tokens=sum(u.cache_read_tokens for u in usages),
+                    total_cost_usd=sum(u.cost_usd for u in usages),
+                    total_duration_ms=sum(u.duration_ms for u in usages),
+                    total_turns=sum(u.num_turns for u in usages),
+                    breakdown=usages,
+                )
+
+        return result
+
     def _row_to_token_usage(self, row: aiosqlite.Row) -> TokenUsage:
         """Convert database row to TokenUsage model.
 
