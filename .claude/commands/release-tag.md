@@ -26,11 +26,16 @@ git pull
 # Extract version from input (strip 'v' prefix if present)
 VERSION="${ARGUMENTS#v}"
 
-# Verify pyproject.toml has this version
-grep "^version = \"${VERSION}\"" pyproject.toml
+# Verify all version files match (exit on first mismatch)
+echo "Checking version consistency..."
+grep -q "^version = \"${VERSION}\"" pyproject.toml || { echo "ERROR: pyproject.toml version mismatch"; exit 1; }
+grep -q "__version__ = \"${VERSION}\"" amelia/__init__.py || { echo "ERROR: amelia/__init__.py version mismatch"; exit 1; }
+grep -q "\"version\": \"${VERSION}\"" dashboard/package.json || { echo "ERROR: dashboard/package.json version mismatch"; exit 1; }
+grep -q "\"version\": \"${VERSION}\"" docs/site/package.json || { echo "ERROR: docs/site/package.json version mismatch"; exit 1; }
+echo "All versions match: ${VERSION}"
 ```
 
-If the version doesn't match pyproject.toml, abort with an error explaining the mismatch.
+If any version doesn't match, the script aborts with an error. All version files must be in sync before tagging.
 
 ## Step 1: Verify CHANGELOG Entry
 
