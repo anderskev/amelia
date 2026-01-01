@@ -19,6 +19,38 @@ See the [**Roadmap**](https://existential-birds.github.io/amelia/reference/roadm
 - FastAPI server with SQLite persistence and WebSocket event streaming
 - Web dashboard with workflow visualization, real-time activity log, and approval controls
 
+## Features
+
+### Plan View
+
+Review and approve generated implementation plans before execution.
+
+![Plan View](docs/design/hugo_plan.png)
+
+### Streaming Tool Calls and Thinking Tokens
+
+Watch agents work in real-time with streaming tool execution and visible reasoning.
+
+![Streaming Tool Calls](docs/design/hugo_logs_mixed.png)
+
+### Multi-Round Code Review
+
+Iterative review cycles between Developer and Reviewer agents until changes are approved.
+
+![Code Review](docs/design/hugo_logs_filter_agent.png)
+
+### Details View
+
+Inspect individual agent runs, tool calls, and outputs.
+
+![Details View](docs/design/hugo_details_opus.png)
+
+### Helpful Metrics
+
+Compare model performance and track token usage across runs.
+
+![Metrics](docs/design/hugo_opus_vs_gemini.jpeg)
+
 ## Prerequisites
 
 - **Python 3.12+** - Required for type hints and async features
