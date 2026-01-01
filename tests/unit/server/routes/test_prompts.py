@@ -86,8 +86,17 @@ class TestGetPrompt:
 class TestGetVersions:
     """Tests for GET /api/prompts/{id}/versions."""
 
+    def test_get_versions_not_found(self, client, mock_repo):
+        """Should return 404 for unknown prompt."""
+        mock_repo.get_prompt.return_value = None
+        response = client.get("/api/prompts/nonexistent/versions")
+        assert response.status_code == 404
+
     def test_get_versions(self, client, mock_repo):
         """Should return version list."""
+        mock_repo.get_prompt.return_value = Prompt(
+            id="test", agent="test", name="Test"
+        )
         mock_repo.get_versions.return_value = [
             PromptVersion(id="v2", prompt_id="test", version_number=2, content="V2"),
             PromptVersion(id="v1", prompt_id="test", version_number=1, content="V1"),

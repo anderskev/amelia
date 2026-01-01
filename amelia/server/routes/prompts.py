@@ -287,7 +287,14 @@ async def get_versions(
 
     Returns:
         VersionListResponse with all versions.
+
+    Raises:
+        HTTPException: 404 if prompt not found.
     """
+    prompt = await repository.get_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(status_code=404, detail=f"Prompt not found: {prompt_id}")
+
     versions = await repository.get_versions(prompt_id)
     return VersionListResponse(
         versions=[

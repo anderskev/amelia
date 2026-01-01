@@ -19,7 +19,7 @@ async def db(tmp_path):
 
 
 @pytest.fixture
-def repo(db):
+async def repo(db):
     """Create a PromptRepository."""
     return PromptRepository(db)
 
