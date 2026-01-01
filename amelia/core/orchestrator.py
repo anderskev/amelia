@@ -552,8 +552,13 @@ async def call_evaluation_node(
     """
     stream_emitter, workflow_id, profile = _extract_config_params(config)
 
+    # Extract prompts from config for agent injection
+    config = config or {}
+    configurable = config.get("configurable", {})
+    prompts = configurable.get("prompts", {})
+
     driver = DriverFactory.get_driver(profile.driver, model=profile.model)
-    evaluator = Evaluator(driver=driver, stream_emitter=stream_emitter)
+    evaluator = Evaluator(driver=driver, stream_emitter=stream_emitter, prompts=prompts)
 
     evaluation_result, new_session_id = await evaluator.evaluate(
         state, profile, workflow_id=workflow_id

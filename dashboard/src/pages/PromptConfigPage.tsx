@@ -52,6 +52,7 @@ export default function SettingsPage() {
   // Edit modal state
   const [editPromptId, setEditPromptId] = useState<string | null>(null);
   const [editPromptName, setEditPromptName] = useState('');
+  const [editPromptAgent, setEditPromptAgent] = useState('');
 
   // Reset confirmation state
   const [resetPromptId, setResetPromptId] = useState<string | null>(null);
@@ -80,6 +81,8 @@ export default function SettingsPage() {
     if (prompt) {
       setEditPromptId(promptId);
       setEditPromptName(prompt.name);
+      // Extract agent from promptId (e.g., "architect.system" → "architect")
+      setEditPromptAgent(promptId.split('.')[0] ?? 'architect');
     }
   }, [prompts]);
 
@@ -169,11 +172,13 @@ export default function SettingsPage() {
       <PromptEditModal
         promptId={editPromptId}
         promptName={editPromptName}
+        agent={editPromptAgent}
         open={editPromptId !== null}
         onOpenChange={(open) => {
           if (!open) {
             setEditPromptId(null);
             setEditPromptName('');
+            setEditPromptAgent('');
           }
         }}
         onSave={handleSave}

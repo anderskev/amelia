@@ -302,6 +302,39 @@ async def get_versions(
     )
 
 
+@router.get("/{prompt_id}/versions/{version_id}", response_model=VersionDetailResponse)
+async def get_version(
+    prompt_id: str,
+    version_id: str,
+    repository: "PromptRepository" = Depends(get_prompt_repository),
+) -> VersionDetailResponse:
+    """Get a specific version with content.
+
+    Args:
+        prompt_id: The unique prompt identifier.
+        version_id: The unique version identifier.
+        repository: Prompt repository dependency.
+
+    Returns:
+        VersionDetailResponse with full version details including content.
+
+    Raises:
+        HTTPException: 404 if version not found.
+    """
+    version = await repository.get_version(version_id)
+    if not version or version.prompt_id != prompt_id:
+        raise HTTPException(status_code=404, detail=f"Version not found: {version_id}")
+
+    return VersionDetailResponse(
+        id=version.id,
+        prompt_id=version.prompt_id,
+        version_number=version.version_number,
+        content=version.content,
+        created_at=version.created_at.isoformat(),
+        change_note=version.change_note,
+    )
+
+
 @router.post(
     "/{prompt_id}/versions",
     status_code=status.HTTP_201_CREATED,

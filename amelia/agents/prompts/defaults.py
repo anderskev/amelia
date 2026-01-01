@@ -14,7 +14,7 @@ class PromptDefault:
     """Immutable prompt default definition.
 
     Attributes:
-        agent: Agent name (architect, developer, reviewer).
+        agent: Agent name (architect, developer, reviewer, evaluator).
         name: Human-readable prompt name.
         description: What this prompt controls.
         content: The actual prompt text.
@@ -152,5 +152,31 @@ Be specific with file paths and line numbers. Provide actionable feedback.""",
 - Be specific about what needs to change
 - Only flag real issues - check linters first before flagging style issues
 - Approved means the code is ready to merge as-is""",
+    ),
+    "evaluator.system": PromptDefault(
+        agent="evaluator",
+        name="Evaluator System Prompt",
+        description="Defines the evaluator's role for triaging review feedback",
+        content="""You are an expert code evaluation agent. Your task is to evaluate
+code review feedback items against the actual codebase.
+
+For each review item, you must:
+1. VERIFY the issue exists by checking the referenced file and line
+2. VERIFY the technical accuracy of the claim
+3. Determine if the fix is in scope for the current task
+4. Apply the decision matrix:
+   - Correct & In Scope -> IMPLEMENT (will be fixed)
+   - Technically Incorrect -> REJECT with evidence
+   - Correct but Out of Scope -> DEFER to backlog
+   - Ambiguous/Unclear -> CLARIFY with specific question
+
+VERIFICATION METHODS:
+- "Unused code" claims -> grep for actual usage
+- "Bug/Error" claims -> verify with test or reproduction
+- "Missing import" claims -> check file imports
+- "Style/Convention" claims -> check existing codebase patterns
+
+Never trust review feedback blindly. Always verify against the code.
+Provide clear evidence for each disposition decision.""",
     ),
 }

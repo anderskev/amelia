@@ -10,8 +10,10 @@ import pytest
 from langchain_core.runnables.config import RunnableConfig
 
 from amelia.agents.architect import MarkdownPlanOutput
+from amelia.agents.evaluator import Disposition, EvaluatedItem, EvaluationOutput
 from amelia.agents.reviewer import ReviewResponse
-from amelia.core.orchestrator import call_architect_node, call_reviewer_node
+from amelia.core.orchestrator import call_architect_node, call_evaluation_node, call_reviewer_node
+from amelia.core.state import ReviewResult
 from tests.integration.conftest import make_config, make_execution_state, make_issue, make_profile
 
 
@@ -160,3 +162,98 @@ class TestOrchestratorPromptInjection:
             call_kwargs = mock_generate.call_args.kwargs
             system_prompt = call_kwargs["system_prompt"]
             assert "senior software architect" in system_prompt
+
+    async def test_evaluator_uses_injected_prompt_via_driver(self, tmp_path: Path) -> None:
+        """Verify Evaluator uses injected prompt when calling driver.
+
+        This test patches at the driver level to verify the prompt flows through.
+        """
+        custom_system_prompt = "Custom evaluator system prompt..."
+        prompts = {"evaluator.system": custom_system_prompt}
+
+        profile = make_profile(working_dir=str(tmp_path))
+        # Evaluator requires last_review with comments
+        review_result = ReviewResult(
+            reviewer_persona="General",
+            approved=False,
+            comments=["Issue 1: Check this function"],
+            severity="medium",
+        )
+        state = make_execution_state(
+            profile=profile,
+            goal="Test goal",
+            code_changes_for_review="diff content",
+            last_review=review_result,
+        )
+        config = make_config(thread_id="test-wf-5", profile=profile, prompts=prompts)
+
+        mock_llm_response = EvaluationOutput(
+            evaluated_items=[
+                EvaluatedItem(
+                    number=1,
+                    title="Check function",
+                    file_path="test.py",
+                    line=10,
+                    disposition=Disposition.IMPLEMENT,
+                    reason="Valid issue",
+                    original_issue="Issue 1: Check this function",
+                    suggested_fix="Fix the function",
+                ),
+            ],
+            summary="Evaluation complete",
+        )
+
+        # Patch at driver.generate level to check system_prompt
+        with patch("amelia.drivers.api.deepagents.ApiDriver.generate", new_callable=AsyncMock) as mock_generate:
+            mock_generate.return_value = (mock_llm_response, "session-1")
+
+            await call_evaluation_node(state, cast(RunnableConfig, config))
+
+            # Verify the custom prompt was used
+            mock_generate.assert_called_once()
+            call_kwargs = mock_generate.call_args.kwargs
+            assert call_kwargs["system_prompt"] == custom_system_prompt
+
+    async def test_evaluator_uses_default_prompt_when_not_configured(self, tmp_path: Path) -> None:
+        """Verify Evaluator uses default prompt when no custom prompt configured."""
+        profile = make_profile(working_dir=str(tmp_path))
+        review_result = ReviewResult(
+            reviewer_persona="General",
+            approved=False,
+            comments=["Issue 1: Check this"],
+            severity="medium",
+        )
+        state = make_execution_state(
+            profile=profile,
+            goal="Test goal",
+            last_review=review_result,
+        )
+        # No prompts in config
+        config = make_config(thread_id="test-wf-6", profile=profile)
+
+        mock_llm_response = EvaluationOutput(
+            evaluated_items=[
+                EvaluatedItem(
+                    number=1,
+                    title="Check",
+                    file_path="test.py",
+                    line=10,
+                    disposition=Disposition.IMPLEMENT,
+                    reason="Valid",
+                    original_issue="Issue 1",
+                    suggested_fix="Fix",
+                ),
+            ],
+            summary="Done",
+        )
+
+        with patch("amelia.drivers.api.deepagents.ApiDriver.generate", new_callable=AsyncMock) as mock_generate:
+            mock_generate.return_value = (mock_llm_response, "session-1")
+
+            await call_evaluation_node(state, cast(RunnableConfig, config))
+
+            # Verify default prompt was used (contains expected text from Evaluator.SYSTEM_PROMPT)
+            call_kwargs = mock_generate.call_args.kwargs
+            system_prompt = call_kwargs["system_prompt"]
+            assert "expert code evaluation agent" in system_prompt
+            assert "decision matrix" in system_prompt

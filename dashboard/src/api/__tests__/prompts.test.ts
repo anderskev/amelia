@@ -128,6 +128,35 @@ describe('Prompts API', () => {
     });
   });
 
+  describe('getPromptVersion', () => {
+    it('should fetch a specific version by ID', async () => {
+      const mockVersion = {
+        id: 'v-123',
+        prompt_id: 'architect.system',
+        version_number: 1,
+        content: 'Full prompt content here...',
+        created_at: '2025-12-01T10:00:00Z',
+        change_note: 'Initial version',
+      };
+
+      mockFetchSuccess(mockVersion);
+
+      const version = await api.getPromptVersion('architect.system', 'v-123');
+
+      expect(global.fetch).toHaveBeenCalledWith('/api/prompts/architect.system/versions/v-123');
+      expect(version.id).toBe('v-123');
+      expect(version.content).toBe('Full prompt content here...');
+    });
+
+    it('should handle HTTP errors', async () => {
+      mockFetchError(404, 'Version not found', 'NOT_FOUND');
+
+      await expect(api.getPromptVersion('architect.system', 'nonexistent')).rejects.toThrow(
+        'Version not found'
+      );
+    });
+  });
+
   describe('createPromptVersion', () => {
     it('should create new version with correct payload', async () => {
       const mockVersion = {

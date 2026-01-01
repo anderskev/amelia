@@ -308,6 +308,30 @@ export const api = {
   },
 
   /**
+   * Get a specific version with full content.
+   *
+   * @param promptId - The unique identifier of the prompt.
+   * @param versionId - The unique identifier of the version.
+   * @returns The version details including content.
+   * @throws {ApiError} When the version is not found or the API request fails.
+   *
+   * @example
+   * ```typescript
+   * const version = await api.getPromptVersion('architect.system', 'version-uuid');
+   * console.log(`Content: ${version.content}`);
+   * ```
+   */
+  async getPromptVersion(
+    promptId: string,
+    versionId: string
+  ): Promise<VersionDetail> {
+    const response = await fetch(
+      `${API_BASE_URL}/prompts/${promptId}/versions/${versionId}`
+    );
+    return handleResponse<VersionDetail>(response);
+  },
+
+  /**
    * Create a new version (becomes active immediately).
    *
    * @param promptId - The unique identifier of the prompt.

@@ -2,10 +2,10 @@
  * @fileoverview Modal for editing prompt content.
  *
  * Provides a large textarea for editing prompt content, character count
- * with warnings, change note input, and save/reset actions.
+ * with progressive color feedback, change note input, and save/reset actions.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { RotateCcw, AlertTriangle, Save, Loader2 } from 'lucide-react';
+import { RotateCcw, Save, Loader2, Pencil } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,18 +17,59 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { getAgentAccentStyle } from '@/lib/constants';
 import { api } from '@/api/client';
 import { success, error as showError } from '@/components/Toast';
 import type { DefaultContent } from '@/types';
 
-/** Character count threshold for warning. */
-const CHAR_WARNING_THRESHOLD = 10000;
+/** Character count thresholds for progressive color feedback. */
+const CHAR_THRESHOLDS = {
+  healthy: 5000,
+  long: 8000,
+  warning: 10000,
+} as const;
+
+/** Get color classes based on character count. */
+function getCharCountColors(count: number): {
+  text: string;
+  bg: string;
+  border: string;
+} {
+  if (count <= CHAR_THRESHOLDS.healthy) {
+    return {
+      text: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-500/10',
+      border: 'border-emerald-500/30',
+    };
+  }
+  if (count <= CHAR_THRESHOLDS.long) {
+    return {
+      text: 'text-amber-600 dark:text-amber-400',
+      bg: 'bg-amber-500/10',
+      border: 'border-amber-500/30',
+    };
+  }
+  if (count <= CHAR_THRESHOLDS.warning) {
+    return {
+      text: 'text-orange-600 dark:text-orange-400',
+      bg: 'bg-orange-500/10',
+      border: 'border-orange-500/30',
+    };
+  }
+  return {
+    text: 'text-red-600 dark:text-red-400',
+    bg: 'bg-red-500/10',
+    border: 'border-red-500/30',
+  };
+}
 
 interface PromptEditModalProps {
   /** The prompt ID being edited. */
   promptId: string | null;
   /** The prompt name for display. */
   promptName: string;
+  /** The agent this prompt belongs to (for accent colors). */
+  agent: string;
   /** Whether the modal is open. */
   open: boolean;
   /** Callback to close the modal. */
@@ -56,6 +97,7 @@ interface PromptEditModalProps {
  * <PromptEditModal
  *   promptId="architect.system"
  *   promptName="Architect System Prompt"
+ *   agent="architect"
  *   open={isOpen}
  *   onOpenChange={setIsOpen}
  *   onSave={() => revalidate()}
@@ -65,6 +107,7 @@ interface PromptEditModalProps {
 export function PromptEditModal({
   promptId,
   promptName,
+  agent,
   open,
   onOpenChange,
   onSave,
@@ -75,6 +118,9 @@ export function PromptEditModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [defaultData, setDefaultData] = useState<DefaultContent | null>(null);
+
+  // Get agent-specific accent styles (always defined due to fallback)
+  const accentStyle = getAgentAccentStyle(agent);
 
   // Load prompt content when modal opens
   useEffect(() => {
@@ -91,24 +137,16 @@ export function PromptEditModal({
 
         // Get current version if exists
         const prompt = await api.getPrompt(promptId);
-        if (prompt.current_version_id && prompt.versions.length > 0) {
-          // Find current version and get its content
-          const currentVersion = prompt.versions.find(
-            (v) => v.id === prompt.current_version_id
+        if (prompt.current_version_id) {
+          // Fetch the current version content
+          const currentVersion = await api.getPromptVersion(
+            promptId,
+            prompt.current_version_id
           );
-          if (currentVersion) {
-            // We need to fetch the full version to get content
-            // For now, use the API to create version which requires content
-            // Actually the versions endpoint returns VersionSummary without content
-            // We need to load the default and let user edit from there
-            // TODO: Add endpoint to get version content
-            setContent(defaultContent.content);
-            setOriginalContent(defaultContent.content);
-          } else {
-            setContent(defaultContent.content);
-            setOriginalContent(defaultContent.content);
-          }
+          setContent(currentVersion.content);
+          setOriginalContent(currentVersion.content);
         } else {
+          // No custom version, use default
           setContent(defaultContent.content);
           setOriginalContent(defaultContent.content);
         }
@@ -160,26 +198,58 @@ export function PromptEditModal({
 
   const hasChanges = content !== originalContent;
   const charCount = content.length;
-  const isOverThreshold = charCount > CHAR_WARNING_THRESHOLD;
+  const charColors = getCharCountColors(charCount);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{promptName}</DialogTitle>
-          <DialogDescription>
-            Edit the prompt content below. Changes will create a new version.
-          </DialogDescription>
+      <DialogContent
+        className={cn(
+          'max-w-4xl h-[80vh] flex flex-col gap-0 p-0 overflow-hidden',
+          'border-2',
+          accentStyle.border,
+          'shadow-2xl',
+          accentStyle.shadow,
+          'bg-gradient-to-b from-background to-background/95'
+        )}
+      >
+        {/* Header with agent-specific accent gradient */}
+        <DialogHeader
+          className={cn(
+            'px-6 pt-6 pb-4 border-b border-border/50 bg-gradient-to-r',
+            accentStyle.headerGradient
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <div className={cn('p-2 rounded-lg', accentStyle.iconBg)}>
+              <Pencil className={cn('size-4', accentStyle.iconText)} />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <DialogTitle className="text-lg">{promptName}</DialogTitle>
+                {hasChanges && (
+                  <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                    Modified
+                  </span>
+                )}
+              </div>
+              <DialogDescription className="mt-0.5">
+                Edit the prompt content below. Changes will create a new
+                version.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+        <div className="flex-1 flex flex-col gap-4 p-6 overflow-hidden">
           {isLoading ? (
             <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              <Loader2
+                className={cn('size-6 animate-spin', accentStyle.iconText)}
+              />
             </div>
           ) : (
             <>
-              {/* Textarea */}
+              {/* Textarea with enhanced styling */}
               <div className="flex-1 flex flex-col min-h-0">
                 <label htmlFor="prompt-content" className="sr-only">
                   Prompt content
@@ -190,65 +260,59 @@ export function PromptEditModal({
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className={cn(
-                    'flex-1 w-full min-h-0 resize-none rounded-md border bg-transparent px-3 py-2 text-sm font-mono',
-                    'placeholder:text-muted-foreground',
-                    'focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+                    'flex-1 w-full min-h-0 resize-none rounded-lg border-2 px-4 py-3 text-sm font-mono leading-relaxed',
+                    'bg-muted/30 dark:bg-muted/20',
+                    'placeholder:text-muted-foreground/60',
+                    'focus-visible:outline-none focus-visible:ring-4',
+                    accentStyle.focusRing,
                     'disabled:cursor-not-allowed disabled:opacity-50',
-                    'dark:bg-input/30 border-input'
+                    'border-border/50 hover:border-border transition-colors'
                   )}
                   placeholder="Enter prompt content..."
                 />
               </div>
 
-              {/* Character count */}
-              <div
-                id="char-count"
-                role="status"
-                aria-live="polite"
-                className="flex items-center gap-2 text-sm"
-              >
-                {isOverThreshold && (
-                  <AlertTriangle className="size-4 text-amber-500" />
-                )}
-                <span
+              {/* Character count with progressive colors */}
+              <div className="flex items-center justify-between gap-4">
+                <div
+                  id="char-count"
+                  role="status"
+                  aria-live="polite"
                   className={cn(
-                    'text-muted-foreground',
-                    isOverThreshold && 'text-amber-500 font-medium'
+                    'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                    charColors.text,
+                    charColors.bg,
+                    charColors.border
                   )}
                 >
-                  {charCount.toLocaleString()} characters
-                  {isOverThreshold && (
-                    <span className="ml-1">
-                      (exceeds {CHAR_WARNING_THRESHOLD.toLocaleString()})
-                    </span>
-                  )}
-                </span>
-              </div>
+                  <span className="tabular-nums">
+                    {charCount.toLocaleString()}
+                  </span>
+                  <span className="opacity-70">characters</span>
+                </div>
 
-              {/* Change note */}
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="change-note"
-                  className="text-sm font-medium text-muted-foreground"
-                >
-                  Change note (optional)
-                </label>
+                {/* Change note - streamlined without redundant label */}
                 <Input
                   id="change-note"
                   value={changeNote}
                   onChange={(e) => setChangeNote(e.target.value)}
-                  placeholder="Describe what changed..."
+                  placeholder="Change note (optional)"
+                  className={cn(
+                    'flex-1 max-w-sm border-border/50',
+                    accentStyle.focusRing
+                  )}
                 />
               </div>
             </>
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="px-6 py-4 border-t border-border/50 bg-muted/30 gap-2 sm:gap-0">
           <Button
             variant="ghost"
             onClick={handleResetToDefault}
             disabled={isLoading || isSaving || !defaultData}
+            className="text-muted-foreground hover:text-foreground"
           >
             <RotateCcw className="size-4 mr-2" />
             Reset to default
@@ -258,12 +322,18 @@ export function PromptEditModal({
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
+            className="border-border/50"
           >
             Cancel
           </Button>
           <Button
             onClick={handleSave}
             disabled={isLoading || isSaving || !hasChanges || !content.trim()}
+            className={cn(
+              'text-white shadow-lg',
+              accentStyle.button,
+              accentStyle.buttonShadow
+            )}
           >
             {isSaving ? (
               <Loader2 className="size-4 mr-2 animate-spin" />
