@@ -19,20 +19,54 @@ See the [**Roadmap**](https://existential-birds.github.io/amelia/reference/roadm
 - FastAPI server with SQLite persistence and WebSocket event streaming
 - Web dashboard with workflow visualization, real-time activity log, and approval controls
 
+## Features
+
+### Plan View
+
+Review and approve generated implementation plans before execution.
+
+![Plan View](docs/design/hugo_plan.png)
+
+### Streaming Tool Calls and Thinking Tokens
+
+Watch agents work in real-time with streaming tool execution and visible reasoning.
+
+![Streaming Tool Calls](docs/design/hugo_logs_mixed.png)
+
+### Multi-Round Code Review
+
+Iterative review cycles between Developer and Reviewer agents until changes are approved.
+
+![Code Review](docs/design/hugo_logs_filter_agent.png)
+
+### Details View
+
+Inspect individual agent runs, tool calls, and outputs.
+
+![Details View](docs/design/hugo_details_opus.png)
+
+### Helpful Metrics
+
+Compare model performance and track token usage across runs.
+
+![Metrics](docs/design/hugo_opus_vs_gemini.jpeg)
+
 ## Prerequisites
 
 - **Python 3.12+** - Required for type hints and async features
 - **uv** - Fast Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
 - **Git** - For version control operations
+- **Beagle plugin** - Claude Code plugin with Amelia skills ([install guide](https://github.com/existential-birds/beagle?tab=readme-ov-file#installation))
 - **LLM access** - Either:
   - OpenRouter API key (for `api:openrouter` driver)
   - Claude CLI installed (for `cli:claude` driver)
 
 ## Quick Start
 
-![Amelia Dashboard Design Mock](docs/design/desktop_screen.jpg)
-
 ### 1. Install Prerequisites
+
+> [!IMPORTANT]
+> You must install the [Beagle plugin](https://github.com/existential-birds/beagle?tab=readme-ov-file#installation) for Claude Code before using Amelia. It provides the skills and commands needed to work with Amelia workflows.
 
 ```bash
 # Install uv (Linux/macOS)
