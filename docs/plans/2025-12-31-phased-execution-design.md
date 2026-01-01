@@ -34,6 +34,7 @@ Phased execution with context isolation. The Architect decomposes work into subt
 | Failure handling | Halt everything | Stop clean rather than build on broken foundations |
 | Review timing | After each phase | Catches issues at natural sync points |
 | Review rejection | Retry phase once | Fresh context + feedback; halt after 2 failures |
+| Commit strategy | One commit per phase | Enables clean retry; subtasks work on uncommitted changes |
 
 ## Architecture
 
@@ -103,31 +104,88 @@ async def run_subtask(subtask: Subtask, plan: PhasedPlanOutput) -> SubtaskResult
 
     {subtask.description}
 
-    The codebase reflects work from prior phases.
-    Read the relevant files to understand current state.
+    ## Important
+    - Make the necessary code changes
+    - Do NOT commit - the orchestrator handles commits after all subtasks complete
+    - The codebase reflects work from prior phases; read relevant files to understand current state
     """
 
     async for message in driver.execute_agentic(prompt, cwd):
         yield message
 ```
 
+### Commit Strategy
+
+Subtasks within a phase run in parallel on the same working directory. To avoid git conflicts and enable clean retries, we use **one commit per phase**:
+
+1. **Subtasks make file changes only** - no commits during subtask execution
+2. **Phase executor commits** - after all subtasks complete successfully, create a single commit
+3. **Reviewer reviews the phase commit** - diffs against pre-phase HEAD
+4. **On retry, reset is clean** - `git reset --hard pre_commit` discards all uncommitted changes
+
+```python
+async def run_phase(phase: list[Subtask], plan: PhasedPlanOutput) -> None:
+    """Execute all subtasks in a phase, then commit."""
+    pre_commit = git_rev_parse("HEAD")
+
+    # Run subtasks in parallel - they modify files but don't commit
+    results = await asyncio.gather(*[
+        run_subtask(subtask, plan, commit=False)
+        for subtask in phase
+    ])
+
+    # Check for failures
+    if any(r.failed for r in results):
+        raise SubtaskFailed(results)
+
+    # Single commit for the entire phase
+    subtask_titles = ", ".join(s.title for s in phase)
+    git_add(".")
+    git_commit(f"Phase {phase_index}: {subtask_titles}")
+```
+
+**Driver configuration**: The subtask prompt instructs the driver to skip commits:
+
+```python
+prompt = f"""
+## Overall Plan
+{plan.plan_markdown}
+
+## Your Assignment
+You are executing subtask: {subtask.title}
+
+{subtask.description}
+
+## Important
+- Make the necessary code changes
+- Do NOT commit - the orchestrator handles commits after all subtasks complete
+- The codebase reflects work from prior phases
+"""
+```
+
+**Why not worktrees?** Git worktrees would allow true parallel commits, but add complexity:
+- Merge conflicts between worktrees
+- Subtask isolation breaks "read current state" semantics
+- Architect already ensures disjoint file changes
+
+The single-commit approach is simpler and aligns with the "correctness over speed" non-goal.
+
 ### Phase Review with Retry
 
 ```python
 async def run_phase_with_retry(phase: list[Subtask], plan, max_attempts=2):
     feedback = None
+    pre_commit = git_rev_parse("HEAD")  # Capture once before any attempts
 
     for attempt in range(max_attempts):
-        pre_commit = git_rev_parse("HEAD")
-
         if attempt > 0:
-            # Reset to pre-phase state for clean retry
-            git_reset(pre_commit)
+            # Reset to pre-phase state for clean retry (discards uncommitted + commits)
+            git_reset_hard(pre_commit)
 
-        # Run all subtasks in phase (parallel)
-        await run_phase_subtasks(phase, plan, feedback)
+        # Run all subtasks in phase (parallel), then commit
+        await run_phase(phase, plan, feedback)  # Creates single phase commit
 
-        # Review phase changes
+        # Review phase changes (diffs phase commit against pre_commit)
         result = await review_phase(phase, pre_commit, plan)
 
         if result.approved:
@@ -205,10 +263,11 @@ Phase 3: ○ Pending
 
 ```
 amelia/core/phased_executor.py
-├── run_phase()           # Execute all subtasks in a phase
-├── run_subtask()         # Single subtask with fresh driver
-├── review_phase()        # Review phase changes
-├── run_phase_with_retry() # Retry logic wrapper
+├── run_phase()           # Execute all subtasks in a phase + commit
+├── run_subtask()         # Single subtask with fresh driver (no commit)
+├── commit_phase()        # Create single commit for phase changes
+├── review_phase()        # Review phase changes against pre_commit
+├── run_phase_with_retry() # Retry logic with git reset on failure
 └── execute_phased_plan() # Top-level orchestrator
 ```
 
