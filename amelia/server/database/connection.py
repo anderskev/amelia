@@ -374,3 +374,22 @@ class Database:
         await self.execute(
             "CREATE INDEX IF NOT EXISTS idx_workflow_prompts_workflow ON workflow_prompt_versions(workflow_id)"
         )
+
+    async def initialize_prompts(self) -> None:
+        """Seed prompts table from defaults. Idempotent.
+
+        Creates prompt entries for each default if they don't exist.
+        Call this after ensure_schema().
+        """
+        from amelia.agents.prompts.defaults import PROMPT_DEFAULTS
+
+        for prompt_id, default in PROMPT_DEFAULTS.items():
+            existing = await self.fetch_one(
+                "SELECT 1 FROM prompts WHERE id = ?", (prompt_id,)
+            )
+            if not existing:
+                await self.execute(
+                    """INSERT INTO prompts (id, agent, name, description, current_version_id)
+                       VALUES (?, ?, ?, ?, NULL)""",
+                    (prompt_id, default.agent, default.name, default.description),
+                )

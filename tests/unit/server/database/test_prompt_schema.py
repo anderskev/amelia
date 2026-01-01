@@ -1,6 +1,6 @@
 """Tests for prompt database schema."""
-import pytest
 import aiosqlite
+import pytest
 
 from amelia.server.database.connection import Database
 
