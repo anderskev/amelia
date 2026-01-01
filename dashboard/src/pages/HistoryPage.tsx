@@ -57,7 +57,7 @@ export default function HistoryPage() {
         {workflows.map((workflow) => (
           <Link
             key={workflow.id}
-            to={`/workflows/${workflow.id}`}
+            to={`/workflows/${workflow.id}/detail`}
             className={cn(
               'flex items-center gap-4 p-4 rounded-lg border transition-all duration-200 cursor-pointer',
               'hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
