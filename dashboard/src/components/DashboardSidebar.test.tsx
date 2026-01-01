@@ -42,6 +42,7 @@ describe('DashboardSidebar', () => {
     ['Active Jobs', '/workflows'],
     ['Past Runs', '/history'],
     ['Logs', '/logs'],
+    ['Agent Prompts', '/prompts'],
   ])('renders %s navigation link to %s', (label, href) => {
     renderSidebar();
     const link = screen.getByRole('link', { name: new RegExp(label) });

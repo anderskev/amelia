@@ -181,7 +181,12 @@ export function PromptEditModal({
             <>
               {/* Textarea */}
               <div className="flex-1 flex flex-col min-h-0">
+                <label htmlFor="prompt-content" className="sr-only">
+                  Prompt content
+                </label>
                 <textarea
+                  id="prompt-content"
+                  aria-describedby="char-count"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className={cn(
@@ -196,7 +201,12 @@ export function PromptEditModal({
               </div>
 
               {/* Character count */}
-              <div className="flex items-center gap-2 text-sm">
+              <div
+                id="char-count"
+                role="status"
+                aria-live="polite"
+                className="flex items-center gap-2 text-sm"
+              >
                 {isOverThreshold && (
                   <AlertTriangle className="size-4 text-amber-500" />
                 )}
