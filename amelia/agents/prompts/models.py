@@ -4,6 +4,7 @@
 Provides data models for prompts, versions, and resolution results.
 """
 from datetime import UTC, datetime
+from typing import Protocol
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -84,3 +85,48 @@ class WorkflowPromptVersion(BaseModel):
     workflow_id: str
     prompt_id: str
     version_id: str
+
+
+class PromptRepositoryProtocol(Protocol):
+    """Protocol for prompt repository operations.
+
+    Defines the interface that PromptResolver depends on.
+    This allows for dependency injection and easier testing.
+    """
+
+    async def get_prompt(self, prompt_id: str) -> Prompt | None:
+        """Get a prompt by ID.
+
+        Args:
+            prompt_id: The prompt identifier.
+
+        Returns:
+            The prompt if found, None otherwise.
+        """
+        ...
+
+    async def get_version(self, version_id: str) -> PromptVersion | None:
+        """Get a specific version by ID.
+
+        Args:
+            version_id: The version identifier.
+
+        Returns:
+            The version if found, None otherwise.
+        """
+        ...
+
+    async def record_workflow_prompt(
+        self,
+        workflow_id: str,
+        prompt_id: str,
+        version_id: str,
+    ) -> None:
+        """Record which prompt version a workflow used.
+
+        Args:
+            workflow_id: The workflow identifier.
+            prompt_id: The prompt identifier.
+            version_id: The version identifier.
+        """
+        ...
