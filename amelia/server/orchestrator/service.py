@@ -46,6 +46,7 @@ STAGE_NODES: frozenset[str] = frozenset({
     "human_approval_node",
     "developer_node",
     "reviewer_node",
+    "evaluation_node",
 })
 
 # Exceptions that warrant retry
@@ -719,6 +720,7 @@ class OrchestratorService:
                     "execution_mode": "server",
                     "stream_emitter": stream_emitter,
                     "profile": profile,
+                    "repository": self._repository,
                 }
             }
 
@@ -966,6 +968,7 @@ class OrchestratorService:
                     "execution_mode": "server",
                     "stream_emitter": stream_emitter,
                     "profile": profile,
+                    "repository": self._repository,
                 }
             }
 
@@ -1148,6 +1151,7 @@ class OrchestratorService:
                     "execution_mode": "server",
                     "stream_emitter": stream_emitter,
                     "profile": profile,
+                    "repository": self._repository,
                 }
             }
 
@@ -1311,6 +1315,7 @@ class OrchestratorService:
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "profile": profile,
+                    "repository": self._repository,
                 }
             }
 
@@ -1454,6 +1459,8 @@ class OrchestratorService:
             await self._emit_developer_messages(workflow_id, output)
         elif node_name == "reviewer_node":
             await self._emit_reviewer_messages(workflow_id, output)
+        elif node_name == "evaluation_node":
+            await self._emit_evaluator_messages(workflow_id, output)
 
     async def _emit_architect_messages(
         self,
@@ -1492,7 +1499,7 @@ class OrchestratorService:
         """
         # In agentic mode, developer works autonomously with tool calls
         # Emit status updates based on agentic state
-        status = output.get("status")
+        status = output.get("agentic_status")
         final_response = output.get("final_response")
 
         if status == "completed" and final_response:
@@ -1525,23 +1532,72 @@ class OrchestratorService:
             output: State updates from the reviewer node.
         """
         last_review = output.get("last_review")
-        if last_review and isinstance(last_review, dict):
-            approved = last_review.get("approved", False)
-            severity = last_review.get("severity", "unknown")
-            comment_count = len(last_review.get("comments", []))
+        if not last_review:
+            return
 
-            await self._emit(
-                workflow_id,
-                EventType.AGENT_MESSAGE,
-                f"Review {'approved' if approved else 'requested changes'} "
-                f"({severity} severity, {comment_count} comments)",
-                agent="reviewer",
-                data={
-                    "approved": approved,
-                    "severity": severity,
-                    "comment_count": comment_count,
-                },
-            )
+        # Node returns ReviewResult Pydantic model directly
+        approved = last_review.approved
+        severity = last_review.severity
+        comment_count = len(last_review.comments) if last_review.comments else 0
+
+        await self._emit(
+            workflow_id,
+            EventType.AGENT_MESSAGE,
+            f"Review {'approved' if approved else 'requested changes'} "
+            f"({severity} severity, {comment_count} comments)",
+            agent="reviewer",
+            data={
+                "approved": approved,
+                "severity": severity,
+                "comment_count": comment_count,
+            },
+        )
+
+    async def _emit_evaluator_messages(
+        self,
+        workflow_id: str,
+        output: dict[str, Any],
+    ) -> None:
+        """Emit messages for evaluator node output.
+
+        Args:
+            workflow_id: The workflow ID.
+            output: State updates from the evaluator node.
+        """
+        evaluation_result = output.get("evaluation_result")
+        if not evaluation_result:
+            return
+
+        # Node returns EvaluationResult Pydantic model directly
+        to_implement = len(evaluation_result.items_to_implement)
+        rejected = len(evaluation_result.items_rejected)
+        deferred = len(evaluation_result.items_deferred)
+        clarify = len(evaluation_result.items_needing_clarification)
+
+        summary_parts = []
+        if to_implement:
+            summary_parts.append(f"{to_implement} to implement")
+        if rejected:
+            summary_parts.append(f"{rejected} rejected")
+        if deferred:
+            summary_parts.append(f"{deferred} deferred")
+        if clarify:
+            summary_parts.append(f"{clarify} need clarification")
+
+        message = f"Evaluation: {', '.join(summary_parts)}" if summary_parts else "Evaluation complete"
+
+        await self._emit(
+            workflow_id,
+            EventType.AGENT_MESSAGE,
+            message,
+            agent="evaluator",
+            data={
+                "to_implement": to_implement,
+                "rejected": rejected,
+                "deferred": deferred,
+                "needs_clarification": clarify,
+            },
+        )
 
     async def _sync_plan_from_checkpoint(
         self,

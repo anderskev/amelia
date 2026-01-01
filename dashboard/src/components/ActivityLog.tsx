@@ -2,11 +2,12 @@
  * @fileoverview Real-time activity log for workflow events.
  */
 import { useEffect, useRef, useMemo } from 'react';
-import { Radio, Zap } from 'lucide-react';
+import { Radio, RadioTower, Zap } from 'lucide-react';
 import { ActivityLogItem } from '@/components/ActivityLogItem';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useStreamStore } from '@/store/stream-store';
 import { cn, formatTime } from '@/lib/utils';
+import { AGENT_STYLES } from '@/lib/constants';
 import type { WorkflowEvent, StreamEvent } from '@/types';
 
 /**
@@ -36,17 +37,23 @@ type LogEntry =
  * @param props.event - The stream event to display
  */
 function StreamLogEntry({ event }: { event: StreamEvent }) {
+  const agentKey = event.agent.toUpperCase();
+  const style = AGENT_STYLES[agentKey] ?? { text: 'text-muted-foreground', bg: '' };
+
   return (
     <div
       data-slot="stream-log-item"
-      className="relative grid grid-cols-[100px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm bg-primary/5"
+      className={cn(
+        'relative grid grid-cols-[100px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm bg-primary/5',
+        style.bg
+      )}
     >
       <Zap className="absolute -left-4 top-1/2 -translate-y-1/2 w-3 h-3 text-primary" aria-hidden="true" />
       <span className="text-muted-foreground tabular-nums">
         {formatTime(event.timestamp)}
       </span>
-      <span className="font-semibold text-primary">
-        [{event.agent.toUpperCase()}]
+      <span className={cn('font-semibold', style.text)}>
+        [{agentKey}]
       </span>
       <span className="text-foreground/80 break-words">
         {event.tool_name ? `→ ${event.tool_name}` : event.content || event.subtype}
@@ -134,7 +141,7 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
           ACTIVITY LOG
         </h3>
         <div className="flex items-center gap-3">
-          {/* Live mode toggle */}
+          {/* Live mode toggle - uses different icons for a11y (color-blind users) */}
           <button
             type="button"
             onClick={() => setLiveMode(!liveMode)}
@@ -147,8 +154,12 @@ export function ActivityLog({ workflowId, initialEvents = [], className }: Activ
             aria-pressed={liveMode}
             title={liveMode ? 'Hide live stream events' : 'Show live stream events'}
           >
-            <Radio className={cn('w-3 h-3', liveMode && 'animate-pulse')} />
-            Live
+            {liveMode ? (
+              <RadioTower className="w-3 h-3 animate-pulse" aria-hidden="true" />
+            ) : (
+              <Radio className="w-3 h-3" aria-hidden="true" />
+            )}
+            {liveMode ? 'Live' : 'Paused'}
           </button>
 
           <span className="font-mono text-xs text-muted-foreground">

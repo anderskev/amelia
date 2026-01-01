@@ -8,6 +8,7 @@ import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { AgentProgressBar, type AgentStage } from '@/components/AgentProgressBar';
+import { UsageCard } from '@/components/UsageCard';
 import { buildPipeline } from '@/utils/pipeline';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
 import { workflowDetailLoader } from '@/loaders';
@@ -111,7 +112,7 @@ export default function WorkflowDetailPage() {
 
           {/* Goal display - shown when not blocked or as secondary info */}
           {workflow.goal && !needsApproval && (
-            <div className="p-4 border border-border rounded-lg bg-card/50">
+            <div className="p-4 border border-border rounded-lg bg-card/50 border-l-2 border-l-accent">
               <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-2">
                 GOAL
               </h3>
@@ -119,8 +120,11 @@ export default function WorkflowDetailPage() {
             </div>
           )}
 
+          {/* Usage card - shows token usage breakdown by agent */}
+          <UsageCard tokenUsage={workflow.token_usage} className="border-l-2 border-l-primary" />
+
           {/* Workflow Canvas (pipeline visualization) */}
-          <div className="p-4 border border-border rounded-lg bg-card/50">
+          <div className="p-4 border border-border rounded-lg bg-card/50 border-l-2 border-l-status-completed">
             <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-3">
               PIPELINE
             </h3>

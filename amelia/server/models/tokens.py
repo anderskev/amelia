@@ -6,7 +6,9 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
-# Pricing per million tokens (as of 2025)
+# Pricing per million tokens
+# Source: https://www.anthropic.com/pricing (last updated: 2025-01-15)
+# Note: Update this when Anthropic changes pricing. Short aliases map to full model IDs.
 MODEL_PRICING: dict[str, dict[str, float]] = {
     "claude-opus-4-20250514": {
         "input": 15.0,
@@ -25,6 +27,19 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
         "output": 15.0,
         "cache_read": 0.3,
         "cache_write": 3.75,
+    },
+    # Short aliases for driver model strings (used when driver.model is "sonnet", "opus", etc.)
+    "sonnet": {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_read": 0.3,
+        "cache_write": 3.75,
+    },
+    "opus": {
+        "input": 15.0,
+        "output": 75.0,
+        "cache_read": 1.5,
+        "cache_write": 18.75,
     },
 }
 
@@ -47,7 +62,9 @@ class TokenUsage(BaseModel):
         output_tokens: Output tokens generated.
         cache_read_tokens: Subset of input from cache (discounted).
         cache_creation_tokens: Tokens written to cache (premium rate).
-        cost_usd: Net cost after cache adjustments.
+        cost_usd: Net cost after cache adjustments (required).
+        duration_ms: Execution time in milliseconds.
+        num_turns: Number of conversation turns.
         timestamp: When tokens were consumed.
     """
 
@@ -73,11 +90,35 @@ class TokenUsage(BaseModel):
         ge=0,
         description="Tokens written to cache",
     )
-    cost_usd: float | None = Field(
-        default=None,
-        description="Calculated cost in USD",
-    )
+    cost_usd: float = Field(..., description="Calculated cost in USD")
+    duration_ms: int = Field(default=0, ge=0, description="Execution time in milliseconds")
+    num_turns: int = Field(default=1, ge=1, description="Number of conversation turns")
     timestamp: datetime = Field(..., description="When consumed")
+
+
+class TokenSummary(BaseModel):
+    """Aggregated token usage summary for a workflow.
+
+    Provides totals across all agents for high-level display,
+    plus the breakdown for detailed views.
+
+    Attributes:
+        total_input_tokens: Sum of input tokens across all agents.
+        total_output_tokens: Sum of output tokens across all agents.
+        total_cache_read_tokens: Sum of cache read tokens across all agents.
+        total_cost_usd: Sum of costs across all agents.
+        total_duration_ms: Sum of durations across all agents.
+        total_turns: Sum of turns across all agents.
+        breakdown: Per-agent TokenUsage records for detail display.
+    """
+
+    total_input_tokens: int = Field(default=0, ge=0)
+    total_output_tokens: int = Field(default=0, ge=0)
+    total_cache_read_tokens: int = Field(default=0, ge=0)
+    total_cost_usd: float = Field(default=0.0)
+    total_duration_ms: int = Field(default=0, ge=0)
+    total_turns: int = Field(default=0, ge=0)
+    breakdown: list[TokenUsage] = Field(default_factory=list)
 
 
 def calculate_token_cost(usage: TokenUsage) -> float:

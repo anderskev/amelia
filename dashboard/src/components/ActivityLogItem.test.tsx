@@ -30,9 +30,9 @@ describe('ActivityLogItem', () => {
   });
 
   it.each([
-    { agent: 'ARCHITECT', colorClass: 'text-accent' },
-    { agent: 'DEVELOPER', colorClass: 'text-primary' },
-    { agent: 'REVIEWER', colorClass: 'text-status-completed' },
+    { agent: 'ARCHITECT', colorClass: 'text-agent-architect' },
+    { agent: 'DEVELOPER', colorClass: 'text-agent-developer' },
+    { agent: 'REVIEWER', colorClass: 'text-agent-reviewer' },
     { agent: 'SYSTEM', colorClass: 'text-muted-foreground' },
   ])('applies $colorClass for $agent', ({ agent, colorClass }) => {
     const event = createMockEvent({ ...mockEvent, agent });
