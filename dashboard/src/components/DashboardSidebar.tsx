@@ -31,6 +31,7 @@ import {
   FlaskConical,
   Gauge,
   Coins,
+  Settings,
 } from 'lucide-react';
 import { APP_VERSION } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -265,6 +266,22 @@ export function DashboardSidebar() {
                 icon={Coins}
                 label="Costs"
                 comingSoon
+              />
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Configure Section - Settings and configuration */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs font-heading text-muted-foreground/60 font-semibold tracking-wider">
+            CONFIGURE
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarNavLink
+                to="/settings"
+                icon={Settings}
+                label="Settings"
               />
             </SidebarMenu>
           </SidebarGroupContent>

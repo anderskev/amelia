@@ -6,6 +6,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { RootErrorBoundary } from '@/components/ErrorBoundary';
 import { workflowsLoader, workflowDetailLoader, historyLoader } from '@/loaders/workflows';
+import { settingsLoader } from '@/loaders/settings';
 import { approveAction, rejectAction, cancelAction } from '@/actions/workflows';
 
 /**
@@ -21,6 +22,7 @@ import { approveAction, rejectAction, cancelAction } from '@/actions/workflows';
  * - `/workflows/:id/cancel` → Cancel workflow action
  * - `/history` → Completed workflows history (lazy-loaded)
  * - `/logs` → System logs view (lazy-loaded)
+ * - `/settings` → Settings page for agent prompts (lazy-loaded)
  * - `*` → Fallback redirect to `/workflows`
  *
  * All page components are lazy-loaded for optimal initial bundle size.
@@ -88,6 +90,14 @@ export const router = createBrowserRouter([
         path: 'logs',
         lazy: async () => {
           const { default: Component } = await import('@/pages/LogsPage');
+          return { Component };
+        },
+      },
+      {
+        path: 'settings',
+        loader: settingsLoader,
+        lazy: async () => {
+          const { default: Component } = await import('@/pages/SettingsPage');
           return { Component };
         },
       },
