@@ -378,6 +378,7 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
             mock_dev_class.return_value = mock_dev_instance
 
             mock_driver = MagicMock()
+            mock_driver.model = "sonnet"  # Driver has model attribute
             mock_driver.last_result_message = partial_result
             mock_factory.get_driver.return_value = mock_driver
 
@@ -389,9 +390,66 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
 
             assert saved_usage.input_tokens == 100
             assert saved_usage.output_tokens == 50
-            assert saved_usage.model == "unknown"  # Default for missing
+            assert saved_usage.model == "sonnet"  # Falls back to driver.model
             assert saved_usage.cache_read_tokens == 0  # Default
             assert saved_usage.cache_creation_tokens == 0  # Default
+
+    async def test_handles_missing_model_in_both_usage_and_driver(
+        self,
+        mock_profile_factory,
+        mock_issue_factory,
+        config_with_repository,
+    ) -> None:
+        """Should use 'unknown' when model is missing from both usage and driver."""
+        from amelia.core.orchestrator import call_developer_node
+
+        profile = config_with_repository[0]["configurable"]["profile"]
+        mock_repository = config_with_repository[1]
+        issue = mock_issue_factory()
+
+        state = ExecutionState(
+            profile_id=profile.name,
+            issue=issue,
+            goal="Test",
+            plan_markdown="# Plan",
+        )
+
+        # Create result with usage data missing model
+        partial_result = MagicMock()
+        partial_result.session_id = "session-no-model"
+        partial_result.is_error = False
+        partial_result.duration_ms = 1000
+        partial_result.num_turns = 1
+        partial_result.total_cost_usd = 0.01
+        partial_result.usage = {
+            "input_tokens": 100,
+            "output_tokens": 50,
+            # Missing model
+        }
+
+        async def mock_run(*args, **kwargs):
+            final_state = state.model_copy(update={"agentic_status": "completed"})
+            mock_event = MagicMock()
+            yield final_state, mock_event
+
+        with patch("amelia.core.orchestrator.Developer") as mock_dev_class, \
+             patch("amelia.core.orchestrator.DriverFactory") as mock_factory:
+            mock_dev_instance = MagicMock()
+            mock_dev_instance.run = mock_run
+            mock_dev_class.return_value = mock_dev_instance
+
+            # Driver without model attribute (using spec to limit attributes)
+            mock_driver = MagicMock(spec=["last_result_message", "generate"])
+            mock_driver.last_result_message = partial_result
+            mock_factory.get_driver.return_value = mock_driver
+
+            await call_developer_node(state, config_with_repository[0])
+
+            # Should save with "unknown" as last-resort default
+            mock_repository.save_token_usage.assert_called_once()
+            saved_usage = mock_repository.save_token_usage.call_args[0][0]
+
+            assert saved_usage.model == "unknown"  # Final fallback
 
     async def test_handles_repository_save_error_gracefully(
         self,

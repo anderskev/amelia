@@ -93,7 +93,7 @@ async def _save_token_usage(
         usage = TokenUsage(
             workflow_id=workflow_id,
             agent=agent,
-            model=usage_data.get("model", "unknown"),
+            model=usage_data.get("model") or getattr(driver, "model", "unknown"),
             input_tokens=usage_data["input_tokens"],
             output_tokens=usage_data["output_tokens"],
             cache_read_tokens=usage_data.get("cache_read_input_tokens", 0),
