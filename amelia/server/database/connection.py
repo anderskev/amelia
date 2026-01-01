@@ -381,7 +381,7 @@ class Database:
         Creates prompt entries for each default if they don't exist.
         Call this after ensure_schema().
         """
-        from amelia.agents.prompts.defaults import PROMPT_DEFAULTS
+        from amelia.agents.prompts.defaults import PROMPT_DEFAULTS  # noqa: PLC0415
 
         for prompt_id, default in PROMPT_DEFAULTS.items():
             existing = await self.fetch_one(
