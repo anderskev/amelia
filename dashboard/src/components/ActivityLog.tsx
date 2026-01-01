@@ -7,6 +7,7 @@ import { ActivityLogItem } from '@/components/ActivityLogItem';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useStreamStore } from '@/store/stream-store';
 import { cn, formatTime } from '@/lib/utils';
+import { AGENT_STYLES } from '@/lib/constants';
 import type { WorkflowEvent, StreamEvent } from '@/types';
 
 /**
@@ -28,16 +29,6 @@ type LogEntry =
   | { kind: 'workflow'; event: WorkflowEvent }
   | { kind: 'stream'; event: StreamEvent };
 
-/** Style mapping for different agent types. */
-const agentStyles: Record<string, { text: string; bg: string }> = {
-  PM: { text: 'text-agent-pm', bg: 'bg-agent-pm-bg' },
-  ORCHESTRATOR: { text: 'text-muted-foreground', bg: '' },
-  ARCHITECT: { text: 'text-agent-architect', bg: 'bg-agent-architect-bg' },
-  DEVELOPER: { text: 'text-agent-developer', bg: 'bg-agent-developer-bg' },
-  REVIEWER: { text: 'text-agent-reviewer', bg: 'bg-agent-reviewer-bg' },
-  SYSTEM: { text: 'text-muted-foreground', bg: '' },
-};
-
 /**
  * Component to render stream events in the activity log.
  * Displays stream events with a distinctive visual style to differentiate from workflow events.
@@ -47,7 +38,7 @@ const agentStyles: Record<string, { text: string; bg: string }> = {
  */
 function StreamLogEntry({ event }: { event: StreamEvent }) {
   const agentKey = event.agent.toUpperCase();
-  const style = agentStyles[agentKey] ?? { text: 'text-muted-foreground', bg: '' };
+  const style = AGENT_STYLES[agentKey] ?? { text: 'text-muted-foreground', bg: '' };
 
   return (
     <div

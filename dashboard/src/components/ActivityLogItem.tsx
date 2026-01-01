@@ -2,6 +2,7 @@
  * @fileoverview Individual log entry in the activity log.
  */
 import { cn, formatTime } from '@/lib/utils';
+import { AGENT_STYLES } from '@/lib/constants';
 import type { WorkflowEvent } from '@/types';
 
 /**
@@ -11,16 +12,6 @@ import type { WorkflowEvent } from '@/types';
 interface ActivityLogItemProps {
   event: WorkflowEvent;
 }
-
-/** Style mapping for different agent types in the log. */
-const agentStyles: Record<string, { text: string; bg: string }> = {
-  PM: { text: 'text-agent-pm', bg: 'bg-agent-pm-bg' },
-  ORCHESTRATOR: { text: 'text-muted-foreground', bg: '' },
-  ARCHITECT: { text: 'text-agent-architect', bg: 'bg-agent-architect-bg' },
-  DEVELOPER: { text: 'text-agent-developer', bg: 'bg-agent-developer-bg' },
-  REVIEWER: { text: 'text-agent-reviewer', bg: 'bg-agent-reviewer-bg' },
-  SYSTEM: { text: 'text-muted-foreground', bg: '' },
-};
 
 /**
  * Renders a single event entry in the activity log.
@@ -32,7 +23,7 @@ const agentStyles: Record<string, { text: string; bg: string }> = {
  * @returns The log item UI
  */
 export function ActivityLogItem({ event }: ActivityLogItemProps) {
-  const agentStyle = agentStyles[event.agent.toUpperCase()] || {
+  const agentStyle = AGENT_STYLES[event.agent.toUpperCase()] || {
     text: 'text-muted-foreground',
     bg: '',
   };
