@@ -169,7 +169,7 @@ class OrchestratorService:
         from amelia.server.database.prompt_repository import PromptRepository  # noqa: PLC0415
 
         try:
-            prompt_repo = PromptRepository(self._repository._db)
+            prompt_repo = PromptRepository(self._repository.db)
             resolver = PromptResolver(prompt_repo)
             resolved_prompts = await resolver.get_all_active()
             prompts = {pid: rp.content for pid, rp in resolved_prompts.items()}

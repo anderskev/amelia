@@ -31,7 +31,10 @@ def get_prompt_repository() -> "PromptRepository":
     Raises:
         NotImplementedError: Always, as this must be overridden.
     """
-    raise NotImplementedError("Must be overridden")
+    raise NotImplementedError(
+        "Prompt repository dependency not configured. "
+        "Ensure the app has overridden this dependency."
+    )
 
 
 # Request/Response models
