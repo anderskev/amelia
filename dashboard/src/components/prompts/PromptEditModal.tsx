@@ -294,6 +294,7 @@ export function PromptEditModal({
                 {/* Change note - streamlined without redundant label */}
                 <Input
                   id="change-note"
+                  aria-label="Change note"
                   value={changeNote}
                   onChange={(e) => setChangeNote(e.target.value)}
                   placeholder="Change note (optional)"
@@ -329,6 +330,7 @@ export function PromptEditModal({
           <Button
             onClick={handleSave}
             disabled={isLoading || isSaving || !hasChanges || !content.trim()}
+            aria-busy={isSaving}
             className={cn(
               'text-white shadow-lg',
               accentStyle.button,
