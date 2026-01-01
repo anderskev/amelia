@@ -13,7 +13,7 @@ class TestStageNodesConstant:
 
     def test_stage_nodes_contains_expected_nodes(self):
         """STAGE_NODES contains all workflow stage nodes."""
-        expected = {"architect_node", "human_approval_node", "developer_node", "reviewer_node"}
+        expected = {"architect_node", "human_approval_node", "developer_node", "reviewer_node", "evaluation_node"}
         assert expected == STAGE_NODES
 
     def test_stage_nodes_is_frozenset(self):
