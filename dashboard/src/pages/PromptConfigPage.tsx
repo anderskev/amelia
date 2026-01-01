@@ -6,7 +6,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useLoaderData, useRevalidator } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
-import { PromptCard, PromptEditModal } from '@/components/settings';
+import { PromptCard, PromptEditModal } from '@/components/prompts';
 import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
@@ -20,8 +20,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { api } from '@/api/client';
 import { success, error as showError } from '@/components/Toast';
-import { groupPromptsByAgent } from '@/loaders/settings';
-import type { settingsLoader } from '@/loaders/settings';
+import { groupPromptsByAgent } from '@/loaders/prompts';
+import type { promptsLoader } from '@/loaders/prompts';
 
 /** Agent display names for section headers. */
 const AGENT_LABELS: Record<string, string> = {
@@ -46,7 +46,7 @@ const AGENT_ORDER = ['architect', 'developer', 'reviewer', 'evaluator'];
  * @returns The settings page component.
  */
 export default function SettingsPage() {
-  const { prompts } = useLoaderData<typeof settingsLoader>();
+  const { prompts } = useLoaderData<typeof promptsLoader>();
   const revalidator = useRevalidator();
 
   // Edit modal state
@@ -152,7 +152,7 @@ export default function SettingsPage() {
               {AGENT_LABELS[agent] || agent}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {groupedPrompts[agent].map((prompt) => (
+              {groupedPrompts[agent]?.map((prompt) => (
                 <PromptCard
                   key={prompt.id}
                   prompt={prompt}

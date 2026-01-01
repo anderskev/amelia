@@ -1,3 +1,3 @@
 export { workflowsLoader, workflowDetailLoader, historyLoader } from './workflows';
-export { settingsLoader, groupPromptsByAgent } from './settings';
-export type { SettingsLoaderData } from './settings';
+export { promptsLoader, groupPromptsByAgent } from './prompts';
+export type { PromptsLoaderData } from './prompts';

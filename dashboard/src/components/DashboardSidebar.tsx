@@ -28,7 +28,7 @@ import {
   Zap,
   Library,
   Target,
-  FlaskConical,
+  MessageSquare,
   Gauge,
   Coins,
   Settings,
@@ -225,23 +225,22 @@ export function DashboardSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Improve Section - Agent benchmarking and optimization */}
+        {/* Agent Ops Section - Agent benchmarking and optimization */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-heading text-muted-foreground/60 font-semibold tracking-wider">
-            IMPROVE
+            AGENT OPS
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarNavLink
+                to="/prompts"
+                icon={MessageSquare}
+                label="Agent Prompts"
+              />
+              <SidebarNavLink
                 to="/benchmarks"
                 icon={Target}
                 label="Benchmarks"
-                comingSoon
-              />
-              <SidebarNavLink
-                to="/experiments"
-                icon={FlaskConical}
-                label="Experiments"
                 comingSoon
               />
             </SidebarMenu>
@@ -282,6 +281,7 @@ export function DashboardSidebar() {
                 to="/settings"
                 icon={Settings}
                 label="Settings"
+                comingSoon
               />
             </SidebarMenu>
           </SidebarGroupContent>

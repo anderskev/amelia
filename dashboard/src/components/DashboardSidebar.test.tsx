@@ -53,8 +53,9 @@ describe('DashboardSidebar', () => {
     renderSidebar();
     expect(screen.getByText('WORKFLOWS')).toBeInTheDocument();
     expect(screen.getByText('TOOLS')).toBeInTheDocument();
-    expect(screen.getByText('IMPROVE')).toBeInTheDocument();
+    expect(screen.getByText('AGENT OPS')).toBeInTheDocument();
     expect(screen.getByText('USAGE')).toBeInTheDocument();
+    expect(screen.getByText('CONFIGURE')).toBeInTheDocument();
   });
 
   it('shows connected status when WebSocket is connected', () => {

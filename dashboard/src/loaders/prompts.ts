@@ -1,21 +1,21 @@
 /**
- * @fileoverview Loader for the settings page.
+ * @fileoverview Loader for the prompts page.
  *
- * Fetches all prompts from the API for display in the settings page.
+ * Fetches all prompts from the API for display in the prompts page.
  */
 import { api } from '@/api/client';
 import type { PromptSummary } from '@/types';
 
 /**
- * Data returned by the settings loader.
+ * Data returned by the prompts loader.
  */
-export interface SettingsLoaderData {
+export interface PromptsLoaderData {
   /** Array of prompt summaries grouped by agent. */
   prompts: PromptSummary[];
 }
 
 /**
- * Loader for the settings page.
+ * Loader for the prompts page.
  * Fetches all prompts from the API.
  *
  * @returns Object containing the list of prompts.
@@ -23,11 +23,11 @@ export interface SettingsLoaderData {
  *
  * @example
  * ```typescript
- * const { prompts } = await settingsLoader();
+ * const { prompts } = await promptsLoader();
  * const grouped = groupPromptsByAgent(prompts);
  * ```
  */
-export async function settingsLoader(): Promise<SettingsLoaderData> {
+export async function promptsLoader(): Promise<PromptsLoaderData> {
   const prompts = await api.getPrompts();
   return { prompts };
 }
