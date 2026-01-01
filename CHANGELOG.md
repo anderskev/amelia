@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-01
+
+### Added
+
+- **tokens:** Add comprehensive token usage tracking with per-agent cost breakdown in dashboard ([#178](https://github.com/existential-birds/amelia/pull/178))
+  - Track token consumption, cost, and duration from CLI driver executions
+  - New UsageCard dashboard component with per-agent breakdown (model, input/output tokens, cost, time)
+  - SQLite persistence layer for token usage data
+  - Workflow API responses now include `token_summary` field
+  - History and workflow list pages display duration, tokens, and cost metrics
+
 ## [0.2.2] - 2025-12-31
 
 ### Added
@@ -118,7 +129,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FastAPI server with WebSocket support
 - React dashboard for workflow visualization
 
-[Unreleased]: https://github.com/existential-birds/amelia/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/existential-birds/amelia/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/existential-birds/amelia/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/existential-birds/amelia/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/existential-birds/amelia/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/existential-birds/amelia/compare/v0.0.1...v0.2.0
