@@ -56,6 +56,7 @@ Compare model performance and track token usage across runs.
 - **Python 3.12+** - Required for type hints and async features
 - **uv** - Fast Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
 - **Git** - For version control operations
+- **Beagle plugin** - Claude Code plugin with Amelia skills ([install guide](https://github.com/existential-birds/beagle?tab=readme-ov-file#installation))
 - **LLM access** - Either:
   - OpenRouter API key (for `api:openrouter` driver)
   - Claude CLI installed (for `cli:claude` driver)
@@ -63,6 +64,9 @@ Compare model performance and track token usage across runs.
 ## Quick Start
 
 ### 1. Install Prerequisites
+
+> [!IMPORTANT]
+> You must install the [Beagle plugin](https://github.com/existential-birds/beagle?tab=readme-ov-file#installation) for Claude Code before using Amelia. It provides the skills and commands needed to work with Amelia workflows.
 
 ```bash
 # Install uv (Linux/macOS)
