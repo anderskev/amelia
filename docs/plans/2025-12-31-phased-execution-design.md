@@ -35,17 +35,24 @@ Phased execution with context isolation. The Architect decomposes work into subt
 | Review timing | After each phase | Catches issues at natural sync points |
 | Review rejection | Retry phase once | Fresh context + feedback; halt after 2 failures |
 | Commit strategy | One commit per phase | Enables clean retry; subtasks work on uncommitted changes |
+| TDD enforcement | Test-first subtasks | Tests written before implementation; Architect structures dependencies accordingly |
 
 ## Architecture
 
 ### Architect Plan Format
 
 ```python
+class SubtaskType(str, Enum):
+    TEST = "test"                # Write tests (red phase)
+    IMPL = "impl"                # Write implementation (green phase)
+    REFACTOR = "refactor"        # Refactor (optional cleanup)
+
 @dataclass
 class Subtask:
-    id: str                      # e.g., "1", "2a", "2b"
+    id: str                      # e.g., "1a", "1b", "2a"
     title: str                   # Human-readable name
     description: str             # What this subtask accomplishes
+    type: SubtaskType            # test, impl, or refactor
     depends_on: list[str]        # Subtask IDs that must complete first
     files_touched: list[str]     # Expected files (for conflict detection)
 
@@ -58,14 +65,80 @@ class PhasedPlanOutput:
                                  # e.g., [["1"], ["2a", "2b", "2c"], ["3"]]
 ```
 
-Example:
+Example (TDD ordering - tests before implementation):
 ```
 Subtasks:
-  1.  "Create User and Post models" → depends: []      → phase 1
-  2a. "Create REST API endpoints"   → depends: [1]     → phase 2
-  2b. "Create CLI commands"         → depends: [1]     → phase 2
-  2c. "Add model unit tests"        → depends: [1]     → phase 2
-  3.  "Add integration tests"       → depends: [2a,2b] → phase 3
+  1a. "Write User model tests"       → type: test → depends: []    → phase 1
+  1b. "Write Post model tests"       → type: test → depends: []    → phase 1
+  2a. "Implement User model"         → type: impl → depends: [1a]  → phase 2
+  2b. "Implement Post model"         → type: impl → depends: [1b]  → phase 2
+  3a. "Write API endpoint tests"     → type: test → depends: [2a,2b] → phase 3
+  3b. "Write CLI command tests"      → type: test → depends: [2a,2b] → phase 3
+  4a. "Implement API endpoints"      → type: impl → depends: [3a]  → phase 4
+  4b. "Implement CLI commands"       → type: impl → depends: [3b]  → phase 4
+  5.  "Write integration tests"      → type: test → depends: [4a,4b] → phase 5
+```
+
+The Architect ensures each implementation subtask depends on its corresponding test subtask, enforcing the red-green TDD cycle at the task decomposition level.
+
+### TDD Workflow
+
+The phased execution model naturally supports TDD by structuring dependencies so tests run before implementation:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         TDD Flow per Feature                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Phase N:   Write tests (RED)                                           │
+│             └── Tests exist but fail (no implementation yet)            │
+│                                                                         │
+│  Phase N+1: Write implementation (GREEN)                                │
+│             └── Minimal code to make tests pass                         │
+│                                                                         │
+│  Phase N+2: Refactor (optional)                                         │
+│             └── Clean up while keeping tests green                      │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Architect prompt guidance** for TDD decomposition:
+
+```
+When decomposing tasks into subtasks:
+1. For each new feature/component, create a TEST subtask first
+2. Create an IMPL subtask that depends on the TEST subtask
+3. Tests should be written to fail initially (red phase)
+4. Implementation should be minimal to pass tests (green phase)
+5. Optional REFACTOR subtasks can follow implementation
+
+Example pattern:
+  "Write X tests" (type: test) → "Implement X" (type: impl) → "Refactor X" (type: refactor)
+```
+
+**Test subtask expectations**:
+- Test subtask runs, writes tests, tests fail (expected - no impl yet)
+- Subtask succeeds if tests are syntactically valid and would test the right behavior
+- The Reviewer checks test quality, not test passage
+
+**Impl subtask expectations**:
+- Implementation subtask runs, writes code to pass tests
+- Tests from prior phase should now pass
+- The Reviewer checks both implementation quality and test passage
+
+**Validation rule**: The phase executor validates that every `impl` subtask has at least one `test` subtask in its dependency chain. This catches Architect plans that skip the test-first discipline.
+
+```python
+def validate_tdd_ordering(subtasks: list[Subtask]) -> None:
+    """Ensure every impl subtask depends on a test subtask."""
+    subtask_map = {s.id: s for s in subtasks}
+
+    for subtask in subtasks:
+        if subtask.type == SubtaskType.IMPL:
+            # Walk dependency chain looking for a test
+            if not has_test_dependency(subtask, subtask_map):
+                raise TDDViolationError(
+                    f"Impl subtask '{subtask.id}' has no test dependency. "
+                    "TDD requires tests before implementation."
+                )
 ```
 
 ### Execution Flow
@@ -239,12 +312,15 @@ class StreamEventType(str, Enum):
 
 Dashboard display:
 ```
-Phase 1: ✓ Create models
-Phase 2: ● Running (2/3 subtasks complete)
-  ├── ✓ API endpoints
-  ├── ✓ CLI commands
-  └── ● Unit tests (running)
-Phase 3: ○ Pending
+Phase 1 (test): ✓ Write model tests
+  ├── ✓ [test] User model tests
+  └── ✓ [test] Post model tests
+Phase 2 (impl): ● Running (1/2 subtasks complete)
+  ├── ✓ [impl] User model
+  └── ● [impl] Post model (running)
+Phase 3 (test): ○ Pending - Write API tests
+Phase 4 (impl): ○ Pending - Implement APIs
+Phase 5 (test): ○ Pending - Integration tests
 ```
 
 ## Implementation Plan
@@ -253,22 +329,23 @@ Phase 3: ○ Pending
 
 | File | Changes |
 |------|---------|
-| `amelia/agents/architect.py` | Add `PhasedPlanOutput` model, update prompt to generate subtasks with dependencies |
+| `amelia/agents/architect.py` | Add `PhasedPlanOutput` model, update prompt to generate TDD-ordered subtasks with dependencies |
 | `amelia/agents/developer.py` | Add `run_phased()` method alongside existing `run()`, subtask spawning logic |
 | `amelia/core/state.py` | Add `PhaseState`, `SubtaskState`, extend `ExecutionState` |
-| `amelia/core/types.py` | Add new `StreamEventType` variants for phase/subtask events |
+| `amelia/core/types.py` | Add `SubtaskType` enum, new `StreamEventType` variants for phase/subtask events |
 | `amelia/core/orchestrator.py` | Update `call_developer_node` to detect phased plans and dispatch accordingly |
 
 ### New Module
 
 ```
 amelia/core/phased_executor.py
-├── run_phase()           # Execute all subtasks in a phase + commit
-├── run_subtask()         # Single subtask with fresh driver (no commit)
-├── commit_phase()        # Create single commit for phase changes
-├── review_phase()        # Review phase changes against pre_commit
-├── run_phase_with_retry() # Retry logic with git reset on failure
-└── execute_phased_plan() # Top-level orchestrator
+├── validate_tdd_ordering() # Ensure impl subtasks depend on test subtasks
+├── run_phase()             # Execute all subtasks in a phase + commit
+├── run_subtask()           # Single subtask with fresh driver (no commit)
+├── commit_phase()          # Create single commit for phase changes
+├── review_phase()          # Review phase changes against pre_commit
+├── run_phase_with_retry()  # Retry logic with git reset on failure
+└── execute_phased_plan()   # Top-level orchestrator (calls validate first)
 ```
 
 ### Backward Compatibility
