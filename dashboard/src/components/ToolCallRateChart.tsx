@@ -82,8 +82,8 @@ function transformToChartData(toolCalls: ToolCall[]): ChartDataPoint[] {
     return [];
   }
 
-  // Get the start time (first call)
-  const startTime = new Date(validCalls[0].timestamp).getTime();
+  // Safe: we just checked validCalls.length > 0
+  const startTime = new Date(validCalls[0]!.timestamp).getTime();
 
   // Track cumulative counts per agent
   const cumulativeCounts: Record<AgentKey, number> = {
@@ -123,7 +123,8 @@ function transformToChartData(toolCalls: ToolCall[]): ChartDataPoint[] {
 function getActiveAgents(data: ChartDataPoint[]): AgentKey[] {
   if (data.length === 0) return [];
 
-  const lastPoint = data[data.length - 1];
+  // Safe: we just checked data.length > 0
+  const lastPoint = data[data.length - 1]!;
   const agents: AgentKey[] = ['pm', 'architect', 'developer', 'reviewer'];
 
   return agents.filter((agent) => lastPoint[agent] > 0);

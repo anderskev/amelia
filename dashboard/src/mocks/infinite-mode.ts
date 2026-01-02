@@ -1119,5 +1119,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
     goal: executionPlan?.goal ?? null,
     plan_markdown: executionPlan ? planToMarkdown(executionPlan) : null,
     plan_path: executionPlan ? `/docs/plans/${summary.issue_id.toLowerCase()}-plan.md` : null,
+    // Tool call history
+    tool_calls: [],
+    tool_results: [],
   };
 }

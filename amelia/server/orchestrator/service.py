@@ -832,6 +832,8 @@ class OrchestratorService:
                     # Note: A separate COMPLETED emission exists in approve_workflow() for
                     # workflows that resume after human approval. These are mutually exclusive
                     # code paths - only one COMPLETED event is ever emitted per workflow.
+                    # Sync final state (including tool_calls) from checkpoint before completing
+                    await self._sync_plan_from_checkpoint(workflow_id, graph, config)
                     await self._emit(
                         workflow_id,
                         EventType.WORKFLOW_COMPLETED,
@@ -1252,6 +1254,8 @@ class OrchestratorService:
                     # Note: A separate COMPLETED emission exists in _run_workflow() for
                     # workflows that complete without interruption. These are mutually exclusive
                     # code paths - only one COMPLETED event is ever emitted per workflow.
+                    # Sync final state (including tool_calls) from checkpoint before completing
+                    await self._sync_plan_from_checkpoint(workflow_id, graph, config)
                     await self._emit(
                         workflow_id,
                         EventType.WORKFLOW_COMPLETED,
@@ -1672,30 +1676,34 @@ class OrchestratorService:
                 )
                 return
 
-            # Check for goal and plan_markdown from agentic execution
+            # Check for goal, plan_markdown, and tool_calls from agentic execution
             goal = checkpoint_state.values.get("goal")
             plan_markdown = checkpoint_state.values.get("plan_markdown")
-            if goal is None and plan_markdown is None:
-                logger.debug("No goal or plan_markdown in checkpoint yet", workflow_id=workflow_id)
-                return
+            tool_calls = checkpoint_state.values.get("tool_calls")
+            tool_results = checkpoint_state.values.get("tool_results")
 
             # Fetch ServerExecutionState
             state = await self._repository.get(workflow_id)
             if state is None or state.execution_state is None:
                 logger.warning(
-                    "Cannot sync plan - workflow or execution_state not found",
+                    "Cannot sync state - workflow or execution_state not found",
                     workflow_id=workflow_id,
                 )
                 return
 
-            # Build update dict with goal and plan_markdown
+            # Build update dict with all syncable fields
             update_dict: dict[str, Any] = {}
             if goal is not None:
                 update_dict["goal"] = goal
             if plan_markdown is not None:
                 update_dict["plan_markdown"] = plan_markdown
+            if tool_calls is not None and len(tool_calls) > 0:
+                update_dict["tool_calls"] = list(tool_calls)
+            if tool_results is not None and len(tool_results) > 0:
+                update_dict["tool_results"] = list(tool_results)
 
             if not update_dict:
+                logger.debug("No syncable fields in checkpoint", workflow_id=workflow_id)
                 return
 
             # Update the execution_state with synced fields
@@ -1704,7 +1712,12 @@ class OrchestratorService:
 
             # Save back to repository
             await self._repository.update(state)
-            logger.debug("Synced plan to ServerExecutionState", workflow_id=workflow_id)
+            logger.debug(
+                "Synced state from checkpoint",
+                workflow_id=workflow_id,
+                synced_fields=list(update_dict.keys()),
+                tool_calls_count=len(update_dict.get("tool_calls", [])),
+            )
 
         except Exception as e:
             # Log but don't fail the workflow - plan sync is best-effort

@@ -11,7 +11,7 @@ from langchain_core.runnables.config import RunnableConfig
 from pydantic import ValidationError
 
 from amelia.core.state import ExecutionState
-from amelia.core.types import Settings
+from amelia.core.types import Profile, Settings
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.exceptions import (
@@ -984,6 +984,69 @@ class TestSyncPlanFromCheckpoint:
         assert updated_state.execution_state.goal == "Test goal"
         assert updated_state.execution_state.plan_markdown == "# Test Plan"
 
+    async def test_sync_tool_calls_from_checkpoint(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+    ) -> None:
+        """_sync_plan_from_checkpoint should sync tool_calls from checkpoint to state."""
+        from amelia.core.agentic_state import ToolCall
+
+        # Create mock ServerExecutionState with execution_state
+        mock_state = ServerExecutionState(
+            id="wf-sync-tools",
+            issue_id="TEST-456",
+            worktree_path="/test/path",
+            worktree_name="feat-456",
+            workflow_status="in_progress",
+            started_at=datetime.now(UTC),
+            execution_state=ExecutionState(profile_id="test-profile"),
+        )
+        mock_repository.get.return_value = mock_state
+
+        # Create mock tool calls in checkpoint
+        tool_calls = [
+            ToolCall(
+                id="call-0",
+                tool_name="bash",
+                tool_input={"command": "echo hello"},
+                timestamp="2025-01-01T00:00:00Z",
+                agent="developer",
+            ),
+            ToolCall(
+                id="call-1",
+                tool_name="read_file",
+                tool_input={"path": "/test.py"},
+                timestamp="2025-01-01T00:00:01Z",
+                agent="developer",
+            ),
+        ]
+
+        # Create mock graph with checkpoint containing tool_calls
+        mock_graph = MagicMock()
+        checkpoint_values = {
+            "goal": "Test goal",
+            "tool_calls": tool_calls,
+        }
+        mock_graph.aget_state = AsyncMock(
+            return_value=MagicMock(values=checkpoint_values)
+        )
+
+        config: RunnableConfig = {"configurable": {"thread_id": "wf-sync-tools"}}
+
+        # Call _sync_plan_from_checkpoint
+        await orchestrator._sync_plan_from_checkpoint("wf-sync-tools", mock_graph, config)
+
+        # Verify repository.update was called
+        mock_repository.update.assert_called_once()
+
+        # Verify the updated state has the tool_calls
+        updated_state = mock_repository.update.call_args[0][0]
+        assert len(updated_state.execution_state.tool_calls) == 2
+        assert updated_state.execution_state.tool_calls[0].tool_name == "bash"
+        assert updated_state.execution_state.tool_calls[1].tool_name == "read_file"
+        assert updated_state.execution_state.tool_calls[0].agent == "developer"
+
     async def test_sync_plan_no_checkpoint_state(
         self,
         orchestrator: OrchestratorService,
@@ -1002,24 +1065,31 @@ class TestSyncPlanFromCheckpoint:
         mock_repository.get.assert_not_called()
         mock_repository.update.assert_not_called()
 
-    async def test_sync_plan_no_goal_or_plan_in_checkpoint(
+    async def test_sync_plan_no_syncable_fields_in_checkpoint(
         self,
         orchestrator: OrchestratorService,
         mock_repository: AsyncMock,
     ) -> None:
-        """_sync_plan_from_checkpoint should return early if no goal/plan_markdown in checkpoint."""
+        """_sync_plan_from_checkpoint should skip update if no syncable fields in checkpoint."""
         mock_graph = MagicMock()
         mock_graph.aget_state = AsyncMock(
             return_value=MagicMock(values={"some_other_key": "value"})
         )
+
+        # Repository returns a workflow but there's nothing to sync
+        mock_execution_state = MagicMock()
+        mock_state = MagicMock(execution_state=mock_execution_state)
+        mock_repository.get.return_value = mock_state
 
         config: RunnableConfig = {"configurable": {"thread_id": "wf-no-plan"}}
 
         # Should not raise, just return early
         await orchestrator._sync_plan_from_checkpoint("wf-no-plan", mock_graph, config)
 
-        # Repository.get should not be called since we exit before that
-        mock_repository.get.assert_not_called()
+        # Repository.get is called to fetch the state
+        mock_repository.get.assert_called_once_with("wf-no-plan")
+        # But update should not be called since there's nothing to sync
+        mock_repository.update.assert_not_called()
 
     async def test_sync_plan_workflow_not_found(
         self,
