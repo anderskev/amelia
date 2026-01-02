@@ -11,7 +11,6 @@ from deepagents.backends.protocol import (  # type: ignore[import-untyped]
     ExecuteResponse,
     SandboxBackendProtocol,
 )
-from langchain.agents.structured_output import ToolStrategy
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -199,68 +198,60 @@ class ApiDriver(DriverInterface):
 
         try:
             chat_model = _create_chat_model(self.model)
-            # Use FilesystemBackend for non-agentic generation - no shell execution needed
-            backend = FilesystemBackend(root_dir=self.cwd or ".")
+            effective_system_prompt = system_prompt or ""
 
-            # Configure structured output via ToolStrategy when schema is provided
-            agent_kwargs: dict[str, Any] = {
-                "model": chat_model,
-                "system_prompt": system_prompt or "",
-                "backend": backend,
-            }
+            # For structured output, bypass DeepAgents entirely and use
+            # LangChain's with_structured_output() directly. This is more
+            # reliable than ToolStrategy which can fail when models don't
+            # call the schema tool.
+            output: Any
             if schema:
-                agent_kwargs["response_format"] = ToolStrategy(schema=schema)
+                # Use with_structured_output for direct schema enforcement
+                structured_model = chat_model.with_structured_output(schema)
+                messages_list: list[Any] = []
+                if effective_system_prompt:
+                    from langchain_core.messages import SystemMessage  # noqa: PLC0415
 
-            agent = create_deep_agent(**agent_kwargs)
+                    messages_list.append(SystemMessage(content=effective_system_prompt))
+                messages_list.append(HumanMessage(content=prompt))
+
+                output = await structured_model.ainvoke(messages_list)
+                logger.debug(
+                    "Structured output completed via with_structured_output",
+                    schema=schema.__name__,
+                )
+                return (output, None)
+
+            # For non-structured generation, use DeepAgents with filesystem backend
+            backend = FilesystemBackend(root_dir=self.cwd or ".")
+            agent = create_deep_agent(
+                model=chat_model,
+                system_prompt=effective_system_prompt,
+                backend=backend,
+            )
 
             result = await agent.ainvoke({"messages": [HumanMessage(content=prompt)]})
 
-            # If schema is provided, extract from structured_response
-            output: Any
-            if schema:
-                structured_response = result.get("structured_response")
-                if structured_response is not None:
-                    output = structured_response
-                    logger.debug(
-                        "Extracted structured response via ToolStrategy",
-                        schema=schema.__name__,
-                    )
-                else:
-                    # Log diagnostic info for debugging structured output failures
-                    messages = result.get("messages", [])
-                    last_msg_type = type(messages[-1]).__name__ if messages else "None"
-                    logger.warning(
-                        "ToolStrategy did not populate structured_response",
-                        schema=schema.__name__,
-                        message_count=len(messages),
-                        last_message_type=last_msg_type,
-                    )
-                    raise RuntimeError(
-                        f"Model did not call the {schema.__name__} tool to return structured output. "
-                        f"Got {len(messages)} messages, last was {last_msg_type}. "
-                        "Ensure the model supports tool calling and the prompt instructs it to use the schema tool."
-                    )
-            else:
-                # No schema - extract text from messages
-                messages = result.get("messages", [])
-                if not messages:
-                    raise RuntimeError("No response messages from agent")
+            # Extract text from messages
+            messages = result.get("messages", [])
+            if not messages:
+                raise RuntimeError("No response messages from agent")
 
-                final_message = messages[-1]
-                if isinstance(final_message, AIMessage):
-                    content = final_message.content
-                    if isinstance(content, list):
-                        text_parts = [
-                            block.get("text", "")
-                            if isinstance(block, dict)
-                            else str(block)
-                            for block in content
-                        ]
-                        output = "".join(text_parts)
-                    else:
-                        output = str(content)
+            final_message = messages[-1]
+            if isinstance(final_message, AIMessage):
+                content = final_message.content
+                if isinstance(content, list):
+                    text_parts = [
+                        block.get("text", "")
+                        if isinstance(block, dict)
+                        else str(block)
+                        for block in content
+                    ]
+                    output = "".join(text_parts)
                 else:
-                    output = str(final_message.content)
+                    output = str(content)
+            else:
+                output = str(final_message.content)
 
             logger.debug(
                 "DeepAgents generate completed",
