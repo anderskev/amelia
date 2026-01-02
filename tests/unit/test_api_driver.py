@@ -1,10 +1,9 @@
 """Tests for DeepAgents-based ApiDriver."""
 import os
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain.agents.structured_output import ToolStrategy
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 
@@ -75,43 +74,59 @@ class TestGenerate:
         call_kwargs = mock_deepagents.create_deep_agent.call_args.kwargs
         assert call_kwargs["system_prompt"] == "You are a helpful assistant"
 
-    async def test_parses_schema_when_provided(
-        self, driver: ApiDriver, mock_deepagents: MagicMock
-    ) -> None:
-        """Should extract structured_response when schema provided."""
-        mock_deepagents.agent_result["structured_response"] = ResponseSchema(
-            message="parsed response"
+    async def test_parses_schema_when_provided(self, driver: ApiDriver) -> None:
+        """Should use with_structured_output when schema provided."""
+        mock_structured_model = MagicMock()
+        mock_structured_model.ainvoke = AsyncMock(
+            return_value=ResponseSchema(message="parsed response")
         )
 
-        result, session_id = await driver.generate(
-            prompt="test prompt",
-            schema=ResponseSchema,
-        )
+        with patch(
+            "amelia.drivers.api.deepagents._create_chat_model"
+        ) as mock_create_model:
+            mock_chat_model = MagicMock()
+            mock_chat_model.with_structured_output.return_value = mock_structured_model
+            mock_create_model.return_value = mock_chat_model
+
+            result, session_id = await driver.generate(
+                prompt="test prompt",
+                system_prompt="You are helpful.",
+                schema=ResponseSchema,
+            )
 
         assert isinstance(result, ResponseSchema)
         assert result.message == "parsed response"
         assert session_id is None
 
-        # Verify response_format was passed to create_deep_agent with correct schema
-        call_kwargs = mock_deepagents.create_deep_agent.call_args.kwargs
-        assert "response_format" in call_kwargs
-        response_format = call_kwargs["response_format"]
-        assert isinstance(response_format, ToolStrategy)
-        assert response_format.schema is ResponseSchema
+        # Verify with_structured_output was called with schema
+        mock_chat_model.with_structured_output.assert_called_once_with(ResponseSchema)
 
-    async def test_raises_on_missing_structured_output(
+        # Verify ainvoke was called with system + human messages
+        call_args = mock_structured_model.ainvoke.call_args[0][0]
+        assert len(call_args) == 2
+        assert call_args[0].content == "You are helpful."
+        assert call_args[1].content == "test prompt"
+
+    async def test_schema_bypasses_deepagents(
         self, driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
-        """Should raise RuntimeError when schema provided but no structured_response returned."""
-        # structured_response is not set in agent_result (defaults to None)
-        mock_deepagents.agent_result["messages"] = [
-            AIMessage(content="some response"),
-        ]
+        """Should NOT use DeepAgents when schema is provided."""
+        mock_structured_model = MagicMock()
+        mock_structured_model.ainvoke = AsyncMock(
+            return_value=ResponseSchema(message="response")
+        )
 
-        with pytest.raises(
-            RuntimeError, match="Model did not call the ResponseSchema tool"
-        ):
+        with patch(
+            "amelia.drivers.api.deepagents._create_chat_model"
+        ) as mock_create_model:
+            mock_chat_model = MagicMock()
+            mock_chat_model.with_structured_output.return_value = mock_structured_model
+            mock_create_model.return_value = mock_chat_model
+
             await driver.generate(prompt="test", schema=ResponseSchema)
+
+        # DeepAgents should NOT be called when schema is used
+        mock_deepagents.create_deep_agent.assert_not_called()
 
     async def test_handles_list_content_blocks(
         self, driver: ApiDriver, mock_deepagents: MagicMock

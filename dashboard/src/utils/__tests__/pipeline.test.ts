@@ -25,6 +25,8 @@ function createWorkflowDetail(
     goal: 'Test goal',
     plan_markdown: null,
     plan_path: null,
+    tool_calls: [],
+    tool_results: [],
   };
 }
 

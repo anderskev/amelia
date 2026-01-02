@@ -44,6 +44,9 @@ const mockWorkflowDetail: WorkflowDetail = {
   goal: null,
   plan_markdown: null,
   plan_path: null,
+  // Tool call history
+  tool_calls: [],
+  tool_results: [],
 };
 
 const mockPipeline = {
@@ -80,6 +83,9 @@ const mockSecondWorkflowDetail: WorkflowDetail = {
   goal: 'Fix the login bug',
   plan_markdown: '## Plan\n\n1. Identify the issue\n2. Fix the bug',
   plan_path: null,
+  // Tool call history
+  tool_calls: [],
+  tool_results: [],
 };
 
 /**
