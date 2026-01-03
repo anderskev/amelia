@@ -22,7 +22,7 @@ from loguru import logger
 from pydantic import BaseModel, ValidationError
 
 from amelia.core.types import StreamEvent, StreamEventType
-from amelia.drivers.base import GenerateResult
+from amelia.drivers.base import AgenticMessage, AgenticMessageType, GenerateResult
 from amelia.logging import log_claude_result
 
 
@@ -434,7 +434,7 @@ class ClaudeCliDriver:
         session_id: str | None = None,
         instructions: str | None = None,
         schema: type[BaseModel] | None = None,
-    ) -> AsyncIterator[Message]:
+    ) -> AsyncIterator[AgenticMessage]:
         """Execute prompt with full autonomous tool access using ClaudeSDKClient.
 
         Uses the claude-agent-sdk ClaudeSDKClient for agentic execution, which
@@ -449,7 +449,7 @@ class ClaudeCliDriver:
                 the agent's final response will be constrained to match this schema.
 
         Yields:
-            claude_agent_sdk.types.Message objects including tool executions.
+            AgenticMessage for each event (thinking, tool_call, tool_result, result).
         """
         options = self._build_options(
             cwd=cwd,
@@ -460,6 +460,8 @@ class ClaudeCliDriver:
         )
 
         logger.info(f"Starting agentic execution in {cwd}")
+
+        last_tool_name: str | None = None  # Track for tool_result messages
 
         try:
             async with ClaudeSDKClient(options=options) as client:
@@ -472,17 +474,41 @@ class ClaudeCliDriver:
                     if isinstance(message, SDKStreamEvent):
                         continue
 
-                    # Track tool calls in history
                     if isinstance(message, AssistantMessage):
                         for block in message.content:
-                            if isinstance(block, ToolUseBlock):
+                            if isinstance(block, TextBlock):
+                                yield AgenticMessage(
+                                    type=AgenticMessageType.THINKING,
+                                    content=block.text,
+                                )
+                            elif isinstance(block, ToolUseBlock):
+                                # Track tool calls in history
                                 self.tool_call_history.append(block)
+                                last_tool_name = block.name
+                                yield AgenticMessage(
+                                    type=AgenticMessageType.TOOL_CALL,
+                                    tool_name=block.name,
+                                    tool_input=block.input,
+                                    tool_call_id=block.id,
+                                )
+                            elif isinstance(block, ToolResultBlock):
+                                content = block.content if isinstance(block.content, str) else str(block.content)
+                                yield AgenticMessage(
+                                    type=AgenticMessageType.TOOL_RESULT,
+                                    tool_name=last_tool_name,
+                                    tool_output=content,
+                                    is_error=block.is_error or False,
+                                )
 
-                    # Store ResultMessage for token usage extraction
-                    if isinstance(message, ResultMessage):
+                    elif isinstance(message, ResultMessage):
+                        # Store ResultMessage for token usage extraction
                         self.last_result_message = message
-
-                    yield message
+                        yield AgenticMessage(
+                            type=AgenticMessageType.RESULT,
+                            content=message.result,
+                            session_id=message.session_id,
+                            is_error=message.is_error,
+                        )
 
         except Exception as e:
             logger.error(f"Error in agentic execution: {e}")

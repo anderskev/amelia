@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import BaseModel
 
+from amelia.drivers.base import AgenticMessage, AgenticMessageType
 from amelia.drivers.cli.claude import (
     ClaudeCliDriver,
     _is_clarification_request,
@@ -744,3 +745,113 @@ class TestBuildOptions:
         options = driver._build_options()
 
         assert options.disallowed_tools == ["Bash"]
+
+
+class TestExecuteAgenticYieldsAgenticMessage:
+    """Test execute_agentic() yields AgenticMessage types."""
+
+    async def test_yields_thinking_for_text_block(self, driver: ClaudeCliDriver) -> None:
+        """TextBlock in AssistantMessage should yield THINKING AgenticMessage."""
+        messages = [
+            MockAssistantMessage([MockTextBlock("Let me analyze this...")]),
+            MockResultMessage(result="Done", session_id="sess_123"),
+        ]
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
+        ):
+            results = [msg async for msg in driver.execute_agentic("test", "/tmp")]
+
+        # Find the thinking message
+        thinking_msgs = [m for m in results if m.type == AgenticMessageType.THINKING]
+        assert len(thinking_msgs) == 1
+        assert thinking_msgs[0].content == "Let me analyze this..."
+        assert isinstance(thinking_msgs[0], AgenticMessage)
+
+    async def test_yields_tool_call_for_tool_use_block(self, driver: ClaudeCliDriver) -> None:
+        """ToolUseBlock should yield TOOL_CALL AgenticMessage."""
+        messages = [
+            MockAssistantMessage([MockToolUseBlock("read_file", {"path": "/test.py"})]),
+            MockResultMessage(result="Done", session_id="sess_123"),
+        ]
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
+        ):
+            results = [msg async for msg in driver.execute_agentic("test", "/tmp")]
+
+        tool_calls = [m for m in results if m.type == AgenticMessageType.TOOL_CALL]
+        assert len(tool_calls) == 1
+        assert tool_calls[0].tool_name == "read_file"
+        assert tool_calls[0].tool_input == {"path": "/test.py"}
+        assert tool_calls[0].tool_call_id == "tool_use_123"
+
+    async def test_yields_tool_result_for_tool_result_block(self, driver: ClaudeCliDriver) -> None:
+        """ToolResultBlock should yield TOOL_RESULT AgenticMessage."""
+        messages = [
+            MockAssistantMessage([MockToolResultBlock("file contents here")]),
+            MockResultMessage(result="Done", session_id="sess_123"),
+        ]
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
+        ):
+            results = [msg async for msg in driver.execute_agentic("test", "/tmp")]
+
+        tool_results = [m for m in results if m.type == AgenticMessageType.TOOL_RESULT]
+        assert len(tool_results) == 1
+        assert tool_results[0].tool_output == "file contents here"
+        assert tool_results[0].is_error is False
+
+    async def test_yields_error_tool_result(self, driver: ClaudeCliDriver) -> None:
+        """ToolResultBlock with is_error=True should set is_error on AgenticMessage."""
+        messages = [
+            MockAssistantMessage([MockToolResultBlock("Error: not found", is_error=True)]),
+            MockResultMessage(result="Failed", session_id="sess_123"),
+        ]
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
+        ):
+            results = [msg async for msg in driver.execute_agentic("test", "/tmp")]
+
+        tool_results = [m for m in results if m.type == AgenticMessageType.TOOL_RESULT]
+        assert len(tool_results) == 1
+        assert tool_results[0].is_error is True
+
+    async def test_yields_result_for_result_message(self, driver: ClaudeCliDriver) -> None:
+        """ResultMessage should yield RESULT AgenticMessage with session_id."""
+        messages = [
+            MockResultMessage(result="Task completed", session_id="sess_abc123"),
+        ]
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
+        ):
+            results = [msg async for msg in driver.execute_agentic("test", "/tmp")]
+
+        result_msgs = [m for m in results if m.type == AgenticMessageType.RESULT]
+        assert len(result_msgs) == 1
+        assert result_msgs[0].content == "Task completed"
+        assert result_msgs[0].session_id == "sess_abc123"
+
+    async def test_yields_error_result(self, driver: ClaudeCliDriver) -> None:
+        """ResultMessage with is_error=True should set is_error on AgenticMessage."""
+        messages = [
+            MockResultMessage(result="Execution failed", session_id="sess_123", is_error=True),
+        ]
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
+        ):
+            results = [msg async for msg in driver.execute_agentic("test", "/tmp")]
+
+        result_msgs = [m for m in results if m.type == AgenticMessageType.RESULT]
+        assert len(result_msgs) == 1
+        assert result_msgs[0].is_error is True
