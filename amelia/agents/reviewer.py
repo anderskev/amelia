@@ -14,6 +14,29 @@ from amelia.core.types import Profile, StreamEmitter, StreamEvent, StreamEventTy
 from amelia.drivers.base import DriverInterface
 
 
+# Valid severity values from the Severity literal type
+VALID_SEVERITIES: set[Severity] = {"low", "medium", "high", "critical"}
+
+
+def normalize_severity(value: str | None, default: Severity = "medium") -> Severity:
+    """Normalize a severity value to a valid Severity literal.
+
+    LLMs may return invalid severity values like "none" or other hallucinated
+    values. This function ensures we always get a valid Severity.
+
+    Args:
+        value: The severity value to normalize.
+        default: The default severity to use if value is invalid.
+
+    Returns:
+        A valid Severity literal.
+
+    """
+    if value in VALID_SEVERITIES:
+        return value  # type: ignore[return-value]
+    return default
+
+
 class ReviewItem(BaseModel):
     """Single review item with full context.
 
@@ -742,7 +765,7 @@ The changes are in git - diff against commit: {base_commit}"""
                     reviewer_persona="Agentic",
                     approved=data.get("approved", False),
                     comments=data.get("comments", []),
-                    severity=data.get("severity", "medium"),
+                    severity=normalize_severity(data.get("severity")),
                 )
             except (json.JSONDecodeError, ValidationError) as e:
                 logger.warning(
@@ -765,7 +788,7 @@ The changes are in git - diff against commit: {base_commit}"""
                                     reviewer_persona="Agentic",
                                     approved=data.get("approved", False),
                                     comments=data.get("comments", []),
-                                    severity=data.get("severity", "medium"),
+                                    severity=normalize_severity(data.get("severity")),
                                 )
                         except json.JSONDecodeError:
                             continue

@@ -10,11 +10,39 @@ from amelia.agents.reviewer import (
     Reviewer,
     ReviewItem,
     StructuredReviewResult,
+    normalize_severity,
 )
 from amelia.core.state import ExecutionState
 from amelia.core.types import Profile, StreamEventType
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
 from tests.conftest import AsyncIteratorMock
+
+
+class TestNormalizeSeverity:
+    """Tests for normalize_severity helper function."""
+
+    def test_valid_severities_unchanged(self) -> None:
+        """Test that valid severity values pass through unchanged."""
+        assert normalize_severity("low") == "low"
+        assert normalize_severity("medium") == "medium"
+        assert normalize_severity("high") == "high"
+        assert normalize_severity("critical") == "critical"
+
+    def test_invalid_severity_returns_default(self) -> None:
+        """Test that invalid severity values return the default."""
+        assert normalize_severity("none") == "medium"
+        assert normalize_severity("invalid") == "medium"
+        assert normalize_severity("") == "medium"
+        assert normalize_severity("CRITICAL") == "medium"  # Case-sensitive
+
+    def test_none_value_returns_default(self) -> None:
+        """Test that None returns the default."""
+        assert normalize_severity(None) == "medium"
+
+    def test_custom_default(self) -> None:
+        """Test that custom default is used for invalid values."""
+        assert normalize_severity("none", default="high") == "high"
+        assert normalize_severity(None, default="critical") == "critical"
 
 
 class TestReviewItem:
@@ -618,6 +646,44 @@ class TestAgenticReview:
         assert "Fix bug in line 42" in result.comments
         assert "Add tests" in result.comments
         assert result.severity == "high"
+
+    async def test_agentic_review_handles_invalid_severity_from_llm(
+        self,
+        mock_driver: MagicMock,
+        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+    ) -> None:
+        """Test that agentic_review handles invalid severity values from LLM.
+
+        LLMs may return severity values like "none" that are not in the
+        Severity literal type. The parser should normalize these to valid values.
+        """
+        state, profile = mock_execution_state_factory(
+            goal="Implement feature",
+        )
+
+        # Create mock AgenticMessage with invalid severity "none"
+        messages = [
+            AgenticMessage(
+                type=AgenticMessageType.RESULT,
+                content='```json\n{"approved": true, "comments": ["LGTM"], "severity": "none"}\n```',
+                session_id="session-invalid",
+            ),
+        ]
+        mock_driver.execute_agentic = MagicMock(return_value=AsyncIteratorMock(messages))
+
+        reviewer = Reviewer(driver=mock_driver)
+        # This should NOT raise ValidationError
+        result, session_id = await reviewer.agentic_review(
+            state,
+            base_commit="abc123",
+            profile=profile,
+            workflow_id="wf-123",
+        )
+
+        # Invalid "none" should be normalized to "medium"
+        assert result.severity == "medium"
+        assert result.approved is True
+        assert session_id == "session-invalid"
 
     async def test_agentic_review_no_sdk_type_imports(self) -> None:
         """Verify agentic_review doesn't import SDK-specific types for message handling.
