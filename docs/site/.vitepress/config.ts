@@ -8,20 +8,12 @@ const sharedSidebar = [
   {
     text: 'Ideas & Explorations',
     items: [
-      { text: 'Overview', link: '/ideas/' },
-      { text: 'Session Continuity', link: '/ideas/session-continuity' },
-      { text: 'Knowledge Library', link: '/ideas/knowledge-library' },
-      { text: 'Debate Mode', link: '/ideas/debate-mode' },
-      { text: 'Spec Builder', link: '/ideas/spec-builder' },
-      { text: 'Planning Workflows', link: '/ideas/planning-workflows' }
+      { text: 'Overview', link: '/ideas/' }
     ]
   },
   {
     text: 'Research',
     items: [
-      { text: 'Benchmarking', link: '/ideas/research/benchmarking' },
-      { text: '12-Factor Compliance', link: '/ideas/research/12-factor-compliance' },
-      { text: 'Context Engineering', link: '/ideas/research/context-engineering-gaps' },
       { text: 'Knowledge Agents', link: '/ideas/research/knowledge-agents' }
     ]
   },
@@ -36,10 +28,7 @@ const sharedSidebar = [
     collapsed: true,
     items: [
       { text: 'Getting Started', link: '/design-system/' },
-      { text: 'Color System', link: '/design-system/color-system' },
       { text: 'Typography', link: '/design-system/typography' },
-      { text: 'Diagrams', link: '/design-system/diagrams' },
-      { text: 'Presentations', link: '/design-system/presentations' },
       { text: 'Design Tokens', link: '/design-system/tokens' }
     ]
   }
