@@ -1,12 +1,14 @@
 # Phased Execution for Developer Agent
 
-**Date**: 2025-12-31
+**Date**: 2025-12-31 (updated 2026-01-02)
 **Status**: Draft
 **Author**: Brainstorming session
 
 ## Problem
 
 Large tasks cause context degradation. As the Developer session accumulates tool calls, file reads, and corrections, LLM quality drops - forcing human intervention.
+
+The root cause is **context bloat**: each tool call adds tokens, file contents pile up, and correction cycles compound the problem. Even with fresh sessions per subtask, naive handoff strategies can reintroduce bloat by passing full plans and accumulated history to each subagent.
 
 ## Solution
 
@@ -36,6 +38,7 @@ Phased execution with context isolation. The Architect decomposes work into subt
 | Review rejection | Retry phase once | Fresh context + feedback; halt after 2 failures |
 | Commit strategy | One commit per phase | Enables clean retry; subtasks work on uncommitted changes |
 | TDD enforcement | Test-first subtasks | Tests written before implementation; Architect structures dependencies accordingly |
+| Context strategy | Offload + summarize | Filesystem holds full state; subtasks get scoped context + phase summaries |
 
 ## Architecture
 
@@ -141,6 +144,194 @@ def validate_tdd_ordering(subtasks: list[Subtask]) -> None:
                 )
 ```
 
+### Context Engineering
+
+Fresh sessions alone don't solve context bloat—naive handoff reintroduces it. We apply patterns informed by production agent systems (notably [Manus](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)):
+
+| Pattern | Application |
+|---------|-------------|
+| **Offloading** | Store full plan and tool outputs in filesystem; pass file references |
+| **Restorable compression** | Summaries always include restoration paths (git refs, file paths) to recover full content |
+| **Progressive disclosure** | Subtasks receive only context relevant to their specific assignment |
+| **Goal recitation** | Restate objectives at END of context to keep them in the attention window |
+| **Error preservation** | On retry, keep full error traces visible—failed attempts help models avoid repetition |
+| **Stable prefixes** | Structure prompts so common prefixes are shared across same-phase subtasks (KV-cache optimization) |
+| **Controlled variation** | Vary prompt framing on retry to break repetitive patterns |
+
+#### Filesystem-Based State
+
+The `.amelia/` directory serves as shared state across phases:
+
+```
+.amelia/execution/
+├── plan.md                    # Full Architect plan (written once)
+├── phase-1/
+│   ├── summary.md             # Compact summary (generated post-phase)
+│   └── review-feedback.md     # Reviewer comments if retry needed
+├── phase-2/
+│   ├── summary.md
+│   └── ...
+└── execution-state.json       # Phase/subtask status for recovery
+```
+
+This shifts from "push full context in prompt" to "pull on demand from filesystem."
+
+#### Phase Summaries
+
+After each phase commits, generate a compact summary for downstream phases. **Critical**: summaries must include restoration references so downstream phases can recover full context if needed:
+
+```python
+async def generate_phase_summary(
+    phase_index: int,
+    subtasks: list[Subtask],
+    pre_commit: str,
+    post_commit: str,
+) -> str:
+    """Generate compact summary with restoration references."""
+    diff_stat = git_diff_stat(pre_commit, post_commit)
+    files_changed = extract_files_from_diff(diff_stat)
+    test_files = [f for f in files_changed if "test" in f.lower()]
+
+    summary = f"""## Phase {phase_index} Summary
+
+**Completed subtasks:**
+{chr(10).join(f"- [{s.type.value}] {s.title}" for s in subtasks)}
+
+**Files changed:** {', '.join(files_changed)}
+
+**Restoration references:**
+- Full diff: `git diff {pre_commit}..{post_commit}`
+- Commit: `git show {post_commit}`
+- Test files created: {', '.join(test_files) if test_files else 'None'}
+
+**Key changes:**
+{generate_change_summary(pre_commit, post_commit)}
+"""
+
+    summary_path = f".amelia/execution/phase-{phase_index}/summary.md"
+    write_file(summary_path, summary)
+    return summary_path
+```
+
+The restoration references ensure information is never irreversibly lost—downstream phases can `git show` or `git diff` to recover full details when the summary is insufficient.
+
+Context growth becomes **O(phases)** not **O(total_tokens)**:
+
+```
+Phase 1: [full context for phase 1]
+Phase 2: [phase 1 summary ~200 tokens] + [full context for phase 2]
+Phase 3: [phase 1+2 summaries ~400 tokens] + [full context for phase 3]
+```
+
+#### Subtask-Scoped Context
+
+Rather than passing the full plan to every subtask, scope context to relevance. Two key patterns:
+
+1. **Stable prefix**: Start all subtask prompts with identical text to maximize KV-cache hits
+2. **Goal recitation**: Restate the assignment at the END to keep it in the attention window
+
+```python
+# Stable prefix shared across ALL subtasks (enables KV-cache hits)
+SUBTASK_PREFIX = """## Phased Execution Context
+
+You are executing a subtask within a phased development plan.
+- The orchestrator handles commits—do NOT commit
+- Focus only on your specific assignment
+- Read files from the codebase to understand current state
+- The full plan is at .amelia/execution/plan.md if needed
+
+"""
+
+def build_subtask_context(
+    subtask: Subtask,
+    plan: PhasedPlanOutput,
+    phase_index: int,
+) -> str:
+    """Build minimal context for a subtask with goal recitation."""
+    # Get completed phase summaries (not full history)
+    prior_summaries = [
+        read_file(f".amelia/execution/phase-{i}/summary.md")
+        for i in range(1, phase_index)
+        if path_exists(f".amelia/execution/phase-{i}/summary.md")
+    ]
+
+    # Get direct dependency descriptions
+    deps = [s for s in plan.subtasks if s.id in subtask.depends_on]
+
+    # Extract only plan sections relevant to this subtask's files
+    relevant_sections = extract_relevant_plan_sections(
+        plan.plan_markdown,
+        subtask.files_touched,
+    )
+
+    # Build context with stable prefix first
+    context = f"""{SUBTASK_PREFIX}
+## Prior Phase Summaries
+{chr(10).join(prior_summaries) if prior_summaries else "This is phase 1 - no prior phases."}
+
+## Your Dependencies (Completed)
+{chr(10).join(f"- {d.title}: {d.description}" for d in deps) if deps else "None - this subtask has no dependencies."}
+
+## Relevant Plan Sections
+{relevant_sections}
+
+## Your Assignment (Restated for Attention)
+
+**Subtask:** {subtask.title}
+**Type:** {subtask.type.value}
+**Files:** {', '.join(subtask.files_touched)}
+
+{subtask.description}
+
+Remember: Make the changes. Do NOT commit.
+"""
+    return context
+```
+
+The goal recitation at the end combats "lost-in-the-middle" issues where models lose track of objectives after processing long contexts.
+
+#### Feedback for Retry (Error Preservation)
+
+On retry, the instinct is to compact feedback to save tokens. However, research shows that **preserving full error context improves recovery**—failed attempts help models avoid repetition and update their beliefs about what doesn't work.
+
+The key insight: put actionable items at the END (in the attention window) while keeping full errors visible:
+
+```python
+def prepare_retry_feedback(
+    raw_feedback: str,
+    phase_index: int,
+    attempt: int,
+) -> str:
+    """Preserve full errors but structure for attention."""
+    action_items = extract_actionable_items(raw_feedback)
+
+    # Vary framing on retry to break repetitive patterns
+    retry_framing = [
+        "The previous approach failed. A different strategy is needed.",
+        "Review the errors carefully before proceeding differently.",
+        "The prior attempt had issues. Consider an alternative approach.",
+    ]
+
+    return f"""## Retry Attempt {attempt}
+
+{retry_framing[(attempt - 1) % len(retry_framing)]}
+
+### Previous Attempt Errors (Full Context)
+
+The following errors occurred. Keeping them visible helps avoid repetition:
+
+{raw_feedback}
+
+### Action Items (Focus Here)
+
+{action_items}
+
+Full feedback preserved at: .amelia/execution/phase-{phase_index}/review-feedback.md
+"""
+```
+
+This follows the Manus insight: "leave the wrong turns in the context." Error recovery requires seeing what failed.
+
 ### Execution Flow
 
 ```
@@ -161,31 +352,35 @@ def validate_tdd_ordering(subtasks: list[Subtask]) -> None:
 
 ### Subagent Spawning
 
-Each subtask gets a fresh driver instance with clean context:
+Each subtask gets a fresh driver instance with **scoped context** (not the full plan). The context is structured for KV-cache optimization and attention management:
 
 ```python
-async def run_subtask(subtask: Subtask, plan: PhasedPlanOutput) -> SubtaskResult:
+async def run_subtask(
+    subtask: Subtask,
+    plan: PhasedPlanOutput,
+    phase_index: int,
+    attempt: int = 1,
+    retry_feedback: str | None = None,
+) -> SubtaskResult:
     # Fresh driver instance = fresh context
     driver = DriverFactory.get_driver(profile.driver)
 
-    prompt = f"""
-    ## Overall Plan
-    {plan.plan_markdown}
+    # Build scoped context with stable prefix and goal recitation
+    context = build_subtask_context(subtask, plan, phase_index)
 
-    ## Your Assignment
-    You are executing subtask: {subtask.title}
-
-    {subtask.description}
-
-    ## Important
-    - Make the necessary code changes
-    - Do NOT commit - the orchestrator handles commits after all subtasks complete
-    - The codebase reflects work from prior phases; read relevant files to understand current state
-    """
+    # On retry, prepend error context (full errors + action items at end)
+    if retry_feedback:
+        prompt = f"{retry_feedback}\n\n{context}"
+    else:
+        prompt = context
 
     async for message in driver.execute_agentic(prompt, cwd):
         yield message
 ```
+
+**Token savings**: A 2000-token plan becomes ~300 tokens of scoped context per subtask.
+
+**Cache optimization**: The stable `SUBTASK_PREFIX` at the start of every prompt enables KV-cache hits across subtasks. For Claude Sonnet, this is a 10x cost reduction on cached tokens (0.30 vs 3.00 USD/MTok).
 
 ### Commit Strategy
 
@@ -197,13 +392,22 @@ Subtasks within a phase run in parallel on the same working directory. To avoid 
 4. **On retry, reset is clean** - `git reset --hard pre_commit` discards all uncommitted changes
 
 ```python
-async def run_phase(phase: list[Subtask], plan: PhasedPlanOutput) -> None:
-    """Execute all subtasks in a phase, then commit."""
+async def run_phase(
+    phase_index: int,
+    phase: list[Subtask],
+    plan: PhasedPlanOutput,
+    attempt: int = 1,
+    retry_feedback: str | None = None,
+) -> str:
+    """Execute all subtasks in a phase, commit, and generate summary.
+
+    Returns the post-commit SHA for summary generation.
+    """
     pre_commit = git_rev_parse("HEAD")
 
-    # Run subtasks in parallel - they modify files but don't commit
+    # Run subtasks in parallel with scoped context
     results = await asyncio.gather(*[
-        run_subtask(subtask, plan, commit=False)
+        run_subtask(subtask, plan, phase_index, attempt, retry_feedback)
         for subtask in phase
     ])
 
@@ -215,25 +419,13 @@ async def run_phase(phase: list[Subtask], plan: PhasedPlanOutput) -> None:
     subtask_titles = ", ".join(s.title for s in phase)
     git_add(".")
     git_commit(f"Phase {phase_index}: {subtask_titles}")
-```
 
-**Driver configuration**: The subtask prompt instructs the driver to skip commits:
+    post_commit = git_rev_parse("HEAD")
 
-```python
-prompt = f"""
-## Overall Plan
-{plan.plan_markdown}
+    # Generate summary with restoration references for downstream phases
+    await generate_phase_summary(phase_index, phase, pre_commit, post_commit)
 
-## Your Assignment
-You are executing subtask: {subtask.title}
-
-{subtask.description}
-
-## Important
-- Make the necessary code changes
-- Do NOT commit - the orchestrator handles commits after all subtasks complete
-- The codebase reflects work from prior phases
-"""
+    return post_commit
 ```
 
 **Why not worktrees?** Git worktrees would allow true parallel commits, but add complexity:
@@ -246,27 +438,39 @@ The single-commit approach is simpler and aligns with the "correctness over spee
 ### Phase Review with Retry
 
 ```python
-async def run_phase_with_retry(phase: list[Subtask], plan, max_attempts=2):
-    feedback = None
+async def run_phase_with_retry(
+    phase_index: int,
+    phase: list[Subtask],
+    plan: PhasedPlanOutput,
+    max_attempts: int = 2,
+) -> None:
+    retry_feedback = None
     pre_commit = git_rev_parse("HEAD")  # Capture once before any attempts
 
-    for attempt in range(max_attempts):
-        if attempt > 0:
-            # Reset to pre-phase state for clean retry (discards uncommitted + commits)
+    for attempt in range(1, max_attempts + 1):
+        if attempt > 1:
+            # Reset to pre-phase state for clean retry
             git_reset_hard(pre_commit)
 
-        # Run all subtasks in phase (parallel), then commit
-        await run_phase(phase, plan, feedback)  # Creates single phase commit
+        # Run all subtasks (with error context on retry)
+        await run_phase(phase_index, phase, plan, attempt, retry_feedback)
 
-        # Review phase changes (diffs phase commit against pre_commit)
+        # Review phase changes
         result = await review_phase(phase, pre_commit, plan)
 
         if result.approved:
             return  # Success, continue to next phase
 
-        feedback = result.comments  # Inject into next attempt
+        # Store full feedback in filesystem
+        feedback_path = f".amelia/execution/phase-{phase_index}/review-feedback.md"
+        write_file(feedback_path, result.comments)
 
-    raise PhaseReviewFailed(phase, result)  # Halt after 2 failures
+        # Prepare retry feedback: full errors + action items at end + varied framing
+        retry_feedback = prepare_retry_feedback(
+            result.comments, phase_index, attempt
+        )
+
+    raise PhaseReviewFailed(phase, result)  # Halt after max_attempts failures
 ```
 
 ### State Tracking
@@ -335,17 +539,26 @@ Phase 5 (test): ○ Pending - Integration tests
 | `amelia/core/types.py` | Add `SubtaskType` enum, new `StreamEventType` variants for phase/subtask events |
 | `amelia/core/orchestrator.py` | Update `call_developer_node` to detect phased plans and dispatch accordingly |
 
-### New Module
+### New Modules
 
 ```
 amelia/core/phased_executor.py
-├── validate_tdd_ordering() # Ensure impl subtasks depend on test subtasks
-├── run_phase()             # Execute all subtasks in a phase + commit
-├── run_subtask()           # Single subtask with fresh driver (no commit)
-├── commit_phase()          # Create single commit for phase changes
-├── review_phase()          # Review phase changes against pre_commit
-├── run_phase_with_retry()  # Retry logic with git reset on failure
-└── execute_phased_plan()   # Top-level orchestrator (calls validate first)
+├── validate_tdd_ordering()     # Ensure impl subtasks depend on test subtasks
+├── run_phase()                 # Execute all subtasks in a phase + commit + summary
+├── run_subtask()               # Single subtask with fresh driver (scoped context)
+├── run_phase_with_retry()      # Retry logic with git reset on failure
+├── execute_phased_plan()       # Top-level orchestrator
+└── initialize_execution_dir()  # Create .amelia/execution/ structure
+
+amelia/core/context_engineering.py
+├── SUBTASK_PREFIX                  # Stable prefix for KV-cache optimization
+├── build_subtask_context()         # Assemble scoped context with goal recitation
+├── extract_relevant_plan_sections() # Extract plan sections by file patterns
+├── generate_phase_summary()        # Create summary with restoration references
+├── prepare_retry_feedback()        # Full errors + action items + varied framing
+├── extract_actionable_items()      # Parse reviewer feedback into action list
+├── write_execution_state()         # Persist phase/subtask state to JSON
+└── read_execution_state()          # Recover state for resumption
 ```
 
 ### Backward Compatibility
@@ -357,9 +570,35 @@ amelia/core/phased_executor.py
 ## Testing Strategy
 
 1. **Unit tests**: Phase dependency resolution, retry logic, state transitions
-2. **Integration tests**: Full phased execution with mock driver
-3. **E2E tests**: Real multi-phase task with actual LLM calls
+2. **Context engineering tests**:
+   - `build_subtask_context()` returns expected tokens for various subtask positions
+   - `build_subtask_context()` starts with stable `SUBTASK_PREFIX` (cache optimization)
+   - `build_subtask_context()` ends with goal recitation (attention optimization)
+   - `extract_relevant_plan_sections()` correctly filters by file patterns
+   - `generate_phase_summary()` produces valid markdown with restoration references
+   - `generate_phase_summary()` includes git refs that resolve correctly
+   - `prepare_retry_feedback()` preserves full error context
+   - `prepare_retry_feedback()` puts action items at end of output
+   - `prepare_retry_feedback()` varies framing across attempts
+3. **Integration tests**: Full phased execution with mock driver
+4. **E2E tests**: Real multi-phase task with actual LLM calls
+5. **Token budget tests**: Verify context stays under target budget across phases
+6. **Cache optimization tests**: Verify prompt prefix stability across same-phase subtasks
 
 ## Open Questions
 
-None - all decisions made during brainstorming session.
+1. **Summary generation strategy**: Should `generate_phase_summary()` use LLM summarization or rule-based extraction? LLM produces better summaries but adds latency and cost. Initial implementation will use rule-based extraction (git diff parsing) with LLM as optional enhancement.
+
+2. **Relevant section extraction**: How sophisticated should `extract_relevant_plan_sections()` be? Options:
+   - Simple: Regex for file paths in markdown headers
+   - Medium: Parse markdown AST, match sections by mentioned files
+   - Complex: Semantic search over plan chunks
+
+   Start with medium approach; upgrade if subtasks lack sufficient context.
+
+3. **Controlled variation scope**: How much should retry framing vary? Current design uses 3 static variations. Options:
+   - Static list (current): Simple, predictable
+   - LLM-generated: More natural variation but adds latency
+   - Template with random elements: Middle ground
+
+   Start with static list; measure repetition rates before adding complexity.
