@@ -146,3 +146,5 @@ class TestAgenticMessageToStreamEvent:
 
         assert event.type == StreamEventType.AGENT_OUTPUT
         assert event.content == "Task completed"
+        # Note: session_id is not included in StreamEvent by design - it's only
+        # used for driver session tracking, not for UI streaming

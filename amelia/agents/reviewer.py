@@ -265,7 +265,8 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
         """
         if profile.strategy == "competitive":
             return await self._competitive_review(state, code_changes, profile, workflow_id=workflow_id)
-        else: # Default to single review
+        else:
+            # Default to single review
             return await self._single_review(state, code_changes, profile, persona="General", workflow_id=workflow_id)
 
     async def _single_review(

@@ -126,8 +126,8 @@ class Developer:
                 event = message.to_stream_event(agent="developer", workflow_id=workflow_id)
 
                 current_state = state.model_copy(update={
-                    "tool_calls": tool_calls.copy(),
-                    "tool_results": tool_results.copy(),
+                    "tool_calls": tool_calls,
+                    "tool_results": tool_results,
                     "driver_session_id": session_id,
                     "agentic_status": "completed" if is_complete else "failed",
                     "final_response": message.content if is_complete else None,
@@ -138,8 +138,8 @@ class Developer:
 
             if event:
                 current_state = state.model_copy(update={
-                    "tool_calls": tool_calls.copy(),
-                    "tool_results": tool_results.copy(),
+                    "tool_calls": tool_calls,
+                    "tool_results": tool_results,
                     "driver_session_id": session_id,
                 })
                 yield current_state, event

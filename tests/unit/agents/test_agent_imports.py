@@ -164,13 +164,5 @@ class TestAgenticMessageUsage:
 
         imports = get_imports_from_file(file_path)
 
-        # Check that amelia.drivers.base is imported
-        # Note: We don't assert here because the import style may vary
-        # (e.g., importing DriverInterface only). The key test is
-        # test_no_sdk_imports_in_agent above which verifies no SDK imports.
-        _has_base_import = any(
-            import_name == "amelia.drivers.base"
-            for import_name, _ in imports
-        )
-        # This is informational - verify the file parses and has expected imports
+        # Verify the file parses and has expected imports
         assert len(imports) > 0, f"Expected {agent_file} to have imports"
