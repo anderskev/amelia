@@ -341,13 +341,11 @@ class ApiDriver(DriverInterface):
                 if isinstance(message, AIMessage):
                     last_message = message
 
-                    # Text content -> THINKING
-                    if isinstance(message.content, str) and message.content:
-                        yield AgenticMessage(
-                            type=AgenticMessageType.THINKING,
-                            content=message.content,
-                        )
-                    elif isinstance(message.content, list):
+                    # Text blocks in list content -> THINKING (intermediate text during tool use)
+                    # Plain string content is NOT yielded as THINKING - it will be yielded as RESULT
+                    # at the end to avoid duplicate content (same pattern as ClaudeCliDriver where
+                    # TextBlock -> THINKING and ResultMessage.result -> RESULT are distinct sources)
+                    if isinstance(message.content, list):
                         for block in message.content:
                             if isinstance(block, dict) and block.get("type") == "text":
                                 yield AgenticMessage(

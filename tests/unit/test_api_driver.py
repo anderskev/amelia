@@ -171,10 +171,12 @@ class TestExecuteAgentic:
         """Should yield AgenticMessage objects from the stream."""
         driver = ApiDriver(model="test", cwd="/test/path")
 
-        # Set up streaming messages (only AIMessage yields THINKING)
+        # Set up streaming messages: list content -> THINKING, plain string -> only RESULT
+        # This matches ClaudeCliDriver semantics where TextBlock is intermediate thinking
+        # and ResultMessage.result is the final output (distinct sources)
         messages_stream = [
-            {"messages": [AIMessage(content="thinking...")]},
-            {"messages": [AIMessage(content="done")]},
+            {"messages": [AIMessage(content=[{"type": "text", "text": "thinking..."}])]},
+            {"messages": [AIMessage(content="done")]},  # Plain string -> only RESULT
         ]
         mock_deepagents.stream_chunks = messages_stream
 
@@ -182,13 +184,12 @@ class TestExecuteAgentic:
         async for msg in driver.execute_agentic(prompt="test", cwd="/test/path"):
             collected.append(msg)
 
-        # Should yield THINKING for each AIMessage + final RESULT
+        # List content yields THINKING, plain string only yields RESULT at end
         thinking_msgs = [m for m in collected if m.type == AgenticMessageType.THINKING]
         result_msgs = [m for m in collected if m.type == AgenticMessageType.RESULT]
 
-        assert len(thinking_msgs) == 2
+        assert len(thinking_msgs) == 1
         assert thinking_msgs[0].content == "thinking..."
-        assert thinking_msgs[1].content == "done"
         assert len(result_msgs) == 1
         assert result_msgs[0].content == "done"
         assert all(isinstance(m, AgenticMessage) for m in collected)
@@ -333,20 +334,29 @@ class TestLocalSandbox:
 class TestExecuteAgenticYieldsAgenticMessage:
     """Test execute_agentic() yields AgenticMessage types."""
 
-    async def test_yields_thinking_for_text_content(
+    async def test_plain_string_content_yields_only_result(
         self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
-        """AIMessage with text content should yield THINKING AgenticMessage."""
+        """AIMessage with plain string content should only yield RESULT, not THINKING.
+
+        This avoids duplicate content where the same text appears as both THINKING
+        and RESULT. Plain string content indicates a final response without tool use,
+        so it goes directly to RESULT. This matches ClaudeCliDriver semantics where
+        TextBlock (from AssistantMessage) is intermediate thinking and ResultMessage.result
+        is the final output - two distinct data sources.
+        """
         mock_deepagents.stream_chunks = [
             {"messages": [AIMessage(content="Analyzing the code...")]},
         ]
 
         results = [msg async for msg in api_driver.execute_agentic("test prompt", cwd="/test/path")]
 
+        # Plain string content should NOT yield THINKING - only RESULT
         thinking_msgs = [m for m in results if m.type == AgenticMessageType.THINKING]
-        assert len(thinking_msgs) >= 1
-        assert any(m.content == "Analyzing the code..." for m in thinking_msgs)
-        assert all(isinstance(m, AgenticMessage) for m in thinking_msgs)
+        result_msgs = [m for m in results if m.type == AgenticMessageType.RESULT]
+        assert len(thinking_msgs) == 0
+        assert len(result_msgs) == 1
+        assert result_msgs[0].content == "Analyzing the code..."
 
     async def test_yields_thinking_for_list_content(
         self, api_driver: ApiDriver, mock_deepagents: MagicMock
@@ -429,11 +439,13 @@ class TestExecuteAgenticYieldsAgenticMessage:
     ) -> None:
         """Full agentic flow should yield proper sequence of AgenticMessage types."""
         mock_deepagents.stream_chunks = [
-            {"messages": [AIMessage(content="Let me check the file...")]},
+            # List content yields THINKING (intermediate text during tool use)
+            {"messages": [AIMessage(content=[{"type": "text", "text": "Let me check the file..."}])]},
             {"messages": [AIMessage(content="", tool_calls=[
                 {"name": "read_file", "args": {"path": "/test.py"}, "id": "call_1"}
             ])]},
             {"messages": [ToolMessage(content="def test(): pass", tool_call_id="call_1", name="read_file")]},
+            # Plain string content only yields RESULT (final response)
             {"messages": [AIMessage(content="The file contains a test function.")]},
         ]
 
