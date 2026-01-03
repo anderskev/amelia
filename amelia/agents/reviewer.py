@@ -19,12 +19,17 @@ class ReviewItem(BaseModel):
 
     Follows beagle review skill format: [FILE:LINE] TITLE
 
+    Note on Severity:
+        Uses 'critical/major/minor' to match the beagle review skill format for
+        individual items. This differs from ReviewResult.severity which uses
+        'low/medium/high/critical' (Severity enum) for orchestrator integration.
+
     Attributes:
         number: Sequential issue number.
         title: Brief issue title.
         file_path: Path to the file containing the issue.
         line: Line number where the issue occurs.
-        severity: Issue severity level.
+        severity: Issue severity level (critical/major/minor).
         issue: Description of what's wrong.
         why: Explanation of why it matters.
         fix: Recommended fix.
@@ -79,6 +84,14 @@ class ReviewResponse(BaseModel):
 
 class Reviewer:
     """Agent responsible for reviewing code changes against requirements.
+
+    Review Methods:
+        review(): Entry point - dispatches to single or competitive based on profile.strategy.
+        _single_review(): Single reviewer with specified persona. Returns ReviewResult.
+        _competitive_review(): Multiple reviewers in parallel with aggregated verdict.
+        structured_review(): Detailed beagle format with file:line references. Returns StructuredReviewResult.
+        agentic_review(): Auto-detects technologies, loads review skills, fetches diff via git.
+            Best for large diffs that exceed CLI argument limits.
 
     Attributes:
         driver: LLM driver interface for generating reviews.
@@ -142,6 +155,10 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
 - Be specific about what needs to change
 - Only flag real issues - check linters first before flagging style issues
 - Approved means the code is ready to merge as-is"""
+
+    DEFAULT_PERSONAS: list[str] = ["Security", "Performance", "Usability"]
+    MIN_COMMENT_LENGTH: int = 10
+    MAX_COMMENTS: int = 10
 
     def __init__(
         self,
@@ -384,7 +401,7 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
             parallel sessions are used and returning any single one would be misleading.
 
         """
-        personas = ["Security", "Performance", "Usability"] # Example personas
+        personas = self.DEFAULT_PERSONAS
 
         # Run reviews in parallel
         review_tasks = [self._single_review(state, code_changes, profile, persona, workflow_id=workflow_id) for persona in personas]
@@ -579,6 +596,12 @@ The changes are in git - diff against commit: {base_commit}"""
         # Build system prompt with base_commit
         system_prompt = self.agentic_prompt.format(base_commit=base_commit)
 
+        if profile.working_dir is None:
+            logger.warning(
+                "profile.working_dir is None, falling back to current directory",
+                agent="reviewer",
+                workflow_id=workflow_id,
+            )
         cwd = profile.working_dir or "."
         session_id = state.driver_session_id
         new_session_id: str | None = None
@@ -704,19 +727,23 @@ The changes are in git - diff against commit: {base_commit}"""
                     workflow_id=workflow_id,
                 )
 
-        # Try to find raw JSON object
-        json_match = re.search(r'\{[^{}]*"approved"[^{}]*\}', output, re.DOTALL)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(0))
-                return ReviewResult(
-                    reviewer_persona="Agentic",
-                    approved=data.get("approved", False),
-                    comments=data.get("comments", []),
-                    severity=data.get("severity", "medium"),
-                )
-            except (json.JSONDecodeError, ValidationError):
-                pass
+        # Try to find raw JSON object by attempting to parse from each { position
+        # This handles nested structures like arrays in the comments field
+        for i, char in enumerate(output):
+            if char == "{":
+                for j in range(len(output), i, -1):
+                    if output[j - 1] == "}":
+                        try:
+                            data = json.loads(output[i:j])
+                            if "approved" in data:
+                                return ReviewResult(
+                                    reviewer_persona="Agentic",
+                                    approved=data.get("approved", False),
+                                    comments=data.get("comments", []),
+                                    severity=data.get("severity", "medium"),
+                                )
+                        except json.JSONDecodeError:
+                            continue
 
         # Fallback: analyze text for approval keywords
         output_lower = output.lower()
@@ -733,7 +760,7 @@ The changes are in git - diff against commit: {base_commit}"""
             if line.startswith(("- ", "* ", "• ")) or re.match(r"^\d+\.", line):
                 # Clean up the line
                 comment = re.sub(r"^[-*•]\s*|\d+\.\s*", "", line).strip()
-                if comment and len(comment) > 10:  # Filter out very short lines
+                if comment and len(comment) > self.MIN_COMMENT_LENGTH:  # Filter out very short lines
                     comments.append(comment)
 
         if not comments:
@@ -742,6 +769,6 @@ The changes are in git - diff against commit: {base_commit}"""
         return ReviewResult(
             reviewer_persona="Agentic",
             approved=approved,
-            comments=comments[:10],  # Limit to 10 comments
+            comments=comments[:self.MAX_COMMENTS],  # Limit to 10 comments
             severity="medium" if approved else "high",
         )
