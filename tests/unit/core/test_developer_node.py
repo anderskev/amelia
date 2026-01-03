@@ -1,6 +1,7 @@
 """Tests for call_developer_node using profile from config."""
 
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable, Sequence
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,6 +11,34 @@ from amelia.core.orchestrator import call_developer_node
 from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
+
+
+def create_mock_execute_agentic(
+    messages: Sequence[AgenticMessage],
+) -> Callable[..., AsyncGenerator[AgenticMessage, None]]:
+    """Create a mock execute_agentic async generator function.
+
+    This helper reduces boilerplate in tests that need to mock driver.execute_agentic().
+    Each test can specify the AgenticMessage objects to yield.
+
+    Args:
+        messages: Sequence of AgenticMessage objects to yield.
+
+    Returns:
+        An async generator function that yields the provided messages.
+
+    Example:
+        mock_driver = MagicMock()
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(type=AgenticMessageType.THINKING, content="..."),
+            AgenticMessage(type=AgenticMessageType.RESULT, content="Done"),
+        ])
+    """
+    async def mock_execute_agentic(*args: Any, **kwargs: Any) -> AsyncGenerator[AgenticMessage, None]:
+        for msg in messages:
+            yield msg
+
+    return mock_execute_agentic
 
 
 class TestDeveloperNodeProfileFromConfig:
@@ -88,31 +117,29 @@ class TestDeveloperUnifiedExecution:
 
         # Create a mock driver that yields AgenticMessage
         mock_driver = MagicMock(spec=DriverInterface)
-
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.THINKING,
                 content="Analyzing the task...",
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_CALL,
                 tool_name="Read",
                 tool_input={"file_path": "/some/file.py"},
                 tool_call_id="call-1",
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_RESULT,
                 tool_name="Read",
                 tool_output="file contents here",
                 tool_call_id="call-1",
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Task completed successfully",
                 session_id="session-123",
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 
@@ -146,19 +173,17 @@ class TestDeveloperUnifiedExecution:
         )
 
         mock_driver = MagicMock()
-
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.THINKING,
                 content="Thinking about the problem...",
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Done",
                 session_id=None,
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 
@@ -192,21 +217,19 @@ class TestDeveloperUnifiedExecution:
         )
 
         mock_driver = MagicMock()
-
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_CALL,
                 tool_name="Write",
                 tool_input={"file_path": "/test/file.py", "content": "print('hello')"},
                 tool_call_id="call-123",
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Done",
                 session_id=None,
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 
@@ -239,22 +262,20 @@ class TestDeveloperUnifiedExecution:
         )
 
         mock_driver = MagicMock()
-
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_RESULT,
                 tool_name="Read",
                 tool_output="File content here",
                 tool_call_id="call-456",
                 is_error=False,
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Done",
                 session_id=None,
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 
@@ -286,16 +307,14 @@ class TestDeveloperUnifiedExecution:
         )
 
         mock_driver = MagicMock()
-
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Task completed successfully",
                 session_id="session-abc",
                 is_error=False,
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 
@@ -332,16 +351,14 @@ class TestDeveloperUnifiedExecution:
         )
 
         mock_driver = MagicMock()
-
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Error: Something went wrong",
                 session_id="session-err",
                 is_error=True,
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 
@@ -372,27 +389,25 @@ class TestDeveloperUnifiedExecution:
         )
 
         mock_driver = MagicMock()
-
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_CALL,
                 tool_name="Read",
                 tool_input={"file_path": "/a.py"},
                 tool_call_id="call-1",
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_CALL,
                 tool_name="Write",
                 tool_input={"file_path": "/b.py", "content": "code"},
                 tool_call_id="call-2",
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Done",
                 session_id=None,
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 
@@ -425,29 +440,27 @@ class TestDeveloperUnifiedExecution:
         )
 
         mock_driver = MagicMock()
-
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_RESULT,
                 tool_name="Read",
                 tool_output="file content 1",
                 tool_call_id="call-1",
                 is_error=False,
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_RESULT,
                 tool_name="Write",
                 tool_output="written successfully",
                 tool_call_id="call-2",
                 is_error=False,
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Done",
                 session_id=None,
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 
@@ -477,25 +490,23 @@ class TestDeveloperUnifiedExecution:
         )
 
         mock_driver = MagicMock()
-
         # We'll verify the event has the correct fields that to_stream_event produces
-        async def mock_execute_agentic(*args, **kwargs):
-            yield AgenticMessage(
+        mock_driver.execute_agentic = create_mock_execute_agentic([
+            AgenticMessage(
                 type=AgenticMessageType.THINKING,
                 content="Thinking...",
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.TOOL_CALL,
                 tool_name="Bash",
                 tool_input={"command": "ls"},
-            )
-            yield AgenticMessage(
+            ),
+            AgenticMessage(
                 type=AgenticMessageType.RESULT,
                 content="Done",
                 session_id=None,
-            )
-
-        mock_driver.execute_agentic = mock_execute_agentic
+            ),
+        ])
 
         developer = Developer(driver=mock_driver)
 

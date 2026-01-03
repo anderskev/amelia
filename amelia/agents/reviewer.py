@@ -157,8 +157,6 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
 - Approved means the code is ready to merge as-is"""
 
     DEFAULT_PERSONAS: list[str] = ["Security", "Performance", "Usability"]
-    MIN_COMMENT_LENGTH: int = 10
-    MAX_COMMENTS: int = 10
 
     def __init__(
         self,
@@ -181,29 +179,118 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
 
     @property
     def template_prompt(self) -> str:
-        """Get the template prompt for single review.
-
-        Returns custom prompt if injected, otherwise class default.
-        Template should contain {persona} placeholder.
-        """
         return self._prompts.get("reviewer.template", self.SYSTEM_PROMPT_TEMPLATE)
 
     @property
     def structured_prompt(self) -> str:
-        """Get the system prompt for structured review.
-
-        Returns custom prompt if injected, otherwise class default.
-        """
         return self._prompts.get("reviewer.structured", self.STRUCTURED_SYSTEM_PROMPT)
 
     @property
     def agentic_prompt(self) -> str:
-        """Get the system prompt for agentic review.
-
-        Returns custom prompt if injected, otherwise class default.
-        Template should contain {base_commit} placeholder.
-        """
         return self._prompts.get("reviewer.agentic", self.AGENTIC_REVIEW_PROMPT)
+
+    def _extract_task_context(self, state: ExecutionState) -> str | None:
+        """Extract task context from execution state.
+
+        Prioritizes goal over issue for context extraction.
+
+        Args:
+            state: Current execution state containing goal or issue context.
+
+        Returns:
+            Formatted task context string, or None if no context found.
+
+        """
+        if state.goal:
+            return f"**Task Goal:**\n\n{state.goal}"
+
+        if state.issue:
+            issue_parts = []
+            if state.issue.title:
+                issue_parts.append(f"**{state.issue.title}**")
+            if state.issue.description:
+                issue_parts.append(state.issue.description)
+            if issue_parts:
+                return "\n\n".join(issue_parts)
+
+        return None
+
+    async def _handle_empty_changes(
+        self,
+        workflow_id: str,
+        method: str,
+        persona: str | None = None,
+    ) -> None:
+        """Log and emit event for empty code changes.
+
+        Args:
+            workflow_id: Workflow ID for stream events.
+            method: The review method name for logging context.
+            persona: Optional persona name (for single review).
+
+        """
+        log_kwargs: dict[str, str] = {
+            "agent": "reviewer",
+            "workflow_id": workflow_id,
+        }
+        if persona:
+            log_kwargs["persona"] = persona
+        else:
+            log_kwargs["method"] = method
+
+        logger.warning("No code changes to review, auto-approving", **log_kwargs)
+
+        if self._stream_emitter is not None:
+            event = StreamEvent(
+                type=StreamEventType.AGENT_OUTPUT,
+                content="No code changes to review - auto-approved",
+                timestamp=datetime.now(UTC),
+                agent="reviewer",
+                workflow_id=workflow_id,
+            )
+            await self._stream_emitter(event)
+
+    async def _emit_review_completion(
+        self,
+        workflow_id: str,
+        approved: bool,
+        severity: Severity,
+        comments: list[str],
+        *,
+        use_emoji: bool = True,
+    ) -> None:
+        """Emit stream event for review completion.
+
+        Args:
+            workflow_id: Workflow ID for stream events.
+            approved: Whether the review approved the changes.
+            severity: The severity level of the review findings.
+            comments: List of review comments.
+            use_emoji: Whether to include emoji in status display.
+
+        """
+        if self._stream_emitter is None:
+            return
+
+        if use_emoji:
+            status = "✅ Approved" if approved else "⚠️ Changes requested"
+        else:
+            status = "Approved" if approved else "Changes requested"
+
+        content_parts = [f"**Review completed:** {status} (severity: {severity})"]
+        if comments:
+            content_parts.append("\n**Comments:**")
+            for comment in comments:
+                content_parts.append(f"- {comment}")
+
+        event = StreamEvent(
+            type=StreamEventType.AGENT_OUTPUT,
+            content="\n".join(content_parts),
+            timestamp=datetime.now(UTC),
+            agent="reviewer",
+            workflow_id=workflow_id,
+        )
+        await self._stream_emitter(event)
 
     def _build_prompt(
         self,
@@ -230,17 +317,11 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
         parts: list[str] = []
 
         # Get context for what was supposed to be done
-        # Priority: goal > issue
-        if state.goal:
-            parts.append(f"## Task\n\n**Task Goal:**\n\n{state.goal}")
-        elif state.issue:
-            issue_parts = []
-            if state.issue.title:
-                issue_parts.append(f"**{state.issue.title}**")
-            if state.issue.description:
-                issue_parts.append(state.issue.description)
-            if issue_parts:
-                parts.append("## Issue\n\n" + "\n\n".join(issue_parts))
+        task_context = self._extract_task_context(state)
+        if task_context:
+            # Determine header based on source (goal vs issue)
+            header = "## Task" if state.goal else "## Issue"
+            parts.append(f"{header}\n\n{task_context}")
 
         if not parts:
             raise ValueError("No task or issue context found for review")
@@ -310,22 +391,7 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
         """
         # Handle empty code changes - warn and auto-approve
         if not code_changes or not code_changes.strip():
-            logger.warning(
-                "No code changes to review, auto-approving",
-                agent="reviewer",
-                persona=persona,
-                workflow_id=workflow_id,
-            )
-            if self._stream_emitter is not None:
-                event = StreamEvent(
-                    type=StreamEventType.AGENT_OUTPUT,
-                    content="No code changes to review - auto-approved",
-                    timestamp=datetime.now(UTC),
-                    agent="reviewer",
-                    workflow_id=workflow_id,
-                )
-                await self._stream_emitter(event)
-
+            await self._handle_empty_changes(workflow_id, "_single_review", persona=persona)
             result = ReviewResult(
                 reviewer_persona=persona,
                 approved=True,
@@ -355,21 +421,12 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
         )
 
         # Emit completion event before return
-        if self._stream_emitter is not None:
-            status = "✅ Approved" if response.approved else "⚠️ Changes requested"
-            content_parts = [f"**Review completed:** {status} (severity: {response.severity})"]
-            if response.comments:
-                content_parts.append("\n**Comments:**")
-                for comment in response.comments:
-                    content_parts.append(f"- {comment}")
-            event = StreamEvent(
-                type=StreamEventType.AGENT_OUTPUT,
-                content="\n".join(content_parts),
-                timestamp=datetime.now(UTC),
-                agent="reviewer",
-                workflow_id=workflow_id,
-            )
-            await self._stream_emitter(event)
+        await self._emit_review_completion(
+            workflow_id,
+            response.approved,
+            response.severity,
+            response.comments,
+        )
 
         result = ReviewResult(
             reviewer_persona=persona,
@@ -456,22 +513,7 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
         """
         # Handle empty code changes - return approved result with no items
         if not code_changes or not code_changes.strip():
-            logger.warning(
-                "No code changes to review, auto-approving",
-                agent="reviewer",
-                method="structured_review",
-                workflow_id=workflow_id,
-            )
-            if self._stream_emitter is not None:
-                event = StreamEvent(
-                    type=StreamEventType.AGENT_OUTPUT,
-                    content="No code changes to review - auto-approved",
-                    timestamp=datetime.now(UTC),
-                    agent="reviewer",
-                    workflow_id=workflow_id,
-                )
-                await self._stream_emitter(event)
-
+            await self._handle_empty_changes(workflow_id, "structured_review")
             result = StructuredReviewResult(
                 summary="No code changes to review.",
                 items=[],
@@ -575,17 +617,8 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
         """
         from amelia.drivers.base import AgenticMessageType  # noqa: PLC0415
 
-        # Build the task prompt
-        task_parts = []
-        if state.goal:
-            task_parts.append(f"**Task Goal:**\n{state.goal}")
-        elif state.issue:
-            if state.issue.title:
-                task_parts.append(f"**Issue:** {state.issue.title}")
-            if state.issue.description:
-                task_parts.append(state.issue.description)
-
-        task_context = "\n\n".join(task_parts) if task_parts else "Review the code changes."
+        # Build the task prompt using shared helper
+        task_context = self._extract_task_context(state) or "Review the code changes."
 
         prompt = f"""Review the code changes for this task:
 
@@ -653,21 +686,13 @@ The changes are in git - diff against commit: {base_commit}"""
             )
 
         # Emit completion event
-        if self._stream_emitter is not None:
-            status = "Approved" if result.approved else "Changes requested"
-            content_parts = [f"**Review completed:** {status} (severity: {result.severity})"]
-            if result.comments:
-                content_parts.append("\n**Comments:**")
-                for comment in result.comments:
-                    content_parts.append(f"- {comment}")
-            event = StreamEvent(
-                type=StreamEventType.AGENT_OUTPUT,
-                content="\n".join(content_parts),
-                timestamp=datetime.now(UTC),
-                agent="reviewer",
-                workflow_id=workflow_id,
-            )
-            await self._stream_emitter(event)
+        await self._emit_review_completion(
+            workflow_id,
+            result.approved,
+            result.severity,
+            result.comments,
+            use_emoji=False,
+        )
 
         logger.info(
             "Agentic review completed",
@@ -760,7 +785,7 @@ The changes are in git - diff against commit: {base_commit}"""
             if line.startswith(("- ", "* ", "• ")) or re.match(r"^\d+\.", line):
                 # Clean up the line
                 comment = re.sub(r"^[-*•]\s*|\d+\.\s*", "", line).strip()
-                if comment and len(comment) > self.MIN_COMMENT_LENGTH:  # Filter out very short lines
+                if comment and len(comment) > 10:  # Filter out very short lines
                     comments.append(comment)
 
         if not comments:
@@ -769,6 +794,6 @@ The changes are in git - diff against commit: {base_commit}"""
         return ReviewResult(
             reviewer_persona="Agentic",
             approved=approved,
-            comments=comments[:self.MAX_COMMENTS],  # Limit to 10 comments
+            comments=comments[:10],  # Limit to 10 comments
             severity="medium" if approved else "high",
         )

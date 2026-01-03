@@ -18,8 +18,12 @@ from amelia.drivers.cli.claude import (
     ClaudeCliDriver,
     _is_clarification_request,
     _strip_markdown_fences,
-    convert_to_stream_event,
 )
+
+
+# =============================================================================
+# Test Models
+# =============================================================================
 
 
 class _TestModel(BaseModel):
@@ -31,9 +35,14 @@ class _TestListModel(BaseModel):
     tasks: list[str]
 
 
-@pytest.fixture
-def driver() -> ClaudeCliDriver:
-    return ClaudeCliDriver()
+# =============================================================================
+# Mock SDK Types
+#
+# These classes mock claude-agent-sdk types for testing without requiring
+# the actual SDK. They mirror the structure of:
+# - TextBlock, ToolUseBlock, ToolResultBlock (content blocks)
+# - AssistantMessage, ResultMessage (message types)
+# =============================================================================
 
 
 class MockTextBlock:
@@ -92,6 +101,28 @@ class MockResultMessage:
         self.total_cost_usd = total_cost_usd
 
 
+def _patch_sdk_types():
+    """Create a context manager that patches SDK types for isinstance checks."""
+    return patch.multiple(
+        "amelia.drivers.cli.claude",
+        AssistantMessage=MockAssistantMessage,
+        ResultMessage=MockResultMessage,
+        TextBlock=MockTextBlock,
+        ToolUseBlock=MockToolUseBlock,
+        ToolResultBlock=MockToolResultBlock,
+    )
+
+
+# =============================================================================
+# Test Fixtures and Helpers
+# =============================================================================
+
+
+@pytest.fixture
+def driver() -> ClaudeCliDriver:
+    return ClaudeCliDriver()
+
+
 def create_mock_query(messages: list[Any]) -> AsyncMock:
     """Create a mock query function that yields the given messages."""
     async def mock_query(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
@@ -125,16 +156,9 @@ def create_mock_sdk_client(messages: list[Any]) -> MagicMock:
     return mock_class
 
 
-def _patch_sdk_types():
-    """Create a context manager that patches SDK types for isinstance checks."""
-    return patch.multiple(
-        "amelia.drivers.cli.claude",
-        AssistantMessage=MockAssistantMessage,
-        ResultMessage=MockResultMessage,
-        TextBlock=MockTextBlock,
-        ToolUseBlock=MockToolUseBlock,
-        ToolResultBlock=MockToolResultBlock,
-    )
+# =============================================================================
+# Test Classes
+# =============================================================================
 
 
 class TestClaudeCliDriverGenerate:
@@ -545,59 +569,6 @@ class TestClaudeCliDriverAgentic:
 
         driver.clear_tool_history()
         assert driver.tool_call_history == []
-
-
-class TestConvertToStreamEvent:
-    """Tests for convert_to_stream_event function."""
-
-    def test_convert_text_block(self) -> None:
-        """Test converting AssistantMessage with TextBlock."""
-        # Use real SDK types for conversion tests
-        from claude_agent_sdk.types import AssistantMessage, TextBlock
-
-        message = AssistantMessage(
-            content=[TextBlock(text="Thinking...")],
-            model="claude-sonnet-4-20250514",
-        )
-        event = convert_to_stream_event(message, agent="developer", workflow_id="wf-123")
-
-        assert event is not None
-        assert event.content == "Thinking..."
-        assert event.agent == "developer"
-        assert event.workflow_id == "wf-123"
-
-    def test_convert_tool_use_block(self) -> None:
-        """Test converting AssistantMessage with ToolUseBlock."""
-        from claude_agent_sdk.types import AssistantMessage, ToolUseBlock
-
-        message = AssistantMessage(
-            content=[ToolUseBlock(id="tu_1", name="Read", input={"path": "/x.py"})],
-            model="claude-sonnet-4-20250514",
-        )
-        event = convert_to_stream_event(message, agent="developer", workflow_id="wf-456")
-
-        assert event is not None
-        assert event.tool_name == "Read"
-        assert event.tool_input == {"path": "/x.py"}
-
-    def test_convert_result_message(self) -> None:
-        """Test converting ResultMessage."""
-        from claude_agent_sdk.types import ResultMessage
-
-        message = ResultMessage(
-            subtype="result",
-            duration_ms=1000,
-            duration_api_ms=800,
-            is_error=False,
-            num_turns=5,
-            session_id="sess_abc",
-            total_cost_usd=0.01,
-            result="Final output",
-        )
-        event = convert_to_stream_event(message, agent="reviewer", workflow_id="wf-789")
-
-        assert event is not None
-        assert event.content == "Final output"
 
 
 class TestClarificationDetection:

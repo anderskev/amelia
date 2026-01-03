@@ -18,6 +18,16 @@ class ResponseSchema(BaseModel):
     message: str
 
 
+@pytest.fixture
+def api_driver() -> ApiDriver:
+    """Create ApiDriver instance for tests.
+
+    This fixture provides a standard ApiDriver with test configuration.
+    Used by TestGenerate and TestExecuteAgenticYieldsAgenticMessage.
+    """
+    return ApiDriver(model="openrouter:test/model", cwd="/test/path")
+
+
 class TestApiDriverInit:
     """Test ApiDriver initialization."""
 
@@ -41,21 +51,16 @@ class TestApiDriverInit:
 class TestGenerate:
     """Test generate() method."""
 
-    @pytest.fixture
-    def driver(self) -> ApiDriver:
-        """Create ApiDriver instance for tests."""
-        return ApiDriver(model="openrouter:test/model", cwd="/test/path")
-
-    async def test_rejects_empty_prompt(self, driver: ApiDriver) -> None:
+    async def test_rejects_empty_prompt(self, api_driver: ApiDriver) -> None:
         """Should reject empty or whitespace-only prompts."""
         with pytest.raises(ValueError, match="Prompt cannot be empty"):
-            await driver.generate("")
+            await api_driver.generate("")
 
         with pytest.raises(ValueError, match="Prompt cannot be empty"):
-            await driver.generate("   \n\t  ")
+            await api_driver.generate("   \n\t  ")
 
     async def test_returns_text_without_schema(
-        self, driver: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Should return plain text when no schema provided."""
         mock_deepagents.agent_result["messages"] = [
@@ -63,7 +68,7 @@ class TestGenerate:
             AIMessage(content="Test response from model"),
         ]
 
-        result, session_id = await driver.generate(
+        result, session_id = await api_driver.generate(
             prompt="test prompt",
             system_prompt="You are a helpful assistant",
         )
@@ -77,14 +82,14 @@ class TestGenerate:
         assert call_kwargs["system_prompt"] == "You are a helpful assistant"
 
     async def test_parses_schema_when_provided(
-        self, driver: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Should extract structured_response when schema provided."""
         mock_deepagents.agent_result["structured_response"] = ResponseSchema(
             message="parsed response"
         )
 
-        result, session_id = await driver.generate(
+        result, session_id = await api_driver.generate(
             prompt="test prompt",
             schema=ResponseSchema,
         )
@@ -101,7 +106,7 @@ class TestGenerate:
         assert response_format.schema is ResponseSchema
 
     async def test_raises_on_missing_structured_output(
-        self, driver: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Should raise RuntimeError when schema provided but no structured_response returned."""
         # structured_response is not set in agent_result (defaults to None)
@@ -112,38 +117,38 @@ class TestGenerate:
         with pytest.raises(
             RuntimeError, match="Model did not call the ResponseSchema tool"
         ):
-            await driver.generate(prompt="test", schema=ResponseSchema)
+            await api_driver.generate(prompt="test", schema=ResponseSchema)
 
     async def test_handles_list_content_blocks(
-        self, driver: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Should handle AIMessage with list of content blocks."""
         mock_deepagents.agent_result["messages"] = [
             AIMessage(content=[{"text": "Hello "}, {"text": "World"}]),
         ]
 
-        result, _ = await driver.generate(prompt="test")
+        result, _ = await api_driver.generate(prompt="test")
 
         assert result == "Hello World"
 
     async def test_raises_on_empty_response(
-        self, driver: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Should raise RuntimeError when no messages returned."""
         mock_deepagents.agent_result["messages"] = []
 
         with pytest.raises(RuntimeError, match="No response messages"):
-            await driver.generate(prompt="test")
+            await api_driver.generate(prompt="test")
 
     async def test_uses_none_system_prompt_as_empty_string(
-        self, driver: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Should use empty string when system_prompt is None."""
         mock_deepagents.agent_result["messages"] = [
             AIMessage(content="response"),
         ]
 
-        await driver.generate(prompt="test", system_prompt=None)
+        await api_driver.generate(prompt="test", system_prompt=None)
 
         call_kwargs = mock_deepagents.create_deep_agent.call_args.kwargs
         assert call_kwargs["system_prompt"] == ""
@@ -257,7 +262,7 @@ class TestLocalSandbox:
         """Create LocalSandbox instance for tests."""
         return LocalSandbox(root_dir=str(tmp_path))
 
-    def test_implements_sandbox_backend_protocol(self, sandbox: LocalSandbox) -> None:
+    def test_contract_sandbox_backend_protocol(self, sandbox: LocalSandbox) -> None:
         """Should pass isinstance check for SandboxBackendProtocol.
 
         This is critical because deepagents uses isinstance() to decide
@@ -328,20 +333,15 @@ class TestLocalSandbox:
 class TestExecuteAgenticYieldsAgenticMessage:
     """Test execute_agentic() yields AgenticMessage types."""
 
-    @pytest.fixture
-    def driver_with_cwd(self) -> ApiDriver:
-        """Create ApiDriver with cwd set."""
-        return ApiDriver(model="openrouter:test/model", cwd="/test/path")
-
     async def test_yields_thinking_for_text_content(
-        self, driver_with_cwd: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """AIMessage with text content should yield THINKING AgenticMessage."""
         mock_deepagents.stream_chunks = [
             {"messages": [AIMessage(content="Analyzing the code...")]},
         ]
 
-        results = [msg async for msg in driver_with_cwd.execute_agentic("test prompt", cwd="/test/path")]
+        results = [msg async for msg in api_driver.execute_agentic("test prompt", cwd="/test/path")]
 
         thinking_msgs = [m for m in results if m.type == AgenticMessageType.THINKING]
         assert len(thinking_msgs) >= 1
@@ -349,21 +349,21 @@ class TestExecuteAgenticYieldsAgenticMessage:
         assert all(isinstance(m, AgenticMessage) for m in thinking_msgs)
 
     async def test_yields_thinking_for_list_content(
-        self, driver_with_cwd: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """AIMessage with list content blocks should yield THINKING AgenticMessage."""
         mock_deepagents.stream_chunks = [
             {"messages": [AIMessage(content=[{"type": "text", "text": "Thinking hard..."}])]},
         ]
 
-        results = [msg async for msg in driver_with_cwd.execute_agentic("test prompt", cwd="/test/path")]
+        results = [msg async for msg in api_driver.execute_agentic("test prompt", cwd="/test/path")]
 
         thinking_msgs = [m for m in results if m.type == AgenticMessageType.THINKING]
         assert len(thinking_msgs) >= 1
         assert any(m.content == "Thinking hard..." for m in thinking_msgs)
 
     async def test_yields_tool_call_for_tool_calls(
-        self, driver_with_cwd: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """AIMessage with tool_calls should yield TOOL_CALL AgenticMessage."""
         ai_msg = AIMessage(content="", tool_calls=[
@@ -371,7 +371,7 @@ class TestExecuteAgenticYieldsAgenticMessage:
         ])
         mock_deepagents.stream_chunks = [{"messages": [ai_msg]}]
 
-        results = [msg async for msg in driver_with_cwd.execute_agentic("test prompt", cwd="/test/path")]
+        results = [msg async for msg in api_driver.execute_agentic("test prompt", cwd="/test/path")]
 
         tool_calls = [m for m in results if m.type == AgenticMessageType.TOOL_CALL]
         assert len(tool_calls) == 1
@@ -380,13 +380,13 @@ class TestExecuteAgenticYieldsAgenticMessage:
         assert tool_calls[0].tool_call_id == "call_123"
 
     async def test_yields_tool_result_for_tool_message(
-        self, driver_with_cwd: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """ToolMessage should yield TOOL_RESULT AgenticMessage."""
         tool_msg = ToolMessage(content="file contents", tool_call_id="call_123", name="read_file")
         mock_deepagents.stream_chunks = [{"messages": [tool_msg]}]
 
-        results = [msg async for msg in driver_with_cwd.execute_agentic("test prompt", cwd="/test/path")]
+        results = [msg async for msg in api_driver.execute_agentic("test prompt", cwd="/test/path")]
 
         tool_results = [m for m in results if m.type == AgenticMessageType.TOOL_RESULT]
         assert len(tool_results) == 1
@@ -395,14 +395,14 @@ class TestExecuteAgenticYieldsAgenticMessage:
         assert tool_results[0].is_error is False
 
     async def test_yields_result_at_end(
-        self, driver_with_cwd: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Final AIMessage should yield RESULT AgenticMessage."""
         mock_deepagents.stream_chunks = [
             {"messages": [AIMessage(content="Task completed successfully")]},
         ]
 
-        results = [msg async for msg in driver_with_cwd.execute_agentic("test prompt", cwd="/test/path")]
+        results = [msg async for msg in api_driver.execute_agentic("test prompt", cwd="/test/path")]
 
         result_msgs = [m for m in results if m.type == AgenticMessageType.RESULT]
         assert len(result_msgs) == 1
@@ -411,21 +411,21 @@ class TestExecuteAgenticYieldsAgenticMessage:
         assert result_msgs[0].session_id is None
 
     async def test_yields_result_with_list_content(
-        self, driver_with_cwd: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Final AIMessage with list content should yield RESULT with combined text."""
         mock_deepagents.stream_chunks = [
             {"messages": [AIMessage(content=[{"type": "text", "text": "Done!"}])]},
         ]
 
-        results = [msg async for msg in driver_with_cwd.execute_agentic("test prompt", cwd="/test/path")]
+        results = [msg async for msg in api_driver.execute_agentic("test prompt", cwd="/test/path")]
 
         result_msgs = [m for m in results if m.type == AgenticMessageType.RESULT]
         assert len(result_msgs) == 1
         assert result_msgs[0].content == "Done!"
 
     async def test_full_agentic_flow(
-        self, driver_with_cwd: ApiDriver, mock_deepagents: MagicMock
+        self, api_driver: ApiDriver, mock_deepagents: MagicMock
     ) -> None:
         """Full agentic flow should yield proper sequence of AgenticMessage types."""
         mock_deepagents.stream_chunks = [
@@ -437,7 +437,7 @@ class TestExecuteAgenticYieldsAgenticMessage:
             {"messages": [AIMessage(content="The file contains a test function.")]},
         ]
 
-        results = [msg async for msg in driver_with_cwd.execute_agentic("test prompt", cwd="/test/path")]
+        results = [msg async for msg in api_driver.execute_agentic("test prompt", cwd="/test/path")]
 
         # Should have all types
         types = [m.type for m in results]

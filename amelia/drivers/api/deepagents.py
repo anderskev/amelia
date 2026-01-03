@@ -50,7 +50,6 @@ class LocalSandbox(FilesystemBackend, SandboxBackendProtocol):  # type: ignore[m
 
     @property
     def id(self) -> str:
-        """Unique identifier for this sandbox instance."""
         return f"local-{self.cwd}"
 
     def execute(self, command: str) -> ExecuteResponse:

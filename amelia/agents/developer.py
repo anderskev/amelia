@@ -30,13 +30,6 @@ class Developer:
         driver: DriverInterface,
         stream_emitter: StreamEmitter | None = None,
     ):
-        """Initialize the Developer agent.
-
-        Args:
-            driver: LLM driver interface for agentic execution.
-            stream_emitter: Optional callback for streaming events.
-
-        """
         self.driver = driver
         self._stream_emitter = stream_emitter
 
@@ -82,7 +75,7 @@ class Developer:
             prompt=prompt,
             cwd=cwd,
             session_id=session_id,
-            instructions=self._build_instructions(profile),
+            instructions=None,
         ):
             event: StreamEvent | None = None
 
@@ -145,19 +138,7 @@ class Developer:
                 yield current_state, event
 
     def _build_prompt(self, state: ExecutionState, profile: Profile) -> str:
-        """Build the prompt for agentic execution.
-
-        Combines the goal, review feedback (if any), and context into a single
-        prompt string for the driver.
-
-        Args:
-            state: Current execution state with goal and context.
-            profile: Execution profile with settings.
-
-        Returns:
-            Complete prompt string for the driver.
-
-        """
+        """Build prompt combining goal, review feedback, and context."""
         parts = []
 
         # Context section
@@ -193,14 +174,3 @@ IMPLEMENTATION PLAN:
 
         return "\n".join(parts)
 
-    def _build_instructions(self, profile: Profile) -> str | None:
-        """Build runtime instructions for the agent.
-
-        Args:
-            profile: Execution profile.
-
-        Returns:
-            Instructions string or None.
-
-        """
-        return None  # Default to no extra instructions

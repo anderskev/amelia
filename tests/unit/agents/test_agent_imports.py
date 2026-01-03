@@ -22,21 +22,9 @@ AGENT_FILES = [
     "amelia/agents/reviewer.py",
 ]
 
-# Files that ARE allowed to use SDK imports (driver implementations)
-ALLOWED_SDK_IMPORT_PATTERNS = [
-    "amelia/drivers/",
-]
-
 
 def get_imports_from_file(file_path: Path) -> list[tuple[str, int]]:
-    """Extract all import statements from a Python file.
-
-    Args:
-        file_path: Path to the Python file.
-
-    Returns:
-        List of tuples (import_name, line_number).
-    """
+    """Extract all import statements from a Python file."""
     content = file_path.read_text()
     tree = ast.parse(content)
 
@@ -52,32 +40,26 @@ def get_imports_from_file(file_path: Path) -> list[tuple[str, int]]:
 
 
 def is_forbidden_import(import_name: str) -> str | None:
-    """Check if an import matches a forbidden pattern.
-
-    Args:
-        import_name: The import module name.
-
-    Returns:
-        The forbidden pattern that matched, or None if allowed.
-    """
+    """Return the forbidden pattern if import matches, else None."""
     for forbidden in FORBIDDEN_IMPORTS:
         if import_name.startswith(forbidden):
             return forbidden
     return None
 
 
+@pytest.fixture
+def project_root() -> Path:
+    """Get the project root directory."""
+    # Walk up from tests/unit/agents to find project root
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    raise RuntimeError("Could not find project root")
+
+
 class TestAgentImports:
     """Test that agent files don't import driver-specific SDK types."""
-
-    @pytest.fixture
-    def project_root(self) -> Path:
-        """Get the project root directory."""
-        # Walk up from tests/unit/agents to find project root
-        current = Path(__file__).resolve()
-        for parent in current.parents:
-            if (parent / "pyproject.toml").exists():
-                return parent
-        raise RuntimeError("Could not find project root")
 
     @pytest.mark.parametrize("agent_file", AGENT_FILES)
     def test_no_sdk_imports_in_agent(self, project_root: Path, agent_file: str) -> None:
@@ -138,15 +120,6 @@ class TestAgentImports:
 
 class TestAgenticMessageUsage:
     """Test that agents properly use the AgenticMessage type."""
-
-    @pytest.fixture
-    def project_root(self) -> Path:
-        """Get the project root directory."""
-        current = Path(__file__).resolve()
-        for parent in current.parents:
-            if (parent / "pyproject.toml").exists():
-                return parent
-        raise RuntimeError("Could not find project root")
 
     @pytest.mark.parametrize("agent_file", AGENT_FILES)
     def test_agent_imports_agentic_message(self, project_root: Path, agent_file: str) -> None:
