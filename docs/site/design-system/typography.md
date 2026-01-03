@@ -400,7 +400,5 @@ Maintain optimal line length for readability:
 
 ## Next Steps
 
-- Explore the [Color System](/design-system/color-system) for text colors
-- Create [Diagrams](/design-system/diagrams) with consistent fonts
-- Build [Presentations](/design-system/presentations) using the type scale
-- Reference the complete [Token API](/design-system/tokens)
+- Reference the complete [Token API](/design-system/tokens) for colors and typography
+- Return to [Getting Started](/design-system/) for an overview

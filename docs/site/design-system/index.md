@@ -202,8 +202,5 @@ Using design tokens
 
 ## Next Steps
 
-- Explore the [Color System](/design-system/color-system) in detail
 - Learn about [Typography](/design-system/typography) and type scale
-- Create [Diagrams](/design-system/diagrams) with D2 and Mermaid
-- Build [Presentations](/design-system/presentations) with Slidev
-- Reference the complete [Token API](/design-system/tokens)
+- Reference the complete [Token API](/design-system/tokens) for colors and design tokens

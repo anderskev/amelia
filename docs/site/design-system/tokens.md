@@ -683,5 +683,3 @@ Supported in all modern browsers:
 
 - [Typography Guide](/design-system/typography)
 - [Getting Started](/design-system/)
-- [Diagrams](/design-system/diagrams)
-- [Presentations](/design-system/presentations)
