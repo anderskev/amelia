@@ -542,6 +542,9 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
         This approach avoids passing large diffs via command line arguments,
         which can fail with "Argument list too long" errors.
 
+        Uses the unified AgenticMessage stream from the driver, independent
+        of the specific driver implementation (CLI or API).
+
         Args:
             state: Current execution state containing issue context.
             base_commit: Git commit hash to diff against.
@@ -552,35 +555,7 @@ Be specific with file paths and line numbers. Provide actionable feedback."""
             Tuple of (ReviewResult, session_id from driver).
 
         """
-        from amelia.drivers.cli.claude import ClaudeCliDriver  # noqa: PLC0415
-
-        # Agentic review requires CLI driver
-        if not isinstance(self.driver, ClaudeCliDriver):
-            # Fallback to traditional review for non-CLI drivers
-            logger.warning(
-                "Agentic review requires CLI driver, falling back to git diff",
-                agent="reviewer",
-                driver_type=type(self.driver).__name__,
-            )
-            # Get diff the traditional way and use _single_review
-            proc = await asyncio.create_subprocess_exec(
-                "git", "diff", base_commit,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=profile.working_dir,
-            )
-            stdout, stderr = await proc.communicate()
-            if proc.returncode != 0:
-                logger.debug(
-                    "git diff failed",
-                    agent="reviewer",
-                    stderr=stderr.decode(),
-                    returncode=proc.returncode,
-                )
-            code_changes = stdout.decode() if proc.returncode == 0 else ""
-            return await self._single_review(
-                state, code_changes, profile, persona="General", workflow_id=workflow_id
-            )
+        from amelia.drivers.base import AgenticMessageType  # noqa: PLC0415
 
         # Build the task prompt
         task_parts = []
@@ -607,6 +582,7 @@ The changes are in git - diff against commit: {base_commit}"""
         session_id = state.driver_session_id
         new_session_id: str | None = None
         final_result: str | None = None
+        has_error: bool = False
 
         logger.info(
             "Starting agentic review",
@@ -615,63 +591,46 @@ The changes are in git - diff against commit: {base_commit}"""
             workflow_id=workflow_id,
         )
 
-        # Import message types
-        from claude_agent_sdk.types import (  # noqa: PLC0415
-            AssistantMessage,
-            ResultMessage,
-            TextBlock,
-            ToolUseBlock,
-        )
-
-        # Execute agentic review
-        async for message in self.driver.execute_agentic(
+        # Execute agentic review using unified AgenticMessage stream
+        async for msg in self.driver.execute_agentic(
             prompt=prompt,
             cwd=cwd,
             session_id=session_id,
             instructions=system_prompt,
         ):
-            # Emit stream events for visibility
-            if self._stream_emitter is not None and isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        event = StreamEvent(
-                            type=StreamEventType.CLAUDE_THINKING,
-                            content=block.text,
-                            timestamp=datetime.now(UTC),
-                            agent="reviewer",
-                            workflow_id=workflow_id,
-                        )
-                        await self._stream_emitter(event)
-                    elif isinstance(block, ToolUseBlock):
-                        event = StreamEvent(
-                            type=StreamEventType.CLAUDE_TOOL_CALL,
-                            content=None,
-                            timestamp=datetime.now(UTC),
-                            agent="reviewer",
-                            workflow_id=workflow_id,
-                            tool_name=block.name,
-                            tool_input=block.input if isinstance(block.input, dict) else None,
-                        )
-                        await self._stream_emitter(event)
+            # Emit stream events for visibility using to_stream_event()
+            if self._stream_emitter is not None and msg.type != AgenticMessageType.RESULT:
+                event = msg.to_stream_event(agent="reviewer", workflow_id=workflow_id)
+                await self._stream_emitter(event)
 
-            # Capture final result
-            if isinstance(message, ResultMessage):
-                new_session_id = message.session_id
-                final_result = message.result
-                if message.is_error:
+            # Capture final result from RESULT message
+            if msg.type == AgenticMessageType.RESULT:
+                new_session_id = msg.session_id
+                final_result = msg.content
+                has_error = msg.is_error
+                if msg.is_error:
                     logger.error(
                         "Agentic review failed",
                         agent="reviewer",
-                        error=message.result,
+                        error=msg.content,
                         workflow_id=workflow_id,
                     )
 
         # Parse the result to extract review
         result = self._parse_review_result(final_result, workflow_id)
 
+        # If there was an error, ensure result is not approved
+        if has_error and result.approved:
+            result = ReviewResult(
+                reviewer_persona=result.reviewer_persona,
+                approved=False,
+                comments=result.comments,
+                severity="high" if result.severity == "low" else result.severity,
+            )
+
         # Emit completion event
         if self._stream_emitter is not None:
-            status = "✅ Approved" if result.approved else "⚠️ Changes requested"
+            status = "Approved" if result.approved else "Changes requested"
             content_parts = [f"**Review completed:** {status} (severity: {result.severity})"]
             if result.comments:
                 content_parts.append("\n**Comments:**")
