@@ -243,6 +243,13 @@ async def call_architect_node(
     driver = DriverFactory.get_driver(profile.driver, model=profile.model)
     architect = Architect(driver, stream_emitter=stream_emitter, prompts=prompts)
 
+    # Ensure the plan directory exists before the architect runs
+    plan_rel_path = resolve_plan_path(profile.plan_path_pattern, state.issue.id)
+    working_dir = Path(profile.working_dir) if profile.working_dir else Path(".")
+    plan_path = working_dir / plan_rel_path
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.debug("Ensured plan directory exists", plan_dir=str(plan_path.parent))
+
     # Consume async generator, emitting events and collecting final state
     final_state = state
     async for new_state, event in architect.plan(
@@ -257,12 +264,9 @@ async def call_architect_node(
     # Save token usage from driver (best-effort)
     await _save_token_usage(driver, workflow_id, "architect", repository)
 
-    # Read plan from predictable path based on profile pattern
+    # Read plan from predictable path (reusing plan_path computed above)
     plan_content: str | None = None
     plan_file_path: Path | None = None
-
-    plan_rel_path = resolve_plan_path(profile.plan_path_pattern, state.issue.id)
-    plan_path = Path(profile.working_dir) / plan_rel_path
 
     if plan_path.exists():
         try:
