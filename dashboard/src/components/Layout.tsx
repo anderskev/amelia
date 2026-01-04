@@ -59,18 +59,18 @@ export function Layout() {
             aria-hidden="true"
           />
 
-          {/* Glass scanlines - z-[100] */}
+          {/* Glass scanlines - z-[5] (behind content at z-10) */}
           <div
-            className="absolute inset-0 pointer-events-none z-[100]"
+            className="absolute inset-0 pointer-events-none z-[5]"
             style={{
               background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgb(239 248 226 / 0.01) 2px, rgb(239 248 226 / 0.01) 4px)',
             }}
             aria-hidden="true"
           />
 
-          {/* Vignette - z-[99] */}
+          {/* Vignette - z-[6] (behind content at z-10) */}
           <div
-            className="absolute inset-0 pointer-events-none z-[99]"
+            className="absolute inset-0 pointer-events-none z-[6]"
             style={{
               background: 'radial-gradient(ellipse at center, transparent 30%, rgb(13 26 18 / 0.6) 100%)',
             }}
