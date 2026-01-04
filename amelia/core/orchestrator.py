@@ -20,6 +20,7 @@ from amelia.agents.architect import Architect
 from amelia.agents.developer import Developer
 from amelia.agents.evaluator import Evaluator
 from amelia.agents.reviewer import Reviewer
+from amelia.core.constants import ToolName
 from amelia.core.state import ExecutionState
 from amelia.core.types import Profile, StreamEmitter
 from amelia.drivers.factory import DriverFactory
@@ -202,9 +203,9 @@ async def call_architect_node(
     plan_content: str | None = None
     plan_file_path: Path | None = None
 
-    # Search tool calls for Write commands that created markdown files
+    # Search tool calls for write_file commands that created markdown files
     for tool_call in final_state.tool_calls:
-        if tool_call.tool_name == "Write" and isinstance(tool_call.tool_input, dict):
+        if tool_call.tool_name == ToolName.WRITE_FILE and isinstance(tool_call.tool_input, dict):
             file_path = tool_call.tool_input.get("file_path", "")
             content = tool_call.tool_input.get("content", "")
             # Check if this looks like a plan file (has **Goal:** marker)
