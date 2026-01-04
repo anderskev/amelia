@@ -6,6 +6,7 @@ the state machine and the create_orchestrator_graph() factory.
 """
 import asyncio
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import typer
@@ -195,26 +196,87 @@ async def call_architect_node(
     # Save token usage from driver (best-effort)
     await _save_token_usage(driver, workflow_id, "architect", repository)
 
-    # Temporary goal extraction until #199 validator
-    goal = _extract_goal_from_markdown(final_state.raw_architect_output)
+    # In agentic mode, Claude writes the plan via Write tool, then returns a summary.
+    # We need to find the actual plan file from tool calls.
+    plan_content: str | None = None
+    plan_file_path: Path | None = None
 
-    # Log the architect plan generation
+    # Search tool calls for Write commands that created markdown files
+    for tool_call in final_state.tool_calls:
+        if tool_call.tool_name == "Write" and isinstance(tool_call.tool_input, dict):
+            file_path = tool_call.tool_input.get("file_path", "")
+            content = tool_call.tool_input.get("content", "")
+            # Check if this looks like a plan file (has **Goal:** marker)
+            if file_path.endswith(".md") and "**Goal:**" in content:
+                plan_content = content
+                plan_file_path = Path(file_path)
+                logger.debug(
+                    "Found plan in Write tool call",
+                    file_path=file_path,
+                    content_length=len(content),
+                )
+                break
+
+    # Fallback: try reading from plan_path if no Write tool call found
+    if plan_content is None and final_state.plan_path and final_state.plan_path.exists():
+        try:
+            plan_content = final_state.plan_path.read_text()
+            plan_file_path = final_state.plan_path
+            logger.debug(
+                "Read plan from plan_path file",
+                plan_path=str(final_state.plan_path),
+                plan_length=len(plan_content),
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to read plan file",
+                plan_path=str(final_state.plan_path),
+                error=str(e),
+            )
+
+    # Extract goal: try plan content first (agentic mode), then raw output (legacy)
+    goal = _extract_goal_from_markdown(plan_content) if plan_content else None
+    if goal is None:
+        goal = _extract_goal_from_markdown(final_state.raw_architect_output)
+
+    # Use plan file content if available, otherwise fall back to raw output
+    plan_markdown = plan_content or final_state.raw_architect_output
+
+    # Log the architect plan generation with diagnostic details
+    raw_output_preview = (
+        final_state.raw_architect_output[:500]
+        if final_state.raw_architect_output
+        else None
+    )
     logger.info(
         "Agent action completed",
         agent="architect",
         action="generated_plan",
         details={
+            "goal": goal,
             "goal_length": len(goal) if goal else 0,
+            "plan_markdown_length": len(plan_markdown) if plan_markdown else 0,
+            "raw_output_length": len(final_state.raw_architect_output) if final_state.raw_architect_output else 0,
+            "raw_output_preview": raw_output_preview,
             "tool_calls_count": len(final_state.tool_calls),
-            "plan_path": str(final_state.plan_path) if final_state.plan_path else None,
+            "plan_file_path": str(plan_file_path) if plan_file_path else None,
+            "plan_from_tool_call": plan_file_path is not None and plan_content is not None,
         },
     )
+
+    # Warn if goal extraction failed from all sources
+    if goal is None and (plan_content or final_state.raw_architect_output):
+        logger.warning(
+            "Goal extraction failed - no '**Goal:**' line found",
+            plan_file_path=str(plan_file_path) if plan_file_path else None,
+            raw_output_first_lines="\n".join(final_state.raw_architect_output.split("\n")[:10]) if final_state.raw_architect_output else None,
+        )
 
     # Return partial state update
     return {
         "goal": goal,
         "raw_architect_output": final_state.raw_architect_output,
-        "plan_markdown": final_state.raw_architect_output,  # Backward compat
+        "plan_markdown": plan_markdown,
         "plan_path": str(final_state.plan_path) if final_state.plan_path else None,
         "tool_calls": list(final_state.tool_calls),
         "tool_results": list(final_state.tool_results),

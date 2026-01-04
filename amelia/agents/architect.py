@@ -3,9 +3,8 @@
 This module provides the Architect agent that analyzes issues and produces
 rich markdown implementation plans for agentic execution.
 """
-import re
 from collections.abc import AsyncIterator
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from loguru import logger
@@ -13,29 +12,8 @@ from pydantic import BaseModel, ConfigDict
 
 from amelia.core.agentic_state import ToolCall, ToolResult
 from amelia.core.state import ExecutionState
-from amelia.core.types import Design, Issue, Profile, StreamEmitter, StreamEvent, StreamEventType
+from amelia.core.types import Design, Profile, StreamEmitter, StreamEvent, StreamEventType
 from amelia.drivers.base import AgenticMessageType, DriverInterface
-
-
-def _slugify(text: str) -> str:
-    """Convert text to filesystem-safe slug.
-
-    Args:
-        text: Input text to convert to slug format.
-
-    Returns:
-        Lowercase, hyphenated string with special chars removed, truncated to 50 characters.
-
-    """
-    # Replace spaces and underscores with hyphens
-    slug = text.lower().replace(" ", "-").replace("_", "-")
-    # Remove filesystem-unsafe characters: / \ : * ? " < > |
-    slug = re.sub(r'[/\\:*?"<>|]', "", slug)
-    # Collapse multiple hyphens
-    slug = re.sub(r"-+", "-", slug)
-    # Strip leading/trailing hyphens
-    slug = slug.strip("-")
-    return slug[:50]
 
 
 class PlanOutput(BaseModel):
@@ -288,21 +266,18 @@ Before planning, discover:
         self,
         state: ExecutionState,
         profile: Profile,
-        output_dir: str | None = None,
         *,
         workflow_id: str,
     ) -> AsyncIterator[tuple[ExecutionState, StreamEvent]]:
         """Generate a markdown implementation plan from an issue using agentic execution.
 
         Creates a rich markdown plan by exploring the codebase with read-only tools,
-        then producing a reference-based plan. Yields state/event tuples as execution
-        progresses for real-time streaming.
+        then producing a reference-based plan. Claude writes the plan to a file via
+        the Write tool. Yields state/event tuples as execution progresses.
 
         Args:
             state: The execution state containing the issue and optional design.
             profile: The profile containing working directory settings.
-            output_dir: Directory path where the markdown plan will be saved.
-                If None, uses profile's plan_output_dir (defaults to docs/plans).
             workflow_id: Workflow ID for stream events (required).
 
         Yields:
@@ -316,15 +291,6 @@ Before planning, discover:
         if not state.issue:
             raise ValueError("Cannot generate plan: no issue in ExecutionState")
 
-        # Use profile's output directory if not specified
-        if output_dir is None:
-            output_dir = profile.plan_output_dir
-
-        # Resolve relative paths to working_dir (not server CWD)
-        output_path = Path(output_dir)
-        if not output_path.is_absolute() and profile.working_dir:
-            output_dir = str(Path(profile.working_dir) / output_path)
-
         # Build user prompt from state (simplified - no codebase scan)
         user_prompt = self._build_agentic_prompt(state)
 
@@ -333,6 +299,11 @@ Before planning, discover:
         tool_results: list[ToolResult] = list(state.tool_results)
         raw_output = ""
         current_state = state
+
+        logger.info(
+            "Architect starting agentic execution",
+            cwd=cwd,
+        )
 
         async for message in self.driver.execute_agentic(
             prompt=user_prompt,
@@ -376,28 +347,25 @@ Before planning, discover:
                 raw_output = message.content or ""
                 event = message.to_stream_event(agent="architect", workflow_id=workflow_id)
 
-                # Save markdown to file
-                markdown_path = self._save_markdown(
-                    raw_output,
-                    state.issue,
-                    state.design,
-                    output_dir,
-                )
+                # In agentic mode, Claude writes the plan via Write tool.
+                # The orchestrator extracts the plan from tool_calls.
+                # No need to save the summary response to a file.
 
                 logger.info(
                     "Architect plan generated",
                     agent="architect",
-                    markdown_path=str(markdown_path),
                     raw_output_length=len(raw_output),
+                    tool_calls_count=len(tool_calls),
                 )
 
                 # Yield final state with all updates
+                # plan_path is None - orchestrator extracts plan from tool_calls
                 current_state = state.model_copy(update={
                     "tool_calls": tool_calls,
                     "tool_results": tool_results,
                     "raw_architect_output": raw_output,
                     "plan_markdown": raw_output,  # Backward compat until #199
-                    "plan_path": markdown_path,
+                    "plan_path": None,
                 })
                 yield current_state, event
                 continue  # Result is the final message
@@ -444,36 +412,6 @@ Before planning, discover:
         )
 
         return "\n".join(parts)
-
-    def _save_markdown(
-        self,
-        markdown_content: str,
-        issue: Issue,
-        design: Design | None,
-        output_dir: str,
-    ) -> Path:
-        """Save plan as markdown file.
-
-        Args:
-            markdown_content: The markdown plan content to save.
-            issue: Original issue being planned.
-            design: Optional design context.
-            output_dir: Directory path for saving the markdown file.
-
-        Returns:
-            Path to the saved markdown file.
-
-        """
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        title = design.title if design else issue.title
-        filename = f"{date.today().isoformat()}-{_slugify(title)}.md"
-        file_path = output_path / filename
-
-        file_path.write_text(markdown_content)
-
-        return file_path
 
     async def analyze(
         self,
