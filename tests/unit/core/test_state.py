@@ -1,5 +1,4 @@
 """Tests for ExecutionState model."""
-import pytest
 
 from amelia.core.state import ExecutionState
 
