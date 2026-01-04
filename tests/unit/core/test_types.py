@@ -28,14 +28,14 @@ class TestProfile:
         assert profile.validator_model == "gpt-4o-mini"
 
 
-def test_profile_has_plan_path_pattern_with_default():
+def test_profile_has_plan_path_pattern_with_default() -> None:
     from amelia.core.types import Profile
 
     profile = Profile(name="test", driver="cli:claude", model="sonnet")
     assert profile.plan_path_pattern == "docs/plans/{date}-{issue_key}.md"
 
 
-def test_profile_plan_path_pattern_is_configurable():
+def test_profile_plan_path_pattern_is_configurable() -> None:
     from amelia.core.types import Profile
 
     profile = Profile(

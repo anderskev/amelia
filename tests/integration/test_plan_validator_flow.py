@@ -2,7 +2,7 @@
 
 from datetime import date
 from pathlib import Path
-from typing import Any
+from langchain_core.runnables.config import RunnableConfig
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -36,7 +36,6 @@ def integration_issue() -> Issue:
         id="INT-456",
         title="Integration Test Issue",
         description="Test the full flow",
-        labels=[],
     )
 
 
@@ -80,7 +79,7 @@ class TestArchitectToValidatorFlow:
         mock_driver = MagicMock()
         mock_driver.generate = AsyncMock(return_value=(mock_validator_output, "sess"))
 
-        config: dict[str, Any] = {
+        config: RunnableConfig = {
             "configurable": {
                 "profile": integration_profile,
                 "thread_id": "int-test-789",

@@ -1,7 +1,7 @@
 """Tests for plan_validator_node function."""
 
 from pathlib import Path
-from typing import Any
+from langchain_core.runnables.config import RunnableConfig
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -79,8 +79,8 @@ def mock_state(mock_issue: Issue) -> ExecutionState:
     return ExecutionState(profile_id="test", issue=mock_issue)
 
 
-def make_config(profile: Profile) -> dict[str, Any]:
-    """Create a RunnableConfig-like dict for testing."""
+def make_config(profile: Profile) -> RunnableConfig:
+    """Create a RunnableConfig for testing."""
     return {
         "configurable": {
             "profile": profile,

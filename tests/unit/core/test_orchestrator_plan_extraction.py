@@ -4,6 +4,8 @@ from collections.abc import AsyncIterator, Callable
 from datetime import date
 from pathlib import Path
 from typing import Any
+
+from langchain_core.runnables.config import RunnableConfig
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -60,7 +62,7 @@ async def test_call_architect_node_returns_raw_output(
         mock_architect.plan = mock_plan
         mock_architect_class.return_value = mock_architect
 
-        config = {
+        config: RunnableConfig = {
             "configurable": {
                 "thread_id": "wf-123",
                 "profile": profile,
@@ -116,7 +118,7 @@ async def test_call_architect_node_creates_plan_directory_if_missing(
 """
 
     # Mock the Architect to write the plan file and check directory exists
-    async def mock_plan(*args, **kwargs):
+    async def mock_plan(*args: Any, **kwargs: Any) -> AsyncIterator[tuple[Any, Any]]:
         nonlocal directory_existed_when_architect_called
         # Check if directory exists when architect is called
         directory_existed_when_architect_called = plan_dir.exists()
@@ -142,7 +144,7 @@ async def test_call_architect_node_creates_plan_directory_if_missing(
         mock_architect.plan = mock_plan
         mock_architect_class.return_value = mock_architect
 
-        config = {
+        config: RunnableConfig = {
             "configurable": {
                 "thread_id": "wf-123",
                 "profile": profile,
@@ -182,6 +184,7 @@ async def test_call_architect_node_returns_raw_output_only(
     )
 
     today = date.today().isoformat()
+    assert state.issue is not None
     plan_path = plan_dir / f"{today}-{state.issue.id.lower()}.md"
     plan_content = "# Test Plan\n\n**Goal:** Test goal"
     plan_path.write_text(plan_content)
@@ -209,7 +212,7 @@ async def test_call_architect_node_returns_raw_output_only(
         mock_architect.plan = mock_plan
         mock_architect_class.return_value = mock_architect
 
-        config = {
+        config: RunnableConfig = {
             "configurable": {
                 "thread_id": "wf-123",
                 "profile": profile,
