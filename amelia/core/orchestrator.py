@@ -21,7 +21,7 @@ from amelia.agents.architect import Architect
 from amelia.agents.developer import Developer
 from amelia.agents.evaluator import Evaluator
 from amelia.agents.reviewer import Reviewer
-from amelia.core.constants import ToolName
+from amelia.core.constants import ToolName, resolve_plan_path
 from amelia.core.state import ExecutionState
 from amelia.core.types import Profile, StreamEmitter
 from amelia.drivers.factory import DriverFactory
@@ -257,43 +257,48 @@ async def call_architect_node(
     # Save token usage from driver (best-effort)
     await _save_token_usage(driver, workflow_id, "architect", repository)
 
-    # In agentic mode, Claude writes the plan via Write tool, then returns a summary.
-    # We need to find the actual plan file from tool calls.
+    # Read plan from predictable path based on profile pattern
     plan_content: str | None = None
     plan_file_path: Path | None = None
 
-    # Search tool calls for write_file commands that created markdown files
-    for tool_call in final_state.tool_calls:
-        if tool_call.tool_name == ToolName.WRITE_FILE and isinstance(tool_call.tool_input, dict):
-            file_path = tool_call.tool_input.get("file_path", "")
-            content = tool_call.tool_input.get("content", "")
-            # Check if this looks like a plan file (has **Goal:** marker)
-            if file_path.endswith(".md") and "**Goal:**" in content:
-                plan_content = content
-                plan_file_path = Path(file_path)
-                logger.debug(
-                    "Found plan in Write tool call",
-                    file_path=file_path,
-                    content_length=len(content),
-                )
-                break
+    plan_rel_path = resolve_plan_path(profile.plan_path_pattern, state.issue.id)
+    plan_path = Path(profile.working_dir) / plan_rel_path
 
-    # Fallback: try reading from plan_path if no Write tool call found
-    if plan_content is None and final_state.plan_path and final_state.plan_path.exists():
+    if plan_path.exists():
         try:
-            plan_content = final_state.plan_path.read_text()
-            plan_file_path = final_state.plan_path
+            plan_content = plan_path.read_text()
+            plan_file_path = plan_path
             logger.debug(
-                "Read plan from plan_path file",
-                plan_path=str(final_state.plan_path),
+                "Read plan from predictable path",
+                plan_path=str(plan_path),
                 plan_length=len(plan_content),
             )
         except Exception as e:
             logger.warning(
                 "Failed to read plan file",
-                plan_path=str(final_state.plan_path),
+                plan_path=str(plan_path),
                 error=str(e),
             )
+    else:
+        logger.debug(
+            "Plan file not found at expected path, falling back to tool call parsing",
+            plan_path=str(plan_path),
+        )
+        # Fallback: Search tool calls for write_file commands that created markdown files
+        for tool_call in final_state.tool_calls:
+            if tool_call.tool_name == ToolName.WRITE_FILE and isinstance(tool_call.tool_input, dict):
+                file_path = tool_call.tool_input.get("file_path", "")
+                content = tool_call.tool_input.get("content", "")
+                # Check if this looks like a plan file (has **Goal:** marker)
+                if file_path.endswith(".md") and "**Goal:**" in content:
+                    plan_content = content
+                    plan_file_path = Path(file_path)
+                    logger.debug(
+                        "Found plan in Write tool call",
+                        file_path=file_path,
+                        content_length=len(content),
+                    )
+                    break
 
     # Extract goal: try plan content first (agentic mode), then raw output (legacy)
     goal = _extract_goal_from_markdown(plan_content) if plan_content else None
