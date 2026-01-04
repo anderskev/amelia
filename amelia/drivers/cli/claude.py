@@ -20,17 +20,9 @@ from claude_agent_sdk.types import (
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
-from amelia.core.constants import ToolName
+from amelia.core.constants import normalize_tool_name
 from amelia.drivers.base import AgenticMessage, AgenticMessageType, GenerateResult
 from amelia.logging import log_claude_result
-
-
-# Mapping from Claude CLI tool names to standard ToolName values
-CLAUDE_TOOL_NAME_MAP: dict[str, str] = {
-    "Write": ToolName.WRITE_FILE,
-    "Read": ToolName.READ_FILE,
-    "Bash": ToolName.RUN_SHELL_COMMAND,
-}
 
 
 def _strip_markdown_fences(text: str) -> str:
@@ -418,7 +410,7 @@ class ClaudeCliDriver:
                                 self.tool_call_history.append(block)
                                 last_tool_name = block.name
                                 # Normalize tool name to standard format
-                                normalized_name = CLAUDE_TOOL_NAME_MAP.get(block.name, block.name)
+                                normalized_name = normalize_tool_name(block.name)
                                 yield AgenticMessage(
                                     type=AgenticMessageType.TOOL_CALL,
                                     tool_name=normalized_name,
@@ -430,7 +422,7 @@ class ClaudeCliDriver:
                                 # Normalize tool name to standard format
                                 result_tool_name: str | None = None
                                 if last_tool_name:
-                                    result_tool_name = CLAUDE_TOOL_NAME_MAP.get(last_tool_name, last_tool_name)
+                                    result_tool_name = normalize_tool_name(last_tool_name)
                                 yield AgenticMessage(
                                     type=AgenticMessageType.TOOL_RESULT,
                                     tool_name=result_tool_name,

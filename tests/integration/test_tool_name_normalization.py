@@ -101,3 +101,25 @@ async def test_tool_name_enum_equality_with_string() -> None:
     assert ToolName.WRITE_FILE != "Write"
     assert ToolName.WRITE_FILE != "write"
     assert ToolName.WRITE_FILE != "WriteFile"
+
+
+def test_normalize_tool_name_handles_all_driver_variants() -> None:
+    """normalize_tool_name handles tool names from all drivers.
+
+    Both CLI (PascalCase) and API (lowercase) driver tool names
+    are normalized to standard ToolName values.
+    """
+    from amelia.core.constants import normalize_tool_name
+
+    # Claude CLI driver uses PascalCase
+    assert normalize_tool_name("Write") == ToolName.WRITE_FILE
+    assert normalize_tool_name("Read") == ToolName.READ_FILE
+    assert normalize_tool_name("Bash") == ToolName.RUN_SHELL_COMMAND
+
+    # DeepAgents API driver uses lowercase
+    assert normalize_tool_name("write") == ToolName.WRITE_FILE
+    assert normalize_tool_name("read") == ToolName.READ_FILE
+
+    # Unknown names pass through unchanged
+    assert normalize_tool_name("unknown_tool") == "unknown_tool"
+    assert normalize_tool_name("custom") == "custom"

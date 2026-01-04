@@ -19,6 +19,31 @@ class ToolName(StrEnum):
     READ_FILE = "read_file"
 
 
+# All known tool name aliases → standard ToolName
+# Maps driver-specific names to canonical ToolName values
+TOOL_NAME_ALIASES: dict[str, str] = {
+    # Claude CLI uses PascalCase
+    "Write": ToolName.WRITE_FILE,
+    "Read": ToolName.READ_FILE,
+    "Bash": ToolName.RUN_SHELL_COMMAND,
+    # DeepAgents uses lowercase
+    "write": ToolName.WRITE_FILE,
+    "read": ToolName.READ_FILE,
+}
+
+
+def normalize_tool_name(raw_name: str) -> str:
+    """Normalize driver-specific tool name to standard ToolName.
+
+    Args:
+        raw_name: The raw tool name from a driver (e.g., "Write", "write").
+
+    Returns:
+        The normalized tool name (e.g., "write_file"), or raw_name if no alias exists.
+    """
+    return TOOL_NAME_ALIASES.get(raw_name, raw_name)
+
+
 # Shell metacharacters that indicate shell injection attempts
 # These are ALWAYS blocked regardless of security mode
 BLOCKED_SHELL_METACHARACTERS: tuple[str, ...] = (

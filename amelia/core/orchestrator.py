@@ -5,6 +5,7 @@ Developer (execute agentically) ↔ Reviewer (review) → Done. Provides node fu
 the state machine and the create_orchestrator_graph() factory.
 """
 import asyncio
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -127,7 +128,11 @@ async def _save_token_usage(
 def _extract_goal_from_markdown(markdown: str | None) -> str | None:
     """Temporary: Extract goal from plan markdown. Remove in #199.
 
-    Looks for **Goal:** line in markdown and extracts the goal text.
+    Tries multiple patterns in order of specificity:
+    1. **Goal:** prefix (explicit goal line from prompt format)
+    2. ## Goal: or # Goal: headers
+    3. Plan title from header (e.g., "## Implementation Plan: XYZ")
+    4. First non-empty, non-header line as fallback
 
     Args:
         markdown: Raw markdown plan content.
@@ -137,10 +142,64 @@ def _extract_goal_from_markdown(markdown: str | None) -> str | None:
     """
     if not markdown:
         return None
-    for line in markdown.split("\n"):
-        if line.strip().startswith("**Goal:**"):
-            goal = line.replace("**Goal:**", "").strip()
-            return goal if goal else None
+
+    lines = markdown.split("\n")
+
+    # Pattern 1: **Goal:** prefix (most explicit - matches prompt format)
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("**Goal:**"):
+            goal = stripped.replace("**Goal:**", "").strip()
+            if goal:
+                logger.debug("Goal extracted", pattern="**Goal:** prefix", goal=goal[:100])
+                return goal
+
+    # Pattern 2: ## Goal or # Goal headers
+    for i, line in enumerate(lines):
+        stripped = line.strip().lower()
+        if stripped.startswith("## goal") or stripped.startswith("# goal"):
+            # Try inline content after "Goal:"
+            original = lines[i].strip()
+            parts = original.split(":", 1)
+            if len(parts) > 1 and parts[1].strip():
+                goal = parts[1].strip()
+                logger.debug("Goal extracted", pattern="Goal header inline", goal=goal[:100])
+                return goal
+            # Try next line if header has no inline content
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if next_line and not next_line.startswith("#"):
+                    logger.debug(
+                        "Goal extracted", pattern="Goal header next line", goal=next_line[:100]
+                    )
+                    return next_line
+
+    # Pattern 3: Plan title from header (e.g., "## Implementation Plan: XYZ")
+    for line in lines:
+        stripped = line.strip()
+        # Match "# ... Plan: <title>" or "## ... Plan: <title>"
+        match = re.match(r"^#+\s+.*?Plan[:\s]+(.+)$", stripped, re.IGNORECASE)
+        if match:
+            goal = match.group(1).strip()
+            if goal:
+                logger.debug("Goal extracted", pattern="Plan header title", goal=goal[:100])
+                return goal
+
+    # Pattern 4: First meaningful non-header line (fallback)
+    for line in lines[:20]:  # Only check first 20 lines
+        stripped = line.strip()
+        # Skip empty, headers, lists, and table rows
+        if (
+            stripped
+            and not stripped.startswith("#")
+            and not stripped.startswith("-")
+            and not stripped.startswith("|")
+            and len(stripped) > 20
+        ):
+            logger.debug("Goal extracted", pattern="first meaningful line", goal=stripped[:100])
+            return stripped
+
+    logger.debug("Goal extraction failed - no patterns matched")
     return None
 
 
