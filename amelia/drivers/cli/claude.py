@@ -20,6 +20,7 @@ from claude_agent_sdk.types import (
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
+from amelia.core.constants import normalize_tool_name
 from amelia.drivers.base import AgenticMessage, AgenticMessageType, GenerateResult
 from amelia.logging import log_claude_result
 
@@ -408,17 +409,23 @@ class ClaudeCliDriver:
                                 # Track tool calls in history
                                 self.tool_call_history.append(block)
                                 last_tool_name = block.name
+                                # Normalize tool name to standard format
+                                normalized_name = normalize_tool_name(block.name)
                                 yield AgenticMessage(
                                     type=AgenticMessageType.TOOL_CALL,
-                                    tool_name=block.name,
+                                    tool_name=normalized_name,
                                     tool_input=block.input,
                                     tool_call_id=block.id,
                                 )
                             elif isinstance(block, ToolResultBlock):
                                 content = block.content if isinstance(block.content, str) else str(block.content)
+                                # Normalize tool name to standard format
+                                result_tool_name: str | None = None
+                                if last_tool_name:
+                                    result_tool_name = normalize_tool_name(last_tool_name)
                                 yield AgenticMessage(
                                     type=AgenticMessageType.TOOL_RESULT,
-                                    tool_name=last_tool_name,
+                                    tool_name=result_tool_name,
                                     tool_output=content,
                                     is_error=block.is_error or False,
                                 )

@@ -5,6 +5,7 @@ Developer (execute agentically) ↔ Reviewer (review) → Done. Provides node fu
 the state machine and the create_orchestrator_graph() factory.
 """
 import asyncio
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -20,6 +21,7 @@ from amelia.agents.architect import Architect
 from amelia.agents.developer import Developer
 from amelia.agents.evaluator import Evaluator
 from amelia.agents.reviewer import Reviewer
+from amelia.core.constants import ToolName, resolve_plan_path
 from amelia.core.state import ExecutionState
 from amelia.core.types import Profile, StreamEmitter
 from amelia.drivers.factory import DriverFactory
@@ -126,7 +128,11 @@ async def _save_token_usage(
 def _extract_goal_from_markdown(markdown: str | None) -> str | None:
     """Temporary: Extract goal from plan markdown. Remove in #199.
 
-    Looks for **Goal:** line in markdown and extracts the goal text.
+    Tries multiple patterns in order of specificity:
+    1. **Goal:** prefix (explicit goal line from prompt format)
+    2. ## Goal: or # Goal: headers
+    3. Plan title from header (e.g., "## Implementation Plan: XYZ")
+    4. First non-empty, non-header line as fallback
 
     Args:
         markdown: Raw markdown plan content.
@@ -136,10 +142,64 @@ def _extract_goal_from_markdown(markdown: str | None) -> str | None:
     """
     if not markdown:
         return None
-    for line in markdown.split("\n"):
-        if line.strip().startswith("**Goal:**"):
-            goal = line.replace("**Goal:**", "").strip()
-            return goal if goal else None
+
+    lines = markdown.split("\n")
+
+    # Pattern 1: **Goal:** prefix (most explicit - matches prompt format)
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("**Goal:**"):
+            goal = stripped.replace("**Goal:**", "").strip()
+            if goal:
+                logger.debug("Goal extracted", pattern="**Goal:** prefix", goal=goal[:100])
+                return goal
+
+    # Pattern 2: ## Goal or # Goal headers
+    for i, line in enumerate(lines):
+        stripped = line.strip().lower()
+        if stripped.startswith("## goal") or stripped.startswith("# goal"):
+            # Try inline content after "Goal:"
+            original = lines[i].strip()
+            parts = original.split(":", 1)
+            if len(parts) > 1 and parts[1].strip():
+                goal = parts[1].strip()
+                logger.debug("Goal extracted", pattern="Goal header inline", goal=goal[:100])
+                return goal
+            # Try next line if header has no inline content
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if next_line and not next_line.startswith("#"):
+                    logger.debug(
+                        "Goal extracted", pattern="Goal header next line", goal=next_line[:100]
+                    )
+                    return next_line
+
+    # Pattern 3: Plan title from header (e.g., "## Implementation Plan: XYZ")
+    for line in lines:
+        stripped = line.strip()
+        # Match "# ... Plan: <title>" or "## ... Plan: <title>"
+        match = re.match(r"^#+\s+.*?Plan[:\s]+(.+)$", stripped, re.IGNORECASE)
+        if match:
+            goal = match.group(1).strip()
+            if goal:
+                logger.debug("Goal extracted", pattern="Plan header title", goal=goal[:100])
+                return goal
+
+    # Pattern 4: First meaningful non-header line (fallback)
+    for line in lines[:20]:  # Only check first 20 lines
+        stripped = line.strip()
+        # Skip empty, headers, lists, and table rows
+        if (
+            stripped
+            and not stripped.startswith("#")
+            and not stripped.startswith("-")
+            and not stripped.startswith("|")
+            and len(stripped) > 20
+        ):
+            logger.debug("Goal extracted", pattern="first meaningful line", goal=stripped[:100])
+            return stripped
+
+    logger.debug("Goal extraction failed - no patterns matched")
     return None
 
 
@@ -183,6 +243,13 @@ async def call_architect_node(
     driver = DriverFactory.get_driver(profile.driver, model=profile.model)
     architect = Architect(driver, stream_emitter=stream_emitter, prompts=prompts)
 
+    # Ensure the plan directory exists before the architect runs
+    plan_rel_path = resolve_plan_path(profile.plan_path_pattern, state.issue.id)
+    working_dir = Path(profile.working_dir) if profile.working_dir else Path(".")
+    plan_path = working_dir / plan_rel_path
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.debug("Ensured plan directory exists", plan_dir=str(plan_path.parent))
+
     # Consume async generator, emitting events and collecting final state
     final_state = state
     async for new_state, event in architect.plan(
@@ -197,43 +264,45 @@ async def call_architect_node(
     # Save token usage from driver (best-effort)
     await _save_token_usage(driver, workflow_id, "architect", repository)
 
-    # In agentic mode, Claude writes the plan via Write tool, then returns a summary.
-    # We need to find the actual plan file from tool calls.
+    # Read plan from predictable path (reusing plan_path computed above)
     plan_content: str | None = None
     plan_file_path: Path | None = None
 
-    # Search tool calls for Write commands that created markdown files
-    for tool_call in final_state.tool_calls:
-        if tool_call.tool_name == "Write" and isinstance(tool_call.tool_input, dict):
-            file_path = tool_call.tool_input.get("file_path", "")
-            content = tool_call.tool_input.get("content", "")
-            # Check if this looks like a plan file (has **Goal:** marker)
-            if file_path.endswith(".md") and "**Goal:**" in content:
-                plan_content = content
-                plan_file_path = Path(file_path)
-                logger.debug(
-                    "Found plan in Write tool call",
-                    file_path=file_path,
-                    content_length=len(content),
-                )
-                break
-
-    # Fallback: try reading from plan_path if no Write tool call found
-    if plan_content is None and final_state.plan_path and final_state.plan_path.exists():
+    if plan_path.exists():
         try:
-            plan_content = final_state.plan_path.read_text()
-            plan_file_path = final_state.plan_path
+            plan_content = plan_path.read_text()
+            plan_file_path = plan_path
             logger.debug(
-                "Read plan from plan_path file",
-                plan_path=str(final_state.plan_path),
+                "Read plan from predictable path",
+                plan_path=str(plan_path),
                 plan_length=len(plan_content),
             )
         except Exception as e:
             logger.warning(
                 "Failed to read plan file",
-                plan_path=str(final_state.plan_path),
+                plan_path=str(plan_path),
                 error=str(e),
             )
+    else:
+        logger.debug(
+            "Plan file not found at expected path, falling back to tool call parsing",
+            plan_path=str(plan_path),
+        )
+        # Fallback: Search tool calls for write_file commands that created markdown files
+        for tool_call in final_state.tool_calls:
+            if tool_call.tool_name == ToolName.WRITE_FILE and isinstance(tool_call.tool_input, dict):
+                file_path = tool_call.tool_input.get("file_path", "")
+                content = tool_call.tool_input.get("content", "")
+                # Check if this looks like a plan file (has **Goal:** marker)
+                if file_path.endswith(".md") and "**Goal:**" in content:
+                    plan_content = content
+                    plan_file_path = Path(file_path)
+                    logger.debug(
+                        "Found plan in Write tool call",
+                        file_path=file_path,
+                        content_length=len(content),
+                    )
+                    break
 
     # Extract goal: try plan content first (agentic mode), then raw output (legacy)
     goal = _extract_goal_from_markdown(plan_content) if plan_content else None

@@ -18,6 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from loguru import logger
 from pydantic import BaseModel
 
+from amelia.core.constants import normalize_tool_name
 from amelia.drivers.base import (
     AgenticMessage,
     AgenticMessageType,
@@ -355,17 +356,27 @@ class ApiDriver(DriverInterface):
 
                     # Tool calls
                     for tool_call in message.tool_calls or []:
+                        tool_raw_name = tool_call["name"]
+                        # Normalize tool name to standard format
+                        tool_normalized = normalize_tool_name(tool_raw_name)
                         yield AgenticMessage(
                             type=AgenticMessageType.TOOL_CALL,
-                            tool_name=tool_call["name"],
+                            tool_name=tool_normalized,
                             tool_input=tool_call.get("args", {}),
                             tool_call_id=tool_call.get("id"),
                         )
 
                 elif isinstance(message, ToolMessage):
+                    # Normalize tool name to standard format
+                    result_raw_name = message.name
+                    result_normalized: str | None = (
+                        normalize_tool_name(result_raw_name)
+                        if result_raw_name
+                        else None
+                    )
                     yield AgenticMessage(
                         type=AgenticMessageType.TOOL_RESULT,
-                        tool_name=message.name,
+                        tool_name=result_normalized,
                         tool_output=str(message.content),
                         tool_call_id=message.tool_call_id,
                         is_error=message.status == "error",

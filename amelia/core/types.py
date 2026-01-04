@@ -53,6 +53,7 @@ class Profile(BaseModel):
         strategy: Review strategy (single or competitive).
         working_dir: Working directory for agentic execution.
         plan_output_dir: Directory for saving implementation plans (default: docs/plans).
+        plan_path_pattern: Path pattern for plan files with {date} and {issue_key} placeholders.
         retry: Retry configuration for transient failures.
         max_review_iterations: Maximum review-fix loop iterations before terminating.
         auto_approve_reviews: Skip human approval steps in review workflow.
@@ -67,6 +68,7 @@ class Profile(BaseModel):
     strategy: StrategyType = "single"
     working_dir: str | None = None
     plan_output_dir: str = "docs/plans"
+    plan_path_pattern: str = "docs/plans/{date}-{issue_key}.md"
     retry: RetryConfig = Field(default_factory=RetryConfig)
     max_review_iterations: int = 3
     auto_approve_reviews: bool = False

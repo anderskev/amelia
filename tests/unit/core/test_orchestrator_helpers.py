@@ -1,4 +1,8 @@
-"""Tests for orchestrator helper functions."""
+"""Tests for orchestrator helper functions.
+
+Note: Plan extraction tests are in test_orchestrator_plan_extraction.py
+"""
+
 import pytest
 from langchain_core.runnables.config import RunnableConfig
 
@@ -47,9 +51,16 @@ class TestExtractGoalFromMarkdown:
         assert _extract_goal_from_markdown(None) is None
         assert _extract_goal_from_markdown("") is None
 
-    def test_returns_none_when_no_goal_line(self) -> None:
-        """Should return None when no Goal line present."""
+    def test_returns_fallback_when_no_goal_line(self) -> None:
+        """Should return first meaningful line as fallback when no Goal line present."""
         markdown = "# Plan\n\nSome content without goal"
+        # New behavior: extracts first meaningful line as fallback
+        assert _extract_goal_from_markdown(markdown) == "Some content without goal"
+
+    def test_returns_none_when_all_patterns_fail(self) -> None:
+        """Should return None when no patterns match."""
+        # Short lines under 20 chars, headers only, or lists only
+        markdown = "# Plan\n\n- item\n- item2"
         assert _extract_goal_from_markdown(markdown) is None
 
     def test_handles_goal_with_colon_in_content(self) -> None:
@@ -79,3 +90,23 @@ Content
         # Also test with whitespace only
         markdown_whitespace = "# Plan\n\n**Goal:**   \n\n## Tasks"
         assert _extract_goal_from_markdown(markdown_whitespace) is None
+
+    def test_extracts_goal_from_goal_header(self) -> None:
+        """Should extract goal from ## Goal: header."""
+        markdown = "# Plan\n\n## Goal: Implement user authentication\n\n## Tasks"
+        result = _extract_goal_from_markdown(markdown)
+        assert result == "Implement user authentication"
+
+    def test_extracts_goal_from_goal_header_next_line(self) -> None:
+        """Should extract next line if ## Goal header has no inline content."""
+        markdown = "# Plan\n\n## Goal\nRefactor the database layer\n\n## Tasks"
+        result = _extract_goal_from_markdown(markdown)
+        assert result == "Refactor the database layer"
+
+    def test_extracts_goal_from_plan_header(self) -> None:
+        """Should extract title from ## Implementation Plan: XYZ format."""
+        markdown = "## Implementation Plan: Sirona API Backend\n\nBased on exploration..."
+        result = _extract_goal_from_markdown(markdown)
+        assert result == "Sirona API Backend"
+
+
