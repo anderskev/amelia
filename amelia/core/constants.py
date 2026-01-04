@@ -2,6 +2,7 @@
 """Constants used across the Amelia codebase."""
 
 import re
+from datetime import date
 from enum import StrEnum
 
 
@@ -42,6 +43,25 @@ def normalize_tool_name(raw_name: str) -> str:
         The normalized tool name (e.g., "write_file"), or raw_name if no alias exists.
     """
     return TOOL_NAME_ALIASES.get(raw_name, raw_name)
+
+
+def resolve_plan_path(pattern: str, issue_key: str) -> str:
+    """Resolve a plan path pattern to a concrete path.
+
+    Supported placeholders:
+    - {date}: Today's date in YYYY-MM-DD format
+    - {issue_key}: The issue key, lowercased
+
+    Args:
+        pattern: Path pattern with placeholders.
+        issue_key: The issue key (e.g., "TEST-123").
+
+    Returns:
+        Resolved path with placeholders substituted.
+    """
+    today = date.today().isoformat()
+    normalized_key = issue_key.lower()
+    return pattern.format(date=today, issue_key=normalized_key)
 
 
 # Shell metacharacters that indicate shell injection attempts
