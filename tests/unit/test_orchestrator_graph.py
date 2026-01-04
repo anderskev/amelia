@@ -42,6 +42,32 @@ class TestCreateOrchestratorGraph:
             f"got {node_names}"
         )
 
+    def test_graph_includes_plan_validator_node(self) -> None:
+        """Graph should include plan_validator_node."""
+        graph = create_orchestrator_graph()
+        nodes = graph.nodes
+        node_names = set(nodes.keys())
+        assert "plan_validator_node" in node_names
+
+    def test_graph_routes_architect_to_validator(self) -> None:
+        """Graph should route from architect_node to plan_validator_node."""
+        graph = create_orchestrator_graph()
+        # Check that architect_node has edge to plan_validator_node
+        # LangGraph stores edges in graph.get_graph().edges as Edge objects
+        edges = graph.get_graph().edges
+        # Find edge from architect_node
+        architect_edges = [e for e in edges if e.source == "architect_node"]
+        assert len(architect_edges) == 1
+        assert architect_edges[0].target == "plan_validator_node"
+
+    def test_graph_routes_validator_to_human_approval(self) -> None:
+        """Graph should route from plan_validator_node to human_approval_node."""
+        graph = create_orchestrator_graph()
+        edges = graph.get_graph().edges
+        validator_edges = [e for e in edges if e.source == "plan_validator_node"]
+        assert len(validator_edges) == 1
+        assert validator_edges[0].target == "human_approval_node"
+
     def test_graph_with_checkpoint_saver(self) -> None:
         """Graph should accept checkpoint saver."""
         mock_saver = MagicMock()
