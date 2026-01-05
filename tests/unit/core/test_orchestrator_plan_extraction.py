@@ -4,11 +4,10 @@ from collections.abc import AsyncIterator, Callable
 from datetime import date
 from pathlib import Path
 from typing import Any
-
-from langchain_core.runnables.config import RunnableConfig
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.runnables.config import RunnableConfig
 
 from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile

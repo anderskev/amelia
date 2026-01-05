@@ -1,10 +1,10 @@
 """Tests for plan_validator_node function."""
 
 from pathlib import Path
-from langchain_core.runnables.config import RunnableConfig
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.runnables.config import RunnableConfig
 
 from amelia.agents.architect import MarkdownPlanOutput
 from amelia.core.state import ExecutionState
