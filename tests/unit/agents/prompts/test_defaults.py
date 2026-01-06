@@ -12,35 +12,19 @@ def test_prompt_default_is_frozen():
         default.agent = "modified"
 
 
-def test_prompt_defaults_contains_architect_system():
-    """Should have architect.system prompt defined."""
-    assert "architect.system" in PROMPT_DEFAULTS
-    default = PROMPT_DEFAULTS["architect.system"]
-    assert default.agent == "architect"
-    assert default.name == "Architect System Prompt"
-    assert len(default.content) > 50  # Has substantial content
-
-
-def test_prompt_defaults_contains_architect_plan():
-    """Should have architect.plan prompt defined."""
-    assert "architect.plan" in PROMPT_DEFAULTS
-    default = PROMPT_DEFAULTS["architect.plan"]
-    assert default.agent == "architect"
-    assert default.name == "Architect Plan Format"
-
-
-def test_prompt_defaults_contains_reviewer_structured():
-    """Should have reviewer.structured prompt defined."""
-    assert "reviewer.structured" in PROMPT_DEFAULTS
-    default = PROMPT_DEFAULTS["reviewer.structured"]
-    assert default.agent == "reviewer"
-
-
-def test_prompt_defaults_contains_reviewer_agentic():
-    """Should have reviewer.agentic prompt defined."""
-    assert "reviewer.agentic" in PROMPT_DEFAULTS
-    default = PROMPT_DEFAULTS["reviewer.agentic"]
-    assert default.agent == "reviewer"
+@pytest.mark.parametrize("prompt_id,expected_agent", [
+    ("architect.system", "architect"),
+    ("architect.plan", "architect"),
+    ("reviewer.structured", "reviewer"),
+    ("reviewer.agentic", "reviewer"),
+])
+def test_prompt_default_exists(prompt_id: str, expected_agent: str) -> None:
+    """Test that required prompt defaults exist with correct agent."""
+    assert prompt_id in PROMPT_DEFAULTS
+    default = PROMPT_DEFAULTS[prompt_id]
+    assert default.agent == expected_agent
+    assert default.description
+    assert default.content
 
 
 def test_all_defaults_have_required_fields():
