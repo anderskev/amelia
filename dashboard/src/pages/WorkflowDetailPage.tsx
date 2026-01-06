@@ -1,6 +1,7 @@
 /**
  * @fileoverview Workflow detail page with full status display.
  */
+import { useMemo } from 'react';
 import { useLoaderData } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -9,10 +10,12 @@ import { ApprovalControls } from '@/components/ApprovalControls';
 import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { AgentProgressBar, type AgentStage } from '@/components/AgentProgressBar';
 import { UsageCard } from '@/components/UsageCard';
-import { buildPipeline } from '@/utils/pipeline';
+import { buildPipelineFromEvents, eventDrivenPipelineToCanvas } from '@/utils/pipeline';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
 import { workflowDetailLoader } from '@/loaders';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useWorkflowStore } from '@/store/workflowStore';
+import type { WorkflowEvent } from '@/types';
 
 /**
  * Determines completed stages based on current stage.
@@ -37,9 +40,34 @@ function getCompletedStages(currentStage: string | null): AgentStage[] {
 export default function WorkflowDetailPage() {
   const { workflow } = useLoaderData<typeof workflowDetailLoader>();
   const elapsedTime = useElapsedTime(workflow);
+  const { eventsByWorkflow } = useWorkflowStore();
 
   // Auto-revalidate when this workflow's status changes (approval events, completion, etc.)
   useAutoRevalidation(workflow?.id);
+
+  // Merge loader events with real-time WebSocket events
+  const allEvents = useMemo(() => {
+    const loaderEvents = workflow?.recent_events ?? [];
+    const storeEvents = eventsByWorkflow[workflow?.id ?? ''] ?? [];
+
+    // Deduplicate by event id using a Map
+    const eventMap = new Map<string, WorkflowEvent>();
+    for (const event of loaderEvents) {
+      eventMap.set(event.id, event);
+    }
+    for (const event of storeEvents) {
+      eventMap.set(event.id, event);
+    }
+
+    // Sort by sequence number for correct ordering
+    return Array.from(eventMap.values()).sort((a, b) => a.sequence - b.sequence);
+  }, [workflow?.recent_events, workflow?.id, eventsByWorkflow]);
+
+  // Build pipeline from merged events for real-time visualization
+  const pipeline = useMemo(() => {
+    const edp = buildPipelineFromEvents(allEvents, { showDefaultPipeline: true });
+    return eventDrivenPipelineToCanvas(edp);
+  }, [allEvents]);
 
   if (!workflow) {
     return (
@@ -57,9 +85,6 @@ export default function WorkflowDetailPage() {
   // Show approval controls when blocked (awaiting human approval)
   const needsApproval = workflow.status === 'blocked';
   const goalSummary = workflow.goal || 'Awaiting plan generation';
-
-  // Build pipeline for visualization
-  const pipeline = buildPipeline(workflow);
 
   // Determine agent progress
   const currentStage = workflow.current_stage as AgentStage | null;
@@ -141,7 +166,7 @@ export default function WorkflowDetailPage() {
             <div className="p-4">
               <ActivityLog
                 workflowId={workflow.id}
-                initialEvents={workflow.recent_events}
+                initialEvents={allEvents}
               />
             </div>
           </ScrollArea>

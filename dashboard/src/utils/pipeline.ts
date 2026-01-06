@@ -304,3 +304,27 @@ export function buildPipelineFromEvents(
 
   return { nodes, edges };
 }
+
+/**
+ * Convert EventDrivenPipeline to the simpler Pipeline format expected by WorkflowCanvas.
+ *
+ * This bridges the gap between the event-driven pipeline builder (which uses React Flow
+ * types with AgentNodeData) and the WorkflowCanvas component (which expects PipelineNode/PipelineEdge).
+ */
+export function eventDrivenPipelineToCanvas(edp: EventDrivenPipeline): Pipeline {
+  const nodes: PipelineNode[] = edp.nodes.map((node) => ({
+    id: node.id,
+    label: node.data.agentType.charAt(0).toUpperCase() + node.data.agentType.slice(1),
+    subtitle: node.data.status === 'active' ? 'In progress...' : undefined,
+    status: node.data.status,
+  }));
+
+  const edges: PipelineEdge[] = edp.edges.map((edge) => ({
+    from: edge.source,
+    to: edge.target,
+    label: '',
+    status: edge.data?.status ?? 'pending',
+  }));
+
+  return { nodes, edges };
+}
