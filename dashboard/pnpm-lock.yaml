@@ -50,6 +50,9 @@ importers:
       ai:
         specifier: ^5.0.108
         version: 5.0.108(zod@4.1.13)
+      ai-elements:
+        specifier: ^1.6.3
+        version: 1.6.3
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1425,6 +1428,10 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
+
+  ai-elements@1.6.3:
+    resolution: {integrity: sha512-M0A5NrUqCMV2w9hJV+kOuFi+XKo1BjlawheaqfrG+jovWsyXyCalOOH2dM4w/BwjABwje5yZX5MnMIUwnFmqzg==}
+    hasBin: true
 
   ai@5.0.108:
     resolution: {integrity: sha512-Jex3Lb7V41NNpuqJHKgrwoU6BCLHdI1Pg4qb4GJH4jRIDRXUBySJErHjyN4oTCwbiYCeb/8II9EnqSRPq9EifA==}
@@ -4047,6 +4054,8 @@ snapshots:
   acorn@8.15.0: {}
 
   agent-base@7.1.4: {}
+
+  ai-elements@1.6.3: {}
 
   ai@5.0.108(zod@4.1.13):
     dependencies:
