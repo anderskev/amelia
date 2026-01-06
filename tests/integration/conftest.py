@@ -236,9 +236,9 @@ def mock_event_bus() -> MagicMock:
 def mock_repository() -> AsyncMock:
     """Create in-memory repository mock with full CRUD support."""
     repo = AsyncMock(spec=WorkflowRepository)
-    repo.workflows: dict[str, ServerExecutionState] = {}
-    repo.events: list[WorkflowEvent] = []
-    repo.event_sequence: dict[str, int] = {}
+    repo.workflows = {}
+    repo.events = []
+    repo.event_sequence = {}
 
     async def create(state: ServerExecutionState) -> None:
         repo.workflows[state.id] = state

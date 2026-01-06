@@ -5,11 +5,11 @@ import pytest
 from amelia.agents.prompts.defaults import PROMPT_DEFAULTS
 
 
-def test_prompt_default_is_frozen():
+def test_prompt_default_is_frozen() -> None:
     """PromptDefault should be immutable."""
     default = PROMPT_DEFAULTS["architect.system"]
     with pytest.raises(AttributeError):
-        default.agent = "modified"
+        default.agent = "modified"  # type: ignore[misc]
 
 
 @pytest.mark.parametrize("prompt_id,expected_agent", [
@@ -27,7 +27,7 @@ def test_prompt_default_exists(prompt_id: str, expected_agent: str) -> None:
     assert default.content
 
 
-def test_all_defaults_have_required_fields():
+def test_all_defaults_have_required_fields() -> None:
     """All prompt defaults should have non-empty required fields."""
     for prompt_id, default in PROMPT_DEFAULTS.items():
         assert default.agent, f"{prompt_id} missing agent"

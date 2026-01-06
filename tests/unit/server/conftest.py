@@ -1,5 +1,6 @@
 """Shared fixtures for server tests."""
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -9,7 +10,7 @@ from amelia.server.models.events import EventType, WorkflowEvent
 
 
 @pytest.fixture
-def make_event():
+def make_event() -> Callable[..., WorkflowEvent]:
     """Factory fixture for creating WorkflowEvent instances with sensible defaults.
 
     Returns:

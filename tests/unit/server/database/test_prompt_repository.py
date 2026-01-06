@@ -1,5 +1,8 @@
 # tests/unit/server/database/test_prompt_repository.py
 """Tests for PromptRepository."""
+from collections.abc import AsyncGenerator
+from pathlib import Path
+
 import pytest
 
 from amelia.agents.prompts.models import Prompt
@@ -8,7 +11,7 @@ from amelia.server.database.prompt_repository import PromptRepository
 
 
 @pytest.fixture
-async def db(tmp_path):
+async def db(tmp_path: Path) -> AsyncGenerator[Database, None]:
     """Create a temporary database with schema."""
     db_path = tmp_path / "test.db"
     database = Database(db_path)
@@ -19,7 +22,7 @@ async def db(tmp_path):
 
 
 @pytest.fixture
-async def repo(db):
+async def repo(db: Database) -> PromptRepository:
     """Create a PromptRepository."""
     return PromptRepository(db)
 
@@ -80,6 +83,7 @@ class TestVersionManagement:
         await repo.create_prompt(Prompt(id="test.prompt", agent="test", name="Test"))
         version = await repo.create_version("test.prompt", "Content", None)
         prompt = await repo.get_prompt("test.prompt")
+        assert prompt is not None
         assert prompt.current_version_id == version.id
 
     async def test_get_versions(self, repo: PromptRepository) -> None:
@@ -109,6 +113,7 @@ class TestVersionManagement:
         # Switch back to v1
         await repo.set_active_version("test.prompt", v1.id)
         prompt = await repo.get_prompt("test.prompt")
+        assert prompt is not None
         assert prompt.current_version_id == v1.id
 
     async def test_reset_to_default(self, repo: PromptRepository) -> None:
@@ -117,6 +122,7 @@ class TestVersionManagement:
         await repo.create_version("test.prompt", "Content", None)
         await repo.reset_to_default("test.prompt")
         prompt = await repo.get_prompt("test.prompt")
+        assert prompt is not None
         assert prompt.current_version_id is None
 
 

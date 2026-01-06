@@ -1,6 +1,7 @@
 # tests/unit/server/events/test_bus.py
 """Unit tests for EventBus pub/sub."""
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
@@ -11,7 +12,7 @@ from amelia.server.models import WorkflowEvent
 
 
 @pytest.fixture
-def sample_event(make_event) -> WorkflowEvent:
+def sample_event(make_event: Callable[..., WorkflowEvent]) -> WorkflowEvent:
     """Create sample event."""
     return make_event(
         id="evt-1",
@@ -21,7 +22,7 @@ def sample_event(make_event) -> WorkflowEvent:
     )
 
 
-def test_unsubscribe(event_bus: EventBus, sample_event: WorkflowEvent):
+def test_unsubscribe(event_bus: EventBus, sample_event: WorkflowEvent) -> None:
     """Unsubscribed callback should not receive events."""
     received = []
 
@@ -35,7 +36,7 @@ def test_unsubscribe(event_bus: EventBus, sample_event: WorkflowEvent):
     assert received == []
 
 
-def test_emit_single_subscriber(event_bus: EventBus, sample_event: WorkflowEvent):
+def test_emit_single_subscriber(event_bus: EventBus, sample_event: WorkflowEvent) -> None:
     """Emit should call all subscribers."""
     received = []
 
@@ -49,7 +50,7 @@ def test_emit_single_subscriber(event_bus: EventBus, sample_event: WorkflowEvent
     assert received[0] == sample_event
 
 
-def test_emit_multiple_subscribers(event_bus: EventBus, sample_event: WorkflowEvent):
+def test_emit_multiple_subscribers(event_bus: EventBus, sample_event: WorkflowEvent) -> None:
     """Emit should call all subscribers."""
     received1 = []
     received2 = []
@@ -70,7 +71,7 @@ def test_emit_multiple_subscribers(event_bus: EventBus, sample_event: WorkflowEv
     assert received2[0] == sample_event
 
 
-def test_emit_subscriber_exception(event_bus: EventBus, sample_event: WorkflowEvent):
+def test_emit_subscriber_exception(event_bus: EventBus, sample_event: WorkflowEvent) -> None:
     """Exception in one subscriber should not affect others."""
     received = []
 
