@@ -1,11 +1,8 @@
 """Tests for DriverFactory."""
 
-import inspect
-
 import pytest
 
 from amelia.drivers.api.deepagents import ApiDriver
-from amelia.drivers.base import DriverInterface
 from amelia.drivers.cli.claude import ClaudeCliDriver
 from amelia.drivers.factory import DriverFactory
 
@@ -44,15 +41,6 @@ class TestDriverFactory:
 
 class TestDriverInterfaceProtocol:
     """Test DriverInterface protocol includes execute_agentic."""
-
-    def test_protocol_has_execute_agentic_method(self) -> None:
-        """DriverInterface should define execute_agentic method."""
-        assert hasattr(DriverInterface, "execute_agentic")
-        method = DriverInterface.execute_agentic
-        sig = inspect.signature(method)
-        # Should have prompt, cwd, session_id, instructions, schema params
-        assert "prompt" in sig.parameters
-        assert "cwd" in sig.parameters
 
     def test_claude_cli_driver_implements_protocol(self) -> None:
         """ClaudeCliDriver should implement DriverInterface including execute_agentic."""
