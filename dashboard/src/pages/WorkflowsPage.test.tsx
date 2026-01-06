@@ -12,11 +12,11 @@ vi.mock('@/utils/workflow', () => ({
 }));
 
 vi.mock('@/utils/pipeline', () => ({
-  buildPipeline: vi.fn(),
+  buildPipelineFromEvents: vi.fn(),
 }));
 
 import { getActiveWorkflow, formatElapsedTime } from '@/utils/workflow';
-import { buildPipeline } from '@/utils/pipeline';
+import { buildPipelineFromEvents } from '@/utils/pipeline';
 
 // Mock data
 const mockWorkflowSummary: WorkflowSummary = {
@@ -46,12 +46,32 @@ const mockWorkflowDetail: WorkflowDetail = {
   plan_path: null,
 };
 
+// Event-driven pipeline mock data (new format)
 const mockPipeline = {
   nodes: [
-    { id: 't1', label: 'architect', subtitle: 'Plan', status: 'completed' as const },
-    { id: 't2', label: 'developer', subtitle: 'Code', status: 'active' as const },
+    {
+      id: 'architect',
+      type: 'agent',
+      position: { x: 0, y: 0 },
+      data: { agentType: 'architect', status: 'completed', iterations: [], isExpanded: false },
+    },
+    {
+      id: 'developer',
+      type: 'agent',
+      position: { x: 200, y: 0 },
+      data: { agentType: 'developer', status: 'active', iterations: [], isExpanded: false },
+    },
+    {
+      id: 'reviewer',
+      type: 'agent',
+      position: { x: 400, y: 0 },
+      data: { agentType: 'reviewer', status: 'pending', iterations: [], isExpanded: false },
+    },
   ],
-  edges: [{ from: 't1', to: 't2', label: '', status: 'completed' as const }],
+  edges: [
+    { id: 'architect-developer', source: 'architect', target: 'developer', data: { status: 'completed' } },
+    { id: 'developer-reviewer', source: 'developer', target: 'reviewer', data: { status: 'active' } },
+  ],
 };
 
 // Second workflow for testing selection behavior
@@ -130,7 +150,7 @@ describe('WorkflowsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getActiveWorkflow).mockReturnValue(mockWorkflowSummary);
-    vi.mocked(buildPipeline).mockReturnValue(mockPipeline);
+    vi.mocked(buildPipelineFromEvents).mockReturnValue(mockPipeline);
     vi.mocked(formatElapsedTime).mockReturnValue('2h 15m');
   });
 
@@ -178,7 +198,7 @@ describe('WorkflowsPage', () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], detail: mockWorkflowDetail }, '/workflows');
 
     await waitFor(() => {
-      // WorkflowCanvas renders pipeline nodes
+      // WorkflowCanvas renders pipeline nodes - agent types are displayed capitalized
       expect(screen.getByText('architect')).toBeInTheDocument();
       expect(screen.getByText('developer')).toBeInTheDocument();
     });
@@ -217,11 +237,14 @@ describe('WorkflowsPage', () => {
     });
   });
 
-  it('should call buildPipeline with workflow detail', async () => {
+  it('should call buildPipelineFromEvents with workflow events', async () => {
     renderWithRouter({ workflows: [mockWorkflowSummary], detail: mockWorkflowDetail }, '/workflows');
 
     await waitFor(() => {
-      expect(buildPipeline).toHaveBeenCalledWith(mockWorkflowDetail);
+      expect(buildPipelineFromEvents).toHaveBeenCalledWith(
+        mockWorkflowDetail.recent_events,
+        { showDefaultPipeline: true }
+      );
     });
   });
 
@@ -263,7 +286,10 @@ describe('WorkflowsPage', () => {
       expect(within(pageHeader).getByText('PROJ-123')).toBeInTheDocument();
     });
 
-    // Verify buildPipeline was called with the active workflow detail
-    expect(buildPipeline).toHaveBeenLastCalledWith(mockWorkflowDetail);
+    // Verify buildPipelineFromEvents was called with the active workflow's events
+    expect(buildPipelineFromEvents).toHaveBeenLastCalledWith(
+      mockWorkflowDetail.recent_events,
+      { showDefaultPipeline: true }
+    );
   });
 });

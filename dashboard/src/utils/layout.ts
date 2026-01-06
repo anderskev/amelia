@@ -6,8 +6,7 @@
  * horizontal left-to-right layout optimized for workflow pipelines.
  */
 import Dagre from '@dagrejs/dagre';
-import type { WorkflowNodeType } from '@/components/flow/WorkflowNode';
-import type { Edge } from '@xyflow/react';
+import type { Node, Edge } from '@xyflow/react';
 
 /** Fixed node width for layout calculation (matches WorkflowNode card width). */
 export const NODE_WIDTH = 180;
@@ -32,10 +31,10 @@ const RANK_SEP = 100;
  * @param edges - Edges defining the graph structure
  * @returns Nodes with updated positions computed by dagre
  */
-export function getLayoutedElements(
-  nodes: WorkflowNodeType[],
+export function getLayoutedElements<T extends Node>(
+  nodes: T[],
   edges: Edge[]
-): WorkflowNodeType[] {
+): T[] {
   // Handle empty input
   if (nodes.length === 0) {
     return [];

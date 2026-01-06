@@ -21,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { success, error } from '@/components/Toast';
 import { getActiveWorkflow } from '@/utils/workflow';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
-import { buildPipeline } from '@/utils/pipeline';
+import { buildPipelineFromEvents } from '@/utils/pipeline';
 import type { workflowsLoader } from '@/loaders/workflows';
 
 /**
@@ -76,8 +76,11 @@ export default function WorkflowsPage() {
     return <WorkflowEmptyState variant="no-workflows" />;
   }
 
-  // Build pipeline for canvas visualization
-  const pipeline = detail ? buildPipeline(detail) : null;
+  // Build pipeline from events for canvas visualization (real-time updates)
+  const pipeline = buildPipelineFromEvents(
+    detail?.recent_events ?? [],
+    { showDefaultPipeline: true }
+  );
 
   return (
     <div className="flex flex-col h-full w-full overflow-y-auto">
@@ -121,7 +124,7 @@ export default function WorkflowsPage() {
         )}
       </PageHeader>
       <Separator />
-      <WorkflowCanvas pipeline={pipeline ?? undefined} />
+      <WorkflowCanvas pipeline={pipeline} className="h-64" />
 
       {/* Plan Review - shown when workflow needs approval */}
       {detail?.status === 'blocked' && (
