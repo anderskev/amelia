@@ -6,7 +6,7 @@ This module provides:
 """
 
 import socket
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -18,9 +18,12 @@ from langgraph.graph.state import CompiledStateGraph
 from amelia.core.orchestrator import create_orchestrator_graph
 from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile
+from amelia.drivers.base import AgenticMessage, AgenticMessageType
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.events.connection_manager import ConnectionManager
+from amelia.server.models.events import WorkflowEvent
+from amelia.server.models.state import ServerExecutionState
 
 
 # =============================================================================
@@ -117,6 +120,88 @@ def make_config(
     }
 
 
+def make_agentic_messages(
+    *,
+    include_thinking: bool = True,
+    include_tool_call: bool = True,
+    include_tool_result: bool = True,
+    tool_name: str = "write_file",
+    final_text: str = "Done!",
+) -> list[AgenticMessage]:
+    """Create standard agentic message sequence for testing.
+
+    Args:
+        include_thinking: Include a THINKING message.
+        include_tool_call: Include a TOOL_CALL message.
+        include_tool_result: Include a TOOL_RESULT message.
+        tool_name: Name of tool for TOOL_CALL/RESULT.
+        final_text: Final RESULT message content.
+
+    Returns:
+        List of AgenticMessage for test mocking.
+    """
+    messages: list[AgenticMessage] = []
+
+    if include_thinking:
+        messages.append(
+            AgenticMessage(
+                type=AgenticMessageType.THINKING,
+                content="Analyzing the task...",
+            )
+        )
+
+    if include_tool_call:
+        messages.append(
+            AgenticMessage(
+                type=AgenticMessageType.TOOL_CALL,
+                tool_name=tool_name,
+                tool_input={"path": "test.py", "content": "# test"},
+            )
+        )
+
+    if include_tool_result:
+        messages.append(
+            AgenticMessage(
+                type=AgenticMessageType.TOOL_RESULT,
+                tool_name=tool_name,
+                tool_output="File written successfully",
+            )
+        )
+
+    messages.append(
+        AgenticMessage(
+            type=AgenticMessageType.RESULT,
+            content=final_text,
+        )
+    )
+
+    return messages
+
+
+def create_mock_execute_agentic(
+    messages: list[AgenticMessage],
+    capture_kwargs: list[dict[str, Any]] | None = None,
+) -> Any:
+    """Create a mock execute_agentic async generator.
+
+    Args:
+        messages: Messages to yield from the generator.
+        capture_kwargs: Optional list to capture kwargs passed to the mock.
+
+    Returns:
+        Async generator function suitable for mocking execute_agentic.
+    """
+    async def mock_execute_agentic(
+        *args: Any, **kwargs: Any
+    ) -> AsyncGenerator[AgenticMessage, None]:
+        if capture_kwargs is not None:
+            capture_kwargs.append(kwargs)
+        for msg in messages:
+            yield msg
+
+    return mock_execute_agentic
+
+
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -149,14 +234,38 @@ def mock_event_bus() -> MagicMock:
 
 @pytest.fixture
 def mock_repository() -> AsyncMock:
-    """Create a mock WorkflowRepository."""
+    """Create in-memory repository mock with full CRUD support."""
     repo = AsyncMock(spec=WorkflowRepository)
-    repo.create = AsyncMock()
-    repo.get = AsyncMock()
-    repo.update = AsyncMock()
-    repo.set_status = AsyncMock()
-    repo.save_event = AsyncMock()
-    repo.get_max_event_sequence = AsyncMock(return_value=0)
+    repo.workflows = {}
+    repo.events = []
+    repo.event_sequence = {}
+
+    async def create(state: ServerExecutionState) -> None:
+        repo.workflows[state.id] = state
+
+    async def get(workflow_id: str) -> ServerExecutionState | None:
+        return repo.workflows.get(workflow_id)
+
+    async def set_status(
+        workflow_id: str, status: str, failure_reason: str | None = None
+    ) -> None:
+        if workflow_id in repo.workflows:
+            repo.workflows[workflow_id] = repo.workflows[workflow_id].model_copy(
+                update={"workflow_status": status, "failure_reason": failure_reason}
+            )
+
+    async def save_event(event: WorkflowEvent) -> None:
+        repo.events.append(event)
+
+    async def get_max_event_sequence(workflow_id: str) -> int:
+        return repo.event_sequence.get(workflow_id, 0)
+
+    repo.create = create
+    repo.get = get
+    repo.set_status = set_status
+    repo.save_event = save_event
+    repo.get_max_event_sequence = get_max_event_sequence
+
     return repo
 
 
@@ -189,7 +298,11 @@ def connection_manager() -> ConnectionManager:
 
 @pytest.fixture
 def event_bus(connection_manager: ConnectionManager) -> EventBus:
-    """Create an EventBus with ConnectionManager attached."""
+    """Create an EventBus with ConnectionManager attached.
+
+    Note: This overrides the root conftest event_bus fixture to provide
+    the connection_manager integration required by stream propagation tests.
+    """
     bus = EventBus()
     bus.set_connection_manager(connection_manager)
     return bus

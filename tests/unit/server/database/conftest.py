@@ -12,19 +12,6 @@ from amelia.server.models.state import ServerExecutionState
 
 
 @pytest.fixture
-def temp_db_path(tmp_path: Path) -> Path:
-    """Temporary database path for testing.
-
-    Args:
-        tmp_path: Pytest's built-in temporary directory fixture.
-
-    Returns:
-        Path: Path to a temporary test.db file.
-    """
-    return tmp_path / "test.db"
-
-
-@pytest.fixture
 async def connected_db(temp_db_path: Path) -> AsyncGenerator[Database, None]:
     """Create a connected Database instance for testing.
 

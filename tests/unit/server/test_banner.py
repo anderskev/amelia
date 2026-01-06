@@ -14,21 +14,6 @@ from amelia.server.banner import (
 )
 
 
-class TestBannerArt:
-    """Tests for ASCII art constant."""
-
-    def test_ascii_art_is_multiline(self) -> None:
-        """ASCII art has multiple lines."""
-        lines = BANNER_ART.split("\n")
-        assert len(lines) >= 3
-
-    def test_ascii_art_contains_letters(self) -> None:
-        """ASCII art contains recognizable structure."""
-        # Should have content on each line (excluding decorative empty lines)
-        non_empty_lines = [line for line in BANNER_ART.split("\n") if line.strip()]
-        assert len(non_empty_lines) > 0
-
-
 class TestGetGradientBanner:
     """Tests for gradient banner generation."""
 

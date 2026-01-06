@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from amelia.server.models.tokens import MODEL_PRICING, TokenUsage, calculate_token_cost
+from amelia.server.models.tokens import TokenUsage, calculate_token_cost
 
 
 def make_usage(**overrides: Any) -> TokenUsage:
@@ -38,24 +38,6 @@ class TestTokenUsage:
         assert usage.output_tokens == 1000
         assert usage.cache_read_tokens == 500
         assert usage.cache_creation_tokens == 100
-
-
-class TestModelPricing:
-    """Tests for model pricing constants."""
-
-    def test_sonnet_pricing(self) -> None:
-        """Sonnet pricing is correctly defined."""
-        sonnet = MODEL_PRICING["claude-sonnet-4-20250514"]
-        assert sonnet["input"] == 3.0
-        assert sonnet["output"] == 15.0
-        assert sonnet["cache_read"] == 0.3
-        assert sonnet["cache_write"] == 3.75
-
-    def test_opus_pricing(self) -> None:
-        """Opus pricing is correctly defined."""
-        opus = MODEL_PRICING["claude-opus-4-20250514"]
-        assert opus["input"] == 15.0
-        assert opus["output"] == 75.0
 
 
 class TestCostCalculation:

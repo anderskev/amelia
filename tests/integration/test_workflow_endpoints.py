@@ -44,12 +44,6 @@ from amelia.server.orchestrator.service import OrchestratorService
 
 
 @pytest.fixture
-def temp_db_path(tmp_path: Path) -> Path:
-    """Create temporary database path."""
-    return tmp_path / "test_workflows.db"
-
-
-@pytest.fixture
 async def test_db(temp_db_path: Path) -> AsyncGenerator[Database, None]:
     """Create and initialize in-memory SQLite database."""
     db = Database(temp_db_path)

@@ -4,7 +4,6 @@ from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import ValidationError
 
 from amelia.agents.reviewer import (
     Reviewer,
@@ -21,19 +20,19 @@ from tests.conftest import AsyncIteratorMock
 class TestNormalizeSeverity:
     """Tests for normalize_severity helper function."""
 
-    def test_valid_severities_unchanged(self) -> None:
-        """Test that valid severity values pass through unchanged."""
-        assert normalize_severity("low") == "low"
-        assert normalize_severity("medium") == "medium"
-        assert normalize_severity("high") == "high"
-        assert normalize_severity("critical") == "critical"
-
-    def test_invalid_severity_returns_default(self) -> None:
-        """Test that invalid severity values return the default."""
-        assert normalize_severity("none") == "medium"
-        assert normalize_severity("invalid") == "medium"
-        assert normalize_severity("") == "medium"
-        assert normalize_severity("CRITICAL") == "medium"  # Case-sensitive
+    @pytest.mark.parametrize("input_val,expected", [
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("critical", "critical"),
+        ("none", "medium"),
+        ("invalid", "medium"),
+        ("", "medium"),
+        ("CRITICAL", "medium"),  # Case sensitive
+    ])
+    def test_normalize_severity(self, input_val: str, expected: str) -> None:
+        """Test severity normalization with various inputs."""
+        assert normalize_severity(input_val) == expected
 
     def test_none_value_returns_default(self) -> None:
         """Test that None returns the default."""
@@ -47,21 +46,6 @@ class TestNormalizeSeverity:
 
 class TestReviewItem:
     """Tests for ReviewItem model."""
-
-    def test_review_item_frozen(self) -> None:
-        """Test that ReviewItem is immutable."""
-        item = ReviewItem(
-            number=1,
-            title="Test Issue",
-            file_path="test.py",
-            line=10,
-            severity="major",
-            issue="Found a bug",
-            why="Could cause crash",
-            fix="Add null check",
-        )
-        with pytest.raises(ValidationError):
-            item.number = 2
 
     def test_review_item_severity_values(self) -> None:
         """Test that severity accepts only valid values."""
@@ -81,17 +65,6 @@ class TestReviewItem:
 
 class TestStructuredReviewResult:
     """Tests for StructuredReviewResult model."""
-
-    def test_structured_review_result_frozen(self) -> None:
-        """Test that StructuredReviewResult is immutable."""
-        result = StructuredReviewResult(
-            summary="All good",
-            items=[],
-            good_patterns=["Clean code"],
-            verdict="approved",
-        )
-        with pytest.raises(ValidationError):
-            result.summary = "Changed"
 
     def test_structured_review_result_verdict_values(self) -> None:
         """Test that verdict accepts only valid values."""

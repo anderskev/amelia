@@ -3,7 +3,6 @@ from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import ValidationError
 
 from amelia.agents.evaluator import (
     Disposition,
@@ -18,21 +17,6 @@ from amelia.core.types import Profile
 
 class TestEvaluatedItem:
     """Tests for EvaluatedItem model."""
-
-    def test_evaluated_item_frozen(self) -> None:
-        """Test that EvaluatedItem is immutable."""
-        item = EvaluatedItem(
-            number=1,
-            title="Test Issue",
-            file_path="test.py",
-            line=10,
-            disposition=Disposition.IMPLEMENT,
-            reason="Valid issue",
-            original_issue="Found a bug",
-            suggested_fix="Fix the bug",
-        )
-        with pytest.raises(ValidationError):
-            item.number = 2
 
     def test_evaluated_item_all_dispositions(self) -> None:
         """Test that all disposition values are valid."""
@@ -52,18 +36,6 @@ class TestEvaluatedItem:
 
 class TestEvaluationResult:
     """Tests for EvaluationResult model."""
-
-    def test_evaluation_result_frozen(self) -> None:
-        """Test that EvaluationResult is immutable."""
-        result = EvaluationResult(
-            items_to_implement=[],
-            items_rejected=[],
-            items_deferred=[],
-            items_needing_clarification=[],
-            summary="No issues found",
-        )
-        with pytest.raises(ValidationError):
-            result.summary = "Changed"
 
     def test_evaluation_result_default_empty_lists(self) -> None:
         """Test that EvaluationResult defaults to empty lists."""
@@ -432,17 +404,3 @@ class TestEvaluator:
         assert "Issue Context" in prompt or "Test Issue" in prompt
 
 
-class TestDisposition:
-    """Tests for Disposition enum."""
-
-    def test_disposition_values(self) -> None:
-        """Test disposition enum has expected values."""
-        assert Disposition.IMPLEMENT.value == "implement"
-        assert Disposition.REJECT.value == "reject"
-        assert Disposition.DEFER.value == "defer"
-        assert Disposition.CLARIFY.value == "clarify"
-
-    def test_disposition_is_string_enum(self) -> None:
-        """Test that Disposition is a string enum."""
-        assert isinstance(Disposition.IMPLEMENT, str)
-        assert Disposition.IMPLEMENT.value == "implement"

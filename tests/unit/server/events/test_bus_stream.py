@@ -4,17 +4,9 @@ import asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
-import pytest
-
 from amelia.core.types import StreamEvent, StreamEventType
 from amelia.server.events.bus import EventBus
 from amelia.server.models.events import WorkflowEvent
-
-
-@pytest.fixture
-def event_bus() -> EventBus:
-    """Create EventBus instance."""
-    return EventBus()
 
 
 async def test_emit_stream_broadcasts_to_connection_manager(

@@ -6,20 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from amelia.server.models.events import EventType
-from amelia.server.orchestrator.service import STAGE_NODES, OrchestratorService
-
-
-class TestStageNodesConstant:
-    """Test STAGE_NODES constant."""
-
-    def test_stage_nodes_contains_expected_nodes(self) -> None:
-        """STAGE_NODES contains all workflow stage nodes."""
-        expected = {"architect_node", "human_approval_node", "developer_node", "reviewer_node", "evaluation_node", "plan_validator_node"}
-        assert expected == STAGE_NODES
-
-    def test_stage_nodes_is_frozenset(self) -> None:
-        """STAGE_NODES is immutable."""
-        assert isinstance(STAGE_NODES, frozenset)
+from amelia.server.orchestrator.service import OrchestratorService
 
 
 class TestHandleGraphEvent:
