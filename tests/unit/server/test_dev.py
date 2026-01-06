@@ -79,8 +79,16 @@ class TestPortCheck:
 
     def test_check_port_available_free_port(self):
         """Returns True for available ports."""
-        # Use a high port unlikely to be in use
-        assert check_port_available("127.0.0.1", 59123) is True
+        import socket
+
+        # Find a guaranteed-free port by binding to 0, then closing
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(("127.0.0.1", 0))
+        _, port = sock.getsockname()
+        sock.close()
+
+        # The port should now be available (small race window, but reliable)
+        assert check_port_available("127.0.0.1", port) is True
 
     def test_check_port_available_bound_port(self):
         """Returns False when port is already bound."""
