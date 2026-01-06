@@ -33,13 +33,12 @@ class TestServerCLI:
         self, runner: CliRunner, args: list[str], env: dict[str, str], expected_port: int, expected_host: str
     ) -> None:
         """Test server configuration from CLI args and environment."""
-        with patch.dict(os.environ, env, clear=False):
-            with patch("uvicorn.run") as mock_run:
-                mock_run.side_effect = KeyboardInterrupt()
-                runner.invoke(app, ["server"] + args)
-                call_kwargs = mock_run.call_args.kwargs
-                assert call_kwargs["port"] == expected_port
-                assert call_kwargs["host"] == expected_host
+        with patch.dict(os.environ, env, clear=False), patch("uvicorn.run") as mock_run:
+            mock_run.side_effect = KeyboardInterrupt()
+            runner.invoke(app, ["server"] + args)
+            call_kwargs = mock_run.call_args.kwargs
+            assert call_kwargs["port"] == expected_port
+            assert call_kwargs["host"] == expected_host
 
     def test_server_bind_all_shows_warning(self, runner):
         """--bind-all shows security warning."""

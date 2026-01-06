@@ -6,7 +6,7 @@ This module provides:
 """
 
 import socket
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -19,7 +19,6 @@ from amelia.core.orchestrator import create_orchestrator_graph
 from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
-from collections.abc import AsyncGenerator
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.events.connection_manager import ConnectionManager

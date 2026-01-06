@@ -27,12 +27,12 @@ from amelia.core.types import (
     TrackerType,
 )
 from amelia.drivers.base import DriverInterface
+from amelia.server.events.bus import EventBus
 
 
 @pytest.fixture
-def event_bus() -> "EventBus":
+def event_bus() -> EventBus:
     """Create EventBus instance for testing."""
-    from amelia.server.events.bus import EventBus
     return EventBus()
 
 

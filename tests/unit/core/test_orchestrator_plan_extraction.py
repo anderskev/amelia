@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from langchain_core.runnables.config import RunnableConfig
 
 from amelia.core.state import ExecutionState
