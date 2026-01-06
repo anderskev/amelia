@@ -82,10 +82,9 @@ class TestPortCheck:
         import socket
 
         # Find a guaranteed-free port by binding to 0, then closing
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind(("127.0.0.1", 0))
-        _, port = sock.getsockname()
-        sock.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            _, port = sock.getsockname()
 
         # The port should now be available (small race window, but reliable)
         assert check_port_available("127.0.0.1", port) is True
@@ -95,14 +94,10 @@ class TestPortCheck:
         import socket
 
         # Bind a socket to a port, then check availability
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind(("127.0.0.1", 0))  # Bind to random available port
-        _, port = sock.getsockname()
-
-        try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))  # Bind to random available port
+            _, port = sock.getsockname()
             assert check_port_available("127.0.0.1", port) is False
-        finally:
-            sock.close()
 
 
 class TestDevCLI:
