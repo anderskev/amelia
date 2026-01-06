@@ -783,13 +783,34 @@ class OrchestratorService:
                 was_interrupted = False
                 # Use astream with stream_mode="updates" to detect interrupts
                 # astream_events does NOT surface __interrupt__ events
-                # Convert Pydantic model to JSON-serializable dict for checkpointing.
-                # LangGraph's AsyncSqliteSaver uses json.dumps() internally,
-                # which fails on Pydantic BaseModel objects.
-                initial_state = state.execution_state.model_dump(mode="json")
+
+                # BUG FIX (#199): Check if checkpoint exists before starting.
+                # If we have an existing checkpoint, pass None to resume from it.
+                # If no checkpoint, pass initial_state to start fresh.
+                # This prevents the infinite loop bug where retries would restart
+                # the workflow from review_iteration=0 instead of resuming.
+                checkpoint_state = await graph.aget_state(config)
+                if checkpoint_state is not None and checkpoint_state.values:
+                    # Checkpoint exists - resume from it
+                    logger.debug(
+                        "Resuming workflow from existing checkpoint",
+                        workflow_id=workflow_id,
+                        checkpoint_keys=list(checkpoint_state.values.keys())[:5],
+                    )
+                    input_state = None
+                else:
+                    # No checkpoint - start fresh with initial state
+                    # Convert Pydantic model to JSON-serializable dict for checkpointing.
+                    # LangGraph's AsyncSqliteSaver uses json.dumps() internally,
+                    # which fails on Pydantic BaseModel objects.
+                    input_state = state.execution_state.model_dump(mode="json")
+                    logger.debug(
+                        "Starting workflow fresh (no checkpoint)",
+                        workflow_id=workflow_id,
+                    )
 
                 async for chunk in graph.astream(
-                    initial_state,
+                    input_state,
                     config=config,
                     stream_mode="updates",
                 ):

@@ -153,7 +153,7 @@ async def plan_validator_node(
     working_dir = Path(profile.working_dir) if profile.working_dir else Path(".")
     plan_path = working_dir / plan_rel_path
 
-    # Read plan file
+    # Read plan file - fail fast if not found
     if not plan_path.exists():
         raise ValueError(f"Plan file not found at {plan_path}")
 
