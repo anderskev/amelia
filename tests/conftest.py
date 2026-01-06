@@ -6,6 +6,7 @@ used throughout the test suite for the agentic execution model.
 import os
 from collections.abc import Callable, Generator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,6 +27,19 @@ from amelia.core.types import (
     TrackerType,
 )
 from amelia.drivers.base import DriverInterface
+
+
+@pytest.fixture
+def event_bus() -> "EventBus":
+    """Create EventBus instance for testing."""
+    from amelia.server.events.bus import EventBus
+    return EventBus()
+
+
+@pytest.fixture
+def temp_db_path(tmp_path: Path) -> Path:
+    """Return a temporary database path."""
+    return tmp_path / "test.db"
 
 
 class AsyncIteratorMock:
