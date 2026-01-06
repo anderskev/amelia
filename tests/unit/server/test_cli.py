@@ -22,34 +22,24 @@ class TestServerCLI:
         assert result.exit_code == 0
         assert "Amelia API server commands" in result.stdout
 
-    def test_server_default_port(self, runner):
-        """Server uses default port 8420."""
-        with patch("uvicorn.run") as mock_run:
-            # Exit immediately to avoid blocking
-            mock_run.side_effect = KeyboardInterrupt()
-            runner.invoke(app, ["server"])
-
-            mock_run.assert_called_once()
-            call_kwargs = mock_run.call_args.kwargs
-            assert call_kwargs["port"] == 8420
-
-    def test_server_custom_port(self, runner):
-        """Server respects --port flag."""
-        with patch("uvicorn.run") as mock_run:
-            mock_run.side_effect = KeyboardInterrupt()
-            runner.invoke(app, ["server", "--port", "9000"])
-
-            call_kwargs = mock_run.call_args.kwargs
-            assert call_kwargs["port"] == 9000
-
-    def test_server_bind_all_flag(self, runner):
-        """--bind-all binds to 0.0.0.0."""
-        with patch("uvicorn.run") as mock_run:
-            mock_run.side_effect = KeyboardInterrupt()
-            runner.invoke(app, ["server", "--bind-all"])
-
-            call_kwargs = mock_run.call_args.kwargs
-            assert call_kwargs["host"] == "0.0.0.0"
+    @pytest.mark.parametrize("args,env,expected_port,expected_host", [
+        ([], {}, 8420, "127.0.0.1"),
+        (["--port", "9000"], {}, 9000, "127.0.0.1"),
+        (["--bind-all"], {}, 8420, "0.0.0.0"),
+        ([], {"AMELIA_PORT": "9999"}, 9999, "127.0.0.1"),
+        (["--port", "8000"], {"AMELIA_PORT": "9999"}, 8000, "127.0.0.1"),  # CLI overrides env
+    ])
+    def test_server_config(
+        self, runner: CliRunner, args: list[str], env: dict[str, str], expected_port: int, expected_host: str
+    ) -> None:
+        """Test server configuration from CLI args and environment."""
+        with patch.dict(os.environ, env, clear=False):
+            with patch("uvicorn.run") as mock_run:
+                mock_run.side_effect = KeyboardInterrupt()
+                runner.invoke(app, ["server"] + args)
+                call_kwargs = mock_run.call_args.kwargs
+                assert call_kwargs["port"] == expected_port
+                assert call_kwargs["host"] == expected_host
 
     def test_server_bind_all_shows_warning(self, runner):
         """--bind-all shows security warning."""
@@ -58,30 +48,3 @@ class TestServerCLI:
             result = runner.invoke(app, ["server", "--bind-all"])
 
             assert "Warning" in result.stdout or "warning" in result.stdout.lower()
-
-    def test_server_default_localhost(self, runner):
-        """Server defaults to localhost binding."""
-        with patch("uvicorn.run") as mock_run:
-            mock_run.side_effect = KeyboardInterrupt()
-            runner.invoke(app, ["server"])
-
-            call_kwargs = mock_run.call_args.kwargs
-            assert call_kwargs["host"] == "127.0.0.1"
-
-    def test_server_respects_env_port(self, runner):
-        """Server respects AMELIA_PORT environment variable."""
-        with patch.dict(os.environ, {"AMELIA_PORT": "9999"}), patch("uvicorn.run") as mock_run:
-            mock_run.side_effect = KeyboardInterrupt()
-            runner.invoke(app, ["server"])
-
-            call_kwargs = mock_run.call_args.kwargs
-            assert call_kwargs["port"] == 9999
-
-    def test_cli_port_overrides_env(self, runner):
-        """CLI --port flag overrides AMELIA_PORT env var."""
-        with patch.dict(os.environ, {"AMELIA_PORT": "9999"}), patch("uvicorn.run") as mock_run:
-            mock_run.side_effect = KeyboardInterrupt()
-            runner.invoke(app, ["server", "--port", "8000"])
-
-            call_kwargs = mock_run.call_args.kwargs
-            assert call_kwargs["port"] == 8000
