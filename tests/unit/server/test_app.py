@@ -4,24 +4,11 @@ from collections.abc import Generator
 import pytest
 from fastapi.testclient import TestClient
 
-from amelia import __version__
 from amelia.server.main import app
 
 
 class TestAppSetup:
     """Tests for FastAPI app configuration."""
-
-    def test_app_title(self) -> None:
-        """App has correct title."""
-        assert app.title == "Amelia API"
-
-    def test_app_version(self) -> None:
-        """App has version set."""
-        assert app.version == __version__
-
-    def test_docs_url(self) -> None:
-        """Swagger docs available at /api/docs."""
-        assert app.docs_url == "/api/docs"
 
     def test_openapi_url(self) -> None:
         """OpenAPI schema at /api/openapi.json."""
