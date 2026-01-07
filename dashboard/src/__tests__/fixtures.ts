@@ -4,11 +4,9 @@
  */
 
 import {
-  StreamEventType,
   type WorkflowSummary,
   type WorkflowDetail,
   type WorkflowEvent,
-  type StreamEvent,
   type TokenSummary,
   type TokenUsage,
 } from '../types';
@@ -163,23 +161,3 @@ export function createMockEvent(
   };
 }
 
-/**
- * Creates a mock StreamEvent with sensible defaults.
- * Uses `subtype` (not `type`) to match the WebSocket payload format.
- * @param overrides - Optional partial object to override default values
- */
-export function createMockStreamEvent(
-  overrides?: Partial<StreamEvent>
-): StreamEvent {
-  return {
-    id: `stream-${crypto.randomUUID()}`,
-    subtype: StreamEventType.CLAUDE_THINKING,
-    content: 'Test thinking content',
-    timestamp: '2025-12-13T10:00:00Z',
-    agent: 'architect',
-    workflow_id: 'wf-test-123',
-    tool_name: null,
-    tool_input: null,
-    ...overrides,
-  };
-}

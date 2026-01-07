@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import LogsPage from '../LogsPage';
-import { useStreamStore } from '../../store/stream-store';
-import { StreamEventType, type StreamEvent } from '../../types';
+import { useWorkflowStore } from '../../store/workflowStore';
+import type { WorkflowEvent, EventType } from '../../types';
 
 // Mock useVirtualizer to render all items (JSDOM doesn't support scroll dimensions)
 vi.mock('@tanstack/react-virtual', () => ({
@@ -34,50 +34,58 @@ const renderWithRouter = (ui: React.ReactElement) => {
   return render(<BrowserRouter>{ui}</BrowserRouter>);
 };
 
-// Helper to create mock stream events
-const createStreamEvent = (
-  subtype: StreamEventType,
-  overrides?: Partial<StreamEvent>
-): StreamEvent => ({
-  id: `stream-${crypto.randomUUID()}`,
-  subtype,
-  content: subtype === StreamEventType.CLAUDE_THINKING ? 'Test thinking content' : null,
+// Helper to create mock trace events (WorkflowEvent with level: 'trace')
+const createTraceEvent = (
+  eventType: EventType,
+  overrides?: Partial<WorkflowEvent>
+): WorkflowEvent => ({
+  id: `evt-${crypto.randomUUID()}`,
+  workflow_id: 'wf-123',
+  sequence: 1,
   timestamp: new Date().toISOString(),
   agent: 'developer',
-  workflow_id: 'wf-123',
-  tool_name: subtype === StreamEventType.CLAUDE_TOOL_CALL ? 'test_tool' : null,
-  tool_input: subtype === StreamEventType.CLAUDE_TOOL_CALL ? { arg: 'value' } : null,
+  event_type: eventType,
+  level: 'trace',
+  message: eventType === 'claude_thinking' ? 'Test thinking content' : 'Test message',
+  tool_name: eventType === 'claude_tool_call' ? 'test_tool' : undefined,
+  tool_input: eventType === 'claude_tool_call' ? { arg: 'value' } : undefined,
   ...overrides,
 });
 
 describe('LogsPage', () => {
   beforeEach(() => {
     // Reset store before each test
-    useStreamStore.setState({
-      events: [],
-      liveMode: false,
-      maxEvents: 1000,
+    useWorkflowStore.setState({
+      eventsByWorkflow: {},
+      eventIdsByWorkflow: {},
+      lastEventId: null,
+      isConnected: false,
+      connectionError: null,
+      pendingActions: [],
     });
   });
 
   it('renders empty state when no events', () => {
     renderWithRouter(<LogsPage />);
 
-    expect(screen.getByText(/no stream events yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no trace events yet/i)).toBeInTheDocument();
     expect(screen.getByText(/events will appear here as workflows run/i)).toBeInTheDocument();
   });
 
-  it('renders stream events from store', () => {
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_THINKING, {
-        content: 'Analyzing requirements...',
+  it('renders trace events from store', () => {
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_thinking', {
+        message: 'Analyzing requirements...',
       }),
-      createStreamEvent(StreamEventType.CLAUDE_TOOL_CALL, {
+      createTraceEvent('claude_tool_call', {
         tool_name: 'read_file',
       }),
     ];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     renderWithRouter(<LogsPage />);
 
     expect(screen.getByText(/analyzing requirements/i)).toBeInTheDocument();
@@ -85,33 +93,39 @@ describe('LogsPage', () => {
   });
 
   it('displays event count indicator', () => {
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_THINKING),
-      createStreamEvent(StreamEventType.AGENT_OUTPUT),
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_thinking'),
+      createTraceEvent('agent_output'),
     ];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     renderWithRouter(<LogsPage />);
 
     expect(screen.getByText(/2 events/i)).toBeInTheDocument();
   });
 
   it('filters events by type', () => {
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_THINKING, {
-        content: 'Thinking event content',
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_thinking', {
+        message: 'Thinking event content',
       }),
-      createStreamEvent(StreamEventType.AGENT_OUTPUT, {
-        content: 'Agent output content',
+      createTraceEvent('agent_output', {
+        message: 'Agent output content',
       }),
     ];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     renderWithRouter(<LogsPage />);
 
     // Find and click filter dropdown
     const filterSelect = screen.getByDisplayValue(/all events/i);
-    fireEvent.change(filterSelect, { target: { value: StreamEventType.CLAUDE_THINKING } });
+    fireEvent.change(filterSelect, { target: { value: 'claude_thinking' } });
 
     // Should only show thinking event content (not the dropdown option)
     expect(screen.getByText(/thinking event content/i)).toBeInTheDocument();
@@ -120,11 +134,12 @@ describe('LogsPage', () => {
   });
 
   it('clears events when clear button is clicked', () => {
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_THINKING),
-    ];
+    const events: WorkflowEvent[] = [createTraceEvent('claude_thinking')];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     renderWithRouter(<LogsPage />);
 
     expect(screen.getByText(/1 event/i)).toBeInTheDocument();
@@ -134,18 +149,21 @@ describe('LogsPage', () => {
     fireEvent.click(clearButton);
 
     // Should now show empty state
-    expect(screen.getByText(/no stream events yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no trace events yet/i)).toBeInTheDocument();
   });
 
   it('displays correct icon for each event type', () => {
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_THINKING),
-      createStreamEvent(StreamEventType.CLAUDE_TOOL_CALL),
-      createStreamEvent(StreamEventType.CLAUDE_TOOL_RESULT),
-      createStreamEvent(StreamEventType.AGENT_OUTPUT),
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_thinking'),
+      createTraceEvent('claude_tool_call'),
+      createTraceEvent('claude_tool_result'),
+      createTraceEvent('agent_output'),
     ];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     const { container } = renderWithRouter(<LogsPage />);
 
     // Lucide icons render with predictable class names (lucide-{icon-name})
@@ -156,14 +174,17 @@ describe('LogsPage', () => {
   });
 
   it('shows agent name in event item', () => {
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_THINKING, {
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_thinking', {
         agent: 'architect',
-        content: 'Planning the implementation',
+        message: 'Planning the implementation',
       }),
     ];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     renderWithRouter(<LogsPage />);
 
     expect(screen.getByText(/\[architect\]/i)).toBeInTheDocument();
@@ -171,14 +192,17 @@ describe('LogsPage', () => {
 
   it('formats timestamp correctly', () => {
     const timestamp = '2025-12-13T10:30:45.123Z';
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_THINKING, {
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_thinking', {
         timestamp,
-        content: 'Test content',
+        message: 'Test content',
       }),
     ];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     renderWithRouter(<LogsPage />);
 
     // Formatted time should be HH:MM:SS (8 chars from the ISO string)
@@ -186,31 +210,37 @@ describe('LogsPage', () => {
   });
 
   it('displays tool name for tool call events', () => {
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_TOOL_CALL, {
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_tool_call', {
         tool_name: 'execute_command',
       }),
     ];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     renderWithRouter(<LogsPage />);
 
     expect(screen.getByText(/execute_command/i)).toBeInTheDocument();
   });
 
   it('renders all event types with correct data attributes', () => {
-    const events: StreamEvent[] = [
-      createStreamEvent(StreamEventType.CLAUDE_THINKING, {
-        content: 'Thinking',
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_thinking', {
+        message: 'Thinking',
       }),
-      createStreamEvent(StreamEventType.CLAUDE_TOOL_CALL),
-      createStreamEvent(StreamEventType.CLAUDE_TOOL_RESULT),
-      createStreamEvent(StreamEventType.AGENT_OUTPUT, {
-        content: 'Output',
+      createTraceEvent('claude_tool_call'),
+      createTraceEvent('claude_tool_result'),
+      createTraceEvent('agent_output', {
+        message: 'Output',
       }),
     ];
 
-    useStreamStore.setState({ events });
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
     const { container } = renderWithRouter(<LogsPage />);
 
     // Verify each event type is rendered with stable data-event-type attribute
@@ -220,15 +250,56 @@ describe('LogsPage', () => {
     expect(container.querySelector('[data-event-type="agent_output"]')).toBeInTheDocument();
   });
 
+  it('only displays trace-level events', () => {
+    const events: WorkflowEvent[] = [
+      createTraceEvent('claude_thinking', { message: 'Trace event' }),
+      {
+        id: 'evt-info-1',
+        workflow_id: 'wf-123',
+        sequence: 2,
+        timestamp: new Date().toISOString(),
+        agent: 'developer',
+        event_type: 'stage_started',
+        level: 'info',
+        message: 'Info level event',
+      },
+      {
+        id: 'evt-debug-1',
+        workflow_id: 'wf-123',
+        sequence: 3,
+        timestamp: new Date().toISOString(),
+        agent: 'developer',
+        event_type: 'file_modified',
+        level: 'debug',
+        message: 'Debug level event',
+      },
+    ];
+
+    useWorkflowStore.setState({
+      eventsByWorkflow: { 'wf-123': events },
+      eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+    });
+    renderWithRouter(<LogsPage />);
+
+    // Should only show trace event, not info or debug
+    expect(screen.getByText(/trace event/i)).toBeInTheDocument();
+    expect(screen.queryByText(/info level event/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/debug level event/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/1 event/i)).toBeInTheDocument();
+  });
+
   describe('markdown rendering', () => {
     it('renders markdown headers as HTML heading elements', () => {
-      const events: StreamEvent[] = [
-        createStreamEvent(StreamEventType.CLAUDE_THINKING, {
-          content: '## Header Level 2\n\nSome paragraph text',
+      const events: WorkflowEvent[] = [
+        createTraceEvent('claude_thinking', {
+          message: '## Header Level 2\n\nSome paragraph text',
         }),
       ];
 
-      useStreamStore.setState({ events });
+      useWorkflowStore.setState({
+        eventsByWorkflow: { 'wf-123': events },
+        eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+      });
       const { container } = renderWithRouter(<LogsPage />);
 
       // Verify h2 element is rendered within the prose container (markdown content)
@@ -243,13 +314,16 @@ describe('LogsPage', () => {
     });
 
     it('renders bold and inline code markdown syntax as HTML', () => {
-      const events: StreamEvent[] = [
-        createStreamEvent(StreamEventType.AGENT_OUTPUT, {
-          content: '**bold text** and `inline code`',
+      const events: WorkflowEvent[] = [
+        createTraceEvent('agent_output', {
+          message: '**bold text** and `inline code`',
         }),
       ];
 
-      useStreamStore.setState({ events });
+      useWorkflowStore.setState({
+        eventsByWorkflow: { 'wf-123': events },
+        eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+      });
       const { container } = renderWithRouter(<LogsPage />);
 
       // Verify strong element for bold
@@ -268,13 +342,16 @@ describe('LogsPage', () => {
     });
 
     it('renders code blocks with pre and code elements', () => {
-      const events: StreamEvent[] = [
-        createStreamEvent(StreamEventType.CLAUDE_THINKING, {
-          content: '```javascript\nconst x = 1;\nconsole.log(x);\n```',
+      const events: WorkflowEvent[] = [
+        createTraceEvent('claude_thinking', {
+          message: '```javascript\nconst x = 1;\nconsole.log(x);\n```',
         }),
       ];
 
-      useStreamStore.setState({ events });
+      useWorkflowStore.setState({
+        eventsByWorkflow: { 'wf-123': events },
+        eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+      });
       const { container } = renderWithRouter(<LogsPage />);
 
       // Verify pre element exists for code block
@@ -291,13 +368,16 @@ describe('LogsPage', () => {
     });
 
     it('renders unordered lists as ul/li elements', () => {
-      const events: StreamEvent[] = [
-        createStreamEvent(StreamEventType.AGENT_OUTPUT, {
-          content: '- item 1\n- item 2\n- item 3',
+      const events: WorkflowEvent[] = [
+        createTraceEvent('agent_output', {
+          message: '- item 1\n- item 2\n- item 3',
         }),
       ];
 
-      useStreamStore.setState({ events });
+      useWorkflowStore.setState({
+        eventsByWorkflow: { 'wf-123': events },
+        eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+      });
       const { container } = renderWithRouter(<LogsPage />);
 
       // Verify ul element exists
@@ -316,13 +396,16 @@ describe('LogsPage', () => {
     });
 
     it('renders ordered lists as ol/li elements', () => {
-      const events: StreamEvent[] = [
-        createStreamEvent(StreamEventType.CLAUDE_THINKING, {
-          content: '1. First step\n2. Second step\n3. Third step',
+      const events: WorkflowEvent[] = [
+        createTraceEvent('claude_thinking', {
+          message: '1. First step\n2. Second step\n3. Third step',
         }),
       ];
 
-      useStreamStore.setState({ events });
+      useWorkflowStore.setState({
+        eventsByWorkflow: { 'wf-123': events },
+        eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+      });
       const { container } = renderWithRouter(<LogsPage />);
 
       // Verify ol element exists
@@ -336,13 +419,16 @@ describe('LogsPage', () => {
     });
 
     it('renders links as anchor elements', () => {
-      const events: StreamEvent[] = [
-        createStreamEvent(StreamEventType.AGENT_OUTPUT, {
-          content: 'Check out [this link](https://example.com) for more info',
+      const events: WorkflowEvent[] = [
+        createTraceEvent('agent_output', {
+          message: 'Check out [this link](https://example.com) for more info',
         }),
       ];
 
-      useStreamStore.setState({ events });
+      useWorkflowStore.setState({
+        eventsByWorkflow: { 'wf-123': events },
+        eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+      });
       const { container } = renderWithRouter(<LogsPage />);
 
       // Verify anchor element exists with correct href
@@ -356,13 +442,16 @@ describe('LogsPage', () => {
     });
 
     it('preserves single line breaks in plain text content', () => {
-      const events: StreamEvent[] = [
-        createStreamEvent(StreamEventType.CLAUDE_THINKING, {
-          content: 'First line\nSecond line\nThird line',
+      const events: WorkflowEvent[] = [
+        createTraceEvent('claude_thinking', {
+          message: 'First line\nSecond line\nThird line',
         }),
       ];
 
-      useStreamStore.setState({ events });
+      useWorkflowStore.setState({
+        eventsByWorkflow: { 'wf-123': events },
+        eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+      });
       const { container } = renderWithRouter(<LogsPage />);
 
       // With remark-breaks, single newlines become <br> elements
@@ -371,9 +460,9 @@ describe('LogsPage', () => {
     });
 
     it('renders complex markdown with multiple elements', () => {
-      const events: StreamEvent[] = [
-        createStreamEvent(StreamEventType.CLAUDE_THINKING, {
-          content: `## Analysis Complete
+      const events: WorkflowEvent[] = [
+        createTraceEvent('claude_thinking', {
+          message: `## Analysis Complete
 
 Here are the findings:
 
@@ -388,7 +477,10 @@ function fix() {
         }),
       ];
 
-      useStreamStore.setState({ events });
+      useWorkflowStore.setState({
+        eventsByWorkflow: { 'wf-123': events },
+        eventIdsByWorkflow: { 'wf-123': new Set(events.map((e) => e.id)) },
+      });
       const { container } = renderWithRouter(<LogsPage />);
 
       // Verify heading within prose container (page has "Logs" h2 in header)
