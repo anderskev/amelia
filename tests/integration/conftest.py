@@ -224,9 +224,8 @@ def find_free_port() -> Callable[[], int]:
 
 @pytest.fixture
 def mock_event_bus() -> MagicMock:
-    """Create a mock EventBus with emit_stream tracking."""
+    """Create a mock EventBus for testing."""
     bus = MagicMock(spec=EventBus)
-    bus.emit_stream = MagicMock()
     bus.emit = MagicMock()
     bus.set_connection_manager = MagicMock()
     return bus
