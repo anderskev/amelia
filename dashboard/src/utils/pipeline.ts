@@ -1,139 +1,205 @@
 /**
  * @fileoverview Pipeline conversion utilities for workflow visualization.
  *
- * In the agentic execution model, the pipeline shows agent stages rather
- * than individual batch/steps.
+ * Builds event-driven pipeline visualization from workflow events, enabling
+ * real-time updates as events arrive via WebSocket.
  */
-import type { WorkflowDetail } from '@/types';
+import type { Node, Edge } from '@xyflow/react';
+import type { WorkflowEvent } from '@/types';
 
-/**
- * Node in the pipeline visualization.
- * @property id - Unique identifier for the node
- * @property label - Primary label displayed in the node
- * @property subtitle - Optional secondary text displayed below the label
- * @property status - Current execution status of the node
- * @property tokens - Optional token count to display
- */
-export interface PipelineNode {
+/** A single execution iteration of an agent (agents can run multiple times). */
+export interface AgentIteration {
+  /** Unique identifier for this iteration. */
   id: string;
-  label: string;
-  subtitle?: string;
-  status: 'completed' | 'active' | 'blocked' | 'pending';
-  tokens?: string;
+  /** ISO 8601 timestamp when this iteration started. */
+  startedAt: string;
+  /** ISO 8601 timestamp when this iteration completed (undefined if still running). */
+  completedAt?: string;
+  /** Current status of this iteration. */
+  status: 'running' | 'completed' | 'failed';
+  /** Optional message (e.g., "Requested changes" or "Approved"). */
+  message?: string;
 }
 
-/**
- * Edge connecting pipeline nodes.
- * @property from - Source node ID
- * @property to - Target node ID
- * @property label - Label displayed on the edge
- * @property status - Status determining the edge's visual style
- */
-export interface PipelineEdge {
-  from: string;
-  to: string;
-  label: string;
-  status: 'completed' | 'active' | 'pending';
+/** Data for an agent node in the workflow canvas. */
+export interface AgentNodeData extends Record<string, unknown> {
+  /** Type of agent (e.g., 'architect', 'developer', 'reviewer'). */
+  agentType: string;
+  /** Current visual status of the node. */
+  status: 'pending' | 'active' | 'completed' | 'blocked';
+  /** All iterations this agent has executed. */
+  iterations: AgentIteration[];
+  /** Whether the iteration history is expanded. */
+  isExpanded: boolean;
 }
 
-/**
- * Pipeline data structure for WorkflowCanvas.
- * @property nodes - Array of pipeline nodes to render
- * @property edges - Array of edges connecting the nodes
- */
-export interface Pipeline {
-  nodes: PipelineNode[];
-  edges: PipelineEdge[];
+/** Options for buildPipelineFromEvents. */
+export interface BuildPipelineOptions {
+  /** Show default 3-node pipeline even with no events. Default: false. */
+  showDefaultPipeline?: boolean;
 }
 
-/**
- * Agent stages in the workflow.
- */
-const AGENT_STAGES = ['architect', 'developer', 'reviewer'] as const;
-
-/**
- * Maps current_stage to a stage index for comparison.
- * @param stage - The current stage name (e.g., 'architect_node', 'developer_node') or null
- * @returns The numeric index of the stage in AGENT_STAGES, or -1 if stage is null or unknown
- */
-function getStageIndex(stage: string | null): number {
-  if (!stage) return -1;
-  // Map node names to stage names
-  const stageMap: Record<string, string> = {
-    'architect_node': 'architect',
-    'developer_node': 'developer',
-    'reviewer_node': 'reviewer',
-    'human_approval_node': 'architect', // Approval happens after architect
-  };
-  const mappedStage = stageMap[stage] || stage;
-  return AGENT_STAGES.indexOf(mappedStage as typeof AGENT_STAGES[number]);
+/** Pipeline structure with nodes and edges for React Flow. */
+export interface EventDrivenPipeline {
+  nodes: Node<AgentNodeData>[];
+  edges: Edge<{ status: 'completed' | 'active' | 'pending' }>[];
 }
 
-/**
- * Determines the status of a stage based on current execution position.
- * @param stageIndex - The index of the stage being evaluated
- * @param currentStageIndex - The index of the currently executing stage
- * @param workflowStatus - The overall workflow status
- * @returns The visual status of the stage: 'completed', 'active', 'blocked', or 'pending'
- */
-function getStageStatus(
-  stageIndex: number,
-  currentStageIndex: number,
-  workflowStatus: WorkflowDetail['status']
-): 'completed' | 'active' | 'blocked' | 'pending' {
-  if (stageIndex < currentStageIndex) {
-    return 'completed';
-  }
-  if (stageIndex === currentStageIndex) {
-    if (workflowStatus === 'blocked') {
-      return 'blocked';
-    }
-    if (workflowStatus === 'completed' || workflowStatus === 'failed') {
-      return 'completed';
-    }
-    return 'active';
-  }
-  return 'pending';
-}
+const DEFAULT_AGENTS = ['architect', 'developer', 'reviewer'];
 
 /**
- * Converts a workflow detail into a pipeline visualization format.
- * Shows agent stages for agentic execution.
+ * Extract the agent name from a stage event.
  *
- * @param workflow - The workflow detail
- * @returns Pipeline data with agent stage nodes
+ * Stage events have `agent: "system"` but the actual stage name is in `data.stage`.
+ * This function extracts the agent name from the stage, stripping the `_node` suffix.
+ *
+ * @param event - The workflow event to extract agent name from
+ * @returns The agent name (e.g., 'architect', 'developer', 'reviewer') or the event's agent field as fallback
+ *
+ * @example
+ * // Event with data.stage = "architect_node" returns "architect"
+ * // Event with data.stage = "developer_node" returns "developer"
+ * // Event without data.stage returns event.agent
  */
-export function buildPipeline(workflow: WorkflowDetail): Pipeline | null {
-  const nodes: PipelineNode[] = [];
-  const edges: PipelineEdge[] = [];
+function extractAgentFromStageEvent(event: WorkflowEvent): string {
+  // For stage events, the agent name is in data.stage (e.g., "architect_node")
+  if (event.data?.stage && typeof event.data.stage === 'string') {
+    const stage = event.data.stage;
+    // Strip "_node" suffix if present (e.g., "architect_node" -> "architect")
+    return stage.endsWith('_node') ? stage.slice(0, -5) : stage;
+  }
+  // Fallback to event.agent for non-stage events or missing data
+  return event.agent;
+}
 
-  const currentStageIndex = getStageIndex(workflow.current_stage);
+/**
+ * Build pipeline visualization from workflow events.
+ *
+ * This function derives node status directly from events rather than
+ * relying on stale `current_stage` data, enabling real-time updates.
+ */
+export function buildPipelineFromEvents(
+  events: WorkflowEvent[],
+  options: BuildPipelineOptions = {}
+): EventDrivenPipeline {
+  const { showDefaultPipeline = false } = options;
 
-  // Create nodes for each agent stage
-  AGENT_STAGES.forEach((stage, index) => {
-    const status = getStageStatus(index, currentStageIndex, workflow.status);
+  // Track agents and their iterations
+  const agentMap = new Map<string, AgentIteration[]>();
+  const agentOrder: string[] = [];
+  let workflowFailed = false;
 
-    nodes.push({
-      id: stage,
-      label: stage.charAt(0).toUpperCase() + stage.slice(1),
-      subtitle: status === 'active' ? 'In progress...' : undefined,
-      status,
-    });
+  // Process events in sequence order
+  const sortedEvents = [...events].sort((a, b) => a.sequence - b.sequence);
 
-    // Add edge from previous stage
-    // Edge status is based on the source node (previous stage), not the target
-    if (index > 0) {
-      // Safe: index > 0 guarantees index - 1 is valid
-      const prevStage = AGENT_STAGES[index - 1]!;
-      const prevStatus = getStageStatus(index - 1, currentStageIndex, workflow.status);
-      edges.push({
-        from: prevStage,
-        to: stage,
-        label: '',
-        status: prevStatus === 'completed' ? 'completed' : prevStatus === 'active' ? 'active' : 'pending',
-      });
+  for (const event of sortedEvents) {
+    const { event_type, timestamp, id } = event;
+
+    if (event_type === 'stage_started') {
+      // Extract agent from data.stage (e.g., "architect_node" -> "architect")
+      const agent = extractAgentFromStageEvent(event);
+      if (!agentMap.has(agent)) {
+        agentMap.set(agent, []);
+        agentOrder.push(agent);
+      }
+      const iterations = agentMap.get(agent);
+      if (iterations) {
+        iterations.push({
+          id: `${agent}-${id}`,
+          startedAt: timestamp,
+          status: 'running',
+        });
+      }
+    } else if (event_type === 'stage_completed') {
+      // Extract agent from data.stage (e.g., "architect_node" -> "architect")
+      const agent = extractAgentFromStageEvent(event);
+      const iterations = agentMap.get(agent);
+      if (iterations && iterations.length > 0) {
+        const lastIteration = iterations[iterations.length - 1];
+        if (lastIteration && lastIteration.status === 'running') {
+          lastIteration.completedAt = timestamp;
+          lastIteration.status = 'completed';
+        }
+      }
+    } else if (event_type === 'workflow_failed') {
+      workflowFailed = true;
+      // Mark any running iterations as failed
+      for (const iterations of agentMap.values()) {
+        for (const iter of iterations) {
+          if (iter.status === 'running') {
+            iter.status = 'failed';
+          }
+        }
+      }
     }
+  }
+
+  // If no events and showDefaultPipeline, create pending nodes
+  if (agentOrder.length === 0 && showDefaultPipeline) {
+    for (const agent of DEFAULT_AGENTS) {
+      agentMap.set(agent, []);
+      agentOrder.push(agent);
+    }
+  }
+
+  // Build nodes
+  const nodes: Node<AgentNodeData>[] = agentOrder.map((agentType) => {
+    const iterations = agentMap.get(agentType) || [];
+    const hasRunningIteration = iterations.some(i => i.status === 'running');
+    const hasFailedIteration = iterations.some(i => i.status === 'failed');
+    const allCompleted = iterations.length > 0 && iterations.every(i => i.status === 'completed');
+
+    let status: AgentNodeData['status'];
+    if (hasFailedIteration || (workflowFailed && hasRunningIteration)) {
+      status = 'blocked';
+    } else if (hasRunningIteration) {
+      status = 'active';
+    } else if (allCompleted) {
+      status = 'completed';
+    } else {
+      status = 'pending';
+    }
+
+    return {
+      id: agentType,
+      type: 'agent',
+      position: { x: 0, y: 0 },  // Will be set by layout
+      data: {
+        agentType,
+        status,
+        iterations,
+        isExpanded: false,
+      },
+    };
   });
+
+  // Build edges between adjacent nodes
+  const edges: Edge<{ status: 'completed' | 'active' | 'pending' }>[] = [];
+  for (let i = 0; i < agentOrder.length - 1; i++) {
+    const sourceAgent = agentOrder[i];
+    const targetAgent = agentOrder[i + 1];
+    // Skip if agents are undefined (shouldn't happen due to loop bounds)
+    if (!sourceAgent || !targetAgent) continue;
+
+    const sourceNode = nodes.find(n => n.id === sourceAgent);
+    const targetNode = nodes.find(n => n.id === targetAgent);
+
+    let edgeStatus: 'completed' | 'active' | 'pending';
+    if (sourceNode?.data.status === 'completed') {
+      edgeStatus = targetNode?.data.status === 'active' ? 'active' : 'completed';
+    } else if (sourceNode?.data.status === 'active') {
+      edgeStatus = 'active';
+    } else {
+      edgeStatus = 'pending';
+    }
+
+    edges.push({
+      id: `${sourceAgent}-${targetAgent}`,
+      source: sourceAgent,
+      target: targetAgent,
+      data: { status: edgeStatus },
+    });
+  }
 
   return { nodes, edges };
 }

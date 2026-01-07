@@ -14,14 +14,14 @@ describe('ActivityLogItem', () => {
     message: 'Issue #8 parsed. Creating task DAG for benchmark framework.',
   });
 
-  it('renders timestamp in HH:MM:SS.mmm format', () => {
+  it('renders timestamp in HH:MM:SS format', () => {
     render(<ActivityLogItem event={mockEvent} />);
-    expect(screen.getByText('14:32:07.000')).toBeInTheDocument();
+    expect(screen.getByText('14:32:07')).toBeInTheDocument();
   });
 
-  it('renders agent name in brackets', () => {
+  it('renders agent name', () => {
     render(<ActivityLogItem event={mockEvent} />);
-    expect(screen.getByText('[ARCHITECT]')).toBeInTheDocument();
+    expect(screen.getByText('ARCHITECT')).toBeInTheDocument();
   });
 
   it('renders message text', () => {
@@ -37,6 +37,6 @@ describe('ActivityLogItem', () => {
   ])('applies $colorClass for $agent', ({ agent, colorClass }) => {
     const event = createMockEvent({ ...mockEvent, agent });
     render(<ActivityLogItem event={event} />);
-    expect(screen.getByText(`[${agent}]`)).toHaveClass(colorClass);
+    expect(screen.getByText(agent)).toHaveClass(colorClass);
   });
 });

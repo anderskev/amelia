@@ -157,8 +157,8 @@ describe('LogsPage', () => {
     useStreamStore.setState({ events });
     renderWithRouter(<LogsPage />);
 
-    // Formatted time should be HH:MM:SS.mmm (11 chars from the ISO string)
-    expect(screen.getByText(/10:30:45.123/)).toBeInTheDocument();
+    // Formatted time should be HH:MM:SS (8 chars from the ISO string)
+    expect(screen.getByText(/10:30:45/)).toBeInTheDocument();
   });
 
   it('displays tool name for tool call events', () => {

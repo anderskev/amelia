@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { formatTime } from '../utils';
 
 describe('formatTime', () => {
-  it('formats valid ISO timestamp to HH:MM:SS.mmm', () => {
-    expect(formatTime('2025-12-13T10:30:45.123Z')).toBe('10:30:45.123');
+  it('formats valid ISO timestamp to HH:MM:SS', () => {
+    expect(formatTime('2025-12-13T10:30:45.123Z')).toBe('10:30:45');
   });
 
   it('returns "-" for invalid timestamp string', () => {

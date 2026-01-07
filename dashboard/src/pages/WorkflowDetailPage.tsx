@@ -1,18 +1,19 @@
 /**
  * @fileoverview Workflow detail page with full status display.
  */
+import { useCallback, useMemo } from 'react';
 import { useLoaderData } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
-import { WorkflowCanvas } from '@/components/WorkflowCanvas';
 import { AgentProgressBar, type AgentStage } from '@/components/AgentProgressBar';
 import { UsageCard } from '@/components/UsageCard';
-import { buildPipeline } from '@/utils/pipeline';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
 import { workflowDetailLoader } from '@/loaders';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useWorkflowStore } from '@/store/workflowStore';
+import type { WorkflowEvent } from '@/types';
 
 /**
  * Determines completed stages based on current stage.
@@ -27,10 +28,10 @@ function getCompletedStages(currentStage: string | null): AgentStage[] {
 }
 
 /**
- * Displays comprehensive workflow details with progress, pipeline, and activity.
+ * Displays comprehensive workflow details with progress and activity.
  *
- * Shows header with status, progress bar, visual pipeline canvas,
- * approval controls (when blocked), and real-time activity log.
+ * Shows header with status, progress bar, approval controls (when blocked),
+ * usage stats, and real-time activity log.
  *
  * @returns The workflow detail page UI
  */
@@ -38,8 +39,31 @@ export default function WorkflowDetailPage() {
   const { workflow } = useLoaderData<typeof workflowDetailLoader>();
   const elapsedTime = useElapsedTime(workflow);
 
+  // Use targeted selector to only subscribe to this workflow's events
+  const workflowId = workflow?.id ?? '';
+  const storeEvents = useWorkflowStore(
+    useCallback((state) => state.eventsByWorkflow[workflowId] ?? [], [workflowId])
+  );
+
   // Auto-revalidate when this workflow's status changes (approval events, completion, etc.)
   useAutoRevalidation(workflow?.id);
+
+  // Merge loader events with real-time WebSocket events
+  const allEvents = useMemo(() => {
+    const loaderEvents = workflow?.recent_events ?? [];
+
+    // Deduplicate by event id using a Map
+    const eventMap = new Map<string, WorkflowEvent>();
+    for (const event of loaderEvents) {
+      eventMap.set(event.id, event);
+    }
+    for (const event of storeEvents) {
+      eventMap.set(event.id, event);
+    }
+
+    // Sort by sequence number for correct ordering
+    return Array.from(eventMap.values()).sort((a, b) => a.sequence - b.sequence);
+  }, [workflow?.recent_events, storeEvents]);
 
   if (!workflow) {
     return (
@@ -57,9 +81,6 @@ export default function WorkflowDetailPage() {
   // Show approval controls when blocked (awaiting human approval)
   const needsApproval = workflow.status === 'blocked';
   const goalSummary = workflow.goal || 'Awaiting plan generation';
-
-  // Build pipeline for visualization
-  const pipeline = buildPipeline(workflow);
 
   // Determine agent progress
   const currentStage = workflow.current_stage as AgentStage | null;
@@ -122,14 +143,6 @@ export default function WorkflowDetailPage() {
 
           {/* Usage card - shows token usage breakdown by agent */}
           <UsageCard tokenUsage={workflow.token_usage} className="border-l-2 border-l-primary" />
-
-          {/* Workflow Canvas (pipeline visualization) */}
-          <div className="p-4 border border-border rounded-lg bg-card/50 border-l-2 border-l-status-completed">
-            <h3 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-3">
-              PIPELINE
-            </h3>
-            <WorkflowCanvas pipeline={pipeline || undefined} />
-          </div>
         </div>
 
         {/* Right column: Activity Log */}
@@ -141,7 +154,7 @@ export default function WorkflowDetailPage() {
             <div className="p-4">
               <ActivityLog
                 workflowId={workflow.id}
-                initialEvents={workflow.recent_events}
+                initialEvents={allEvents}
               />
             </div>
           </ScrollArea>

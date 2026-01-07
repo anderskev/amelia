@@ -1,219 +1,112 @@
 /**
  * @fileoverview React Flow canvas for visualizing workflow pipelines.
+ *
+ * Uses ai-elements Canvas component as base. Accepts an EventDrivenPipeline
+ * and renders agent nodes with status-based styling. Read-only canvas with
+ * no user interaction for nodes/edges.
  */
-import { useMemo } from 'react';
-import {
-  ReactFlow,
-  Background,
-  BackgroundVariant,
-  Controls,
-  type NodeTypes,
-  type Edge,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { GitBranch, Loader2 } from 'lucide-react';
-import { WorkflowNode, type WorkflowNodeType } from '@/components/flow/WorkflowNode';
-import { cn } from '@/lib/utils';
-import type { Pipeline } from '@/utils/pipeline';
+import { useEffect, useMemo, useRef } from 'react';
+import { useReactFlow, useNodesInitialized } from '@xyflow/react';
+import type { NodeTypes } from '@xyflow/react';
+
+import { Canvas } from './ai-elements/canvas';
+import { AgentNode } from './AgentNode';
 import { getLayoutedElements } from '@/utils/layout';
+import type { EventDrivenPipeline } from '@/utils/pipeline';
+
+const nodeTypes: NodeTypes = {
+  agent: AgentNode,
+};
 
 /**
- * Props for the WorkflowCanvas component.
- * @property pipeline - Pipeline data to visualize (optional)
- * @property isLoading - Whether the pipeline is loading
- * @property className - Optional additional CSS classes
+ * Inner component that triggers fitView when node count changes.
+ * Must be rendered inside Canvas to access the React Flow instance.
+ *
+ * React Flow 12.5.0+ handles fitView timing correctly, so we only need
+ * to trigger fitView when nodes are dynamically added (the automatic
+ * fitView prop handles initial load).
+ *
+ * Uses useNodesInitialized() to ensure nodes are measured before fitting.
+ * Tracks the last "fitted" node count to handle the case where nodes are
+ * added but not yet initialized.
  */
+function FitViewOnNodeCountChange({ nodeCount }: { nodeCount: number }) {
+  const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
+  // Track the node count at which we last successfully called fitView
+  const lastFittedCountRef = useRef(nodeCount);
+
+  useEffect(() => {
+    // Only trigger fitView when:
+    // 1. Nodes are initialized (measured)
+    // 2. Node count has increased since we last fitted
+    if (nodesInitialized && nodeCount > lastFittedCountRef.current) {
+      fitView({ padding: 0.2 });
+      lastFittedCountRef.current = nodeCount;
+    }
+  }, [nodesInitialized, nodeCount, fitView]);
+
+  return null;
+}
+
 interface WorkflowCanvasProps {
-  pipeline?: Pipeline;
-  isLoading?: boolean;
+  pipeline: EventDrivenPipeline;
   className?: string;
 }
 
 /**
- * Custom node types for React Flow.
- * Maps the 'workflow' type to the WorkflowNode component.
- */
-const nodeTypes: NodeTypes = {
-  workflow: WorkflowNode,
-};
-
-/**
- * Maps edge status to stroke color CSS variable.
- * Uses Tailwind CSS custom properties for theming.
- */
-const edgeColors: Record<string, string> = {
-  completed: 'var(--status-completed)',
-  active: 'var(--primary)',
-  pending: 'var(--muted-foreground)',
-};
-
-/**
- * Visualizes a workflow pipeline using React Flow.
+ * Visualizes a workflow pipeline using ai-elements Canvas.
  *
- * Converts pipeline data to React Flow format and renders nodes
- * and edges in a non-interactive view. Shows stage progress indicator.
- *
- * Displays three states:
- * 1. Empty state: No pipeline provided
- * 2. Loading state: Pipeline is loading
- * 3. Active state: Pipeline data is available
+ * Displays agent nodes with status-based styling in a horizontal layout.
+ * Shows empty state when pipeline has no nodes. Read-only canvas with
+ * nodesDraggable, nodesConnectable, and elementsSelectable disabled.
  *
  * @param props - Component props
+ * @param props.pipeline - Event-driven pipeline data with nodes and edges
+ * @param props.className - Optional additional CSS classes
  * @returns The workflow canvas visualization
- *
- * @example
- * ```tsx
- * <WorkflowCanvas
- *   pipeline={{
- *     nodes: [{ id: '1', label: 'Plan', status: 'completed' }],
- *     edges: [{ from: '1', to: '2', label: 'approve', status: 'active' }]
- *   }}
- * />
- * ```
  */
-export function WorkflowCanvas({ pipeline, isLoading = false, className }: WorkflowCanvasProps) {
-  // Create nodes without positions first
-  const rawNodes: WorkflowNodeType[] = useMemo(
-    () =>
-      pipeline?.nodes.map((node) => ({
-        id: node.id,
-        type: 'workflow' as const,
-        position: { x: 0, y: 0 }, // Will be set by layout
-        data: {
-          label: node.label,
-          subtitle: node.subtitle,
-          status: node.status,
-          tokens: node.tokens,
-        },
-      })) ?? [],
-    [pipeline]
-  );
+export function WorkflowCanvas({ pipeline, className }: WorkflowCanvasProps) {
+  // Apply Dagre layout to nodes - memoized to avoid recalculating on every render
+  const layoutedNodes = useMemo(() => {
+    if (pipeline.nodes.length === 0) return [];
+    return getLayoutedElements(pipeline.nodes, pipeline.edges);
+  }, [pipeline.nodes, pipeline.edges]);
 
-  // Create edges with built-in smoothstep type and status-based styling
-  const edges: Edge[] = useMemo(
-    () =>
-      pipeline?.edges.map((edge) => {
-        const status = edge.status;
-        const strokeColor = edgeColors[status] || edgeColors.pending;
-
-        return {
-          id: `e-${edge.from}-${edge.to}`,
-          source: edge.from,
-          target: edge.to,
-          type: 'smoothstep',
-          animated: status === 'active',
-          label: edge.label || undefined,
-          style: {
-            stroke: strokeColor,
-            strokeWidth: 2.5,
-            strokeDasharray: status !== 'completed' ? '8 4' : undefined,
-            opacity: status === 'pending' ? 0.6 : 1,
-          },
-          labelStyle: {
-            fill: strokeColor,
-            fontSize: 12,
-            fontFamily: 'var(--font-mono)',
-          },
-          labelBgStyle: {
-            fill: 'var(--background)',
-            stroke: 'var(--border)',
-          },
-        };
-      }) ?? [],
-    [pipeline]
-  );
-
-  // Apply layout to position nodes
-  const nodes = useMemo(
-    () => getLayoutedElements(rawNodes, edges),
-    [rawNodes, edges]
-  );
-
-  const currentStage = pipeline?.nodes.find((n) => n.status === 'active')?.label || 'Unknown';
-
-  // Empty state - no pipeline selected
-  if (!pipeline && !isLoading) {
+  if (pipeline.nodes.length === 0) {
     return (
       <div
-        data-slot="workflow-canvas"
-        className={cn('h-64 bg-linear-to-b from-card/40 to-background/40 relative overflow-hidden', className)}
+        role="region"
+        aria-label="Workflow pipeline visualization"
+        className={className}
       >
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: 'radial-gradient(circle, var(--muted-foreground) 1px, transparent 1px)',
-            backgroundSize: '20px 20px',
-            backgroundPosition: '0 0',
-            opacity: 0.1,
-          }}
-        />
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-          <GitBranch className="h-12 w-12 text-muted-foreground/40" strokeWidth={1.5} />
-          <p className="text-sm text-muted-foreground">Select a workflow to view pipeline</p>
+        <div className="flex h-full items-center justify-center text-muted-foreground">
+          No pipeline data available
         </div>
       </div>
     );
   }
 
-  // Loading state - workflow selected but loading
-  if (isLoading || !pipeline) {
-    return (
-      <div
-        data-slot="workflow-canvas"
-        className={cn('h-64 bg-linear-to-b from-card/40 to-background/40 relative overflow-hidden', className)}
-      >
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: 'radial-gradient(circle, var(--muted-foreground) 1px, transparent 1px)',
-            backgroundSize: '20px 20px',
-            backgroundPosition: '0 0',
-            opacity: 0.1,
-          }}
-        />
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-          <Loader2 className="h-8 w-8 text-muted-foreground/60 animate-spin" strokeWidth={2} />
-          <p className="text-sm text-muted-foreground">Loading pipeline...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Active state - pipeline data is guaranteed defined after above guards
-  const nodeCount = pipeline.nodes.length;
   return (
     <div
-      role="img"
-      aria-label={`Workflow pipeline with ${nodeCount} stages. Current stage: ${currentStage}`}
-      data-slot="workflow-canvas"
-      className={cn('h-80 py-4 bg-linear-to-b from-card/40 to-background/40 relative', className)}
+      role="region"
+      aria-label="Workflow pipeline visualization"
+      className={className}
     >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
+      <Canvas
+        nodes={layoutedNodes}
+        edges={pipeline.edges}
         nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.15, maxZoom: 1.5, minZoom: 0.1 }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        className="workflow-canvas"
+        selectionOnDrag={false}
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.5}
+        maxZoom={1.5}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1}
-          color="var(--muted-foreground)"
-          style={{ opacity: 0.1 }}
-        />
-        <Controls
-          showZoom={true}
-          showFitView={true}
-          showInteractive={false}
-          position="bottom-right"
-          aria-label="Workflow canvas zoom controls"
-        />
-      </ReactFlow>
+        <FitViewOnNodeCountChange nodeCount={layoutedNodes.length} />
+      </Canvas>
     </div>
   );
 }

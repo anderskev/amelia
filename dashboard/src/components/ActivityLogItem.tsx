@@ -32,7 +32,7 @@ export function ActivityLogItem({ event }: ActivityLogItemProps) {
     <div
       data-slot="activity-log-item"
       className={cn(
-        'grid grid-cols-[100px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm',
+        'grid grid-cols-[60px_100px_1fr] gap-2 py-1 border-b border-border/30 font-mono text-xs',
         agentStyle.bg
       )}
     >
@@ -40,7 +40,7 @@ export function ActivityLogItem({ event }: ActivityLogItemProps) {
         {formatTime(event.timestamp)}
       </span>
       <span className={cn('font-semibold', agentStyle.text)}>
-        [{event.agent.toUpperCase()}]
+        {event.agent.toUpperCase()}
       </span>
       <span className="text-foreground/80 break-words">
         {event.message}
