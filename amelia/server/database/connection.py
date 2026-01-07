@@ -280,9 +280,15 @@ class Database:
                 timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 agent TEXT NOT NULL,
                 event_type TEXT NOT NULL,
+                level TEXT NOT NULL DEFAULT 'debug',
                 message TEXT NOT NULL,
                 data_json TEXT,
-                correlation_id TEXT
+                correlation_id TEXT,
+                tool_name TEXT,
+                tool_input_json TEXT,
+                is_error INTEGER NOT NULL DEFAULT 0,
+                trace_id TEXT,
+                parent_id TEXT
             )
         """)
 
@@ -363,6 +369,12 @@ class Database:
         )
         await self.execute(
             "CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type)"
+        )
+        await self.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_level ON events(level)"
+        )
+        await self.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_trace_id ON events(trace_id)"
         )
         await self.execute(
             "CREATE INDEX IF NOT EXISTS idx_tokens_workflow ON token_usage(workflow_id)"
