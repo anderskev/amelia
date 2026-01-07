@@ -1,7 +1,10 @@
 """Tests for event models."""
 
+from datetime import UTC, datetime
+
 import pytest
-from amelia.server.models.events import EventLevel, EventType, get_event_level
+
+from amelia.server.models.events import EventLevel, EventType, WorkflowEvent, get_event_level
 
 
 class TestEventLevel:
@@ -76,3 +79,90 @@ class TestWorkflowEvent:
         assert event.event_type == EventType.FILE_CREATED
         assert event.data == {"path": "src/main.py", "lines": 100}
         assert event.correlation_id == "req-789"
+
+    def test_workflow_event_has_level_field(self) -> None:
+        """WorkflowEvent includes level field with default."""
+        event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="architect",
+            event_type=EventType.STAGE_STARTED,
+            message="Test",
+        )
+        assert event.level == EventLevel.INFO
+
+    def test_workflow_event_trace_fields(self) -> None:
+        """WorkflowEvent includes trace-specific fields."""
+        event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            event_type=EventType.CLAUDE_TOOL_CALL,
+            level=EventLevel.TRACE,
+            message="Tool call: Edit",
+            tool_name="Edit",
+            tool_input={"file": "test.py"},
+            is_error=False,
+        )
+        assert event.level == EventLevel.TRACE
+        assert event.tool_name == "Edit"
+        assert event.tool_input == {"file": "test.py"}
+        assert event.is_error is False
+
+    def test_workflow_event_distributed_tracing_fields(self) -> None:
+        """WorkflowEvent includes trace_id and parent_id for distributed tracing."""
+        event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            event_type=EventType.CLAUDE_TOOL_RESULT,
+            message="Tool result",
+            trace_id="trace-abc-123",
+            parent_id="evt-parent",
+        )
+        assert event.trace_id == "trace-abc-123"
+        assert event.parent_id == "evt-parent"
+
+    def test_workflow_event_level_defaults_from_event_type(self) -> None:
+        """Level defaults based on event_type when not provided."""
+        # INFO event
+        info_event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="system",
+            event_type=EventType.WORKFLOW_STARTED,
+            message="Started",
+        )
+        assert info_event.level == EventLevel.INFO
+
+        # DEBUG event
+        debug_event = WorkflowEvent(
+            id="evt-2",
+            workflow_id="wf-1",
+            sequence=2,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            event_type=EventType.FILE_MODIFIED,
+            message="Modified file",
+        )
+        assert debug_event.level == EventLevel.DEBUG
+
+        # TRACE event
+        trace_event = WorkflowEvent(
+            id="evt-3",
+            workflow_id="wf-1",
+            sequence=3,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            event_type=EventType.CLAUDE_THINKING,
+            message="Thinking...",
+        )
+        assert trace_event.level == EventLevel.TRACE

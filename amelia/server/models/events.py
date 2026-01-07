@@ -150,9 +150,15 @@ class WorkflowEvent(BaseModel):
         timestamp: When event occurred.
         agent: Source of event ("architect", "developer", "reviewer", "system").
         event_type: Typed event category.
+        level: Event severity level (info, debug, trace).
         message: Human-readable summary.
         data: Optional structured payload (file paths, error details, etc.).
         correlation_id: Links related events (e.g., approval request -> granted).
+        tool_name: Tool name for trace events (optional).
+        tool_input: Tool input parameters for trace events (optional).
+        is_error: Whether trace event represents an error (default False).
+        trace_id: Distributed trace ID (flows through all events in a workflow execution).
+        parent_id: Parent event ID for causal chain (e.g., tool_call -> tool_result).
     """
 
     id: str = Field(..., description="Unique event identifier")
@@ -161,6 +167,7 @@ class WorkflowEvent(BaseModel):
     timestamp: datetime = Field(..., description="When event occurred")
     agent: str = Field(..., description="Event source agent")
     event_type: EventType = Field(..., description="Event type category")
+    level: EventLevel | None = Field(default=None, description="Event severity level")
     message: str = Field(..., description="Human-readable message")
     data: dict[str, Any] | None = Field(
         default=None,
@@ -170,6 +177,33 @@ class WorkflowEvent(BaseModel):
         default=None,
         description="Links related events for tracing",
     )
+    # Trace-specific fields
+    tool_name: str | None = Field(
+        default=None,
+        description="Tool name for trace events",
+    )
+    tool_input: dict[str, Any] | None = Field(
+        default=None,
+        description="Tool input parameters for trace events",
+    )
+    is_error: bool = Field(
+        default=False,
+        description="Whether trace event represents an error",
+    )
+    # Distributed tracing fields (OTel-compatible)
+    trace_id: str | None = Field(
+        default=None,
+        description="Distributed trace ID (flows through all events in a workflow execution)",
+    )
+    parent_id: str | None = Field(
+        default=None,
+        description="Parent event ID for causal chain (e.g., tool_call -> tool_result)",
+    )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Set level from event_type if not provided."""
+        if self.level is None:
+            object.__setattr__(self, "level", get_event_level(self.event_type))
 
     model_config = {
         "json_schema_extra": {
@@ -181,6 +215,7 @@ class WorkflowEvent(BaseModel):
                     "timestamp": "2025-01-01T12:00:00Z",
                     "agent": "architect",
                     "event_type": "stage_started",
+                    "level": "info",
                     "message": "Creating task plan",
                     "data": {"stage": "planning"},
                 }
