@@ -9,6 +9,20 @@ from pydantic import BaseModel, Field
 from amelia.core.types import StreamEventType
 
 
+class EventLevel(StrEnum):
+    """Event severity level for filtering and retention.
+
+    Attributes:
+        INFO: High-level workflow events (lifecycle, stages, approvals).
+        DEBUG: Operational details (tasks, files, messages).
+        TRACE: Verbose execution trace (thinking, tool calls).
+    """
+
+    INFO = "info"
+    DEBUG = "debug"
+    TRACE = "trace"
+
+
 class EventType(StrEnum):
     """Exhaustive list of workflow event types.
 
@@ -77,6 +91,50 @@ class EventType(StrEnum):
 
     # Streaming (ephemeral, not persisted)
     STREAM = "stream"
+
+    # Stream event types (trace level)
+    CLAUDE_THINKING = "claude_thinking"
+    CLAUDE_TOOL_CALL = "claude_tool_call"
+    CLAUDE_TOOL_RESULT = "claude_tool_result"
+    AGENT_OUTPUT = "agent_output"
+
+
+# Event type to level mapping
+_INFO_TYPES: frozenset[EventType] = frozenset({
+    EventType.WORKFLOW_STARTED,
+    EventType.WORKFLOW_COMPLETED,
+    EventType.WORKFLOW_FAILED,
+    EventType.WORKFLOW_CANCELLED,
+    EventType.STAGE_STARTED,
+    EventType.STAGE_COMPLETED,
+    EventType.APPROVAL_REQUIRED,
+    EventType.APPROVAL_GRANTED,
+    EventType.APPROVAL_REJECTED,
+    EventType.REVIEW_COMPLETED,
+})
+
+_TRACE_TYPES: frozenset[EventType] = frozenset({
+    EventType.CLAUDE_THINKING,
+    EventType.CLAUDE_TOOL_CALL,
+    EventType.CLAUDE_TOOL_RESULT,
+    EventType.AGENT_OUTPUT,
+})
+
+
+def get_event_level(event_type: EventType) -> EventLevel:
+    """Get the level for an event type.
+
+    Args:
+        event_type: The event type to classify.
+
+    Returns:
+        EventLevel for the given event type.
+    """
+    if event_type in _INFO_TYPES:
+        return EventLevel.INFO
+    if event_type in _TRACE_TYPES:
+        return EventLevel.TRACE
+    return EventLevel.DEBUG
 
 
 class WorkflowEvent(BaseModel):
