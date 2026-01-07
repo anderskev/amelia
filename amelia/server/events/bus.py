@@ -9,10 +9,20 @@ from loguru import logger
 from amelia.core.types import StreamEvent, StreamEventType
 from amelia.server.config import ServerConfig
 from amelia.server.models import WorkflowEvent
+from amelia.server.models.events import EventType, get_event_level
 
 
 if TYPE_CHECKING:
     from amelia.server.events.connection_manager import ConnectionManager
+
+
+# Mapping from StreamEventType to EventType
+_STREAM_TO_EVENT_TYPE: dict[StreamEventType, EventType] = {
+    StreamEventType.CLAUDE_THINKING: EventType.CLAUDE_THINKING,
+    StreamEventType.CLAUDE_TOOL_CALL: EventType.CLAUDE_TOOL_CALL,
+    StreamEventType.CLAUDE_TOOL_RESULT: EventType.CLAUDE_TOOL_RESULT,
+    StreamEventType.AGENT_OUTPUT: EventType.AGENT_OUTPUT,
+}
 
 
 class EventBus:
@@ -30,6 +40,8 @@ class EventBus:
     Attributes:
         _subscribers: List of callback functions to notify on emit.
         _broadcast_tasks: Set of active broadcast tasks for cleanup tracking.
+        _trace_retention_days: Days to retain trace events (0 = no persistence).
+        _sequence_counter: Per-workflow sequence counters for trace events.
     """
 
     def __init__(self) -> None:
@@ -37,6 +49,8 @@ class EventBus:
         self._subscribers: list[Callable[[WorkflowEvent], None]] = []
         self._connection_manager: ConnectionManager | None = None
         self._broadcast_tasks: set[asyncio.Task[None]] = set()
+        self._trace_retention_days: int = 7
+        self._sequence_counter: dict[str, int] = {}
 
     def subscribe(self, callback: Callable[[WorkflowEvent], None]) -> None:
         """Subscribe to workflow events.
@@ -62,6 +76,16 @@ class EventBus:
             manager: The ConnectionManager instance.
         """
         self._connection_manager = manager
+
+    def configure(self, trace_retention_days: int | None = None) -> None:
+        """Configure event bus settings.
+
+        Args:
+            trace_retention_days: Days to retain trace events. Set to 0 to disable
+                persistence of trace events (WebSocket broadcast only).
+        """
+        if trace_retention_days is not None:
+            self._trace_retention_days = trace_retention_days
 
     def _handle_broadcast_done(self, task: asyncio.Task[None]) -> None:
         """Handle completion of WebSocket broadcast task.
@@ -118,12 +142,75 @@ class EventBus:
             self._broadcast_tasks.add(task)
             task.add_done_callback(self._handle_broadcast_done)
 
-    def emit_stream(self, event: StreamEvent) -> None:
-        """Emit a stream event to WebSocket clients without persistence.
+    def _get_next_sequence(self, workflow_id: str) -> int:
+        """Get the next sequence number for a workflow's trace events.
 
-        Stream events are ephemeral - they're broadcast in real-time but
-        not stored in the database. Unlike emit(), this does NOT call
-        regular WorkflowEvent subscribers.
+        Args:
+            workflow_id: The workflow identifier.
+
+        Returns:
+            Next monotonic sequence number for this workflow.
+        """
+        current = self._sequence_counter.get(workflow_id, 0)
+        next_seq = current + 1
+        self._sequence_counter[workflow_id] = next_seq
+        return next_seq
+
+    def _build_trace_message(self, event: StreamEvent) -> str:
+        """Build a human-readable message for a trace event.
+
+        Args:
+            event: The stream event to describe.
+
+        Returns:
+            Human-readable message string.
+        """
+        if event.type == StreamEventType.CLAUDE_THINKING:
+            return "Agent thinking"
+        elif event.type == StreamEventType.CLAUDE_TOOL_CALL:
+            tool = event.tool_name or "unknown"
+            return f"Tool call: {tool}"
+        elif event.type == StreamEventType.CLAUDE_TOOL_RESULT:
+            tool = event.tool_name or "unknown"
+            status = "error" if event.is_error else "success"
+            return f"Tool result: {tool} ({status})"
+        elif event.type == StreamEventType.AGENT_OUTPUT:
+            return "Agent output"
+        return f"Stream event: {event.type}"
+
+    def _convert_to_workflow_event(self, event: StreamEvent) -> WorkflowEvent:
+        """Convert a StreamEvent to a WorkflowEvent for persistence.
+
+        Args:
+            event: The stream event to convert.
+
+        Returns:
+            WorkflowEvent suitable for database persistence.
+        """
+        event_type = _STREAM_TO_EVENT_TYPE.get(event.type, EventType.STREAM)
+        level = get_event_level(event_type)
+
+        return WorkflowEvent(
+            id=event.id,
+            workflow_id=event.workflow_id,
+            sequence=self._get_next_sequence(event.workflow_id),
+            timestamp=event.timestamp,
+            agent=event.agent,
+            event_type=event_type,
+            level=level,
+            message=self._build_trace_message(event),
+            data={"content": event.content} if event.content else None,
+            tool_name=event.tool_name,
+            tool_input=event.tool_input,
+            is_error=event.is_error,
+        )
+
+    def emit_stream(self, event: StreamEvent) -> None:
+        """Emit a stream event for real-time broadcast and optional persistence.
+
+        Stream events are broadcast to WebSocket clients in real-time. When
+        trace_retention_days > 0, they are also converted to WorkflowEvents
+        and emitted to subscribers for database persistence.
 
         Args:
             event: The stream event to broadcast.
@@ -133,6 +220,13 @@ class EventBus:
         if event.type == StreamEventType.CLAUDE_TOOL_RESULT and not config.stream_tool_results:
             return
 
+        # Convert to WorkflowEvent for persistence if trace retention is enabled
+        if self._trace_retention_days > 0:
+            workflow_event = self._convert_to_workflow_event(event)
+            # Emit to subscribers for persistence
+            self.emit(workflow_event)
+
+        # Broadcast to WebSocket clients
         if self._connection_manager:
             task = asyncio.create_task(self._connection_manager.broadcast_stream(event))
             self._broadcast_tasks.add(task)

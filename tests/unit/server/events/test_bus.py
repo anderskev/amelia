@@ -256,3 +256,65 @@ async def test_emit_stream_allows_other_event_types(event_bus: EventBus) -> None
 
     # Should still broadcast - not a tool result
     await asyncio.wait_for(broadcast_called.wait(), timeout=1.0)
+
+
+class TestEventBusTraceEmit:
+    """Tests for trace event emission."""
+
+    @pytest.mark.asyncio
+    async def test_emit_stream_converts_to_workflow_event(self) -> None:
+        """emit_stream converts StreamEvent to WorkflowEvent for persistence."""
+        from amelia.core.types import StreamEvent, StreamEventType
+        from amelia.server.models.events import EventLevel, EventType
+
+        bus = EventBus()
+        captured_events: list[WorkflowEvent] = []
+
+        def capture(event: WorkflowEvent) -> None:
+            captured_events.append(event)
+
+        bus.subscribe(capture)
+
+        stream_event = StreamEvent(
+            type=StreamEventType.CLAUDE_TOOL_CALL,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            workflow_id="wf-123",
+            tool_name="Edit",
+            tool_input={"file": "test.py"},
+        )
+
+        bus.emit_stream(stream_event)
+
+        assert len(captured_events) == 1
+        workflow_event = captured_events[0]
+        assert workflow_event.event_type == EventType.CLAUDE_TOOL_CALL
+        assert workflow_event.level == EventLevel.TRACE
+        assert workflow_event.tool_name == "Edit"
+        assert workflow_event.tool_input == {"file": "test.py"}
+        assert workflow_event.workflow_id == "wf-123"
+
+    @pytest.mark.asyncio
+    async def test_emit_stream_respects_trace_retention_zero(self) -> None:
+        """emit_stream skips persistence when trace_retention_days=0."""
+        from amelia.core.types import StreamEvent, StreamEventType
+
+        bus = EventBus()
+        captured_events: list[WorkflowEvent] = []
+        bus.subscribe(lambda e: captured_events.append(e))
+
+        # Configure trace_retention_days=0
+        bus.configure(trace_retention_days=0)
+
+        stream_event = StreamEvent(
+            type=StreamEventType.CLAUDE_THINKING,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            workflow_id="wf-123",
+            content="Thinking...",
+        )
+
+        bus.emit_stream(stream_event)
+
+        # Should not call subscribers (no persistence)
+        assert len(captured_events) == 0
