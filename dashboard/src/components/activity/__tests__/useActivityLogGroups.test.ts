@@ -28,10 +28,10 @@ describe('useActivityLogGroups', () => {
     );
 
     expect(result.current.groups).toHaveLength(2);
-    expect(result.current.groups[0].stage).toBe('architect');
-    expect(result.current.groups[0].events).toHaveLength(2);
-    expect(result.current.groups[1].stage).toBe('developer');
-    expect(result.current.groups[1].events).toHaveLength(1);
+    expect(result.current.groups[0]?.stage).toBe('architect');
+    expect(result.current.groups[0]?.events).toHaveLength(2);
+    expect(result.current.groups[1]?.stage).toBe('developer');
+    expect(result.current.groups[1]?.events).toHaveLength(1);
   });
 
   it('filters out trace level events', () => {
@@ -92,7 +92,7 @@ describe('useActivityLogGroups', () => {
       useActivityLogGroups(events, new Set())
     );
 
-    expect(result.current.groups[0].isActive).toBe(true);
-    expect(result.current.groups[0].isCompleted).toBe(false);
+    expect(result.current.groups[0]?.isActive).toBe(true);
+    expect(result.current.groups[0]?.isCompleted).toBe(false);
   });
 });

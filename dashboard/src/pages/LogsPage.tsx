@@ -229,6 +229,8 @@ export default function LogsPage() {
           >
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const event = filteredEvents[virtualRow.index];
+              if (!event) return null;
+
               return (
                 <div
                   key={event.id}

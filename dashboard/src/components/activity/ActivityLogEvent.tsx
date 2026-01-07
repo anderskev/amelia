@@ -1,11 +1,13 @@
 import { cn } from '@/lib/utils';
 import type { WorkflowEvent } from '@/types';
 
+const DEFAULT_STYLE = { text: 'text-muted-foreground', bg: '' } as const;
+
 const AGENT_STYLES: Record<string, { text: string; bg: string }> = {
   ARCHITECT: { text: 'text-blue-400', bg: '' },
   DEVELOPER: { text: 'text-green-400', bg: '' },
   REVIEWER: { text: 'text-yellow-400', bg: '' },
-  SYSTEM: { text: 'text-muted-foreground', bg: '' },
+  SYSTEM: DEFAULT_STYLE,
 };
 
 function formatTime(timestamp: string): string {
@@ -20,7 +22,7 @@ interface ActivityLogEventProps {
 
 export function ActivityLogEvent({ event }: ActivityLogEventProps) {
   const agentKey = event.agent.toUpperCase();
-  const style = AGENT_STYLES[agentKey] ?? AGENT_STYLES.SYSTEM;
+  const style = AGENT_STYLES[agentKey] ?? DEFAULT_STYLE;
 
   return (
     <div

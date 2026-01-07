@@ -50,6 +50,18 @@ function getEventLevel(eventType: WorkflowEvent['event_type']): EventLevel {
 }
 
 /**
+ * Create a WorkflowEvent with level auto-computed from event_type.
+ */
+function createEvent(
+  event: Omit<WorkflowEvent, 'level'>
+): WorkflowEvent {
+  return {
+    ...event,
+    level: getEventLevel(event.event_type),
+  };
+}
+
+/**
  * Internal mock plan structure for generating plan_markdown.
  * Not exported - used only within this file.
  */
@@ -887,7 +899,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
     case 'CRUD-1000000':
       completedAt = new Date(new Date(startedAt).getTime() + 2 * 60 * 60 * 1000).toISOString();
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -895,8 +907,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: 'Workflow started for CRUD-1000000 - The millionth dark mode ticket',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -904,7 +916,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_completed',
           message: 'Dark mode toggle implemented. This was the final straw.',
-        },
+        }),
       ];
       break;
 
@@ -912,7 +924,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
       completedAt = new Date(new Date(startedAt).getTime() + 30 * 60 * 1000).toISOString();
       failureReason = 'Tabs vs spaces debate cannot be resolved by AI. Some problems transcend computation.';
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -920,8 +932,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: 'Workflow started for TABS-1978',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -929,14 +941,14 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_failed',
           message: failureReason,
-        },
+        }),
       ];
       break;
 
     case 'QUICK-7847284919':
       completedAt = new Date(new Date(startedAt).getTime() + 1 * 60 * 60 * 1000).toISOString();
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -944,8 +956,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: 'Workflow started for QUICK-7847284919',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -953,7 +965,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_cancelled',
           message: 'User cancelled after seeing position 7,847,284,919 in queue',
-        },
+        }),
       ];
       break;
 
@@ -961,7 +973,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
       completedAt = new Date(new Date(startedAt).getTime() + 5 * 60 * 60 * 1000).toISOString();
       failureReason = 'Requirements expanded from "simple" to "enterprise-grade distributed system with blockchain". Scope creep detected.';
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -969,8 +981,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: 'Workflow started for USER-SIMPLE - "It should be simple"',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -978,14 +990,14 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_failed',
           message: failureReason,
-        },
+        }),
       ];
       break;
 
     case 'LAUNCH-T10':
       completedAt = new Date(new Date(startedAt).getTime() + 3 * 60 * 60 * 1000).toISOString();
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -993,8 +1005,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: 'Workflow started for LAUNCH-T10',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -1002,8 +1014,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'developer',
           event_type: 'file_modified',
           message: 'Modified config.yaml - set destination: "alpha-centauri"',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-2`),
           workflow_id: id,
           sequence: 2,
@@ -1011,14 +1023,14 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_completed',
           message: 'refactor: relocate primary compute node to interstellar space',
-        },
+        }),
       ];
       break;
 
     case 'NAV-777':
       completedAt = new Date(new Date(startedAt).getTime() + 2.3 * 60 * 60 * 1000).toISOString();
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -1026,8 +1038,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: 'Workflow started for NAV-777 - Stellar navigation calibration',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -1035,8 +1047,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'developer',
           event_type: 'file_created',
           message: 'Created src/navigation/stellar_map.py - mapped 847 nearby stars',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-2`),
           workflow_id: id,
           sequence: 2,
@@ -1044,14 +1056,14 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_completed',
           message: 'Navigation system calibrated for interstellar travel',
-        },
+        }),
       ];
       break;
 
     case 'FUEL-404':
       completedAt = new Date(new Date(startedAt).getTime() + 4.2 * 60 * 60 * 1000).toISOString();
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -1059,8 +1071,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: 'Workflow started for FUEL-404 - Antimatter refueling protocols',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -1068,8 +1080,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'developer',
           event_type: 'file_created',
           message: 'Created src/fuel/antimatter_containment.py - "DO NOT DROP"',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-2`),
           workflow_id: id,
           sequence: 2,
@@ -1077,8 +1089,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'reviewer',
           event_type: 'system_warning',
           message: 'Warning: antimatter-matter contact would be... problematic',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-3`),
           workflow_id: id,
           sequence: 3,
@@ -1086,14 +1098,14 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_completed',
           message: 'Refueling protocols complete. Range: 4.2 light-years.',
-        },
+        }),
       ];
       break;
 
     case 'COMM-1984':
       completedAt = new Date(new Date(startedAt).getTime() + 1.5 * 60 * 60 * 1000).toISOString();
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -1101,8 +1113,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: 'Workflow started for COMM-1984 - Deep space communication array',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -1110,8 +1122,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'developer',
           event_type: 'file_modified',
           message: 'Modified src/comms/deep_space.py - signal delay: 8 minutes to Earth',
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-2`),
           workflow_id: id,
           sequence: 2,
@@ -1119,7 +1131,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_completed',
           message: 'Communication array online. Last message from Earth: "Good luck!"',
-        },
+        }),
       ];
       break;
 
@@ -1127,7 +1139,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
       // Generic completed workflow
       completedAt = new Date(new Date(startedAt).getTime() + 1 * 60 * 60 * 1000).toISOString();
       events = [
-        {
+        createEvent({
           id: generateUUID(`${id}-event-0`),
           workflow_id: id,
           sequence: 0,
@@ -1135,8 +1147,8 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_started',
           message: `Workflow started for ${summary.issue_id}`,
-        },
-        {
+        }),
+        createEvent({
           id: generateUUID(`${id}-event-1`),
           workflow_id: id,
           sequence: 1,
@@ -1144,7 +1156,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
           agent: 'orchestrator',
           event_type: 'workflow_completed',
           message: 'Workflow completed successfully',
-        },
+        }),
       ];
   }
 

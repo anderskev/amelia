@@ -40,7 +40,10 @@ export function ActivityLog({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (index) => (rows[index].type === 'header' ? 44 : 36),
+    estimateSize: (index) => {
+      const row = rows[index];
+      return row?.type === 'header' ? 44 : 36;
+    },
     overscan: 10,
   });
 
@@ -87,6 +90,8 @@ export function ActivityLog({
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
           const row = rows[virtualRow.index];
+          if (!row) return null;
+
           return (
             <div
               key={virtualRow.key}
