@@ -15,7 +15,6 @@ export { JobQueueItem } from './JobQueueItem';
 export { JobQueue } from './JobQueue';
 
 // Activity log components
-export { ActivityLogItem } from './ActivityLogItem';
 export { ActivityLog } from './ActivityLog';
 
 // Workflow components
