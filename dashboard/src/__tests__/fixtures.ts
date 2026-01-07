@@ -155,6 +155,7 @@ export function createMockEvent(
     timestamp: '2025-12-06T10:00:00Z',
     agent: 'architect',
     event_type: 'workflow_started',
+    level: 'info',
     message: 'Test event',
     data: undefined,
     correlation_id: undefined,

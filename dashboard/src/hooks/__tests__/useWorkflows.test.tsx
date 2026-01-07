@@ -63,6 +63,7 @@ describe('useWorkflows', () => {
       workflow_id: 'wf-1',
       sequence: 1,
       event_type,
+      level: 'info',
       timestamp,
       agent: 'developer',
       message: `Test ${event_type} event`,

@@ -10,9 +10,44 @@ import type {
   WorkflowSummary,
   WorkflowDetail,
   WorkflowEvent,
+  EventLevel,
   TokenSummary,
   TokenUsage,
 } from '@/types';
+
+/**
+ * Determine the event level based on event type.
+ * Matches the Python get_event_level() function.
+ */
+function getEventLevel(eventType: WorkflowEvent['event_type']): EventLevel {
+  const infoEvents = new Set([
+    'workflow_started',
+    'workflow_completed',
+    'workflow_failed',
+    'workflow_cancelled',
+    'stage_started',
+    'stage_completed',
+    'approval_required',
+    'approval_granted',
+    'approval_rejected',
+    'review_requested',
+    'review_completed',
+    'revision_requested',
+    'system_error',
+    'system_warning',
+  ]);
+
+  const traceEvents = new Set([
+    'claude_thinking',
+    'claude_tool_call',
+    'claude_tool_result',
+    'agent_output',
+  ]);
+
+  if (infoEvents.has(eventType)) return 'info';
+  if (traceEvents.has(eventType)) return 'trace';
+  return 'debug';
+}
 
 /**
  * Internal mock plan structure for generating plan_markdown.
@@ -339,6 +374,7 @@ function getHeatShieldsEvents(workflowId: string, startedAt: string): WorkflowEv
       timestamp: new Date(start.getTime() + minutesOffset * 60 * 1000).toISOString(),
       agent,
       event_type: eventType,
+      level: getEventLevel(eventType),
       message,
     });
   };
@@ -378,6 +414,7 @@ function getOrbitalDeploymentEvents(workflowId: string, startedAt: string): Work
       timestamp: new Date(start.getTime() + minutesOffset * 60 * 1000).toISOString(),
       agent,
       event_type: eventType,
+      level: getEventLevel(eventType),
       message,
     });
   };
@@ -413,6 +450,7 @@ function getSolarDistributedEvents(workflowId: string, startedAt: string): Workf
       timestamp: new Date(start.getTime() + minutesOffset * 60 * 1000).toISOString(),
       agent,
       event_type: eventType,
+      level: getEventLevel(eventType),
       message,
     });
   };
@@ -455,6 +493,7 @@ function getMicroservicesThrustEvents(workflowId: string, startedAt: string): Wo
       timestamp: new Date(start.getTime() + minutesOffset * 60 * 1000).toISOString(),
       agent,
       event_type: eventType,
+      level: getEventLevel(eventType),
       message,
     });
   };
@@ -492,6 +531,7 @@ function getEscapeVelocityEvents(workflowId: string, startedAt: string): Workflo
       timestamp: new Date(start.getTime() + minutesOffset * 60 * 1000).toISOString(),
       agent,
       event_type: eventType,
+      level: getEventLevel(eventType),
       message,
     });
   };

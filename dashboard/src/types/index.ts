@@ -99,6 +99,16 @@ export interface WorkflowDetail extends WorkflowSummary {
 // ============================================================================
 
 /**
+ * Severity level for workflow events.
+ * Used to filter and categorize events in the UI.
+ *
+ * - `info`: High-level workflow progress (lifecycle, stages, approvals)
+ * - `debug`: Detailed operational information (file changes, agent messages)
+ * - `trace`: Fine-grained execution details (tool calls, LLM thinking)
+ */
+export type EventLevel = 'info' | 'debug' | 'trace';
+
+/**
  * Types of events that can occur during workflow execution.
  * Events are emitted by agents and the orchestrator to track workflow progress.
  *
@@ -136,6 +146,12 @@ export interface WorkflowDetail extends WorkflowSummary {
  * **System events**: Errors and warnings
  * - `system_error`: An error occurred during execution
  * - `system_warning`: A warning was issued
+ *
+ * **Trace events**: Stream events for fine-grained execution details
+ * - `claude_thinking`: LLM reasoning/thinking content
+ * - `claude_tool_call`: Tool invocation by the LLM
+ * - `claude_tool_result`: Result from a tool execution
+ * - `agent_output`: Final output from an agent
  */
 export type EventType =
   // Lifecycle
@@ -165,7 +181,12 @@ export type EventType =
   | 'task_failed'
   // System
   | 'system_error'
-  | 'system_warning';
+  | 'system_warning'
+  // Trace (stream events)
+  | 'claude_thinking'
+  | 'claude_tool_call'
+  | 'claude_tool_result'
+  | 'agent_output';
 
 /**
  * A single event emitted during workflow execution.
@@ -190,6 +211,9 @@ export interface WorkflowEvent {
   /** Type of event that occurred. */
   event_type: EventType;
 
+  /** Severity level for filtering and categorization. */
+  level: EventLevel;
+
   /** Human-readable message describing the event. */
   message: string;
 
@@ -198,6 +222,21 @@ export interface WorkflowEvent {
 
   /** Optional correlation ID for grouping related events. */
   correlation_id?: string;
+
+  /** Name of the tool being called (for claude_tool_call/claude_tool_result events). */
+  tool_name?: string;
+
+  /** Input parameters for the tool call (for claude_tool_call events). */
+  tool_input?: Record<string, unknown>;
+
+  /** Whether this event represents an error (for tool results). */
+  is_error?: boolean;
+
+  /** Trace ID for distributed tracing correlation. */
+  trace_id?: string;
+
+  /** Parent event ID for hierarchical event relationships. */
+  parent_id?: string;
 }
 
 // ============================================================================
