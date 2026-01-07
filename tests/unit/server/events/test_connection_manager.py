@@ -7,6 +7,7 @@ import pytest
 from fastapi import WebSocketDisconnect
 
 from amelia.server.events.connection_manager import ConnectionManager
+from amelia.server.models.events import EventLevel, EventType, WorkflowEvent
 
 
 class TestConnectionManager:
@@ -125,3 +126,42 @@ class TestConnectionManager:
 
         await manager.disconnect(ws1)
         assert manager.active_connections == 1
+
+
+class TestConnectionManagerTraceEvents:
+    """Tests for trace event broadcasting."""
+
+    @pytest.mark.asyncio
+    async def test_broadcast_sends_trace_events_to_all_clients(self) -> None:
+        """broadcast() sends trace events to all connected clients (no filtering)."""
+        manager = ConnectionManager()
+        mock_ws1 = AsyncMock()
+        mock_ws1.accept = AsyncMock()
+        mock_ws1.send_json = AsyncMock()
+        mock_ws2 = AsyncMock()
+        mock_ws2.accept = AsyncMock()
+        mock_ws2.send_json = AsyncMock()
+
+        await manager.connect(mock_ws1)
+        await manager.connect(mock_ws2)
+
+        # Subscribe to different workflows - normally only matching events go through
+        await manager.subscribe(mock_ws1, "wf-1")
+        await manager.subscribe(mock_ws2, "wf-2")
+
+        trace_event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            event_type=EventType.CLAUDE_TOOL_CALL,
+            level=EventLevel.TRACE,
+            message="Tool call",
+        )
+
+        await manager.broadcast(trace_event)
+
+        # Both clients receive trace events (no workflow filtering)
+        assert mock_ws1.send_json.called
+        assert mock_ws2.send_json.called
