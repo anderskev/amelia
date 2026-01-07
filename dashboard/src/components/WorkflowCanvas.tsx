@@ -5,8 +5,8 @@
  * and renders agent nodes with status-based styling. Read-only canvas with
  * no user interaction for nodes/edges.
  */
-import { useEffect, useMemo } from 'react';
-import { useReactFlow } from '@xyflow/react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useReactFlow, useNodesInitialized } from '@xyflow/react';
 import type { NodeTypes } from '@xyflow/react';
 
 import { Canvas } from './ai-elements/canvas';
@@ -19,22 +19,32 @@ const nodeTypes: NodeTypes = {
 };
 
 /**
- * Inner component that triggers fitView when the node count changes.
+ * Inner component that triggers fitView when node count changes.
  * Must be rendered inside Canvas to access the React Flow instance.
  *
- * Uses requestAnimationFrame to defer fitView until after React Flow
- * has rendered the updated nodes, ensuring correct bounds calculation.
+ * React Flow 12.5.0+ handles fitView timing correctly, so we only need
+ * to trigger fitView when nodes are dynamically added (the automatic
+ * fitView prop handles initial load).
+ *
+ * Uses useNodesInitialized() to ensure nodes are measured before fitting.
+ * Tracks the last "fitted" node count to handle the case where nodes are
+ * added but not yet initialized.
  */
-function FitViewOnChange({ nodeCount }: { nodeCount: number }) {
+function FitViewOnNodeCountChange({ nodeCount }: { nodeCount: number }) {
   const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
+  // Track the node count at which we last successfully called fitView
+  const lastFittedCountRef = useRef(nodeCount);
 
   useEffect(() => {
-    // Defer fitView to next frame to allow React Flow to render nodes first
-    const frameId = requestAnimationFrame(() => {
+    // Only trigger fitView when:
+    // 1. Nodes are initialized (measured)
+    // 2. Node count has increased since we last fitted
+    if (nodesInitialized && nodeCount > lastFittedCountRef.current) {
       fitView({ padding: 0.2 });
-    });
-    return () => cancelAnimationFrame(frameId);
-  }, [nodeCount, fitView]);
+      lastFittedCountRef.current = nodeCount;
+    }
+  }, [nodesInitialized, nodeCount, fitView]);
 
   return null;
 }
@@ -95,7 +105,7 @@ export function WorkflowCanvas({ pipeline, className }: WorkflowCanvasProps) {
         minZoom={0.5}
         maxZoom={1.5}
       >
-        <FitViewOnChange nodeCount={layoutedNodes.length} />
+        <FitViewOnNodeCountChange nodeCount={layoutedNodes.length} />
       </Canvas>
     </div>
   );

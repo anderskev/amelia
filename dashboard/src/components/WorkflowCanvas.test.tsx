@@ -1,11 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { WorkflowCanvas } from './WorkflowCanvas';
 import type { EventDrivenPipeline } from '../utils/pipeline';
 
-// Create a mock fitView function we can spy on - use vi.hoisted for proper hoisting
-const { mockFitView } = vi.hoisted(() => ({
+// Create mock functions we can spy on - use vi.hoisted for proper hoisting
+const { mockFitView, mockNodesInitialized } = vi.hoisted(() => ({
   mockFitView: vi.fn(),
+  mockNodesInitialized: { value: false },
 }));
 
 // Mock ai-elements Canvas - it wraps ReactFlow
@@ -17,23 +18,20 @@ vi.mock('./ai-elements/canvas', () => ({
   ),
 }));
 
-// Mock useReactFlow for FitViewOnChange component
+// Mock React Flow hooks for FitViewOnChange component
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
     fitView: mockFitView,
   }),
+  useNodesInitialized: () => mockNodesInitialized.value,
 }));
 
 describe('WorkflowCanvas', () => {
   const emptyPipeline: EventDrivenPipeline = { nodes: [], edges: [] };
 
   beforeEach(() => {
-    vi.useFakeTimers();
     mockFitView.mockClear();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
+    mockNodesInitialized.value = false;
   });
 
   it('renders empty state when pipeline has no nodes', () => {
@@ -129,8 +127,8 @@ describe('WorkflowCanvas', () => {
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-node-count', '2');
   });
 
-  describe('FitViewOnChange', () => {
-    it('calls fitView on initial render with nodes', () => {
+  describe('FitViewOnNodeCountChange', () => {
+    it('does not call fitView on initial render (handled by Canvas fitView prop)', () => {
       const pipeline: EventDrivenPipeline = {
         nodes: [
           {
@@ -143,17 +141,16 @@ describe('WorkflowCanvas', () => {
         edges: [],
       };
 
+      // Nodes are initialized
+      mockNodesInitialized.value = true;
       render(<WorkflowCanvas pipeline={pipeline} />);
 
-      // Flush requestAnimationFrame callback
-      act(() => {
-        vi.runAllTimers();
-      });
-
-      expect(mockFitView).toHaveBeenCalledWith({ padding: 0.2 });
+      // Our component should NOT call fitView on initial render
+      // (the Canvas's built-in fitView prop handles that)
+      expect(mockFitView).not.toHaveBeenCalled();
     });
 
-    it('calls fitView when node count changes', () => {
+    it('calls fitView when new nodes are added', () => {
       const initialPipeline: EventDrivenPipeline = {
         nodes: [
           {
@@ -166,17 +163,14 @@ describe('WorkflowCanvas', () => {
         edges: [],
       };
 
+      // Start with nodes initialized
+      mockNodesInitialized.value = true;
       const { rerender } = render(<WorkflowCanvas pipeline={initialPipeline} />);
 
-      // Flush initial requestAnimationFrame
-      act(() => {
-        vi.runAllTimers();
-      });
+      // Initial render - no fitView call from our component
+      expect(mockFitView).not.toHaveBeenCalled();
 
-      // Reset mock to track only subsequent calls
-      mockFitView.mockClear();
-
-      // Update pipeline with additional node
+      // Add new nodes
       const updatedPipeline: EventDrivenPipeline = {
         nodes: [
           {
@@ -194,19 +188,13 @@ describe('WorkflowCanvas', () => {
         ],
         edges: [{ id: 'e1', source: 'architect', target: 'developer', data: { status: 'completed' } }],
       };
-
       rerender(<WorkflowCanvas pipeline={updatedPipeline} />);
 
-      // Flush requestAnimationFrame callback after rerender
-      act(() => {
-        vi.runAllTimers();
-      });
-
-      // fitView should be called again when node count changes
+      // fitView should be called when node count increases
       expect(mockFitView).toHaveBeenCalledWith({ padding: 0.2 });
     });
 
-    it('does not call fitView when only node status changes', () => {
+    it('does not call fitView when only node status changes (same count)', () => {
       const initialPipeline: EventDrivenPipeline = {
         nodes: [
           {
@@ -219,17 +207,11 @@ describe('WorkflowCanvas', () => {
         edges: [],
       };
 
+      // Start with nodes initialized
+      mockNodesInitialized.value = true;
       const { rerender } = render(<WorkflowCanvas pipeline={initialPipeline} />);
 
-      // Flush initial requestAnimationFrame
-      act(() => {
-        vi.runAllTimers();
-      });
-
-      // Reset mock to track only subsequent calls
-      mockFitView.mockClear();
-
-      // Update pipeline with same node count but different status
+      // Update status only - same node count
       const updatedPipeline: EventDrivenPipeline = {
         nodes: [
           {
@@ -241,16 +223,59 @@ describe('WorkflowCanvas', () => {
         ],
         edges: [],
       };
-
       rerender(<WorkflowCanvas pipeline={updatedPipeline} />);
 
-      // Flush any pending timers
-      act(() => {
-        vi.runAllTimers();
-      });
-
-      // fitView should NOT be called when only status changes (same node count)
+      // fitView should NOT be called - node count didn't change
       expect(mockFitView).not.toHaveBeenCalled();
+    });
+
+    it('waits for nodes to be initialized before calling fitView', () => {
+      const initialPipeline: EventDrivenPipeline = {
+        nodes: [
+          {
+            id: 'architect',
+            type: 'agent',
+            position: { x: 0, y: 0 },
+            data: { agentType: 'architect', status: 'pending', iterations: [], isExpanded: false },
+          },
+        ],
+        edges: [],
+      };
+
+      // Nodes initialized
+      mockNodesInitialized.value = true;
+      const { rerender } = render(<WorkflowCanvas pipeline={initialPipeline} />);
+
+      // Add nodes but they're not measured yet
+      mockNodesInitialized.value = false;
+      const updatedPipeline: EventDrivenPipeline = {
+        nodes: [
+          {
+            id: 'architect',
+            type: 'agent',
+            position: { x: 0, y: 0 },
+            data: { agentType: 'architect', status: 'completed', iterations: [], isExpanded: false },
+          },
+          {
+            id: 'developer',
+            type: 'agent',
+            position: { x: 200, y: 0 },
+            data: { agentType: 'developer', status: 'active', iterations: [], isExpanded: false },
+          },
+        ],
+        edges: [{ id: 'e1', source: 'architect', target: 'developer', data: { status: 'completed' } }],
+      };
+      rerender(<WorkflowCanvas pipeline={updatedPipeline} />);
+
+      // fitView should NOT be called - nodes not initialized
+      expect(mockFitView).not.toHaveBeenCalled();
+
+      // Now nodes are measured
+      mockNodesInitialized.value = true;
+      rerender(<WorkflowCanvas pipeline={updatedPipeline} />);
+
+      // fitView should be called now
+      expect(mockFitView).toHaveBeenCalledWith({ padding: 0.2 });
     });
   });
 });

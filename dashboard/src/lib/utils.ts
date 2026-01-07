@@ -24,16 +24,16 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Formats ISO 8601 timestamp to HH:MM:SS.mmm format.
+ * Formats ISO 8601 timestamp to HH:MM:SS format.
  *
  * Returns "-" for invalid or malformed timestamps to prevent render errors.
  *
  * @param isoString - ISO 8601 timestamp string
- * @returns Formatted time string (e.g., "10:30:45.123") or "-" if invalid
+ * @returns Formatted time string (e.g., "10:30:45") or "-" if invalid
  *
  * @example
  * ```ts
- * formatTime('2025-12-13T10:30:45.123Z') // => '10:30:45.123'
+ * formatTime('2025-12-13T10:30:45.123Z') // => '10:30:45'
  * formatTime('invalid') // => '-'
  * ```
  */
@@ -45,5 +45,5 @@ export function formatTime(isoString: string | null | undefined): string {
   if (!Number.isFinite(date.getTime())) {
     return '-';
   }
-  return date.toISOString().slice(11, 23); // HH:MM:SS.mmm
+  return date.toISOString().slice(11, 19); // HH:MM:SS
 }

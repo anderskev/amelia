@@ -48,7 +48,7 @@ function StreamLogEntry({ event }: { event: StreamEvent }) {
     <div
       data-slot="stream-log-item"
       className={cn(
-        'relative grid grid-cols-[100px_120px_1fr] gap-3 py-1.5 border-b border-border/30 font-mono text-sm bg-primary/5',
+        'relative grid grid-cols-[60px_100px_1fr] gap-2 py-1 border-b border-border/30 font-mono text-xs bg-primary/5',
         style.bg
       )}
     >
@@ -57,7 +57,7 @@ function StreamLogEntry({ event }: { event: StreamEvent }) {
         {formatTime(event.timestamp)}
       </span>
       <span className={cn('font-semibold', style.text)}>
-        [{agentKey}]
+        {agentKey}
       </span>
       <span className="text-foreground/80 break-words">
         {event.tool_name ? `→ ${event.tool_name}` : event.content || event.subtype}

@@ -147,9 +147,12 @@ export const AgentNode = memo(function AgentNode({ data }: NodeProps<AgentNodeTy
         )}
       </div>
 
-      {status === 'active' && (
-        <p className="mt-2 text-sm text-muted-foreground">In progress...</p>
-      )}
+      <p className="mt-2 text-sm text-muted-foreground">
+        {status === 'active' && 'In progress...'}
+        {status === 'completed' && 'Completed'}
+        {status === 'pending' && 'Pending'}
+        {status === 'blocked' && 'Blocked'}
+      </p>
 
       {isExpanded && iterations.length > 0 && (
         <div className="mt-2 space-y-1 text-xs">

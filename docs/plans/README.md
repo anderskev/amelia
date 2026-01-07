@@ -6,6 +6,9 @@ This folder contains active implementation plans for in-progress work. Plans are
 
 | Plan | Description |
 |------|-------------|
+| [Phased Execution Design](./2025-12-31-phased-execution-design.md) | Phased execution for Developer agent with Python orchestration |
+| [LangGraph Native Task Streaming](./2026-01-06-langgraph-native-task-streaming.md) | Replace custom callbacks with LangGraph's native task streaming |
+| [Unified Events](./2026-01-06-unified-events.md) | Unify WorkflowEvent and StreamEvent with level-based filtering |
 | [Mem0 Reviewer Integration](./mem0-reviewer-integration.md) | Memory-augmented code review with Mem0 |
 
 ## Plan Lifecycle
