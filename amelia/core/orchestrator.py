@@ -890,6 +890,29 @@ def route_after_task_review(
     return "developer"  # Retry with feedback
 
 
+def route_after_review_or_task(
+    state: ExecutionState, config: RunnableConfig
+) -> Literal["developer", "developer_node", "next_task_node", "__end__"]:
+    """Route after review: handles both legacy and task-based execution.
+
+    For task-based execution (total_tasks is set), uses route_after_task_review.
+    For legacy execution (total_tasks is None), uses route_after_review.
+
+    Args:
+        state: Current execution state.
+        config: Runnable config with profile.
+
+    Returns:
+        Routing target: developer_node (legacy), developer (task retry),
+        next_task_node (task approved), or __end__.
+    """
+    if state.total_tasks is not None:
+        return route_after_task_review(state, config)
+    # Legacy mode: route_after_review returns "developer" but graph uses "developer_node"
+    result = route_after_review(state, config)
+    return "developer_node" if result == "developer" else result
+
+
 def route_after_evaluation(state: ExecutionState) -> str:
     """Route after evaluation node.
 
@@ -960,11 +983,16 @@ def create_orchestrator_graph(
 ) -> CompiledStateGraph[Any]:
     """Creates and compiles the LangGraph state machine for agentic orchestration.
 
-    The simplified agentic graph flow:
-    START -> architect_node -> human_approval_node -> developer_node -> reviewer_node -> END
-                                                        ^                    |
-                                                        +--------------------+
-                                                        (if changes requested)
+    The graph flow supports both legacy and task-based execution:
+
+    Legacy flow (total_tasks is None):
+    START -> architect_node -> plan_validator_node -> human_approval_node
+          -> developer_node <-> reviewer_node -> END
+
+    Task-based flow (total_tasks is set):
+    START -> architect_node -> plan_validator_node -> human_approval_node
+          -> developer_node -> reviewer_node -> next_task_node -> developer_node
+          (loops for each task until all complete or max iterations reached)
 
     Args:
         checkpoint_saver: Optional checkpoint saver for state persistence.
@@ -983,6 +1011,7 @@ def create_orchestrator_graph(
     workflow.add_node("human_approval_node", human_approval_node)
     workflow.add_node("developer_node", call_developer_node)
     workflow.add_node("reviewer_node", call_reviewer_node)
+    workflow.add_node("next_task_node", next_task_node)  # Task-based execution
 
     # Set entry point
     workflow.set_entry_point("architect_node")
@@ -1007,15 +1036,22 @@ def create_orchestrator_graph(
     # Developer -> Reviewer
     workflow.add_edge("developer_node", "reviewer_node")
 
-    # Reviewer -> Developer (if not approved) or END (if approved)
+    # Reviewer routing: handles both legacy and task-based execution
+    # - Legacy: developer_node (retry) or __end__ (approved)
+    # - Task-based: developer (retry), next_task_node (task approved), or __end__ (all done)
     workflow.add_conditional_edges(
         "reviewer_node",
-        route_after_review,
+        route_after_review_or_task,
         {
             "developer": "developer_node",
-            END: END,
+            "developer_node": "developer_node",
+            "next_task_node": "next_task_node",
+            "__end__": END,
         }
     )
+
+    # next_task_node loops back to developer for the next task
+    workflow.add_edge("next_task_node", "developer_node")
 
     # Set default interrupt_before only if checkpoint_saver is provided and interrupt_before is None
     if interrupt_before is None and checkpoint_saver is not None:
