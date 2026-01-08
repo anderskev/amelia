@@ -186,7 +186,7 @@ async def plan_validator_node(
     if not plan_path.exists():
         raise ValueError(f"Plan file not found at {plan_path}")
 
-    plan_content = plan_path.read_text()
+    plan_content = await asyncio.to_thread(plan_path.read_text)
     if not plan_content.strip():
         raise ValueError(f"Plan file is empty at {plan_path}")
 
