@@ -1537,6 +1537,61 @@ class OrchestratorService:
                     data={"stage": node_name, "output": output},
                 )
 
+    async def _handle_tasks_event(
+        self,
+        workflow_id: str,
+        task_data: dict[str, Any],
+    ) -> None:
+        """Handle a task event from stream_mode='tasks'.
+
+        LangGraph emits two types of task events:
+        - Task START: {id, name, input, triggers} - when node begins
+        - Task RESULT: {id, name, error, result, interrupts} - when node completes
+
+        We only process START events for STAGE_STARTED. Result events are
+        ignored since STAGE_COMPLETED is handled via "updates" mode.
+
+        Args:
+            workflow_id: The workflow this task belongs to.
+            task_data: Task event data from LangGraph.
+        """
+        # Ignore task result events - only process task start events
+        if "input" not in task_data:
+            return
+
+        node_name = task_data.get("name", "")
+        if node_name in STAGE_NODES:
+            await self._emit(
+                workflow_id,
+                EventType.STAGE_STARTED,
+                f"Starting {node_name}",
+                data={"stage": node_name},
+            )
+
+    async def _handle_combined_stream_chunk(
+        self,
+        workflow_id: str,
+        chunk: tuple[str, Any],
+    ) -> None:
+        """Handle a chunk from stream_mode=['updates', 'tasks'].
+
+        Combined stream mode emits tuples of (mode, data). We route each
+        to the appropriate handler.
+
+        Args:
+            workflow_id: The workflow this chunk belongs to.
+            chunk: Tuple of (mode_name, data).
+        """
+        mode, data = chunk
+        if mode == "tasks":
+            await self._handle_tasks_event(workflow_id, data)
+        elif mode == "updates":
+            # Check for interrupt in updates mode
+            if "__interrupt__" in data:
+                # Return special marker to indicate interrupt
+                return  # Caller handles interrupt separately
+            await self._handle_stream_chunk(workflow_id, data)
+
     async def _emit_agent_messages(
         self,
         workflow_id: str,
