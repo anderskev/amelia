@@ -790,7 +790,9 @@ def route_after_task_review(
 
     if state.last_review and state.last_review.approved:
         # Task approved - check if more tasks remain
-        if state.current_task_index + 1 >= state.total_tasks:
+        # total_tasks should always be set when using task-based routing,
+        # but handle None for safety (treat as single task complete)
+        if state.total_tasks is None or state.current_task_index + 1 >= state.total_tasks:
             return "__end__"  # All tasks complete
         return "next_task_node"  # Move to next task
 

@@ -13,8 +13,9 @@ from amelia.core.orchestrator import (
     route_after_end_approval,
     route_after_evaluation,
     route_after_fixes,
+    route_after_task_review,
 )
-from amelia.core.state import ExecutionState
+from amelia.core.state import ExecutionState, ReviewResult
 from amelia.core.types import Profile
 
 
@@ -163,3 +164,122 @@ class TestReviewRoutingFunctions:
         """Test routing after end approval based on human_approved state."""
         state, _ = mock_execution_state_factory(goal="Test", human_approved=human_approved)
         assert route_after_end_approval(state) == expected
+
+
+class TestRouteAfterTaskReview:
+    """Tests for route_after_task_review routing function."""
+
+    @pytest.fixture
+    def mock_profile_task_review(self) -> Profile:
+        return Profile(
+            name="test",
+            driver="cli:claude",
+            model="sonnet",
+            max_task_review_iterations=3,
+        )
+
+    @pytest.fixture
+    def approved_review(self) -> ReviewResult:
+        return ReviewResult(
+            reviewer_persona="test",
+            approved=True,
+            comments=[],
+            severity="low",
+        )
+
+    @pytest.fixture
+    def rejected_review(self) -> ReviewResult:
+        return ReviewResult(
+            reviewer_persona="test",
+            approved=False,
+            comments=["Needs fixes"],
+            severity="medium",
+        )
+
+    def test_route_after_task_review_ends_when_all_tasks_complete(
+        self, mock_profile_task_review: Profile, approved_review: ReviewResult
+    ) -> None:
+        """Should END when approved and all tasks complete."""
+        state = ExecutionState(
+            profile_id="test",
+            total_tasks=2,
+            current_task_index=1,  # On task 2 (0-indexed)
+            last_review=approved_review,
+        )
+        config = {"configurable": {"profile": mock_profile_task_review}}
+
+        result = route_after_task_review(state, config)
+        assert result == "__end__"
+
+    def test_route_after_task_review_goes_to_next_task_when_approved(
+        self, mock_profile_task_review: Profile, approved_review: ReviewResult
+    ) -> None:
+        """Should go to next_task_node when approved and more tasks remain."""
+        state = ExecutionState(
+            profile_id="test",
+            total_tasks=3,
+            current_task_index=0,  # On task 1, more tasks remain
+            last_review=approved_review,
+        )
+        config = {"configurable": {"profile": mock_profile_task_review}}
+
+        result = route_after_task_review(state, config)
+        assert result == "next_task_node"
+
+    def test_route_after_task_review_retries_developer_when_not_approved(
+        self, mock_profile_task_review: Profile, rejected_review: ReviewResult
+    ) -> None:
+        """Should retry developer when review not approved and iterations remain."""
+        state = ExecutionState(
+            profile_id="test",
+            total_tasks=2,
+            current_task_index=0,
+            task_review_iteration=1,  # Under limit of 3
+            last_review=rejected_review,
+        )
+        config = {"configurable": {"profile": mock_profile_task_review}}
+
+        result = route_after_task_review(state, config)
+        assert result == "developer"
+
+    def test_route_after_task_review_ends_on_max_iterations(
+        self, mock_profile_task_review: Profile, rejected_review: ReviewResult
+    ) -> None:
+        """Should END when max iterations reached without approval."""
+        state = ExecutionState(
+            profile_id="test",
+            total_tasks=2,
+            current_task_index=0,
+            task_review_iteration=3,  # At limit
+            last_review=rejected_review,
+        )
+        config = {"configurable": {"profile": mock_profile_task_review}}
+
+        result = route_after_task_review(state, config)
+        assert result == "__end__"
+
+    def test_route_after_task_review_uses_profile_max_iterations(self) -> None:
+        """Should respect profile's max_task_review_iterations setting."""
+        profile = Profile(
+            name="test",
+            driver="cli:claude",
+            model="sonnet",
+            max_task_review_iterations=10,
+        )
+        rejected_review = ReviewResult(
+            reviewer_persona="test",
+            approved=False,
+            comments=["Needs fixes"],
+            severity="medium",
+        )
+        state = ExecutionState(
+            profile_id="test",
+            total_tasks=2,
+            current_task_index=0,
+            task_review_iteration=5,  # Under custom limit of 10
+            last_review=rejected_review,
+        )
+        config = {"configurable": {"profile": profile}}
+
+        result = route_after_task_review(state, config)
+        assert result == "developer"  # Should retry since under limit
