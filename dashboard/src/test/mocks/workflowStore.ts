@@ -3,21 +3,9 @@
  * Used by DashboardSidebar tests and other components that depend on workflow state.
  *
  * Note: Due to vi.mock hoisting, these mocks must be used inline in vi.mock calls
- * rather than imported. However, this file documents the canonical mock shape
- * and can be used as a reference for consistency.
- */
-
-/**
- * Default mock state for the workflow store.
- */
-export const defaultWorkflowState = {
-  isConnected: true,
-};
-
-/**
- * Mock factory for useWorkflowStore.
- * Usage in test files:
+ * rather than imported. See usage examples below.
  *
+ * @example useWorkflowStore mock
  * ```ts
  * vi.mock('@/store/workflowStore', () => ({
  *   useWorkflowStore: vi.fn((selector) => {
@@ -26,21 +14,18 @@ export const defaultWorkflowState = {
  *   }),
  * }));
  * ```
- */
-export const workflowStoreMockShape = {
-  useWorkflowStore: '(selector) => selector({ isConnected: true })',
-};
-
-/**
- * Mock factory for useDemoMode.
- * Usage in test files:
  *
+ * @example useDemoMode mock
  * ```ts
  * vi.mock('@/hooks/useDemoMode', () => ({
  *   useDemoMode: vi.fn(() => ({ isDemo: false, demoType: null })),
  * }));
  * ```
  */
-export const demoModeMockShape = {
-  useDemoMode: '() => ({ isDemo: false, demoType: null })',
+
+/**
+ * Default mock state for the workflow store.
+ */
+export const defaultWorkflowState = {
+  isConnected: true,
 };

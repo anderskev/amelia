@@ -1,10 +1,9 @@
 """REST API client for Amelia server."""
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, TypeVar
+from typing import Any
 
 import httpx
-from pydantic import BaseModel
 
 from amelia.client.models import (
     CreateReviewWorkflowRequest,
@@ -14,9 +13,6 @@ from amelia.client.models import (
     WorkflowListResponse,
     WorkflowResponse,
 )
-
-
-T = TypeVar("T", bound=BaseModel)
 
 
 class AmeliaClientError(Exception):
