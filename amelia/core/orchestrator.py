@@ -643,11 +643,18 @@ async def call_reviewer_node(
         },
     )
 
-    return {
+    # Build return dict
+    result_dict = {
         "last_review": review_result,
         "driver_session_id": new_session_id,
         "review_iteration": next_iteration,
     }
+
+    # Increment task review iteration for task-based execution
+    if state.total_tasks is not None:
+        result_dict["task_review_iteration"] = state.task_review_iteration + 1
+
+    return result_dict
 
 
 async def call_evaluation_node(
@@ -770,6 +777,85 @@ def route_after_review(
         return "__end__"
 
     return "developer"
+
+
+async def next_task_node(
+    state: ExecutionState, config: RunnableConfig
+) -> dict[str, Any]:
+    """Transition to next task: commit changes, increment index, reset iteration.
+
+    Args:
+        state: Current execution state with task tracking.
+        config: Runnable config.
+
+    Returns:
+        State update with incremented task index, reset iteration, cleared session.
+    """
+    # Commit current task changes
+    await commit_task_changes(state, config)
+
+    return {
+        "current_task_index": state.current_task_index + 1,
+        "task_review_iteration": 0,
+        "driver_session_id": None,  # Fresh session for next task
+    }
+
+
+async def commit_task_changes(state: ExecutionState, config: RunnableConfig) -> None:
+    """Commit changes for completed task.
+
+    Args:
+        state: Current execution state.
+        config: Runnable config with profile.
+    """
+    profile: Profile = config["configurable"]["profile"]
+    working_dir = Path(profile.working_dir) if profile.working_dir else Path.cwd()
+
+    task_number = state.current_task_index + 1
+
+    # Stage all changes
+    proc = await asyncio.create_subprocess_exec(
+        "git", "add", "-A",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=working_dir,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(
+            "Failed to stage changes for task commit",
+            error=stderr.decode(),
+        )
+        return
+
+    # Check if there are staged changes
+    proc = await asyncio.create_subprocess_exec(
+        "git", "diff", "--cached", "--quiet",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=working_dir,
+    )
+    await proc.communicate()
+    if proc.returncode == 0:
+        # Exit code 0 means no changes (diff is quiet/empty)
+        logger.info("No changes to commit for task", task=task_number)
+        return
+
+    # Commit with task reference
+    issue_key = state.issue.id if state.issue else "unknown"
+    commit_msg = f"feat({issue_key}): complete task {task_number}"
+
+    proc = await asyncio.create_subprocess_exec(
+        "git", "commit", "-m", commit_msg,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=working_dir,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode == 0:
+        logger.info("Committed task changes", task=task_number, message=commit_msg)
+    else:
+        logger.warning("Failed to commit task changes", error=stderr.decode())
 
 
 def route_after_task_review(
