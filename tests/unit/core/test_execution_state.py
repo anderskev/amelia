@@ -35,7 +35,7 @@ class TestTaskExecutionFields:
         assert state.total_tasks is None  # None = legacy single-session mode
         assert state.current_task_index == 0  # 0-indexed
         assert state.task_review_iteration == 0  # Resets per task
-        assert state.max_task_review_iterations == 5  # Default limit
+        # Note: max_task_review_iterations is on Profile, not ExecutionState
 
     def test_task_execution_fields_are_settable(self) -> None:
         """Task execution fields should be settable via model_copy."""

@@ -6,7 +6,7 @@ This module provides:
 """
 
 import socket
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
