@@ -23,8 +23,6 @@ from amelia.core.types import (
     Profile,
     Settings,
     StageEventEmitter,
-    StreamEmitter,
-    StreamEvent,
 )
 from amelia.ext import WorkflowEventType as ExtWorkflowEventType
 from amelia.ext.exceptions import PolicyDeniedError
@@ -145,21 +143,6 @@ class OrchestratorService:
             ],
         )
 
-    def _create_stream_emitter(self) -> StreamEmitter:
-        """Create a stream emitter callback for broadcasting events.
-
-        Stream events are broadcast via WebSocket but NOT persisted to the database.
-        Each StreamEvent already contains its own workflow_id, so the emitter
-        doesn't need workflow context.
-
-        Returns:
-            Async callback that broadcasts StreamEvent via WebSocket.
-        """
-        async def emit(event: StreamEvent) -> None:
-            self._event_bus.emit_stream(event)
-
-        return emit
-
     def _create_stage_event_emitter(self, workflow_id: str) -> StageEventEmitter:
         """Create a stage event emitter callback for nodes to signal stage start.
 
@@ -179,7 +162,7 @@ class OrchestratorService:
                 workflow_id,
                 EventType.STAGE_STARTED,
                 f"Starting {stage_name}",
-                data={"stage": stage_name},
+                agent=stage_name.removesuffix("_node"),
             )
 
         return emit_stage_started
@@ -782,14 +765,13 @@ class OrchestratorService:
             # CRITICAL: Pass interrupt_before to enable server-mode approval
             graph = self._create_server_graph(checkpointer)
 
-            # Create stream emitter and pass it via config
-            stream_emitter = self._create_stream_emitter()
+            # Pass event_bus and stage_event_emitter via config
             stage_event_emitter = self._create_stage_event_emitter(workflow_id)
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
-                    "stream_emitter": stream_emitter,
+                    "event_bus": self._event_bus,
                     "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
@@ -1070,14 +1052,13 @@ class OrchestratorService:
                 interrupt_before=interrupt_before,
             )
 
-            # Create stream emitter and pass it via config
-            stream_emitter = self._create_stream_emitter()
+            # Pass event_bus and stage_event_emitter via config
             stage_event_emitter = self._create_stage_event_emitter(workflow_id)
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
-                    "stream_emitter": stream_emitter,
+                    "event_bus": self._event_bus,
                     "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
@@ -1264,14 +1245,13 @@ class OrchestratorService:
         ) as checkpointer:
             graph = self._create_server_graph(checkpointer)
 
-            # Create stream emitter and pass it via config
-            stream_emitter = self._create_stream_emitter()
+            # Pass event_bus and stage_event_emitter via config
             stage_event_emitter = self._create_stage_event_emitter(workflow_id)
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
-                    "stream_emitter": stream_emitter,
+                    "event_bus": self._event_bus,
                     "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
@@ -1306,7 +1286,6 @@ class OrchestratorService:
 
             # Resume execution from checkpoint
             try:
-                was_interrupted = False
                 async for chunk in graph.astream(
                     None,  # Resume from checkpoint, no new input needed
                     config=config,
@@ -1324,21 +1303,20 @@ class OrchestratorService:
                         continue
                     await self._handle_stream_chunk(workflow_id, chunk)
 
-                if not was_interrupted:
-                    # Workflow completed after human approval.
-                    # Note: A separate COMPLETED emission exists in _run_workflow() for
-                    # workflows that complete without interruption. These are mutually exclusive
-                    # code paths - only one COMPLETED event is ever emitted per workflow.
-                    await self._emit(
-                        workflow_id,
-                        EventType.WORKFLOW_COMPLETED,
-                        "Workflow completed successfully",
-                    )
-                    await emit_workflow_event(
-                        ExtWorkflowEventType.COMPLETED,
-                        workflow_id=workflow_id,
-                    )
-                    await self._repository.set_status(workflow_id, "completed")
+                # Workflow completed after human approval.
+                # Note: A separate COMPLETED emission exists in _run_workflow() for
+                # workflows that complete without interruption. These are mutually exclusive
+                # code paths - only one COMPLETED event is ever emitted per workflow.
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_COMPLETED,
+                    "Workflow completed successfully",
+                )
+                await emit_workflow_event(
+                    ExtWorkflowEventType.COMPLETED,
+                    workflow_id=workflow_id,
+                )
+                await self._repository.set_status(workflow_id, "completed")
 
             except Exception as e:
                 logger.exception("Workflow failed after approval", workflow_id=workflow_id)
@@ -1495,6 +1473,7 @@ class OrchestratorService:
                     workflow_id,
                     EventType.STAGE_STARTED,
                     f"Starting {node_name}",
+                    agent=node_name.removesuffix("_node"),
                     data={"stage": node_name},
                 )
 
@@ -1504,6 +1483,7 @@ class OrchestratorService:
                     workflow_id,
                     EventType.STAGE_COMPLETED,
                     f"Completed {node_name}",
+                    agent=node_name.removesuffix("_node"),
                     data={"stage": node_name, "output": event.get("data")},
                 )
 
@@ -1553,6 +1533,7 @@ class OrchestratorService:
                     workflow_id,
                     EventType.STAGE_COMPLETED,
                     f"Completed {node_name}",
+                    agent=node_name.removesuffix("_node"),
                     data={"stage": node_name, "output": output},
                 )
 
@@ -1623,7 +1604,7 @@ class OrchestratorService:
                 workflow_id,
                 EventType.AGENT_MESSAGE,
                 f"Plan validated: {goal}",
-                agent="validator",
+                agent="plan_validator",
                 data={"goal": goal, "key_files_count": len(key_files)},
             )
 
@@ -1815,23 +1796,6 @@ class OrchestratorService:
 
             # Save back to repository
             await self._repository.update(state)
-
-            # DEBUG: Verify the save worked by reading back
-            verify_state = await self._repository.get(workflow_id)
-            if verify_state and verify_state.execution_state:
-                logger.info(
-                    "VERIFY after sync save",
-                    workflow_id=workflow_id,
-                    saved_goal=verify_state.execution_state.goal[:100] if verify_state.execution_state.goal else None,
-                    saved_plan=verify_state.execution_state.plan_markdown is not None,
-                    saved_plan_len=len(verify_state.execution_state.plan_markdown) if verify_state.execution_state.plan_markdown else 0,
-                )
-            else:
-                logger.warning(
-                    "VERIFY after sync: no execution_state found!",
-                    workflow_id=workflow_id,
-                )
-
             logger.debug("Synced plan to ServerExecutionState", workflow_id=workflow_id)
 
         except Exception as e:

@@ -5,10 +5,7 @@ Pydantic models (RetryConfig, Profile, Settings, Issue, Design) used throughout
 the Amelia agentic coding orchestrator.
 """
 from collections.abc import Awaitable, Callable
-from datetime import datetime
-from enum import StrEnum
-from typing import Any, Literal
-from uuid import uuid4
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -129,43 +126,6 @@ class Design(BaseModel):
     conventions: str | None = None
     raw_content: str
 
-
-class StreamEventType(StrEnum):
-    """Types of streaming events from Claude Code."""
-
-    CLAUDE_THINKING = "claude_thinking"
-    CLAUDE_TOOL_CALL = "claude_tool_call"
-    CLAUDE_TOOL_RESULT = "claude_tool_result"
-    AGENT_OUTPUT = "agent_output"
-
-
-class StreamEvent(BaseModel, frozen=True):
-    """Real-time streaming event from agent execution.
-
-    Attributes:
-        id: Unique identifier for this event.
-        type: Type of streaming event.
-        content: Event content (optional).
-        timestamp: When the event occurred.
-        agent: Agent name (architect, developer, reviewer).
-        workflow_id: Unique workflow identifier.
-        tool_name: Name of tool being called/returning (optional).
-        tool_input: Input parameters for tool call (optional).
-        is_error: Whether this event represents an error result.
-    """
-    id: str = Field(default_factory=lambda: str(uuid4()))
-    type: StreamEventType
-    content: str | None = None
-    timestamp: datetime
-    agent: str
-    workflow_id: str
-    tool_name: str | None = None
-    tool_input: dict[str, Any] | None = None
-    is_error: bool = False
-
-
-StreamEmitter = Callable[[StreamEvent], Awaitable[None]]
-"""Type alias for async streaming event emitter function."""
 
 StageEventEmitter = Callable[[str], Awaitable[None]]
 """Type alias for async stage event emitter function.

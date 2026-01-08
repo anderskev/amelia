@@ -162,97 +162,56 @@ async def test_cleanup_handles_task_exceptions(event_bus: EventBus, sample_event
     assert len(event_bus._broadcast_tasks) == 0
 
 
-async def test_emit_stream_filters_tool_results_by_default(event_bus: EventBus) -> None:
-    """emit_stream should filter tool results when stream_tool_results=False (default)."""
-    from unittest.mock import patch
+class TestEventBusTraceEvents:
+    """Tests for trace event handling in unified emit."""
 
-    from amelia.core.types import StreamEvent, StreamEventType
+    @pytest.mark.asyncio
+    async def test_emit_broadcasts_trace_events(self) -> None:
+        """emit() broadcasts trace-level events to WebSocket."""
+        from amelia.server.models.events import EventLevel, EventType
 
-    mock_manager = AsyncMock()
-    event_bus.set_connection_manager(mock_manager)
+        bus = EventBus()
+        mock_manager = AsyncMock()
+        bus.set_connection_manager(mock_manager)
 
-    tool_result_event = StreamEvent(
-        id="evt-1",
-        type=StreamEventType.CLAUDE_TOOL_RESULT,
-        content="file contents here",
-        timestamp=datetime.now(UTC),
-        agent="developer",
-        workflow_id="wf-1",
-        tool_name="Read",
-        tool_input={"file": "test.py"},
-    )
+        trace_event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            event_type=EventType.CLAUDE_TOOL_CALL,
+            level=EventLevel.TRACE,
+            message="Tool call: Edit",
+            tool_name="Edit",
+        )
 
-    with patch("amelia.server.events.bus.ServerConfig") as mock_config_cls:
-        mock_config_cls.return_value.stream_tool_results = False
-        event_bus.emit_stream(tool_result_event)
+        bus.emit(trace_event)
+        await bus.wait_for_broadcasts()
 
-    # Should NOT broadcast - filtered out
-    mock_manager.broadcast_stream.assert_not_called()
+        mock_manager.broadcast.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_emit_trace_skips_persistence_when_disabled(self) -> None:
+        """emit() skips subscriber notification for trace events when retention=0."""
+        from amelia.server.models.events import EventLevel, EventType
 
-async def test_emit_stream_allows_tool_results_when_enabled(event_bus: EventBus) -> None:
-    """emit_stream should broadcast tool results when stream_tool_results=True."""
-    from unittest.mock import patch
+        bus = EventBus()
+        bus.configure(trace_retention_days=0)
+        captured: list[WorkflowEvent] = []
+        bus.subscribe(lambda e: captured.append(e))
 
-    from amelia.core.types import StreamEvent, StreamEventType
+        trace_event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="developer",
+            event_type=EventType.CLAUDE_TOOL_CALL,
+            level=EventLevel.TRACE,
+            message="Tool call",
+        )
 
-    broadcast_called = asyncio.Event()
-    mock_manager = AsyncMock()
+        bus.emit(trace_event)
 
-    async def mock_broadcast(event: StreamEvent) -> None:
-        broadcast_called.set()
-
-    mock_manager.broadcast_stream = mock_broadcast
-    event_bus.set_connection_manager(mock_manager)
-
-    tool_result_event = StreamEvent(
-        id="evt-2",
-        type=StreamEventType.CLAUDE_TOOL_RESULT,
-        content="file contents here",
-        timestamp=datetime.now(UTC),
-        agent="developer",
-        workflow_id="wf-1",
-        tool_name="Read",
-        tool_input={"file": "test.py"},
-    )
-
-    with patch("amelia.server.events.bus.ServerConfig") as mock_config_cls:
-        mock_config_cls.return_value.stream_tool_results = True
-        event_bus.emit_stream(tool_result_event)
-
-    # Should broadcast
-    await asyncio.wait_for(broadcast_called.wait(), timeout=1.0)
-
-
-async def test_emit_stream_allows_other_event_types(event_bus: EventBus) -> None:
-    """emit_stream should broadcast non-tool-result events regardless of setting."""
-    from unittest.mock import patch
-
-    from amelia.core.types import StreamEvent, StreamEventType
-
-    broadcast_called = asyncio.Event()
-    mock_manager = AsyncMock()
-
-    async def mock_broadcast(event: StreamEvent) -> None:
-        broadcast_called.set()
-
-    mock_manager.broadcast_stream = mock_broadcast
-    event_bus.set_connection_manager(mock_manager)
-
-    thinking_event = StreamEvent(
-        id="evt-3",
-        type=StreamEventType.CLAUDE_THINKING,
-        content="thinking...",
-        timestamp=datetime.now(UTC),
-        agent="developer",
-        workflow_id="wf-1",
-        tool_name=None,
-        tool_input=None,
-    )
-
-    with patch("amelia.server.events.bus.ServerConfig") as mock_config_cls:
-        mock_config_cls.return_value.stream_tool_results = False
-        event_bus.emit_stream(thinking_event)
-
-    # Should still broadcast - not a tool result
-    await asyncio.wait_for(broadcast_called.wait(), timeout=1.0)
+        assert len(captured) == 0  # Not persisted

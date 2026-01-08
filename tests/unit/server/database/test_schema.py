@@ -3,6 +3,47 @@
 import aiosqlite
 import pytest
 
+from amelia.server.database.connection import Database
+
+
+class TestEventsSchema:
+    """Tests for events table schema."""
+
+    async def test_events_table_has_level_column(self, db_with_schema: Database) -> None:
+        """Events table has level column."""
+        columns = await db_with_schema.fetch_all("PRAGMA table_info(events)")
+        column_names = [col["name"] for col in columns]
+        assert "level" in column_names
+
+    async def test_events_table_has_trace_columns(self, db_with_schema: Database) -> None:
+        """Events table has trace-specific columns."""
+        columns = await db_with_schema.fetch_all("PRAGMA table_info(events)")
+        column_names = [col["name"] for col in columns]
+        assert "tool_name" in column_names
+        assert "tool_input_json" in column_names
+        assert "is_error" in column_names
+
+    async def test_events_level_index_exists(self, db_with_schema: Database) -> None:
+        """Events table has index on level column."""
+        indexes = await db_with_schema.fetch_all("PRAGMA index_list(events)")
+        index_names = [idx["name"] for idx in indexes]
+        assert "idx_events_level" in index_names
+
+    async def test_events_table_has_distributed_tracing_columns(
+        self, db_with_schema: Database
+    ) -> None:
+        """Events table has trace_id and parent_id columns."""
+        columns = await db_with_schema.fetch_all("PRAGMA table_info(events)")
+        column_names = [col["name"] for col in columns]
+        assert "trace_id" in column_names
+        assert "parent_id" in column_names
+
+    async def test_events_trace_id_index_exists(self, db_with_schema: Database) -> None:
+        """Events table has index on trace_id column."""
+        indexes = await db_with_schema.fetch_all("PRAGMA index_list(events)")
+        index_names = [idx["name"] for idx in indexes]
+        assert "idx_events_trace_id" in index_names
+
 
 class TestWorktreeConstraints:
     """Tests for worktree uniqueness constraints."""

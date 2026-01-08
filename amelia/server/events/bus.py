@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from amelia.core.types import StreamEvent, StreamEventType
-from amelia.server.config import ServerConfig
 from amelia.server.models import WorkflowEvent
+from amelia.server.models.events import EventLevel
 
 
 if TYPE_CHECKING:
@@ -30,6 +29,7 @@ class EventBus:
     Attributes:
         _subscribers: List of callback functions to notify on emit.
         _broadcast_tasks: Set of active broadcast tasks for cleanup tracking.
+        _trace_retention_days: Days to retain trace events (0 = no persistence).
     """
 
     def __init__(self) -> None:
@@ -37,6 +37,7 @@ class EventBus:
         self._subscribers: list[Callable[[WorkflowEvent], None]] = []
         self._connection_manager: ConnectionManager | None = None
         self._broadcast_tasks: set[asyncio.Task[None]] = set()
+        self._trace_retention_days: int = 7
 
     def subscribe(self, callback: Callable[[WorkflowEvent], None]) -> None:
         """Subscribe to workflow events.
@@ -63,6 +64,16 @@ class EventBus:
         """
         self._connection_manager = manager
 
+    def configure(self, trace_retention_days: int | None = None) -> None:
+        """Configure event bus settings.
+
+        Args:
+            trace_retention_days: Days to retain trace events. Set to 0 to disable
+                persistence of trace events (WebSocket broadcast only).
+        """
+        if trace_retention_days is not None:
+            self._trace_retention_days = trace_retention_days
+
     def _handle_broadcast_done(self, task: asyncio.Task[None]) -> None:
         """Handle completion of WebSocket broadcast task.
 
@@ -83,11 +94,11 @@ class EventBus:
                 )
 
     def emit(self, event: WorkflowEvent) -> None:
-        """Emit event to all subscribers synchronously.
+        """Emit event to subscribers and broadcast to WebSocket clients.
 
-        Subscribers are called in registration order. Exceptions in individual
-        subscribers are logged but don't prevent other subscribers from
-        receiving the event.
+        For trace-level events:
+        - Skips persistence (subscriber notification) if trace_retention_days=0
+        - Always broadcasts to WebSocket for real-time UI
 
         Warning:
             Subscribers MUST be non-blocking. Since emit() runs synchronously
@@ -98,52 +109,46 @@ class EventBus:
         Args:
             event: The workflow event to broadcast.
         """
-        for callback in self._subscribers:
-            try:
-                callback(event)
-            except Exception as exc:
-                # Use getattr to safely get callback name - functools.partial,
-                # callable instances, etc. may not have __name__
-                callback_name = getattr(callback, "__name__", repr(callback))
-                logger.exception(
-                    "Subscriber raised exception",
-                    callback=callback_name,
-                    event_type=event.event_type,
-                    error=str(exc),
-                )
+        # Determine if this is a trace event
+        is_trace = event.level == EventLevel.TRACE
 
-        # Broadcast to WebSocket clients
+        # Handle persistence (subscriber notification)
+        should_persist = not is_trace or self._trace_retention_days > 0
+        if should_persist:
+            for callback in self._subscribers:
+                try:
+                    callback(event)
+                except Exception as exc:
+                    # Use getattr to safely get callback name - functools.partial,
+                    # callable instances, etc. may not have __name__
+                    callback_name = getattr(callback, "__name__", repr(callback))
+                    logger.exception(
+                        "Subscriber raised exception",
+                        callback=callback_name,
+                        event_type=event.event_type,
+                        error=str(exc),
+                    )
+
+        # Always broadcast to WebSocket
         if self._connection_manager:
             task = asyncio.create_task(self._connection_manager.broadcast(event))
             self._broadcast_tasks.add(task)
             task.add_done_callback(self._handle_broadcast_done)
 
-    def emit_stream(self, event: StreamEvent) -> None:
-        """Emit a stream event to WebSocket clients without persistence.
+    async def wait_for_broadcasts(self) -> None:
+        """Wait for all pending broadcast tasks to complete.
 
-        Stream events are ephemeral - they're broadcast in real-time but
-        not stored in the database. Unlike emit(), this does NOT call
-        regular WorkflowEvent subscribers.
-
-        Args:
-            event: The stream event to broadcast.
+        Useful in tests to ensure broadcasts are delivered before assertions.
+        Unlike cleanup(), this does not clear the task set.
         """
-        # Filter tool results unless explicitly enabled
-        config = ServerConfig()
-        if event.type == StreamEventType.CLAUDE_TOOL_RESULT and not config.stream_tool_results:
-            return
-
-        if self._connection_manager:
-            task = asyncio.create_task(self._connection_manager.broadcast_stream(event))
-            self._broadcast_tasks.add(task)
-            task.add_done_callback(self._handle_broadcast_done)
+        if self._broadcast_tasks:
+            await asyncio.gather(*self._broadcast_tasks, return_exceptions=True)
 
     async def cleanup(self) -> None:
-        """Wait for all pending broadcast tasks to complete.
+        """Wait for all pending broadcast tasks to complete and clear tracking.
 
         Should be called during graceful shutdown to ensure all events
         are delivered before the server stops.
         """
-        if self._broadcast_tasks:
-            await asyncio.gather(*self._broadcast_tasks, return_exceptions=True)
-            self._broadcast_tasks.clear()
+        await self.wait_for_broadcasts()
+        self._broadcast_tasks.clear()

@@ -42,6 +42,14 @@ class ServerConfig(BaseSettings):
         ge=1000,
         description="Maximum events per workflow",
     )
+    trace_retention_days: int = Field(
+        default=7,
+        ge=0,
+        description=(
+            "Days to retain trace-level events (claude_thinking, tool_call, etc.). "
+            "Trace events are high-volume. Set to 0 to disable trace persistence."
+        ),
+    )
 
     # Checkpoint retention
     checkpoint_path: Path = Field(

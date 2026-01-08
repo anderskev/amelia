@@ -352,6 +352,7 @@ class ApiDriver(DriverInterface):
                                 yield AgenticMessage(
                                     type=AgenticMessageType.THINKING,
                                     content=block.get("text", ""),
+                                    model=self.model,
                                 )
 
                     # Tool calls
@@ -364,6 +365,7 @@ class ApiDriver(DriverInterface):
                             tool_name=tool_normalized,
                             tool_input=tool_call.get("args", {}),
                             tool_call_id=tool_call.get("id"),
+                            model=self.model,
                         )
 
                 elif isinstance(message, ToolMessage):
@@ -380,6 +382,7 @@ class ApiDriver(DriverInterface):
                         tool_output=str(message.content),
                         tool_call_id=message.tool_call_id,
                         is_error=message.status == "error",
+                        model=self.model,
                     )
 
             # Final result from last AI message
@@ -396,6 +399,7 @@ class ApiDriver(DriverInterface):
                     type=AgenticMessageType.RESULT,
                     content=final_content,
                     session_id=None,  # API driver has no session support
+                    model=self.model,
                 )
             else:
                 # Always yield RESULT per interface contract
@@ -404,6 +408,7 @@ class ApiDriver(DriverInterface):
                     content="Agent produced no output",
                     session_id=None,
                     is_error=True,
+                    model=self.model,
                 )
 
         except ValueError:

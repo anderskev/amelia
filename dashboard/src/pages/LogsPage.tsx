@@ -1,10 +1,12 @@
 /**
- * @fileoverview Logs monitoring page - real-time stream event viewer.
+ * @fileoverview Logs monitoring page - real-time trace event viewer.
  *
- * Displays all stream events across workflows with filtering and auto-scroll.
+ * Displays trace-level events (thinking, tool calls, tool results, agent output)
+ * across all workflows with filtering and auto-scroll.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ArrowDown,
   Trash2,
@@ -18,37 +20,52 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
-import { useStreamStore } from '@/store/stream-store';
-import { StreamEventType, type StreamEvent } from '@/types';
+import { useWorkflowStore } from '@/store/workflowStore';
 import { cn, formatTime } from '@/lib/utils';
+import type { WorkflowEvent, EventType } from '@/types';
 
 /**
- * Icon mapping for different stream event types.
+ * Trace event types that are displayed in the logs page.
  */
-const eventTypeIcons: Record<StreamEventType, React.ReactNode> = {
-  [StreamEventType.CLAUDE_THINKING]: (
-    <Brain className="w-4 h-4 text-yellow-500" />
-  ),
-  [StreamEventType.CLAUDE_TOOL_CALL]: (
-    <Wrench className="w-4 h-4 text-blue-500" />
-  ),
-  [StreamEventType.CLAUDE_TOOL_RESULT]: (
-    <CheckCircle className="w-4 h-4 text-green-500" />
-  ),
-  [StreamEventType.AGENT_OUTPUT]: (
-    <MessageSquare className="w-4 h-4 text-purple-500" />
-  ),
+const TRACE_EVENT_TYPES: EventType[] = [
+  'claude_thinking',
+  'claude_tool_call',
+  'claude_tool_result',
+  'agent_output',
+];
+
+/**
+ * Type for trace event filter values.
+ */
+type TraceEventType = 'claude_thinking' | 'claude_tool_call' | 'claude_tool_result' | 'agent_output';
+
+/**
+ * Icon mapping for different trace event types.
+ */
+const eventTypeIcons: Record<TraceEventType, React.ReactNode> = {
+  claude_thinking: <Brain className="w-4 h-4 text-yellow-500" />,
+  claude_tool_call: <Wrench className="w-4 h-4 text-blue-500" />,
+  claude_tool_result: <CheckCircle className="w-4 h-4 text-green-500" />,
+  agent_output: <MessageSquare className="w-4 h-4 text-purple-500" />,
 };
 
 /**
- * Background color classes for different stream event types.
+ * Background color classes for different trace event types.
+ * Using 20% opacity for backgrounds to ensure visibility against dark themes.
  */
-const eventTypeColors: Record<StreamEventType, string> = {
-  [StreamEventType.CLAUDE_THINKING]: 'bg-yellow-500/10 border-yellow-500/20',
-  [StreamEventType.CLAUDE_TOOL_CALL]: 'bg-blue-500/10 border-blue-500/20',
-  [StreamEventType.CLAUDE_TOOL_RESULT]: 'bg-green-500/10 border-green-500/20',
-  [StreamEventType.AGENT_OUTPUT]: 'bg-purple-500/10 border-purple-500/20',
+const eventTypeColors: Record<TraceEventType, string> = {
+  claude_thinking: 'bg-yellow-500/20 border-yellow-500/30',
+  claude_tool_call: 'bg-blue-500/20 border-blue-500/30',
+  claude_tool_result: 'bg-green-500/20 border-green-500/30',
+  agent_output: 'bg-purple-500/20 border-purple-500/30',
 };
+
+/**
+ * Type guard to check if an event type is a trace event type.
+ */
+function isTraceEventType(eventType: EventType): eventType is TraceEventType {
+  return TRACE_EVENT_TYPES.includes(eventType);
+}
 
 /**
  * Formats tool input for display, showing key parameters concisely.
@@ -70,31 +87,38 @@ function formatToolInput(toolInput: Record<string, unknown>): string {
 }
 
 /**
- * Individual stream log event item component.
- * Displays a stream event with icon, timestamp, agent name, and content.
+ * Individual trace log event item component.
+ * Displays a trace event with icon, timestamp, agent name, and content.
  * Uses color-coded backgrounds based on event type.
  *
  * @param props - Component props
- * @param props.event - The stream event to display
- * @returns React element for the stream log item
+ * @param props.event - The workflow event to display
+ * @returns React element for the trace log item
  */
-function StreamLogItem({ event }: { event: StreamEvent }) {
+function TraceLogItem({ event }: { event: WorkflowEvent }) {
+  if (!isTraceEventType(event.event_type)) return null;
+
   return (
     <div
       data-testid={`event-${event.id}`}
-      data-event-type={event.subtype}
+      data-event-type={event.event_type}
       className={cn(
         'flex items-start gap-3 px-3 py-2 rounded border',
-        eventTypeColors[event.subtype]
+        eventTypeColors[event.event_type]
       )}
     >
-      <div className="mt-0.5">{eventTypeIcons[event.subtype]}</div>
+      <div className="mt-0.5">{eventTypeIcons[event.event_type]}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-mono tabular-nums">
             {formatTime(event.timestamp)}
           </span>
-          <span className="font-semibold uppercase">[{event.agent}]</span>
+          <span className="font-semibold uppercase">{event.agent}</span>
+          {event.model && (
+            <span className="text-muted-foreground/70 font-mono text-[10px]">
+              {event.model}
+            </span>
+          )}
           {event.tool_name && (
             <span className="text-blue-400">→ {event.tool_name}</span>
           )}
@@ -104,9 +128,9 @@ function StreamLogItem({ event }: { event: StreamEvent }) {
             {formatToolInput(event.tool_input)}
           </div>
         )}
-        {event.content && (
+        {event.message && (
           <div className="mt-1 prose prose-sm prose-invert max-w-none prose-p:my-1 prose-p:first:mt-0 prose-p:last:mb-0 prose-headings:text-foreground prose-p:text-foreground/80 prose-strong:text-foreground prose-code:text-accent prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:border prose-pre:border-border prose-li:text-foreground/80 [&_pre]:whitespace-pre-wrap [&_code]:break-all">
-            <Markdown remarkPlugins={[remarkBreaks]}>{event.content}</Markdown>
+            <Markdown remarkPlugins={[remarkBreaks]}>{event.message}</Markdown>
           </div>
         )}
       </div>
@@ -117,43 +141,86 @@ function StreamLogItem({ event }: { event: StreamEvent }) {
 /**
  * Logs monitoring page component.
  *
- * Displays real-time stream events from all workflows with filtering,
+ * Displays real-time trace events from all workflows with filtering,
  * auto-scroll, and event type differentiation. Shows thinking tokens,
  * tool calls, tool results, and agent outputs.
  *
- * @returns The logs page UI with stream event viewer
+ * @returns The logs page UI with trace event viewer
  */
+/** Estimated row height for virtualization */
+const ESTIMATED_ROW_HEIGHT = 60;
+
 export default function LogsPage() {
-  const events = useStreamStore((state) => state.events);
-  const clearEvents = useStreamStore((state) => state.clearEvents);
+  const eventsByWorkflow = useWorkflowStore((state) => state.eventsByWorkflow);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const [typeFilter, setTypeFilter] = useState<StreamEventType | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<TraceEventType | 'all'>('all');
 
-  // Filter events
-  const filteredEvents =
-    typeFilter === 'all' ? events : events.filter((e) => e.subtype === typeFilter);
-
-  // Auto-scroll when at bottom
-  useEffect(() => {
-    if (isAtBottom && scrollRef.current?.scrollIntoView) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+  // Collect and filter trace events from all workflows
+  const traceEvents = useMemo(() => {
+    const allEvents: WorkflowEvent[] = [];
+    for (const events of Object.values(eventsByWorkflow)) {
+      for (const event of events) {
+        if (event.level === 'trace' && isTraceEventType(event.event_type)) {
+          allEvents.push(event);
+        }
+      }
     }
-  }, [filteredEvents.length, isAtBottom]);
+    // Sort by timestamp, most recent last
+    return allEvents.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }, [eventsByWorkflow]);
 
-  // Track scroll position
-  const handleScroll = () => {
-    if (!containerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+  // Filter events by type if filter is active
+  const filteredEvents =
+    typeFilter === 'all'
+      ? traceEvents
+      : traceEvents.filter((e) => e.event_type === typeFilter);
+
+  // Clear events function (resets store for all workflows)
+  const clearEvents = useCallback(() => {
+    useWorkflowStore.setState({
+      eventsByWorkflow: {},
+      eventIdsByWorkflow: {},
+    });
+  }, []);
+
+  // Virtualizer for efficient rendering of large event lists
+  // Uses dynamic measurement for accurate row heights (content varies with markdown)
+  const rowVirtualizer = useVirtualizer({
+    count: filteredEvents.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 5,
+  });
+
+  // Get measureElement ref for dynamic row height measurement
+  const measureElement = rowVirtualizer.measureElement;
+
+  // Auto-scroll to bottom when new events arrive (if already at bottom)
+  useEffect(() => {
+    if (isAtBottom && filteredEvents.length > 0) {
+      rowVirtualizer.scrollToIndex(filteredEvents.length - 1, {
+        behavior: 'smooth',
+      });
+    }
+  }, [filteredEvents.length, isAtBottom, rowVirtualizer]);
+
+  // Track scroll position to determine if user is at bottom
+  const handleScroll = useCallback(() => {
+    if (!parentRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = parentRef.current;
     setIsAtBottom(scrollHeight - scrollTop - clientHeight < 50);
-  };
+  }, []);
 
-  const scrollToBottom = () => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = useCallback(() => {
+    if (filteredEvents.length > 0) {
+      rowVirtualizer.scrollToIndex(filteredEvents.length - 1, {
+        behavior: 'smooth',
+      });
+    }
     setIsAtBottom(true);
-  };
+  }, [filteredEvents.length, rowVirtualizer]);
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -165,19 +232,18 @@ export default function LogsPage() {
         <PageHeader.Right>
           {/* Filter dropdown */}
           <select
+            aria-label="Filter by event type"
             value={typeFilter}
             onChange={(e) =>
-              setTypeFilter(e.target.value as StreamEventType | 'all')
+              setTypeFilter(e.target.value as TraceEventType | 'all')
             }
             className="bg-background border rounded px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
           >
             <option value="all">All Events</option>
-            <option value={StreamEventType.CLAUDE_THINKING}>Thinking</option>
-            <option value={StreamEventType.CLAUDE_TOOL_CALL}>Tool Calls</option>
-            <option value={StreamEventType.CLAUDE_TOOL_RESULT}>
-              Tool Results
-            </option>
-            <option value={StreamEventType.AGENT_OUTPUT}>Agent Output</option>
+            <option value="claude_thinking">Thinking</option>
+            <option value="claude_tool_call">Tool Calls</option>
+            <option value="claude_tool_result">Tool Results</option>
+            <option value="agent_output">Agent Output</option>
           </select>
 
           <span className="text-sm text-muted-foreground">
@@ -192,25 +258,47 @@ export default function LogsPage() {
       </PageHeader>
 
       <div
-        ref={containerRef}
+        ref={parentRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 relative"
       >
         {filteredEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <Filter className="w-12 h-12 mb-4 opacity-50" />
-            <p>No stream events yet</p>
+            <p>No trace events yet</p>
             <p className="text-sm">Events will appear here as workflows run</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {filteredEvents.map((event) => (
-              <StreamLogItem
-                key={event.id}
-                event={event}
-              />
-            ))}
-            <div ref={scrollRef} />
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const event = filteredEvents[virtualRow.index];
+              if (!event) return null;
+
+              return (
+                <div
+                  key={event.id}
+                  ref={measureElement}
+                  data-index={virtualRow.index}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <div className="pb-2">
+                    <TraceLogItem event={event} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 

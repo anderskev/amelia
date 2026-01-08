@@ -6,7 +6,19 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from amelia.core.types import StreamEventType
+
+class EventLevel(StrEnum):
+    """Event severity level for filtering and retention.
+
+    Attributes:
+        INFO: High-level workflow events (lifecycle, stages, approvals).
+        DEBUG: Operational details (tasks, files, messages).
+        TRACE: Verbose execution trace (thinking, tool calls).
+    """
+
+    INFO = "info"
+    DEBUG = "debug"
+    TRACE = "trace"
 
 
 class EventType(StrEnum):
@@ -78,6 +90,50 @@ class EventType(StrEnum):
     # Streaming (ephemeral, not persisted)
     STREAM = "stream"
 
+    # Stream event types (trace level)
+    CLAUDE_THINKING = "claude_thinking"
+    CLAUDE_TOOL_CALL = "claude_tool_call"
+    CLAUDE_TOOL_RESULT = "claude_tool_result"
+    AGENT_OUTPUT = "agent_output"
+
+
+# Event type to level mapping
+_INFO_TYPES: frozenset[EventType] = frozenset({
+    EventType.WORKFLOW_STARTED,
+    EventType.WORKFLOW_COMPLETED,
+    EventType.WORKFLOW_FAILED,
+    EventType.WORKFLOW_CANCELLED,
+    EventType.STAGE_STARTED,
+    EventType.STAGE_COMPLETED,
+    EventType.APPROVAL_REQUIRED,
+    EventType.APPROVAL_GRANTED,
+    EventType.APPROVAL_REJECTED,
+    EventType.REVIEW_COMPLETED,
+})
+
+_TRACE_TYPES: frozenset[EventType] = frozenset({
+    EventType.CLAUDE_THINKING,
+    EventType.CLAUDE_TOOL_CALL,
+    EventType.CLAUDE_TOOL_RESULT,
+    EventType.AGENT_OUTPUT,
+})
+
+
+def get_event_level(event_type: EventType) -> EventLevel:
+    """Get the level for an event type.
+
+    Args:
+        event_type: The event type to classify.
+
+    Returns:
+        EventLevel for the given event type.
+    """
+    if event_type in _INFO_TYPES:
+        return EventLevel.INFO
+    if event_type in _TRACE_TYPES:
+        return EventLevel.TRACE
+    return EventLevel.DEBUG
+
 
 class WorkflowEvent(BaseModel):
     """Event for activity log and real-time updates.
@@ -92,17 +148,24 @@ class WorkflowEvent(BaseModel):
         timestamp: When event occurred.
         agent: Source of event ("architect", "developer", "reviewer", "system").
         event_type: Typed event category.
+        level: Event severity level (info, debug, trace).
         message: Human-readable summary.
         data: Optional structured payload (file paths, error details, etc.).
         correlation_id: Links related events (e.g., approval request -> granted).
+        tool_name: Tool name for trace events (optional).
+        tool_input: Tool input parameters for trace events (optional).
+        is_error: Whether trace event represents an error (default False).
+        trace_id: Distributed trace ID (flows through all events in a workflow execution).
+        parent_id: Parent event ID for causal chain (e.g., tool_call -> tool_result).
     """
 
     id: str = Field(..., description="Unique event identifier")
     workflow_id: str = Field(..., description="Workflow this event belongs to")
-    sequence: int = Field(..., ge=1, description="Monotonic sequence number")
+    sequence: int = Field(..., ge=0, description="Monotonic sequence number (0 for trace-only events)")
     timestamp: datetime = Field(..., description="When event occurred")
     agent: str = Field(..., description="Event source agent")
     event_type: EventType = Field(..., description="Event type category")
+    level: EventLevel | None = Field(default=None, description="Event severity level")
     message: str = Field(..., description="Human-readable message")
     data: dict[str, Any] | None = Field(
         default=None,
@@ -112,6 +175,37 @@ class WorkflowEvent(BaseModel):
         default=None,
         description="Links related events for tracing",
     )
+    # Trace-specific fields
+    tool_name: str | None = Field(
+        default=None,
+        description="Tool name for trace events",
+    )
+    tool_input: dict[str, Any] | None = Field(
+        default=None,
+        description="Tool input parameters for trace events",
+    )
+    is_error: bool = Field(
+        default=False,
+        description="Whether trace event represents an error",
+    )
+    model: str | None = Field(
+        default=None,
+        description="LLM model name for trace events",
+    )
+    # Distributed tracing fields (OTel-compatible)
+    trace_id: str | None = Field(
+        default=None,
+        description="Distributed trace ID (flows through all events in a workflow execution)",
+    )
+    parent_id: str | None = Field(
+        default=None,
+        description="Parent event ID for causal chain (e.g., tool_call -> tool_result)",
+    )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Set level from event_type if not provided."""
+        if self.level is None:
+            object.__setattr__(self, "level", get_event_level(self.event_type))
 
     model_config = {
         "json_schema_extra": {
@@ -123,41 +217,10 @@ class WorkflowEvent(BaseModel):
                     "timestamp": "2025-01-01T12:00:00Z",
                     "agent": "architect",
                     "event_type": "stage_started",
+                    "level": "info",
                     "message": "Creating task plan",
                     "data": {"stage": "planning"},
                 }
             ]
         }
     }
-
-
-class StreamEventPayload(BaseModel):
-    """WebSocket payload for stream events.
-
-    This model wraps the core StreamEvent for WebSocket transmission,
-    using `subtype` instead of `type` to avoid collision with the
-    wrapper message's `type: "stream"` field.
-
-    Attributes:
-        id: Unique event identifier.
-        subtype: Type of streaming event (thinking, tool_call, etc.).
-        content: Event content (optional).
-        agent: Agent name (architect, developer, reviewer).
-        workflow_id: Unique workflow identifier.
-        timestamp: When the event occurred.
-        tool_name: Name of tool being called/returning (optional).
-        tool_input: Input parameters for tool call (optional).
-    """
-
-    id: str = Field(..., description="Unique event identifier")
-    subtype: StreamEventType = Field(..., description="Type of streaming event")
-    content: str | None = Field(default=None, description="Event content")
-    agent: str = Field(..., description="Agent name")
-    workflow_id: str = Field(..., description="Workflow identifier")
-    timestamp: datetime = Field(..., description="When the event occurred")
-    tool_name: str | None = Field(default=None, description="Tool name if applicable")
-    tool_input: dict[str, Any] | None = Field(
-        default=None, description="Tool input parameters"
-    )
-
-

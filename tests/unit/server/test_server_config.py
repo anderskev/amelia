@@ -53,6 +53,22 @@ class TestServerConfig:
             config = ServerConfig()
             assert config.database_path == Path("/tmp/test.db")
 
+    def test_trace_retention_days_default(self) -> None:
+        """trace_retention_days defaults to 7."""
+        config = ServerConfig()
+        assert config.trace_retention_days == 7
+
+    def test_trace_retention_days_from_env(self) -> None:
+        """trace_retention_days can be set via environment."""
+        with patch.dict(os.environ, {"AMELIA_TRACE_RETENTION_DAYS": "3"}):
+            config = ServerConfig()
+            assert config.trace_retention_days == 3
+
+    def test_trace_retention_days_zero_disables_persistence(self) -> None:
+        """trace_retention_days=0 is valid (disables persistence)."""
+        config = ServerConfig(trace_retention_days=0)
+        assert config.trace_retention_days == 0
+
 
 class TestGetConfig:
     """Tests for get_config dependency."""

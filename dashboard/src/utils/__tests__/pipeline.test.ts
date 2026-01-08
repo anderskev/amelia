@@ -57,6 +57,7 @@ describe('buildPipelineFromEvents', () => {
     timestamp,
     agent: 'system',
     event_type,
+    level: 'info',
     message: `${stage} ${event_type}`,
     data: { stage: `${stage}_node` },
   });
@@ -76,6 +77,7 @@ describe('buildPipelineFromEvents', () => {
     timestamp,
     agent,
     event_type: event_type as WorkflowEvent['event_type'],
+    level: 'info',
     message: `${agent} ${event_type}`,
   });
 
@@ -205,6 +207,7 @@ describe('buildPipelineFromEvents', () => {
         timestamp: '2026-01-06T10:00:00Z',
         agent: 'system',
         event_type: 'stage_started',
+        level: 'info',
         message: 'test',
         data: { stage: 'custom_agent' },
       };
@@ -223,6 +226,7 @@ describe('buildPipelineFromEvents', () => {
         timestamp: '2026-01-06T10:00:00Z',
         agent: 'fallback_agent',
         event_type: 'stage_started',
+        level: 'info',
         message: 'test',
       };
       const result = buildPipelineFromEvents([event]);
@@ -256,6 +260,7 @@ describe('buildPipelineFromEvents', () => {
           timestamp: '2026-01-06T10:00:00Z',
           agent: 'system',
           event_type: 'stage_started',
+          level: 'info',
           message: 'test',
           data: { stage: 'developer_node' },
         },
@@ -266,6 +271,7 @@ describe('buildPipelineFromEvents', () => {
           timestamp: '2026-01-06T10:05:00Z',
           agent: 'system',
           event_type: 'stage_completed',
+          level: 'info',
           message: 'test',
           data: { stage: 'developer_node' },
         },
