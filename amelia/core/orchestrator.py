@@ -207,10 +207,14 @@ Return:
         schema=MarkdownPlanOutput,
     )
 
+    # Parse task count from plan markdown
+    total_tasks = extract_task_count(plan_content)
+
     logger.info(
         "Plan validated",
         goal=output.goal,
         key_files_count=len(output.key_files),
+        total_tasks=total_tasks,
         workflow_id=workflow_id,
     )
 
@@ -219,6 +223,7 @@ Return:
         "plan_markdown": output.plan_markdown,
         "plan_path": plan_path,
         "key_files": output.key_files,
+        "total_tasks": total_tasks,
     }
 
 
@@ -502,6 +507,10 @@ async def call_developer_node(
     Uses the new agentic execution model where the Developer autonomously
     decides what tools to use rather than following a step-by-step plan.
 
+    For task-based execution (when total_tasks is set), this node:
+    - Clears driver_session_id for fresh context per task
+    - Injects task-scoped prompt pointing to the current task in the plan
+
     Args:
         state: Current execution state containing the goal.
         config: Optional RunnableConfig with stream_emitter in configurable.
@@ -521,6 +530,18 @@ async def call_developer_node(
 
     # Extract event_bus, workflow_id, and profile from config
     event_bus, workflow_id, profile = _extract_config_params(config)
+
+    # Task-based execution: clear session and inject task-scoped prompt
+    if state.total_tasks is not None:
+        # Fresh session for each task
+        state = state.model_copy(update={"driver_session_id": None})
+
+        # Inject task-scoped prompt
+        task_number = state.current_task_index + 1  # 1-indexed for display
+        task_prompt = f"Execute Task {task_number} from plan at {state.plan_path}"
+        state = state.model_copy(update={
+            "goal": f"{state.goal}\n\n**Current Task:** {task_prompt}"
+        })
 
     config = config or {}
     repository = config.get("configurable", {}).get("repository")
@@ -749,6 +770,36 @@ def route_after_review(
         return "__end__"
 
     return "developer"
+
+
+def route_after_task_review(
+    state: ExecutionState, config: RunnableConfig
+) -> Literal["developer", "next_task_node", "__end__"]:
+    """Route after task review: next task, retry developer, or end.
+
+    Args:
+        state: Current execution state with task tracking fields.
+        config: Runnable config with profile.
+
+    Returns:
+        "next_task_node" if approved and more tasks remain.
+        "developer" if not approved and iterations remain.
+        "__end__" if all tasks complete or max iterations reached.
+    """
+    profile: Profile = config["configurable"]["profile"]
+
+    if state.last_review and state.last_review.approved:
+        # Task approved - check if more tasks remain
+        if state.current_task_index + 1 >= state.total_tasks:
+            return "__end__"  # All tasks complete
+        return "next_task_node"  # Move to next task
+
+    # Not approved - check iteration limit
+    max_iterations = profile.max_task_review_iterations
+    if state.task_review_iteration >= max_iterations:
+        return "__end__"  # Halt on repeated failure
+
+    return "developer"  # Retry with feedback
 
 
 def route_after_evaluation(state: ExecutionState) -> str:
