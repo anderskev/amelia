@@ -51,12 +51,13 @@ const eventTypeIcons: Record<TraceEventType, React.ReactNode> = {
 
 /**
  * Background color classes for different trace event types.
+ * Using 20% opacity for backgrounds to ensure visibility against dark themes.
  */
 const eventTypeColors: Record<TraceEventType, string> = {
-  claude_thinking: 'bg-yellow-500/10 border-yellow-500/20',
-  claude_tool_call: 'bg-blue-500/10 border-blue-500/20',
-  claude_tool_result: 'bg-green-500/10 border-green-500/20',
-  agent_output: 'bg-purple-500/10 border-purple-500/20',
+  claude_thinking: 'bg-yellow-500/20 border-yellow-500/30',
+  claude_tool_call: 'bg-blue-500/20 border-blue-500/30',
+  claude_tool_result: 'bg-green-500/20 border-green-500/30',
+  agent_output: 'bg-purple-500/20 border-purple-500/30',
 };
 
 /**
@@ -112,7 +113,12 @@ function TraceLogItem({ event }: { event: WorkflowEvent }) {
           <span className="font-mono tabular-nums">
             {formatTime(event.timestamp)}
           </span>
-          <span className="font-semibold uppercase">[{event.agent}]</span>
+          <span className="font-semibold uppercase">{event.agent}</span>
+          {event.model && (
+            <span className="text-muted-foreground/70 font-mono text-[10px]">
+              {event.model}
+            </span>
+          )}
           {event.tool_name && (
             <span className="text-blue-400">→ {event.tool_name}</span>
           )}
@@ -180,12 +186,16 @@ export default function LogsPage() {
   }, []);
 
   // Virtualizer for efficient rendering of large event lists
+  // Uses dynamic measurement for accurate row heights (content varies with markdown)
   const rowVirtualizer = useVirtualizer({
     count: filteredEvents.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: 5,
   });
+
+  // Get measureElement ref for dynamic row height measurement
+  const measureElement = rowVirtualizer.measureElement;
 
   // Auto-scroll to bottom when new events arrive (if already at bottom)
   useEffect(() => {
@@ -272,16 +282,19 @@ export default function LogsPage() {
               return (
                 <div
                   key={event.id}
+                  ref={measureElement}
+                  data-index={virtualRow.index}
                   style={{
                     position: 'absolute',
                     top: 0,
                     left: 0,
                     width: '100%',
                     transform: `translateY(${virtualRow.start}px)`,
-                    paddingBottom: '8px',
                   }}
                 >
-                  <TraceLogItem event={event} />
+                  <div className="pb-2">
+                    <TraceLogItem event={event} />
+                  </div>
                 </div>
               );
             })}

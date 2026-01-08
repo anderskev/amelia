@@ -237,6 +237,9 @@ export interface WorkflowEvent {
 
   /** Parent event ID for hierarchical event relationships. */
   parent_id?: string;
+
+  /** LLM model used for this event (for trace events). */
+  model?: string;
 }
 
 // ============================================================================
