@@ -142,30 +142,6 @@ class OrchestratorService:
             ],
         )
 
-    def _create_stage_event_emitter(self, workflow_id: str) -> StageEventEmitter:
-        """Create a stage event emitter callback for nodes to signal stage start.
-
-        Nodes call this emitter when they begin execution, allowing real-time
-        STAGE_STARTED events to be persisted and broadcast. This is the canonical
-        way for nodes to emit stage start events, since stream_mode="updates"
-        only provides chunks after nodes complete.
-
-        Args:
-            workflow_id: The workflow ID to associate with emitted events.
-
-        Returns:
-            Async callback that takes a stage name and emits STAGE_STARTED.
-        """
-        async def emit_stage_started(stage_name: str) -> None:
-            await self._emit(
-                workflow_id,
-                EventType.STAGE_STARTED,
-                f"Starting {stage_name}",
-                agent=stage_name.removesuffix("_node"),
-            )
-
-        return emit_stage_started
-
     async def _resolve_prompts(self, workflow_id: str) -> dict[str, str]:
         """Resolve all prompts for a workflow.
 
@@ -764,14 +740,12 @@ class OrchestratorService:
             # CRITICAL: Pass interrupt_before to enable server-mode approval
             graph = self._create_server_graph(checkpointer)
 
-            # Pass event_bus and stage_event_emitter via config
-            stage_event_emitter = self._create_stage_event_emitter(workflow_id)
+            # Pass event_bus via config
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "event_bus": self._event_bus,
-                    "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
                     "prompts": prompts,
@@ -1046,14 +1020,12 @@ class OrchestratorService:
                 interrupt_before=interrupt_before,
             )
 
-            # Pass event_bus and stage_event_emitter via config
-            stage_event_emitter = self._create_stage_event_emitter(workflow_id)
+            # Pass event_bus via config
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "event_bus": self._event_bus,
-                    "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
                     "prompts": prompts,
@@ -1247,14 +1219,12 @@ class OrchestratorService:
         ) as checkpointer:
             graph = self._create_server_graph(checkpointer)
 
-            # Pass event_bus and stage_event_emitter via config
-            stage_event_emitter = self._create_stage_event_emitter(workflow_id)
+            # Pass event_bus via config
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "event_bus": self._event_bus,
-                    "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
                     "prompts": prompts,
@@ -1513,8 +1483,8 @@ class OrchestratorService:
         state updates. We emit STAGE_COMPLETED after each node that's in
         STAGE_NODES.
 
-        Note: STAGE_STARTED events are emitted by the nodes themselves when
-        they begin execution (via stage_event_emitter in config).
+        Note: STAGE_STARTED events are emitted via stream_mode='tasks'
+        when nodes begin execution.
 
         Args:
             workflow_id: The workflow this chunk belongs to.
