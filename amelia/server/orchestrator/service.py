@@ -822,6 +822,7 @@ class OrchestratorService:
                             workflow_id,
                             EventType.APPROVAL_REQUIRED,
                             "Plan ready for review - awaiting human approval",
+                            agent="human_approval",
                             data={"paused_at": "human_approval_node"},
                         )
                         # Emit extension hook for approval gate
@@ -1544,6 +1545,7 @@ class OrchestratorService:
                 workflow_id,
                 EventType.STAGE_STARTED,
                 f"Starting {node_name}",
+                agent=node_name.removesuffix("_node"),
                 data={"stage": node_name},
             )
 
@@ -1565,10 +1567,9 @@ class OrchestratorService:
         if mode == "tasks":
             await self._handle_tasks_event(workflow_id, data)
         elif mode == "updates":
-            # Check for interrupt in updates mode
+            # Interrupts handled by caller via _is_interrupt_chunk check
             if "__interrupt__" in data:
-                # Return special marker to indicate interrupt
-                return  # Caller handles interrupt separately
+                return
             await self._handle_stream_chunk(workflow_id, data)
 
     def _is_interrupt_chunk(self, chunk: tuple[str, Any] | dict[str, Any]) -> bool:

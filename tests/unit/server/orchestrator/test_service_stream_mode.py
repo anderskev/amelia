@@ -55,10 +55,10 @@ class TestStreamModeTaskEvents:
 
         # Verify STAGE_STARTED was emitted
         mock_event_bus.emit.assert_called()
-        call_args = mock_event_bus.emit.call_args
-        event = call_args[0][0]
+        event = mock_event_bus.emit.call_args.args[0]
         assert event.event_type == EventType.STAGE_STARTED
         assert event.data["stage"] == "architect_node"
+        assert event.agent == "architect"
 
     @pytest.mark.asyncio
     async def test_task_result_event_ignored(
