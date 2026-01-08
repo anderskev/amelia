@@ -3,9 +3,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ActivityLog } from '../ActivityLog';
 import type { WorkflowEvent } from '@/types';
 
-// Mock the stores
+// Mock the stores - return a function that applies selectors to mock state
+const mockStoreState = { eventsByWorkflow: {} as Record<string, unknown[]> };
 vi.mock('@/store/workflowStore', () => ({
-  useWorkflowStore: () => ({ eventsByWorkflow: {} }),
+  useWorkflowStore: <T,>(selector?: (state: typeof mockStoreState) => T): T =>
+    selector ? selector(mockStoreState) : (mockStoreState as unknown as T),
 }));
 
 // Mock useVirtualizer to render all items (JSDOM doesn't support scroll dimensions)

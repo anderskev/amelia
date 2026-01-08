@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useEffect } from 'react';
+import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useWorkflowStore } from '@/store/workflowStore';
 import {
@@ -22,16 +22,18 @@ export function ActivityLog({
     new Set()
   );
 
-  // Get realtime events from store
-  const { eventsByWorkflow } = useWorkflowStore();
+  // Use targeted selector to only re-render when this workflow's events change
+  const realtimeEvents = useWorkflowStore(
+    useCallback((state) => state.eventsByWorkflow[workflowId], [workflowId])
+  );
 
   // Merge initial events with realtime events
   const allEvents = useMemo(() => {
-    const realtimeEvents = eventsByWorkflow[workflowId] || [];
+    const realtime = realtimeEvents ?? [];
     const initialIds = new Set(initialEvents.map((e) => e.id));
-    const newEvents = realtimeEvents.filter((e) => !initialIds.has(e.id));
+    const newEvents = realtime.filter((e) => !initialIds.has(e.id));
     return [...initialEvents, ...newEvents];
-  }, [initialEvents, eventsByWorkflow, workflowId]);
+  }, [initialEvents, realtimeEvents]);
 
   // Group events by stage and flatten for virtualization
   const { rows } = useActivityLogGroups(allEvents, collapsedStages);

@@ -3,11 +3,11 @@ import { cn } from '@/lib/utils';
 import type { StageGroup } from './types';
 
 const AGENT_COLORS: Record<string, string> = {
-  architect: 'text-blue-400',
-  plan_validator: 'text-purple-400',
-  human_approval: 'text-red-400',
-  developer: 'text-green-400',
-  reviewer: 'text-yellow-400',
+  architect: 'text-agent-architect',
+  plan_validator: 'text-agent-pm',
+  human_approval: 'text-destructive',
+  developer: 'text-agent-developer',
+  reviewer: 'text-agent-reviewer',
 };
 
 interface ActivityLogHeaderProps {

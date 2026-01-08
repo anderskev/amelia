@@ -41,10 +41,10 @@ export default function WorkflowDetailPage() {
 
   // Use targeted selector to only subscribe to this workflow's events
   const workflowId = workflow?.id ?? '';
-  // Use a stable selector - avoid creating new array references
+  // Selector returns undefined when no events exist - fallback applied inside useMemo
   const storeEvents = useWorkflowStore(
     useCallback((state) => state.eventsByWorkflow[workflowId], [workflowId])
-  ) ?? [];
+  );
 
   // Auto-revalidate when this workflow's status changes (approval events, completion, etc.)
   useAutoRevalidation(workflow?.id);
@@ -52,13 +52,14 @@ export default function WorkflowDetailPage() {
   // Merge loader events with real-time WebSocket events
   const allEvents = useMemo(() => {
     const loaderEvents = workflow?.recent_events ?? [];
+    const realtime = storeEvents ?? [];
 
     // Deduplicate by event id using a Map
     const eventMap = new Map<string, WorkflowEvent>();
     for (const event of loaderEvents) {
       eventMap.set(event.id, event);
     }
-    for (const event of storeEvents) {
+    for (const event of realtime) {
       eventMap.set(event.id, event);
     }
 
