@@ -93,6 +93,14 @@ def start_command(
         str | None,
         typer.Option("--profile", "-p", help="Profile name for configuration"),
     ] = None,
+    title: Annotated[
+        str | None,
+        typer.Option("--title", help="Task title for noop tracker (bypasses issue lookup)"),
+    ] = None,
+    description: Annotated[
+        str | None,
+        typer.Option("--description", help="Task description (requires --title)"),
+    ] = None,
 ) -> None:
     """Start a new workflow for an issue in the current worktree.
 
@@ -102,7 +110,14 @@ def start_command(
     Args:
         issue_id: Issue identifier to work on (e.g., ISSUE-123).
         profile: Optional profile name for driver and tracker configuration.
+        title: Optional task title for noop tracker (bypasses issue lookup).
+        description: Optional task description (requires --title to be set).
     """
+    # Validate --description requires --title
+    if description and not title:
+        console.print("[red]Error:[/red] --description requires --title to be set")
+        raise typer.Exit(1)
+
     worktree_path, worktree_name = _get_worktree_context()
 
     client = AmeliaClient()
@@ -113,6 +128,8 @@ def start_command(
             worktree_path=worktree_path,
             worktree_name=worktree_name,
             profile=profile,
+            task_title=title,
+            task_description=description,
         )
 
     try:
