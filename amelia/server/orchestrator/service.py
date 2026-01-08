@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import yaml
@@ -22,7 +22,6 @@ from amelia.core.types import (
     Issue,
     Profile,
     Settings,
-    StageEventEmitter,
 )
 from amelia.ext import WorkflowEventType as ExtWorkflowEventType
 from amelia.ext.exceptions import PolicyDeniedError
@@ -142,30 +141,6 @@ class OrchestratorService:
                 "human_approval_node",
             ],
         )
-
-    def _create_stage_event_emitter(self, workflow_id: str) -> StageEventEmitter:
-        """Create a stage event emitter callback for nodes to signal stage start.
-
-        Nodes call this emitter when they begin execution, allowing real-time
-        STAGE_STARTED events to be persisted and broadcast. This is the canonical
-        way for nodes to emit stage start events, since stream_mode="updates"
-        only provides chunks after nodes complete.
-
-        Args:
-            workflow_id: The workflow ID to associate with emitted events.
-
-        Returns:
-            Async callback that takes a stage name and emits STAGE_STARTED.
-        """
-        async def emit_stage_started(stage_name: str) -> None:
-            await self._emit(
-                workflow_id,
-                EventType.STAGE_STARTED,
-                f"Starting {stage_name}",
-                agent=stage_name.removesuffix("_node"),
-            )
-
-        return emit_stage_started
 
     async def _resolve_prompts(self, workflow_id: str) -> dict[str, str]:
         """Resolve all prompts for a workflow.
@@ -785,14 +760,12 @@ class OrchestratorService:
             # CRITICAL: Pass interrupt_before to enable server-mode approval
             graph = self._create_server_graph(checkpointer)
 
-            # Pass event_bus and stage_event_emitter via config
-            stage_event_emitter = self._create_stage_event_emitter(workflow_id)
+            # Pass event_bus via config
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "event_bus": self._event_bus,
-                    "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
                     "prompts": prompts,
@@ -848,27 +821,23 @@ class OrchestratorService:
                 async for chunk in graph.astream(
                     input_state,
                     config=config,
-                    stream_mode="updates",
+                    stream_mode=["updates", "tasks"],
                 ):
-                    # Check for interrupt signal from LangGraph
-                    if "__interrupt__" in chunk:
+                    # Combined mode returns (mode, data) tuples
+                    # Cast for type checker - astream with list mode returns tuples
+                    chunk_tuple = cast(tuple[str, Any], chunk)
+                    if self._is_interrupt_chunk(chunk_tuple):
                         was_interrupted = True
+                        mode, data = chunk_tuple
+                        interrupt_data = data.get("__interrupt__") if isinstance(data, dict) else None
                         logger.info(
                             "Workflow paused for human approval",
                             workflow_id=workflow_id,
-                            interrupt_data=chunk["__interrupt__"],
+                            interrupt_data=interrupt_data,
                         )
                         # Sync plan from LangGraph checkpoint to ServerExecutionState
                         # so it's available via REST API while blocked
                         await self._sync_plan_from_checkpoint(workflow_id, graph, config)
-                        # Emit STAGE_STARTED for human_approval_node (interrupted before running)
-                        await self._emit(
-                            workflow_id,
-                            EventType.STAGE_STARTED,
-                            "Starting human_approval_node",
-                            agent="human_approval",
-                            data={"stage": "human_approval_node"},
-                        )
                         await self._emit(
                             workflow_id,
                             EventType.APPROVAL_REQUIRED,
@@ -890,8 +859,8 @@ class OrchestratorService:
                             stage="human_approval_node",
                         )
                         break
-                    # Emit stage events for each node that completes
-                    await self._handle_stream_chunk(workflow_id, chunk)
+                    # Handle combined mode chunk
+                    await self._handle_combined_stream_chunk(workflow_id, chunk_tuple)
 
                 if not was_interrupted:
                     # Workflow completed without interruption (no human approval needed).
@@ -1072,14 +1041,12 @@ class OrchestratorService:
                 interrupt_before=interrupt_before,
             )
 
-            # Pass event_bus and stage_event_emitter via config
-            stage_event_emitter = self._create_stage_event_emitter(workflow_id)
+            # Pass event_bus via config
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "event_bus": self._event_bus,
-                    "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
                     "prompts": prompts,
@@ -1105,11 +1072,22 @@ class OrchestratorService:
                 async for chunk in graph.astream(
                     initial_state,
                     config=config,
-                    stream_mode="updates",
+                    stream_mode=["updates", "tasks"],
                 ):
+                    # Combined mode returns (mode, data) tuples
+                    # Cast for type checker - astream with list mode returns tuples
+                    chunk_tuple = cast(tuple[str, Any], chunk)
                     # No interrupt handling - review graph runs autonomously
-                    # Emit stage events for each node that completes
-                    await self._handle_stream_chunk(workflow_id, chunk)
+                    # But we still need to check for unexpected interrupts
+                    if self._is_interrupt_chunk(chunk_tuple):
+                        mode, data = chunk_tuple
+                        logger.warning(
+                            "Unexpected interrupt in review workflow",
+                            workflow_id=workflow_id,
+                        )
+                        continue
+                    # Emit stage events for each node
+                    await self._handle_combined_stream_chunk(workflow_id, chunk_tuple)
 
                 # Fetch fresh state from DB to get accurate current_stage
                 # (the local state variable is stale - _handle_stream_chunk updates DB)
@@ -1265,14 +1243,12 @@ class OrchestratorService:
         ) as checkpointer:
             graph = self._create_server_graph(checkpointer)
 
-            # Pass event_bus and stage_event_emitter via config
-            stage_event_emitter = self._create_stage_event_emitter(workflow_id)
+            # Pass event_bus via config
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": workflow_id,
                     "execution_mode": "server",
                     "event_bus": self._event_bus,
-                    "stage_event_emitter": stage_event_emitter,
                     "profile": profile,
                     "repository": self._repository,
                     "prompts": prompts,
@@ -1309,10 +1285,14 @@ class OrchestratorService:
                 async for chunk in graph.astream(
                     None,  # Resume from checkpoint, no new input needed
                     config=config,
-                    stream_mode="updates",
+                    stream_mode=["updates", "tasks"],
                 ):
+                    # Combined mode returns (mode, data) tuples
+                    # Cast for type checker - astream with list mode returns tuples
+                    chunk_tuple = cast(tuple[str, Any], chunk)
                     # In agentic mode, no interrupts expected after initial approval
-                    if "__interrupt__" in chunk:
+                    if self._is_interrupt_chunk(chunk_tuple):
+                        _, data = chunk_tuple
                         state = await graph.aget_state(config)
                         next_nodes = state.next if state else []
                         logger.warning(
@@ -1321,7 +1301,7 @@ class OrchestratorService:
                             next_nodes=next_nodes,
                         )
                         continue
-                    await self._handle_stream_chunk(workflow_id, chunk)
+                    await self._handle_combined_stream_chunk(workflow_id, chunk_tuple)
 
                 # Workflow completed after human approval.
                 # Note: A separate COMPLETED emission exists in _run_workflow() for
@@ -1524,14 +1504,14 @@ class OrchestratorService:
         workflow_id: str,
         chunk: dict[str, Any],
     ) -> None:
-        """Handle a chunk from astream(stream_mode='updates').
+        """Handle an updates chunk from astream(stream_mode=['updates', 'tasks']).
 
-        With stream_mode='updates', each chunk maps node names to their
+        With combined stream mode, updates chunks map node names to their
         state updates. We emit STAGE_COMPLETED after each node that's in
         STAGE_NODES.
 
-        Note: STAGE_STARTED events are emitted by the nodes themselves when
-        they begin execution (via stage_event_emitter in config).
+        Note: STAGE_STARTED events are emitted by _handle_tasks_event when
+        task events arrive from the tasks stream mode.
 
         Args:
             workflow_id: The workflow this chunk belongs to.
@@ -1556,6 +1536,80 @@ class OrchestratorService:
                     agent=node_name.removesuffix("_node"),
                     data={"stage": node_name, "output": output},
                 )
+
+    async def _handle_tasks_event(
+        self,
+        workflow_id: str,
+        task_data: dict[str, Any],
+    ) -> None:
+        """Handle a task event from stream_mode='tasks'.
+
+        LangGraph emits two types of task events:
+        - Task START: {id, name, input, triggers} - when node begins
+        - Task RESULT: {id, name, error, result, interrupts} - when node completes
+
+        We only process START events for STAGE_STARTED. Result events are
+        ignored since STAGE_COMPLETED is handled via "updates" mode.
+
+        Args:
+            workflow_id: The workflow this task belongs to.
+            task_data: Task event data from LangGraph.
+        """
+        # Ignore task result events - only process task start events
+        if "input" not in task_data:
+            return
+
+        node_name = task_data.get("name", "")
+        if node_name in STAGE_NODES:
+            await self._emit(
+                workflow_id,
+                EventType.STAGE_STARTED,
+                f"Starting {node_name}",
+                agent=node_name.removesuffix("_node"),
+                data={"stage": node_name},
+            )
+
+    async def _handle_combined_stream_chunk(
+        self,
+        workflow_id: str,
+        chunk: tuple[str, Any],
+    ) -> None:
+        """Handle a chunk from stream_mode=['updates', 'tasks'].
+
+        Combined stream mode emits tuples of (mode, data). We route each
+        to the appropriate handler.
+
+        Args:
+            workflow_id: The workflow this chunk belongs to.
+            chunk: Tuple of (mode_name, data).
+        """
+        mode, data = chunk
+        if mode == "tasks":
+            await self._handle_tasks_event(workflow_id, data)
+        elif mode == "updates":
+            # Interrupts handled by caller via _is_interrupt_chunk check
+            if "__interrupt__" in data:
+                return
+            await self._handle_stream_chunk(workflow_id, data)
+
+    def _is_interrupt_chunk(self, chunk: tuple[str, Any] | dict[str, Any]) -> bool:
+        """Check if a stream chunk represents an interrupt.
+
+        Works with both combined mode (tuple) and single mode (dict).
+
+        Args:
+            chunk: Stream chunk from astream().
+
+        Returns:
+            True if this chunk contains an interrupt signal.
+        """
+        if isinstance(chunk, tuple):
+            mode, data = chunk
+            if mode == "updates" and isinstance(data, dict):
+                return "__interrupt__" in data
+            return False
+        # Single mode (dict)
+        return "__interrupt__" in chunk
 
     async def _emit_agent_messages(
         self,
