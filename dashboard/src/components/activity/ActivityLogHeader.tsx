@@ -4,6 +4,8 @@ import type { StageGroup } from './types';
 
 const AGENT_COLORS: Record<string, string> = {
   architect: 'text-blue-400',
+  plan_validator: 'text-purple-400',
+  human_approval: 'text-red-400',
   developer: 'text-green-400',
   reviewer: 'text-yellow-400',
 };

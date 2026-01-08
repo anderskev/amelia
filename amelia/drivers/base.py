@@ -46,6 +46,7 @@ class AgenticMessage(BaseModel):
     tool_call_id: str | None = None
     session_id: str | None = None
     is_error: bool = False
+    model: str | None = None
 
     def _build_message(self) -> str:
         """Build a human-readable message from the agentic message content.
@@ -108,6 +109,7 @@ class AgenticMessage(BaseModel):
             tool_name=self.tool_name,
             tool_input=self.tool_input,
             is_error=self.is_error,
+            model=self.model,
         )
 
 

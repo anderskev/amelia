@@ -188,6 +188,10 @@ class WorkflowEvent(BaseModel):
         default=False,
         description="Whether trace event represents an error",
     )
+    model: str | None = Field(
+        default=None,
+        description="LLM model name for trace events",
+    )
     # Distributed tracing fields (OTel-compatible)
     trace_id: str | None = Field(
         default=None,

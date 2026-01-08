@@ -41,9 +41,10 @@ export default function WorkflowDetailPage() {
 
   // Use targeted selector to only subscribe to this workflow's events
   const workflowId = workflow?.id ?? '';
+  // Use a stable selector - avoid creating new array references
   const storeEvents = useWorkflowStore(
-    useCallback((state) => state.eventsByWorkflow[workflowId] ?? [], [workflowId])
-  );
+    useCallback((state) => state.eventsByWorkflow[workflowId], [workflowId])
+  ) ?? [];
 
   // Auto-revalidate when this workflow's status changes (approval events, completion, etc.)
   useAutoRevalidation(workflow?.id);

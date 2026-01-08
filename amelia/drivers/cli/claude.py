@@ -404,6 +404,7 @@ class ClaudeCliDriver:
                                 yield AgenticMessage(
                                     type=AgenticMessageType.THINKING,
                                     content=block.text,
+                                    model=self.model,
                                 )
                             elif isinstance(block, ToolUseBlock):
                                 # Track tool calls in history
@@ -416,6 +417,7 @@ class ClaudeCliDriver:
                                     tool_name=normalized_name,
                                     tool_input=block.input,
                                     tool_call_id=block.id,
+                                    model=self.model,
                                 )
                             elif isinstance(block, ToolResultBlock):
                                 content = block.content if isinstance(block.content, str) else str(block.content)
@@ -428,6 +430,7 @@ class ClaudeCliDriver:
                                     tool_name=result_tool_name,
                                     tool_output=content,
                                     is_error=block.is_error or False,
+                                    model=self.model,
                                 )
 
                     elif isinstance(message, ResultMessage):
@@ -438,6 +441,7 @@ class ClaudeCliDriver:
                             content=message.result,
                             session_id=message.session_id,
                             is_error=message.is_error,
+                            model=self.model,
                         )
 
         except Exception as e:

@@ -1473,6 +1473,7 @@ class OrchestratorService:
                     workflow_id,
                     EventType.STAGE_STARTED,
                     f"Starting {node_name}",
+                    agent=node_name.removesuffix("_node"),
                     data={"stage": node_name},
                 )
 
@@ -1482,6 +1483,7 @@ class OrchestratorService:
                     workflow_id,
                     EventType.STAGE_COMPLETED,
                     f"Completed {node_name}",
+                    agent=node_name.removesuffix("_node"),
                     data={"stage": node_name, "output": event.get("data")},
                 )
 
@@ -1531,6 +1533,7 @@ class OrchestratorService:
                     workflow_id,
                     EventType.STAGE_COMPLETED,
                     f"Completed {node_name}",
+                    agent=node_name.removesuffix("_node"),
                     data={"stage": node_name, "output": output},
                 )
 
@@ -1601,7 +1604,7 @@ class OrchestratorService:
                 workflow_id,
                 EventType.AGENT_MESSAGE,
                 f"Plan validated: {goal}",
-                agent="validator",
+                agent="plan_validator",
                 data={"goal": goal, "key_files_count": len(key_files)},
             )
 

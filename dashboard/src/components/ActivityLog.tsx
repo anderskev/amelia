@@ -103,7 +103,6 @@ export function ActivityLog({
                 top: 0,
                 left: 0,
                 width: '100%',
-                minHeight: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >

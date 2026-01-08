@@ -73,7 +73,7 @@ const fakeEvents = [
     workflow_id: 'test-workflow-1',
     sequence: 7,
     timestamp: new Date(Date.now() - 240000).toISOString(),
-    agent: 'validator',
+    agent: 'plan_validator',
     event_type: 'agent_message',
     level: 'info',
     message: 'Plan validated: Migrate the portfolio website from Gatsby v5.3.3 to Hugo while preserving all content, metadata, and S3 deployment capabilities, reducing build times and eliminating complex Node.js dependencies.',
