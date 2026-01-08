@@ -17,7 +17,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from amelia.core.orchestrator import create_orchestrator_graph
 from amelia.core.state import ExecutionState
-from amelia.core.types import Issue, Profile
+from amelia.core.types import DriverType, Issue, Profile, StrategyType, TrackerType
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
@@ -57,20 +57,20 @@ def make_issue(
 
 def make_profile(
     name: str = "test",
-    driver: str = "api:openrouter",
+    driver: DriverType = "api:openrouter",
     model: str = "openrouter:anthropic/claude-sonnet-4-20250514",
-    tracker: str = "noop",
-    strategy: str = "single",
+    tracker: TrackerType = "noop",
+    strategy: StrategyType = "single",
     plan_output_dir: str | None = None,
     **kwargs: Any,
 ) -> Profile:
     """Create a Profile with sensible defaults for testing."""
     return Profile(
         name=name,
-        driver=driver,  # type: ignore[arg-type]  # str compatible with DriverType Literal
+        driver=driver,
         model=model,
-        tracker=tracker,  # type: ignore[arg-type]  # str compatible with TrackerType Literal
-        strategy=strategy,  # type: ignore[arg-type]  # str compatible with StrategyType Literal
+        tracker=tracker,
+        strategy=strategy,
         plan_output_dir=plan_output_dir or "/tmp/test-plans",
         **kwargs,
     )

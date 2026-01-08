@@ -135,13 +135,12 @@ async def _save_token_usage(
             output_tokens=usage.output_tokens,
             cost_usd=usage.cost_usd,
         )
-    except Exception as e:
+    except Exception:
         # Best-effort - don't fail workflow on token tracking errors
-        logger.warning(
+        logger.exception(
             "Failed to save token usage",
             agent=agent,
             workflow_id=workflow_id,
-            error=str(e),
         )
 
 
