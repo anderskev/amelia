@@ -122,7 +122,7 @@ profiles:
 
         with patch("amelia.client.cli._get_worktree_context") as mock_ctx, \
              patch("amelia.client.cli.Architect") as mock_architect_class, \
-             patch("amelia.client.cli.DriverFactory") as mock_driver_factory, \
+             patch("amelia.client.cli.DriverFactory"), \
              patch("amelia.client.cli.create_tracker") as mock_create_tracker:
             mock_ctx.return_value = (str(worktree), "repo")
 
@@ -139,7 +139,7 @@ profiles:
 
             mock_architect.plan = capture_plan
 
-            result = runner.invoke(
+            runner.invoke(
                 app,
                 ["plan", "TASK-1", "-p", "noop", "--title", "Fix typo", "--description", "Fix README"],
             )
