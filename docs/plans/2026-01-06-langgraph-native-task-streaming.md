@@ -90,6 +90,32 @@ class TestStreamModeTaskEvents:
         assert event.event_type == EventType.STAGE_STARTED
         assert event.data["stage"] == "architect_node"
 
+    @pytest.mark.asyncio
+    async def test_task_result_event_ignored(
+        self, mock_repository, mock_event_bus
+    ):
+        """Task result events should be ignored (completion handled by updates mode)."""
+        from amelia.server.orchestrator.service import OrchestratorService
+
+        service = OrchestratorService(
+            repository=mock_repository,
+            event_bus=mock_event_bus,
+        )
+
+        # Simulate a task RESULT event (has "result" instead of "input")
+        task_result = {
+            "id": "task-123",
+            "name": "architect_node",
+            "error": None,
+            "result": {"goal": "Test goal"},
+            "interrupts": [],
+        }
+
+        # Call the handler
+        await service._handle_tasks_event("workflow-123", task_result)
+
+        # Verify no event was emitted
+        mock_event_bus.emit.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_combined_stream_mode_parses_tuples(
@@ -134,13 +160,21 @@ Add to `amelia/server/orchestrator/service.py` after `_handle_stream_chunk` (aro
     ) -> None:
         """Handle a task event from stream_mode='tasks'.
 
-        Task events are emitted when nodes start execution. We use this
-        to emit STAGE_STARTED events, replacing the custom stage_event_emitter.
+        LangGraph emits two types of task events:
+        - Task START: {id, name, input, triggers} - when node begins
+        - Task RESULT: {id, name, error, result, interrupts} - when node completes
+
+        We only process START events for STAGE_STARTED. Result events are
+        ignored since STAGE_COMPLETED is handled via "updates" mode.
 
         Args:
             workflow_id: The workflow this task belongs to.
-            task_data: Task event data with id, name, input, triggers.
+            task_data: Task event data from LangGraph.
         """
+        # Ignore task result events - only process task start events
+        if "input" not in task_data:
+            return
+
         node_name = task_data.get("name", "")
         if node_name in STAGE_NODES:
             await self._emit(
