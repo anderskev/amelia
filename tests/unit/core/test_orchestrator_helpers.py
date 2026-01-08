@@ -24,18 +24,14 @@ class TestExtractConfigParams:
                 "profile": profile,
             }
         }
-        event_bus, stage_event_emitter, workflow_id, extracted_profile = _extract_config_params(config)
+        event_bus, workflow_id, extracted_profile = _extract_config_params(config)
         assert extracted_profile == profile
         assert workflow_id == "wf-123"
         assert event_bus is None
-        assert stage_event_emitter is None
 
-    def test_extracts_emitters_from_config(self) -> None:
-        """Should extract event_bus and stage emitter when provided."""
+    def test_extracts_event_bus_from_config(self) -> None:
+        """Should extract event_bus when provided."""
         mock_event_bus = MagicMock()
-
-        async def mock_stage(name: str) -> None:
-            pass
 
         profile = Profile(name="test", driver="cli:claude", model="sonnet")
         config: RunnableConfig = {
@@ -43,12 +39,10 @@ class TestExtractConfigParams:
                 "thread_id": "wf-123",
                 "profile": profile,
                 "event_bus": mock_event_bus,
-                "stage_event_emitter": mock_stage,
             }
         }
-        event_bus, stage, wf_id, prof = _extract_config_params(config)
+        event_bus, wf_id, prof = _extract_config_params(config)
         assert event_bus is mock_event_bus
-        assert stage is mock_stage
         assert wf_id == "wf-123"
         assert prof == profile
 
@@ -61,5 +55,3 @@ class TestExtractConfigParams:
         }
         with pytest.raises(ValueError, match="profile is required"):
             _extract_config_params(config)
-
-

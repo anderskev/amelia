@@ -1,7 +1,7 @@
 """LangGraph state machine orchestrator for coordinating AI agents.
 
-Implements the core agentic workflow: Issue → Architect (analyze) → Human Approval →
-Developer (execute agentically) ↔ Reviewer (review) → Done. Provides node functions for
+Implements the core agentic workflow: Issue -> Architect (analyze) -> Human Approval ->
+Developer (execute agentically) <-> Reviewer (review) -> Done. Provides node functions for
 the state machine and the create_orchestrator_graph() factory.
 """
 import asyncio
@@ -22,10 +22,7 @@ from amelia.agents.evaluator import Evaluator
 from amelia.agents.reviewer import Reviewer
 from amelia.core.constants import resolve_plan_path
 from amelia.core.state import ExecutionState
-from amelia.core.types import (
-    Profile,
-    StageEventEmitter,
-)
+from amelia.core.types import Profile
 from amelia.drivers.factory import DriverFactory
 from amelia.server.models.tokens import TokenUsage
 
@@ -37,8 +34,8 @@ if TYPE_CHECKING:
 
 def _extract_config_params(
     config: RunnableConfig | None,
-) -> tuple["EventBus | None", StageEventEmitter | None, str, Profile]:
-    """Extract event_bus, stage_event_emitter, workflow_id, and profile from config.
+) -> tuple["EventBus | None", str, Profile]:
+    """Extract event_bus, workflow_id, and profile from config.
 
     Extracts values from config.configurable dictionary. workflow_id is required.
 
@@ -46,7 +43,7 @@ def _extract_config_params(
         config: Optional RunnableConfig with configurable parameters.
 
     Returns:
-        Tuple of (event_bus, stage_event_emitter, workflow_id, profile).
+        Tuple of (event_bus, workflow_id, profile).
 
     Raises:
         ValueError: If workflow_id (thread_id) or profile is not provided.
@@ -54,7 +51,6 @@ def _extract_config_params(
     config = config or {}
     configurable = config.get("configurable", {})
     event_bus = configurable.get("event_bus")
-    stage_event_emitter = configurable.get("stage_event_emitter")
     workflow_id = configurable.get("thread_id")
     profile = configurable.get("profile")
 
@@ -63,7 +59,7 @@ def _extract_config_params(
     if not profile:
         raise ValueError("profile is required in config.configurable")
 
-    return event_bus, stage_event_emitter, workflow_id, profile
+    return event_bus, workflow_id, profile
 
 
 async def _save_token_usage(
@@ -148,11 +144,7 @@ async def plan_validator_node(
     Raises:
         ValueError: If plan file not found or empty.
     """
-    event_bus, stage_event_emitter, workflow_id, profile = _extract_config_params(config)
-
-    # Emit STAGE_STARTED event at the beginning of the node
-    if stage_event_emitter:
-        await stage_event_emitter("plan_validator_node")
+    event_bus, workflow_id, profile = _extract_config_params(config)
 
     if not state.issue:
         raise ValueError("Issue is required in state for plan validation")
@@ -241,11 +233,8 @@ async def call_architect_node(
     if state.issue is None:
         raise ValueError("Cannot call Architect: no issue provided in state.")
 
-    # Extract event_bus, stage_event_emitter, workflow_id, and profile from config
-    event_bus, stage_event_emitter, workflow_id, profile = _extract_config_params(config)
-
-    if stage_event_emitter:
-        await stage_event_emitter("architect_node")
+    # Extract event_bus, workflow_id, and profile from config
+    event_bus, workflow_id, profile = _extract_config_params(config)
 
     config = config or {}
     configurable = config.get("configurable", {})
@@ -515,11 +504,8 @@ async def call_developer_node(
     if not state.goal:
         raise ValueError("Developer node has no goal. The architect should have generated a goal first.")
 
-    # Extract event_bus, stage_event_emitter, workflow_id, and profile from config
-    event_bus, stage_event_emitter, workflow_id, profile = _extract_config_params(config)
-
-    if stage_event_emitter:
-        await stage_event_emitter("developer_node")
+    # Extract event_bus, workflow_id, and profile from config
+    event_bus, workflow_id, profile = _extract_config_params(config)
 
     config = config or {}
     repository = config.get("configurable", {}).get("repository")
@@ -580,11 +566,8 @@ async def call_reviewer_node(
         has_code_changes_for_review=bool(state.code_changes_for_review),
     )
 
-    # Extract event_bus, stage_event_emitter, workflow_id, and profile from config
-    event_bus, stage_event_emitter, workflow_id, profile = _extract_config_params(config)
-
-    if stage_event_emitter:
-        await stage_event_emitter("reviewer_node")
+    # Extract event_bus, workflow_id, and profile from config
+    event_bus, workflow_id, profile = _extract_config_params(config)
 
     config = config or {}
     configurable = config.get("configurable", {})
@@ -647,10 +630,7 @@ async def call_evaluation_node(
     Returns:
         Partial state dict with evaluation_result, approved_items, and driver_session_id.
     """
-    event_bus, stage_event_emitter, workflow_id, profile = _extract_config_params(config)
-
-    if stage_event_emitter:
-        await stage_event_emitter("evaluation_node")
+    event_bus, workflow_id, profile = _extract_config_params(config)
 
     config = config or {}
     configurable = config.get("configurable", {})
@@ -743,7 +723,7 @@ def route_after_review(
     if state.last_review and state.last_review.approved:
         return "__end__"
 
-    _, _, _, profile = _extract_config_params(config)
+    _, _, profile = _extract_config_params(config)
     max_iterations = profile.max_review_iterations
 
     if state.review_iteration >= max_iterations:
@@ -827,9 +807,9 @@ def create_orchestrator_graph(
     """Creates and compiles the LangGraph state machine for agentic orchestration.
 
     The simplified agentic graph flow:
-    START → architect_node → human_approval_node → developer_node → reviewer_node → END
-                                                        ↑                    │
-                                                        └────────────────────┘
+    START -> architect_node -> human_approval_node -> developer_node -> reviewer_node -> END
+                                                        ^                    |
+                                                        +--------------------+
                                                         (if changes requested)
 
     Args:
@@ -899,7 +879,7 @@ def create_review_graph(
 ) -> CompiledStateGraph[Any]:
     """Creates review-fix workflow graph.
 
-    Flow: reviewer → evaluation → [approval] → developer → [end_approval] → END
+    Flow: reviewer -> evaluation -> [approval] -> developer -> [end_approval] -> END
 
     The workflow loops between reviewer and developer until:
     - No more critical/major items (auto mode), OR
