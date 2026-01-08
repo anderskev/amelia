@@ -22,10 +22,15 @@ from amelia.agents.developer import Developer
 from amelia.agents.evaluator import Evaluator
 from amelia.agents.reviewer import Reviewer
 from amelia.core.constants import resolve_plan_path
-from amelia.core.state import ExecutionState
+from amelia.core.state import ExecutionState, rebuild_execution_state
 from amelia.core.types import Profile
 from amelia.drivers.factory import DriverFactory
 from amelia.server.models.tokens import TokenUsage
+
+
+# Resolve forward references in ExecutionState. Must be done after importing
+# Reviewer and Evaluator since they define StructuredReviewResult and EvaluationResult.
+rebuild_execution_state()
 
 
 if TYPE_CHECKING:
@@ -533,14 +538,11 @@ async def call_developer_node(
 
     # Task-based execution: clear session and inject task-scoped prompt
     if state.total_tasks is not None:
-        # Fresh session for each task
-        state = state.model_copy(update={"driver_session_id": None})
-
-        # Inject task-scoped prompt
         task_number = state.current_task_index + 1  # 1-indexed for display
         task_prompt = f"Execute Task {task_number} from plan at {state.plan_path}"
         state = state.model_copy(update={
-            "goal": f"{state.goal}\n\n**Current Task:** {task_prompt}"
+            "driver_session_id": None,  # Fresh session for each task
+            "goal": f"{state.goal}\n\n**Current Task:** {task_prompt}",
         })
 
     config = config or {}

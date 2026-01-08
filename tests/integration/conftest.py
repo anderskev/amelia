@@ -8,7 +8,7 @@ This module provides:
 import socket
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -67,10 +67,10 @@ def make_profile(
     """Create a Profile with sensible defaults for testing."""
     return Profile(
         name=name,
-        driver=driver,  # type: ignore[arg-type]
+        driver=driver,  # type: ignore[arg-type]  # str compatible with DriverType Literal
         model=model,
-        tracker=tracker,  # type: ignore[arg-type]
-        strategy=strategy,  # type: ignore[arg-type]
+        tracker=tracker,  # type: ignore[arg-type]  # str compatible with TrackerType Literal
+        strategy=strategy,  # type: ignore[arg-type]  # str compatible with StrategyType Literal
         plan_output_dir=plan_output_dir or "/tmp/test-plans",
         **kwargs,
     )
@@ -219,7 +219,7 @@ def mock_repository() -> AsyncMock:
         repo.workflows[state.id] = state
 
     async def get(workflow_id: str) -> ServerExecutionState | None:
-        return repo.workflows.get(workflow_id)
+        return cast(ServerExecutionState | None, repo.workflows.get(workflow_id))
 
     async def set_status(
         workflow_id: str, status: str, failure_reason: str | None = None
@@ -233,7 +233,7 @@ def mock_repository() -> AsyncMock:
         repo.events.append(event)
 
     async def get_max_event_sequence(workflow_id: str) -> int:
-        return repo.event_sequence.get(workflow_id, 0)
+        return cast(int, repo.event_sequence.get(workflow_id, 0))
 
     repo.create = create
     repo.get = get

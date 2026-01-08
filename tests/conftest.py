@@ -13,7 +13,7 @@ import pytest
 from pytest import TempPathFactory
 
 from amelia.core.agentic_state import ToolCall, ToolResult
-from amelia.core.state import ExecutionState
+from amelia.core.state import ExecutionState, rebuild_execution_state
 from amelia.core.types import (
     Design,
     DriverType,
@@ -25,6 +25,11 @@ from amelia.core.types import (
 )
 from amelia.drivers.base import AgenticMessage, DriverInterface
 from amelia.server.events.bus import EventBus
+
+
+# Rebuild ExecutionState to resolve forward references for StructuredReviewResult
+# and EvaluationResult. This must be called before any tests instantiate ExecutionState.
+rebuild_execution_state()
 
 
 @pytest.fixture
