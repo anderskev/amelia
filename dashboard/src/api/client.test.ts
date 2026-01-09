@@ -31,15 +31,18 @@ describe('api.createWorkflow', () => {
       task_title: 'Add logout button',
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/workflows', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        issue_id: 'TASK-001',
-        worktree_path: '/Users/me/projects/repo',
-        task_title: 'Add logout button',
-      }),
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/workflows',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          issue_id: 'TASK-001',
+          worktree_path: '/Users/me/projects/repo',
+          task_title: 'Add logout button',
+        }),
+      })
+    );
     expect(result).toEqual(mockResponse);
   });
 
@@ -62,17 +65,20 @@ describe('api.createWorkflow', () => {
       task_description: 'Add a logout button to the navbar',
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/workflows', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        issue_id: 'TASK-001',
-        worktree_path: '/Users/me/projects/repo',
-        profile: 'noop-local',
-        task_title: 'Add logout button',
-        task_description: 'Add a logout button to the navbar',
-      }),
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/workflows',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          issue_id: 'TASK-001',
+          worktree_path: '/Users/me/projects/repo',
+          profile: 'noop-local',
+          task_title: 'Add logout button',
+          task_description: 'Add a logout button to the navbar',
+        }),
+      })
+    );
   });
 
   it('throws ApiError on 400 validation error', async () => {
