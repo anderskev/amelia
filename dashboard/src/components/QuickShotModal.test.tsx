@@ -179,7 +179,10 @@ describe('QuickShotModal', () => {
       await waitFor(() => {
         expect(toast.success).toHaveBeenCalled();
         // Verify the JSX content includes a link to the workflow
-        const callArg = vi.mocked(toast.success).mock.calls[0][0] as React.ReactElement;
+        const calls = vi.mocked(toast.success).mock.calls;
+        expect(calls.length).toBeGreaterThan(0);
+        const callArg = calls[0]?.[0] as React.ReactElement;
+        expect(callArg).toBeDefined();
         // Find the anchor element in children (may be nested)
         const children = React.Children.toArray(callArg.props.children);
         const link = children.find(
