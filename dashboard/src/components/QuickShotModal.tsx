@@ -254,7 +254,7 @@ export function QuickShotModal({ open, onOpenChange }: QuickShotModalProps) {
             </Button>
             <Button
               type="submit"
-              disabled={!isValid || isSubmitting}
+              disabled={!isValid || isSubmitting || isLaunching}
               className={cn(
                 'font-heading uppercase tracking-wide relative overflow-hidden',
                 'transition-all duration-normal',

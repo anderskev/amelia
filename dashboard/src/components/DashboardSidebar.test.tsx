@@ -85,6 +85,6 @@ describe('DashboardSidebar', () => {
 
     await user.click(quickShotButton);
 
-    expect(screen.getByText('QUICK SHOT')).toBeInTheDocument();
+    expect(await screen.findByText('QUICK SHOT')).toBeInTheDocument();
   });
 });
