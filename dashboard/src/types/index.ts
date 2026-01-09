@@ -402,6 +402,53 @@ export interface StartWorkflowRequest {
 }
 
 /**
+ * Request payload for creating a new workflow via Quick Shot.
+ * Used by POST /api/workflows endpoint.
+ *
+ * @example
+ * ```typescript
+ * const request: CreateWorkflowRequest = {
+ *   issue_id: 'TASK-001',
+ *   worktree_path: '/Users/me/projects/repo',
+ *   profile: 'noop-local',
+ *   task_title: 'Add logout button',
+ *   task_description: 'Add a logout button to the navbar...'
+ * };
+ * ```
+ */
+export interface CreateWorkflowRequest {
+  /** Task identifier (maps to issue_id in API). */
+  issue_id: string;
+
+  /** Absolute filesystem path to the git worktree. */
+  worktree_path: string;
+
+  /** Optional profile name from settings.amelia.yaml. */
+  profile?: string;
+
+  /** Human-readable title for the task. */
+  task_title: string;
+
+  /** Detailed description of the task (defaults to title if empty). */
+  task_description?: string;
+}
+
+/**
+ * Response payload from creating a new workflow.
+ * Returned by POST /api/workflows endpoint.
+ */
+export interface CreateWorkflowResponse {
+  /** Unique identifier for the created workflow. */
+  id: string;
+
+  /** Initial workflow status (usually 'pending'). */
+  status: string;
+
+  /** Human-readable confirmation message. */
+  message: string;
+}
+
+/**
  * Request payload for rejecting a plan or review.
  * Used by POST /api/workflows/:id/reject endpoint.
  */
