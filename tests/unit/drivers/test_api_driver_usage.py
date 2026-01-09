@@ -95,7 +95,7 @@ class TestApiDriverUsageAccumulation:
         msg.usage_metadata = UsageMetadata(
             input_tokens=100, output_tokens=50, total_tokens=150
         )
-        msg.response_metadata = {"openrouter": {"cost": 0.0025}}
+        msg.response_metadata = {"token_usage": {"cost": 0.0025}}
 
         stream_chunks = [{"messages": [msg]}]
 
@@ -126,13 +126,13 @@ class TestApiDriverUsageAccumulation:
         msg1.usage_metadata = UsageMetadata(
             input_tokens=100, output_tokens=50, total_tokens=150
         )
-        msg1.response_metadata = {"openrouter": {"cost": 0.001}}
+        msg1.response_metadata = {"token_usage": {"cost": 0.001}}
 
         msg2 = AIMessage(content="Second")
         msg2.usage_metadata = UsageMetadata(
             input_tokens=100, output_tokens=50, total_tokens=150
         )
-        msg2.response_metadata = {"openrouter": {"cost": 0.002}}
+        msg2.response_metadata = {"token_usage": {"cost": 0.002}}
 
         stream_chunks = [
             {"messages": [msg1]},

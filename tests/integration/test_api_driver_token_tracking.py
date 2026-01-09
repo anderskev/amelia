@@ -44,14 +44,14 @@ class TestApiDriverTokenTrackingIntegration:
         turn1.usage_metadata = UsageMetadata(
             input_tokens=500, output_tokens=100, total_tokens=600
         )
-        turn1.response_metadata = {"openrouter": {"cost": 0.001}}
+        turn1.response_metadata = {"token_usage": {"cost": 0.001}}
         turn1.tool_calls = [{"name": "read_file", "args": {"path": "test.py"}, "id": "tc1"}]
 
         turn2 = AIMessage(content="Here's what I found: the file contains tests.")
         turn2.usage_metadata = UsageMetadata(
             input_tokens=800, output_tokens=200, total_tokens=1000
         )
-        turn2.response_metadata = {"openrouter": {"cost": 0.002}}
+        turn2.response_metadata = {"token_usage": {"cost": 0.002}}
         turn2.tool_calls = []
 
         chunks = [
