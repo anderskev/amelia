@@ -9,6 +9,8 @@ import type {
   VersionSummary,
   VersionDetail,
   DefaultContent,
+  CreateWorkflowRequest,
+  CreateWorkflowResponse,
 } from '../types';
 
 /**
@@ -246,6 +248,34 @@ export const api = {
         const bTime = b.started_at ? new Date(b.started_at).getTime() : 0;
         return bTime - aTime;
       });
+  },
+
+  /**
+   * Creates a new workflow via Quick Shot.
+   *
+   * @param request - The workflow creation request.
+   * @returns The created workflow response.
+   * @throws {ApiError} When validation fails, worktree is in use, or API request fails.
+   *
+   * @example
+   * ```typescript
+   * const response = await api.createWorkflow({
+   *   issue_id: 'TASK-001',
+   *   worktree_path: '/Users/me/projects/repo',
+   *   task_title: 'Add logout button',
+   * });
+   * console.log(`Created workflow: ${response.id}`);
+   * ```
+   */
+  async createWorkflow(
+    request: CreateWorkflowRequest
+  ): Promise<CreateWorkflowResponse> {
+    const response = await fetch(`${API_BASE_URL}/workflows`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    return handleResponse<CreateWorkflowResponse>(response);
   },
 
   // ==========================================================================
