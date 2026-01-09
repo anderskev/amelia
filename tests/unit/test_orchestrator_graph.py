@@ -443,7 +443,7 @@ class TestOrchestratorGraphTaskBasedRouting:
         reviewer_edges = [e for e in edges if e.source == "reviewer_node"]
 
         # Reviewer should have conditional edges that include next_task_node as a target
-        # In LangGraph, conditional edges may show as multiple edges or as a single edge
-        # to __conditional__ node depending on version
         targets = [e.target for e in reviewer_edges]
-        assert len(targets) > 0, "reviewer_node should have outgoing edges"
+        assert (
+            "next_task_node" in targets
+        ), "reviewer_node should be able to route to next_task_node"
