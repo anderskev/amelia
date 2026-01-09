@@ -1602,7 +1602,7 @@ class TestApprovalEventCleanup:
             orchestrator._active_tasks.pop(valid_worktree, None)
             orchestrator._sequence_counters.pop(workflow_id, None)
             orchestrator._sequence_locks.pop(workflow_id, None)
-            # BUG: This cleanup is missing from the actual implementation
+            # Cleanup approval events (matches start_workflow's cleanup_task callback)
             orchestrator._approval_events.pop(workflow_id, None)
 
         task.add_done_callback(cleanup_task)
