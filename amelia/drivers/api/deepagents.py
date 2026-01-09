@@ -23,6 +23,7 @@ from amelia.drivers.base import (
     AgenticMessage,
     AgenticMessageType,
     DriverInterface,
+    DriverUsage,
     GenerateResult,
 )
 
@@ -174,6 +175,7 @@ class ApiDriver(DriverInterface):
         """
         self.model = model or self.DEFAULT_MODEL
         self.cwd = cwd
+        self._usage: DriverUsage | None = None
 
     async def generate(
         self,
@@ -415,3 +417,11 @@ class ApiDriver(DriverInterface):
             raise
         except Exception as e:
             raise RuntimeError(f"Agentic execution failed: {e}") from e
+
+    def get_usage(self) -> DriverUsage | None:
+        """Return accumulated usage from last execution.
+
+        Returns:
+            DriverUsage with accumulated totals, or None if no execution occurred.
+        """
+        return self._usage
