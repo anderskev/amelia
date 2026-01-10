@@ -45,7 +45,6 @@ def pending_workflow() -> ServerExecutionState:
         id="wf-pending123",
         issue_id="ISSUE-123",
         worktree_path="/path/to/repo",
-        worktree_name="repo",
         workflow_status="pending",
     )
 
@@ -111,7 +110,6 @@ class TestStartPendingWorkflow:
             id="wf-running",
             issue_id="ISSUE-123",
             worktree_path="/path/to/repo",
-            worktree_name="repo",
             workflow_status="in_progress",
         )
         mock_repository.get.return_value = in_progress
@@ -134,7 +132,6 @@ class TestStartPendingWorkflow:
             id="wf-active",
             issue_id="ISSUE-999",
             worktree_path="/path/to/repo",
-            worktree_name="repo",
             workflow_status="in_progress",
         )
         mock_repository.get_by_worktree.return_value = active_workflow

@@ -25,7 +25,6 @@ class TestWorkflowRepository:
             id=str(uuid4()),
             issue_id="ISSUE-123",
             worktree_path="/path/to/repo",
-            worktree_name="main",
         )
 
         await repository.create(state)
@@ -41,7 +40,6 @@ class TestWorkflowRepository:
             id=str(uuid4()),
             issue_id="ISSUE-123",
             worktree_path="/path/to/repo",
-            worktree_name="main",
             workflow_status="in_progress",
         )
         await repository.create(state)
@@ -57,7 +55,6 @@ class TestWorkflowRepository:
             id=str(uuid4()),
             issue_id="ISSUE-1",
             worktree_path="/path/to/repo",
-            worktree_name="main",
             workflow_status="completed",
         )
         await repository.create(completed)
@@ -72,7 +69,6 @@ class TestWorkflowRepository:
             id=str(uuid4()),
             issue_id="ISSUE-123",
             worktree_path="/path/to/repo",
-            worktree_name="main",
         )
         await repository.create(state)
 
@@ -91,7 +87,6 @@ class TestWorkflowRepository:
             id=str(uuid4()),
             issue_id="ISSUE-123",
             worktree_path="/path/to/repo",
-            worktree_name="main",
             workflow_status="pending",
         )
         await repository.create(state)
@@ -106,7 +101,6 @@ class TestWorkflowRepository:
             id=str(uuid4()),
             issue_id="ISSUE-123",
             worktree_path="/path/to/repo",
-            worktree_name="main",
             workflow_status="in_progress",
         )
         await repository.create(state)
@@ -124,21 +118,18 @@ class TestWorkflowRepository:
             id=str(uuid4()),
             issue_id="ISSUE-1",
             worktree_path="/repo1",
-            worktree_name="main",
             workflow_status="in_progress",
         )
         active2 = ServerExecutionState(
             id=str(uuid4()),
             issue_id="ISSUE-2",
             worktree_path="/repo2",
-            worktree_name="feat",
             workflow_status="blocked",
         )
         completed = ServerExecutionState(
             id=str(uuid4()),
             issue_id="ISSUE-3",
             worktree_path="/repo3",
-            worktree_name="old",
             workflow_status="completed",
         )
 
@@ -163,7 +154,6 @@ class TestWorkflowRepository:
             id="wf-1",
             issue_id="ISSUE-123",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-123",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )
@@ -191,7 +181,6 @@ class TestWorkflowRepository:
             id="wf-1",
             issue_id="ISSUE-123",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-123",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )
@@ -223,7 +212,6 @@ class TestWorkflowRepository:
             id="wf-pydantic",
             issue_id="ISSUE-456",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-456",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )
@@ -266,7 +254,6 @@ class TestWorkflowRepository:
             id="wf-path",
             issue_id="ISSUE-789",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-789",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )
@@ -303,7 +290,6 @@ class TestWorkflowRepository:
             id="wf-recent",
             issue_id="ISSUE-789",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-789",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )
@@ -336,7 +322,6 @@ class TestWorkflowRepository:
             id="wf-limited",
             issue_id="ISSUE-LIM",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-lim",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )
@@ -368,7 +353,6 @@ class TestWorkflowRepository:
             id="wf-empty",
             issue_id="ISSUE-EMPTY",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-empty",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )
@@ -403,7 +387,6 @@ class TestRepositoryEvents:
             id="wf-event-test",
             issue_id="ISSUE-EVENT",
             worktree_path="/path/to/event-test",
-            worktree_name="feat-event",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )

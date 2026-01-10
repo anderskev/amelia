@@ -175,9 +175,8 @@ async def create_pending_workflow(
         id=workflow_id,
         issue_id=issue_id,
         worktree_path=worktree_path,
-        worktree_name=worktree_path.split("/")[-1],
         workflow_status="pending",
-        started_at=datetime.now(UTC),
+        # Note: started_at is None for pending workflows (set when started)
         execution_state=execution_state,
     )
     await repository.create(workflow)
@@ -358,7 +357,6 @@ class TestStartPendingWorkflow:
             id="wf-running",
             issue_id="TEST-RUNNING",
             worktree_path="/tmp/running",
-            worktree_name="running",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
             execution_state=execution_state,

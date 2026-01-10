@@ -158,6 +158,7 @@ export type EventLevel = 'info' | 'debug' | 'trace';
  */
 export type EventType =
   // Lifecycle
+  | 'workflow_created'
   | 'workflow_started'
   | 'workflow_completed'
   | 'workflow_failed'

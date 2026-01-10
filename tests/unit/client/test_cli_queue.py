@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
+from amelia.client.models import CreateWorkflowResponse
 from amelia.main import app
 
 
@@ -27,8 +28,8 @@ class TestStartCommandQueue:
              patch("amelia.client.cli.AmeliaClient") as mock_client_class:
             mock_ctx.return_value = (str(worktree), "repo")
             mock_client = mock_client_class.return_value
-            mock_client.create_workflow = AsyncMock(return_value=MagicMock(
-                id="wf-123", status="running"
+            mock_client.create_workflow = AsyncMock(return_value=CreateWorkflowResponse(
+                id="wf-123", status="running", message="Workflow started"
             ))
 
             result = runner.invoke(app, ["start", "ISSUE-123"])
@@ -49,8 +50,8 @@ class TestStartCommandQueue:
              patch("amelia.client.cli.AmeliaClient") as mock_client_class:
             mock_ctx.return_value = (str(worktree), "repo")
             mock_client = mock_client_class.return_value
-            mock_client.create_workflow = AsyncMock(return_value=MagicMock(
-                id="wf-123", status="pending"
+            mock_client.create_workflow = AsyncMock(return_value=CreateWorkflowResponse(
+                id="wf-123", status="pending", message="Workflow queued"
             ))
 
             result = runner.invoke(app, ["start", "ISSUE-123", "--queue"])
@@ -70,8 +71,8 @@ class TestStartCommandQueue:
              patch("amelia.client.cli.AmeliaClient") as mock_client_class:
             mock_ctx.return_value = (str(worktree), "repo")
             mock_client = mock_client_class.return_value
-            mock_client.create_workflow = AsyncMock(return_value=MagicMock(
-                id="wf-123", status="pending"
+            mock_client.create_workflow = AsyncMock(return_value=CreateWorkflowResponse(
+                id="wf-123", status="pending", message="Workflow queued with planning"
             ))
 
             result = runner.invoke(app, ["start", "ISSUE-123", "--queue", "--plan"])

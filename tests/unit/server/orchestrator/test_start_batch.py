@@ -57,14 +57,12 @@ class TestStartBatchWorkflows:
                 id="wf-1",
                 issue_id="ISSUE-1",
                 worktree_path="/repo1",
-                worktree_name="repo1",
                 workflow_status="pending",
             ),
             ServerExecutionState(
                 id="wf-2",
                 issue_id="ISSUE-2",
                 worktree_path="/repo2",
-                worktree_name="repo2",
                 workflow_status="pending",
             ),
         ]
@@ -95,7 +93,6 @@ class TestStartBatchWorkflows:
                 id=workflow_id,
                 issue_id=f"ISSUE-{workflow_id}",
                 worktree_path=f"/repo/{workflow_id}",
-                worktree_name=workflow_id,
                 workflow_status="pending",
             )
 
@@ -122,14 +119,12 @@ class TestStartBatchWorkflows:
                 id="wf-1",
                 issue_id="ISSUE-1",
                 worktree_path="/repo/a",
-                worktree_name="a",
                 workflow_status="pending",
             ),
             ServerExecutionState(
                 id="wf-2",
                 issue_id="ISSUE-2",
                 worktree_path="/repo/b",
-                worktree_name="b",
                 workflow_status="pending",
             ),
         ]
@@ -156,14 +151,12 @@ class TestStartBatchWorkflows:
                 id="wf-1",
                 issue_id="ISSUE-1",
                 worktree_path="/repo",
-                worktree_name="repo",
                 workflow_status="pending",
             ),
             ServerExecutionState(
                 id="wf-2",
                 issue_id="ISSUE-2",
                 worktree_path="/repo",
-                worktree_name="repo",
                 workflow_status="pending",
             ),
         ]
