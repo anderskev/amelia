@@ -193,3 +193,21 @@ class ErrorResponse(BaseModel):
         dict[str, Any] | None,
         Field(default=None, description="Optional additional error details"),
     ] = None
+
+
+class BatchStartResponse(BaseModel):
+    """Response from batch start operation.
+
+    Attributes:
+        started: Workflow IDs that were successfully started.
+        errors: Map of workflow_id to error message for failures.
+    """
+
+    started: Annotated[
+        list[str],
+        Field(description="Workflow IDs that were successfully started"),
+    ]
+    errors: Annotated[
+        dict[str, str],
+        Field(description="Map of workflow_id to error message for failures"),
+    ]
