@@ -431,6 +431,12 @@ export interface CreateWorkflowRequest {
 
   /** Detailed description of the task (defaults to title if empty). */
   task_description?: string;
+
+  /** Whether to start the workflow immediately. Default: true. */
+  start?: boolean;
+
+  /** If not starting, run Architect first to generate a plan. Default: false. */
+  plan_now?: boolean;
 }
 
 /**
@@ -455,6 +461,55 @@ export interface CreateWorkflowResponse {
 export interface RejectRequest {
   /** Human feedback explaining why the plan or changes were rejected. */
   feedback: string;
+}
+
+/**
+ * Response payload from starting a single pending workflow.
+ * Returned by POST /api/workflows/:id/start endpoint.
+ */
+export interface StartWorkflowResponse {
+  /** Unique identifier for the started workflow. */
+  workflow_id: string;
+
+  /** Status after starting (usually 'started' or 'in_progress'). */
+  status: string;
+}
+
+/**
+ * Request payload for batch starting queued workflows.
+ * Used by POST /api/workflows/start-batch endpoint.
+ *
+ * @example
+ * ```typescript
+ * // Start specific workflows
+ * const request: BatchStartRequest = {
+ *   workflow_ids: ['wf-1', 'wf-2'],
+ * };
+ *
+ * // Start all queued workflows for a worktree
+ * const request: BatchStartRequest = {
+ *   worktree_path: '/path/to/repo',
+ * };
+ * ```
+ */
+export interface BatchStartRequest {
+  /** Optional list of specific workflow IDs to start. */
+  workflow_ids?: string[];
+
+  /** Optional worktree path to filter workflows. */
+  worktree_path?: string;
+}
+
+/**
+ * Response payload from batch starting workflows.
+ * Returned by POST /api/workflows/start-batch endpoint.
+ */
+export interface BatchStartResponse {
+  /** List of workflow IDs that were successfully started. */
+  started: string[];
+
+  /** Map of workflow IDs to error messages for workflows that failed to start. */
+  errors: Record<string, string>;
 }
 
 // ============================================================================
