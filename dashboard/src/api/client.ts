@@ -398,8 +398,8 @@ export const api = {
     const response = await fetchWithTimeout(`${API_BASE_URL}/workflows?limit=1`);
     const data = await handleResponse<WorkflowListResponse>(response);
 
-    if (data.workflows.length > 0) {
-      const mostRecent = data.workflows[0];
+    const mostRecent = data.workflows[0];
+    if (mostRecent) {
       return {
         worktree_path: mostRecent.worktree_path,
         profile: mostRecent.profile,

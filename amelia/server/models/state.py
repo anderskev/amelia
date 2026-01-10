@@ -74,7 +74,6 @@ class ServerExecutionState(BaseModel):
         id: Unique workflow identifier (UUID).
         issue_id: Issue being worked on.
         worktree_path: Absolute path to git worktree root.
-        worktree_name: Human-readable worktree name (branch or directory).
         execution_state: Core orchestration state.
         workflow_status: Current workflow status.
         started_at: When workflow started.
@@ -89,7 +88,6 @@ class ServerExecutionState(BaseModel):
     id: str = Field(..., description="Unique workflow identifier")
     issue_id: str = Field(..., description="Issue being worked on")
     worktree_path: str = Field(..., description="Absolute path to worktree")
-    worktree_name: str = Field(..., description="Human-readable worktree name")
     workflow_type: Literal["full", "review"] = Field(
         default="full",
         description="Type of workflow: 'full' for standard, 'review' for review-only",
@@ -143,7 +141,6 @@ class ServerExecutionState(BaseModel):
                     "id": "wf-123",
                     "issue_id": "ISSUE-456",
                     "worktree_path": "/home/user/project",
-                    "worktree_name": "main",
                     "workflow_status": "in_progress",
                     "started_at": "2025-01-01T12:00:00Z",
                     "current_stage": "development",

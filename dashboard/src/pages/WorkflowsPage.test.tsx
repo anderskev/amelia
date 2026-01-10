@@ -40,7 +40,8 @@ import { buildPipelineFromEvents } from '@/utils/pipeline';
 const mockWorkflowSummary: WorkflowSummary = {
   id: 'wf-001',
   issue_id: 'PROJ-123',
-  worktree_name: 'proj-123-feature',
+  worktree_path: '/tmp/worktrees/proj-123-feature',
+  profile: null,
   status: 'in_progress',
   started_at: '2025-12-07T09:00:00Z',
   current_stage: 'developer',
@@ -51,7 +52,6 @@ const mockWorkflowSummary: WorkflowSummary = {
 
 const mockWorkflowDetail: WorkflowDetail = {
   ...mockWorkflowSummary,
-  worktree_path: '/path/to/worktree',
   completed_at: null,
   failure_reason: null,
   token_usage: null,
@@ -96,7 +96,8 @@ const mockPipeline: EventDrivenPipeline = {
 const mockSecondWorkflowSummary: WorkflowSummary = {
   id: 'wf-002',
   issue_id: 'PROJ-456',
-  worktree_name: 'proj-456-bugfix',
+  worktree_path: '/tmp/worktrees/proj-456-bugfix',
+  profile: null,
   status: 'blocked',
   started_at: '2025-12-07T08:00:00Z',
   current_stage: 'reviewer',
@@ -107,7 +108,6 @@ const mockSecondWorkflowSummary: WorkflowSummary = {
 
 const mockSecondWorkflowDetail: WorkflowDetail = {
   ...mockSecondWorkflowSummary,
-  worktree_path: '/path/to/second/worktree',
   completed_at: null,
   failure_reason: null,
   token_usage: null,
@@ -208,7 +208,7 @@ describe('WorkflowsPage', () => {
 
       // Scope assertions to the page header to verify text appears in the correct location
       expect(within(pageHeader).getByText('PROJ-123')).toBeInTheDocument();
-      expect(within(pageHeader).getByText('proj-123-feature')).toBeInTheDocument();
+      expect(within(pageHeader).getByText('/tmp/worktrees/proj-123-feature')).toBeInTheDocument();
     });
   });
 

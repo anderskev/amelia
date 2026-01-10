@@ -49,15 +49,14 @@ class WorkflowRepository:
         await self._db.execute(
             """
             INSERT INTO workflows (
-                id, issue_id, worktree_path, worktree_name,
+                id, issue_id, worktree_path,
                 status, started_at, completed_at, failure_reason, state_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 state.id,
                 state.issue_id,
                 state.worktree_path,
-                state.worktree_name,
                 state.workflow_status,
                 state.started_at,
                 state.completed_at,

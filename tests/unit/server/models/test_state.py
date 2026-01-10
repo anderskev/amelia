@@ -21,7 +21,6 @@ def make_state(**overrides: Any) -> ServerExecutionState:
         "id": "wf-123",
         "issue_id": "ISSUE-456",
         "worktree_path": "/path/to/repo",
-        "worktree_name": "main",
     }
     return ServerExecutionState(**{**defaults, **overrides})
 
@@ -98,7 +97,6 @@ class TestServerExecutionState:
         assert state.id == "wf-123"
         assert state.issue_id == "ISSUE-456"
         assert state.worktree_path == "/path/to/repo"
-        assert state.worktree_name == "main"
         assert state.workflow_status == "pending"
 
     def test_state_json_round_trip(self) -> None:
@@ -130,7 +128,6 @@ class TestServerExecutionStateComposition:
             id="wf-123",
             issue_id="ISSUE-456",
             worktree_path="/tmp/test",
-            worktree_name="test-branch",
             execution_state=core_state,
         )
         assert server_state.execution_state is not None

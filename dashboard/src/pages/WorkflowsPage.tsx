@@ -109,8 +109,8 @@ export default function WorkflowsPage() {
                 </Tooltip>
               )}
             </div>
-            {detail?.worktree_name && (
-              <PageHeader.Subtitle>{detail.worktree_name}</PageHeader.Subtitle>
+            {detail?.worktree_path && (
+              <PageHeader.Subtitle>{detail.worktree_path}</PageHeader.Subtitle>
             )}
           </div>
         </PageHeader.Left>
@@ -149,7 +149,7 @@ export default function WorkflowsPage() {
             worktreeHasActiveWorkflow={workflows.some(
               (w) =>
                 w.id !== detail.id &&
-                w.worktree_name === detail.worktree_name &&
+                w.worktree_path === detail.worktree_path &&
                 w.status === 'in_progress'
             )}
           />

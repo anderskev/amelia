@@ -144,7 +144,6 @@ def review(
                 response = await client.create_review_workflow(
                     diff_content=diff_content,
                     worktree_path=os.getcwd(),
-                    worktree_name="local-review",
                     profile=profile_name,
                 )
                 typer.echo(f"Created review workflow: {response.id}")

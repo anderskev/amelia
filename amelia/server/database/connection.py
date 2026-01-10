@@ -263,7 +263,6 @@ class Database:
                 id TEXT PRIMARY KEY,
                 issue_id TEXT NOT NULL,
                 worktree_path TEXT NOT NULL,
-                worktree_name TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
                 started_at TIMESTAMP,
                 completed_at TIMESTAMP,

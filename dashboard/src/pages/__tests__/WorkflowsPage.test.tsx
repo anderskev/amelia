@@ -40,7 +40,8 @@ describe('WorkflowsPage pending workflow actions', () => {
   const pendingWorkflow: WorkflowSummary = {
     id: 'wf-pending',
     issue_id: 'ISSUE-123',
-    worktree_name: 'repo',
+    worktree_path: '/tmp/worktrees/repo',
+    profile: null,
     status: 'pending',
     started_at: null,
     current_stage: null,

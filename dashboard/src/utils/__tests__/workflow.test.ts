@@ -7,7 +7,8 @@ function createWorkflow(overrides: Partial<WorkflowSummary> = {}): WorkflowSumma
   return {
     id: 'test-id',
     issue_id: 'TEST-1',
-    worktree_name: 'test-worktree',
+    worktree_path: '/tmp/worktrees/test-worktree',
+    profile: null,
     status: 'completed',
     current_stage: 'done',
     started_at: '2025-01-01T00:00:00Z',

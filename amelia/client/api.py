@@ -75,7 +75,6 @@ class AmeliaClient:
         >>> workflow = await client.create_workflow(
         ...     issue_id="ISSUE-123",
         ...     worktree_path="/home/user/repo",
-        ...     worktree_name="main"
         ... )
         >>> await client.approve_workflow(workflow.id)
     """
@@ -143,7 +142,6 @@ class AmeliaClient:
         self,
         issue_id: str,
         worktree_path: str,
-        worktree_name: str | None = None,
         profile: str | None = None,
         task_title: str | None = None,
         task_description: str | None = None,
@@ -155,7 +153,6 @@ class AmeliaClient:
         Args:
             issue_id: Issue identifier (e.g., "ISSUE-123")
             worktree_path: Absolute path to git worktree
-            worktree_name: Human-readable name for worktree
             profile: Optional profile name for configuration
             task_title: Optional task title for noop tracker (bypasses issue lookup)
             task_description: Optional task description (requires task_title)
@@ -174,7 +171,6 @@ class AmeliaClient:
         request = CreateWorkflowRequest(
             issue_id=issue_id,
             worktree_path=worktree_path,
-            worktree_name=worktree_name,
             profile=profile,
             task_title=task_title,
             task_description=task_description,
@@ -200,7 +196,6 @@ class AmeliaClient:
         self,
         diff_content: str,
         worktree_path: str,
-        worktree_name: str | None = None,
         profile: str | None = None,
     ) -> CreateWorkflowResponse:
         """Create a review-fix workflow.
@@ -208,7 +203,6 @@ class AmeliaClient:
         Args:
             diff_content: The git diff to review.
             worktree_path: Absolute path to git worktree.
-            worktree_name: Human-readable name for worktree.
             profile: Optional profile name for configuration.
 
         Returns:
@@ -223,7 +217,6 @@ class AmeliaClient:
         request = CreateReviewWorkflowRequest(
             diff_content=diff_content,
             worktree_path=worktree_path,
-            worktree_name=worktree_name,
             profile=profile,
         )
 

@@ -44,9 +44,6 @@ export interface WorkflowSummary {
   /** Absolute filesystem path to the git worktree. */
   worktree_path: string;
 
-  /** Name of the git worktree where this workflow is executing. */
-  worktree_name: string;
-
   /** Profile name used for this workflow, or null if not set. */
   profile: string | null;
 

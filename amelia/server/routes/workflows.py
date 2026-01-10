@@ -68,7 +68,6 @@ async def create_workflow(
         workflow_id = await orchestrator.start_workflow(
             issue_id=request.issue_id,
             worktree_path=request.worktree_path,
-            worktree_name=request.worktree_name,
             profile=request.profile,
             driver=request.driver,
             task_title=request.task_title,
@@ -110,7 +109,6 @@ async def create_review_workflow(
     workflow_id = await orchestrator.start_review_workflow(
         diff_content=request.diff_content,
         worktree_path=request.worktree_path,
-        worktree_name=request.worktree_name,
         profile=request.profile,
     )
 
@@ -202,7 +200,6 @@ async def list_workflows(
                 id=w.id,
                 issue_id=w.issue_id,
                 worktree_path=w.worktree_path,
-                worktree_name=w.worktree_name,
                 profile=profile,
                 status=w.workflow_status,
                 started_at=w.started_at,
@@ -261,7 +258,6 @@ async def list_active_workflows(
                 id=w.id,
                 issue_id=w.issue_id,
                 worktree_path=w.worktree_path,
-                worktree_name=w.worktree_name,
                 profile=profile,
                 status=w.workflow_status,
                 started_at=w.started_at,
@@ -357,7 +353,6 @@ async def get_workflow(
         id=workflow.id,
         issue_id=workflow.issue_id,
         worktree_path=workflow.worktree_path,
-        worktree_name=workflow.worktree_name,
         status=workflow.workflow_status,
         started_at=workflow.started_at,
         completed_at=workflow.completed_at,

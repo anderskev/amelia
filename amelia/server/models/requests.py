@@ -70,7 +70,6 @@ class CreateWorkflowRequest(BaseModel):
     Attributes:
         issue_id: Issue identifier (alphanumeric with dashes/underscores, 1-100 chars)
         worktree_path: Absolute path to worktree directory
-        worktree_name: Optional custom worktree name
         profile: Optional profile name (lowercase alphanumeric with dashes/underscores)
         driver: Optional driver override in type:name format (e.g., sdk:claude, api:openrouter)
     """
@@ -87,10 +86,6 @@ class CreateWorkflowRequest(BaseModel):
         str,
         Field(description="Absolute path to worktree directory"),
     ]
-    worktree_name: Annotated[
-        str | None,
-        Field(default=None, description="Optional custom worktree name"),
-    ] = None
     profile: Annotated[
         str | None,
         Field(
@@ -230,13 +225,11 @@ class CreateReviewWorkflowRequest(BaseModel):
     Attributes:
         diff_content: The git diff content to review.
         worktree_path: Absolute path for conflict detection (typically cwd).
-        worktree_name: Optional human-readable name.
         profile: Optional profile name from settings.
     """
 
     diff_content: Annotated[str, Field(min_length=1, description="Git diff content to review")]
     worktree_path: Annotated[str, Field(description="Absolute path for conflict detection")]
-    worktree_name: Annotated[str | None, Field(default=None)] = None
     profile: Annotated[str | None, Field(default=None)] = None
 
     validate_worktree_path = field_validator("worktree_path", mode="after")(

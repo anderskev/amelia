@@ -25,7 +25,8 @@ export function createMockWorkflowSummary(
   return {
     id: 'wf-test-123',
     issue_id: 'ISSUE-123',
-    worktree_name: 'test-worktree',
+    worktree_path: '/tmp/test-worktree',
+    profile: null,
     status: 'in_progress',
     started_at: '2025-12-06T10:00:00Z',
     current_stage: 'architect',
@@ -119,11 +120,11 @@ export function createMockWorkflowDetail(
   return {
     id: 'wf-test-123',
     issue_id: 'ISSUE-123',
-    worktree_name: 'test-worktree',
+    worktree_path: '/tmp/test-worktree',
+    profile: null,
     status: 'in_progress',
     started_at: '2025-12-06T10:00:00Z',
     current_stage: 'architect',
-    worktree_path: '/tmp/test-worktree',
     completed_at: null,
     failure_reason: null,
     total_cost_usd: null,

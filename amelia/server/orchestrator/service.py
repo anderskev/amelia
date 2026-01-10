@@ -345,7 +345,6 @@ class OrchestratorService:
         self,
         issue_id: str,
         worktree_path: str,
-        worktree_name: str | None = None,
         profile: str | None = None,
         driver: str | None = None,
         task_title: str | None = None,
@@ -356,7 +355,6 @@ class OrchestratorService:
         Args:
             issue_id: The issue ID to work on.
             worktree_path: Absolute path to the worktree.
-            worktree_name: Human-readable worktree name (optional).
             profile: Optional profile name.
             driver: Optional driver override.
             task_title: Optional task title for direct Issue construction (noop tracker only).
@@ -473,7 +471,6 @@ class OrchestratorService:
                 id=workflow_id,
                 issue_id=issue_id,
                 worktree_path=worktree_path,
-                worktree_name=worktree_name or worktree_path.split("/")[-1],
                 execution_state=execution_state,
                 workflow_status="pending",
                 started_at=datetime.now(UTC),
@@ -569,7 +566,6 @@ class OrchestratorService:
 
         # Generate workflow ID with wf- prefix
         workflow_id = f"wf-{uuid4().hex[:12]}"
-        worktree_name = request.worktree_name or worktree.name
 
         # Fetch issue from tracker (or construct from task_title)
         if request.task_title is not None:
@@ -604,7 +600,6 @@ class OrchestratorService:
             id=workflow_id,
             issue_id=request.issue_id,
             worktree_path=str(worktree.resolve()),
-            worktree_name=worktree_name,
             execution_state=execution_state,
             workflow_status="pending",
             # No started_at - workflow hasn't started
@@ -626,7 +621,7 @@ class OrchestratorService:
             "Workflow queued",
             workflow_id=workflow_id,
             issue_id=request.issue_id,
-            worktree=worktree_name,
+            worktree_path=str(worktree.resolve()),
         )
 
         return workflow_id
@@ -635,7 +630,6 @@ class OrchestratorService:
         self,
         diff_content: str,
         worktree_path: str,
-        worktree_name: str | None = None,
         profile: str | None = None,
     ) -> str:
         """Start a review-fix workflow.
@@ -643,7 +637,6 @@ class OrchestratorService:
         Args:
             diff_content: The git diff to review.
             worktree_path: Path for conflict detection (typically cwd).
-            worktree_name: Optional human-readable name.
             profile: Optional profile name.
 
         Returns:
@@ -714,7 +707,6 @@ class OrchestratorService:
                 id=workflow_id,
                 issue_id="LOCAL-REVIEW",
                 worktree_path=worktree_path,
-                worktree_name=worktree_name or "local-review",
                 workflow_type="review",
                 execution_state=execution_state,
                 workflow_status="pending",
@@ -2183,7 +2175,6 @@ class OrchestratorService:
 
         # Generate workflow ID
         workflow_id = str(uuid4())
-        worktree_name = request.worktree_name or worktree.name
 
         # Fetch issue from tracker (or construct from task_title)
         if request.task_title is not None:
@@ -2218,7 +2209,6 @@ class OrchestratorService:
             id=workflow_id,
             issue_id=request.issue_id,
             worktree_path=request.worktree_path,
-            worktree_name=worktree_name,
             execution_state=execution_state,
             workflow_status="pending",
             # Note: started_at is None - workflow hasn't started yet
@@ -2239,7 +2229,7 @@ class OrchestratorService:
             "Workflow queued, spawning planning task",
             workflow_id=workflow_id,
             issue_id=request.issue_id,
-            worktree=worktree_name,
+            worktree_path=request.worktree_path,
         )
 
         # Spawn planning task in background (non-blocking)

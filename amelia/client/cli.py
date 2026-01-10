@@ -136,7 +136,7 @@ def start_command(
         console.print("[red]Error:[/red] --plan requires --queue flag")
         raise typer.Exit(1)
 
-    worktree_path, worktree_name = _get_worktree_context()
+    worktree_path, _ = _get_worktree_context()
 
     client = AmeliaClient()
 
@@ -144,7 +144,6 @@ def start_command(
         return await client.create_workflow(
             issue_id=issue_id,
             worktree_path=worktree_path,
-            worktree_name=worktree_name,
             profile=profile,
             task_title=title,
             task_description=description,
@@ -318,7 +317,7 @@ def status_command(
                 wf.id,
                 wf.issue_id,
                 wf.status,
-                wf.worktree_name,
+                wf.worktree_path,
                 wf.started_at.strftime("%Y-%m-%d %H:%M") if wf.started_at else "-",
             )
 
@@ -429,7 +428,7 @@ def plan_command(
         console.print("[red]Error:[/red] --description requires --title to be set")
         raise typer.Exit(1)
 
-    worktree_path, _worktree_name = _get_worktree_context()
+    worktree_path, _ = _get_worktree_context()
 
     async def _generate_plan() -> ExecutionState:
         # Load settings from worktree

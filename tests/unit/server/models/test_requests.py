@@ -197,13 +197,11 @@ class TestCreateReviewWorkflowRequest:
         request = CreateReviewWorkflowRequest(
             diff_content="+ added line",
             worktree_path=str(worktree),
-            worktree_name="test-review",
             profile="default",
         )
 
         assert request.diff_content == "+ added line"
         assert request.worktree_path == str(worktree)
-        assert request.worktree_name == "test-review"
         assert request.profile == "default"
 
     def test_empty_diff_content_rejected(self, tmp_path: Path) -> None:
@@ -240,7 +238,6 @@ class TestCreateReviewWorkflowRequest:
             worktree_path=str(worktree),
         )
 
-        assert request.worktree_name is None
         assert request.profile is None
 
 

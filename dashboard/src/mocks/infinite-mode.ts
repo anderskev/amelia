@@ -150,7 +150,8 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('NAV-777'),
       issue_id: 'NAV-777',
-      worktree_name: 'stellar-navigation',
+      worktree_path: '/Users/amelia/worktrees/stellar-navigation',
+      profile: null,
       status: 'completed',
       started_at: getTimestamp(24),
       current_stage: null,
@@ -161,7 +162,8 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('FUEL-404'),
       issue_id: 'FUEL-404',
-      worktree_name: 'antimatter-refuel',
+      worktree_path: '/Users/amelia/worktrees/antimatter-refuel',
+      profile: null,
       status: 'completed',
       started_at: getTimestamp(48),
       current_stage: null,
@@ -172,7 +174,8 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('COMM-1984'),
       issue_id: 'COMM-1984',
-      worktree_name: 'deep-space-comms',
+      worktree_path: '/Users/amelia/worktrees/deep-space-comms',
+      profile: null,
       status: 'completed',
       started_at: getTimestamp(72),
       current_stage: null,
@@ -184,7 +187,8 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('INFRA-2847'),
       issue_id: 'INFRA-2847',
-      worktree_name: 'heat-shields',
+      worktree_path: '/Users/amelia/worktrees/heat-shields',
+      profile: null,
       status: 'in_progress',
       started_at: getTimestamp(3),
       current_stage: 'developer',
@@ -195,7 +199,8 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('ARCH-42'),
       issue_id: 'ARCH-42',
-      worktree_name: 'solar-distributed',
+      worktree_path: '/Users/amelia/worktrees/solar-distributed',
+      profile: null,
       status: 'completed',
       started_at: getTimestamp(5),
       current_stage: 'done',
@@ -206,7 +211,8 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('SPEC-322'),
       issue_id: 'SPEC-322',
-      worktree_name: 'microservices-thrust',
+      worktree_path: '/Users/amelia/worktrees/microservices-thrust',
+      profile: null,
       status: 'in_progress',
       started_at: getTimestamp(1),
       current_stage: 'developer',
@@ -218,7 +224,8 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('DEVOPS-∞'),
       issue_id: 'DEVOPS-∞',
-      worktree_name: 'orbital-deployment',
+      worktree_path: '/Users/amelia/worktrees/orbital-deployment',
+      profile: null,
       status: 'blocked',
       started_at: getTimestamp(2),
       current_stage: 'architect',
@@ -229,7 +236,8 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('PERF-9000'),
       issue_id: 'PERF-9000',
-      worktree_name: 'escape-velocity',
+      worktree_path: '/Users/amelia/worktrees/escape-velocity',
+      profile: null,
       status: 'blocked',
       started_at: getTimestamp(8),
       current_stage: 'architect',
@@ -249,7 +257,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('CRUD-1000000'),
       issue_id: 'CRUD-1000000',
-      worktree_name: 'dark-mode-final-straw',
+      worktree_path: '/Users/amelia/worktrees/dark-mode-final-straw',
+      profile: null,
       status: 'completed',
       started_at: getPastTimestamp(1),
       current_stage: null,
@@ -260,7 +269,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('RETRO-847000'),
       issue_id: 'RETRO-847000',
-      worktree_name: 'velocity-retrospective',
+      worktree_path: '/Users/amelia/worktrees/velocity-retrospective',
+      profile: null,
       status: 'completed',
       started_at: getPastTimestamp(1.5),
       current_stage: null,
@@ -271,7 +281,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('DOCS-9001'),
       issue_id: 'DOCS-9001',
-      worktree_name: '47-page-spec',
+      worktree_path: '/Users/amelia/worktrees/47-page-spec',
+      profile: null,
       status: 'completed',
       started_at: getPastTimestamp(2),
       current_stage: null,
@@ -282,7 +293,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('PHIL-200'),
       issue_id: 'PHIL-200',
-      worktree_name: 'js-meaninglessness',
+      worktree_path: '/Users/amelia/worktrees/js-meaninglessness',
+      profile: null,
       status: 'completed',
       started_at: getPastTimestamp(3),
       current_stage: null,
@@ -293,7 +305,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('REVIEW-∞'),
       issue_id: 'REVIEW-∞',
-      worktree_name: 'lgtm-rocket',
+      worktree_path: '/Users/amelia/worktrees/lgtm-rocket',
+      profile: null,
       status: 'completed',
       started_at: getPastTimestamp(3.5),
       current_stage: null,
@@ -304,7 +317,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('TABS-1978'),
       issue_id: 'TABS-1978',
-      worktree_name: 'tabs-vs-spaces',
+      worktree_path: '/Users/amelia/worktrees/tabs-vs-spaces',
+      profile: null,
       status: 'failed',
       started_at: getPastTimestamp(4),
       current_stage: null,
@@ -315,7 +329,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('QUICK-7847284919'),
       issue_id: 'QUICK-7847284919',
-      worktree_name: 'queue-position',
+      worktree_path: '/Users/amelia/worktrees/queue-position',
+      profile: null,
       status: 'cancelled',
       started_at: getPastTimestamp(5),
       current_stage: null,
@@ -326,7 +341,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('AI-INIT'),
       issue_id: 'AI-INIT',
-      worktree_name: 'alien-contact',
+      worktree_path: '/Users/amelia/worktrees/alien-contact',
+      profile: null,
       status: 'completed',
       started_at: getPastTimestamp(5.5),
       current_stage: null,
@@ -337,7 +353,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('USER-SIMPLE'),
       issue_id: 'USER-SIMPLE',
-      worktree_name: 'mass-uplift',
+      worktree_path: '/Users/amelia/worktrees/mass-uplift',
+      profile: null,
       status: 'failed',
       started_at: getPastTimestamp(6),
       current_stage: null,
@@ -348,7 +365,8 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
     {
       id: generateUUID('LAUNCH-T10'),
       issue_id: 'LAUNCH-T10',
-      worktree_name: 'final-commit',
+      worktree_path: '/Users/amelia/worktrees/final-commit',
+      profile: null,
       status: 'completed',
       started_at: getPastTimestamp(7),
       current_stage: null,
@@ -1158,7 +1176,7 @@ export function getMockWorkflowDetail(id: string): WorkflowDetail | null {
 
   return {
     ...summary,
-    worktree_path: `/Users/amelia/worktrees/${summary.worktree_name}`,
+    worktree_path: summary.worktree_path,
     completed_at: completedAt,
     failure_reason: failureReason,
     token_usage: getTokenUsage(id, summary.issue_id),
