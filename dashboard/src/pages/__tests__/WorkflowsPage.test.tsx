@@ -295,4 +295,45 @@ describe('WorkflowsPage planning status', () => {
     // Should NOT show PLANNING heading (PlanningIndicator)
     expect(screen.queryByText('PLANNING')).not.toBeInTheDocument();
   });
+
+  it('should not block worktree for planning workflows', async () => {
+    // Scenario: One workflow is planning, another pending workflow is on the same worktree
+    // The pending workflow should still be able to start (planning doesn't block)
+    const pendingWorkflow: WorkflowSummary = {
+      id: 'wf-pending',
+      issue_id: 'ISSUE-789',
+      worktree_path: '/tmp/worktrees/repo',
+      profile: null,
+      status: 'pending',
+      created_at: '2025-12-07T09:00:00Z',
+      started_at: null,
+      current_stage: null,
+      total_cost_usd: null,
+      total_tokens: null,
+      total_duration_ms: null,
+    };
+    const pendingWorkflowDetail: WorkflowDetail = {
+      ...pendingWorkflow,
+      worktree_path: '/tmp/worktrees/repo',
+      completed_at: null,
+      failure_reason: null,
+      token_usage: null,
+      recent_events: [],
+      goal: null,
+      plan_markdown: null,
+      plan_path: null,
+    };
+
+    vi.mocked(useLoaderData).mockReturnValue({
+      workflows: [planningWorkflow, pendingWorkflow],
+      detail: pendingWorkflowDetail,
+      detailError: null,
+    });
+
+    renderWithRouter(<WorkflowsPage />);
+
+    // Start button should be enabled (planning workflow doesn't block the worktree)
+    const startButton = await screen.findByRole('button', { name: /start/i });
+    expect(startButton).not.toBeDisabled();
+  });
 });
