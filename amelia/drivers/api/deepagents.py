@@ -103,44 +103,41 @@ class LocalSandbox(FilesystemBackend, SandboxBackendProtocol):  # type: ignore[m
         return await asyncio.to_thread(self.execute, command)
 
 
-def _create_chat_model(model: str) -> BaseChatModel:
-    """Create a LangChain chat model, handling special provider prefixes.
-
-    Handles the 'openrouter:' prefix by configuring ChatOpenAI with OpenRouter's
-    base URL. OpenRouter provides an OpenAI-compatible API, so we use the openai
-    provider with a custom base_url.
+def _create_chat_model(model: str, provider: str | None = None) -> BaseChatModel:
+    """Create a LangChain chat model, handling provider configuration.
 
     Args:
-        model: Model identifier. Can be:
-            - 'openrouter:provider/model' - Routes through OpenRouter
-            - Any standard model string (e.g., 'gpt-4', 'claude-3-opus')
+        model: Model identifier (e.g., 'minimax/minimax-m2').
+        provider: Optional provider name. If 'openrouter', configures OpenRouter API.
 
     Returns:
         Configured BaseChatModel instance.
 
     Raises:
+        ValueError: If model contains 'openrouter:' prefix (use provider param instead).
         ValueError: If OpenRouter is requested but OPENROUTER_API_KEY is not set.
     """
     if model.startswith("openrouter:"):
-        # Extract the model name after 'openrouter:' prefix
-        openrouter_model = model[len("openrouter:") :]
+        raise ValueError(
+            "The 'openrouter:' prefix in model names is no longer supported. "
+            "Use driver='api:openrouter' with the model name directly "
+            f"(e.g., model='{model[len('openrouter:'):]}')."
+        )
 
+    if provider == "openrouter":
         api_key = os.environ.get("OPENROUTER_API_KEY")
         if not api_key:
             raise ValueError(
                 "OPENROUTER_API_KEY environment variable is required for OpenRouter models"
             )
 
-        # App attribution headers for OpenRouter rankings/analytics
-        # See: https://openrouter.ai/docs/app-attribution
         site_url = os.environ.get(
             "OPENROUTER_SITE_URL", "https://github.com/existential-birds/amelia"
         )
         site_name = os.environ.get("OPENROUTER_SITE_NAME", "Amelia")
 
-        # OpenRouter provides an OpenAI-compatible API
         return init_chat_model(
-            model=openrouter_model,
+            model=model,
             model_provider="openai",
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key,
@@ -150,7 +147,6 @@ def _create_chat_model(model: str) -> BaseChatModel:
             },
         )
 
-    # Default: let init_chat_model infer the provider
     return init_chat_model(model)
 
 
@@ -161,20 +157,28 @@ class ApiDriver(DriverInterface):
     Supports any model available through langchain's init_chat_model.
 
     Attributes:
-        model: The model identifier (e.g., 'openrouter:minimax/minimax-m2').
+        model: The model identifier (e.g., 'minimax/minimax-m2').
+        provider: The provider name (e.g., 'openrouter').
         cwd: Working directory for agentic execution.
     """
 
-    DEFAULT_MODEL = "openrouter:minimax/minimax-m2"
+    DEFAULT_MODEL = "minimax/minimax-m2"
 
-    def __init__(self, model: str | None = None, cwd: str | None = None):
+    def __init__(
+        self,
+        model: str | None = None,
+        cwd: str | None = None,
+        provider: str = "openrouter",
+    ):
         """Initialize the API driver.
 
         Args:
-            model: Model identifier for langchain (e.g., 'openrouter:minimax/minimax-m2').
+            model: Model identifier for langchain (e.g., 'minimax/minimax-m2').
             cwd: Working directory for agentic execution. Required for execute_agentic().
+            provider: Provider name (e.g., 'openrouter'). Defaults to 'openrouter'.
         """
         self.model = model or self.DEFAULT_MODEL
+        self.provider = provider
         self.cwd = cwd
         self._usage: DriverUsage | None = None
 
@@ -206,7 +210,7 @@ class ApiDriver(DriverInterface):
             raise ValueError("Prompt cannot be empty")
 
         try:
-            chat_model = _create_chat_model(self.model)
+            chat_model = _create_chat_model(self.model, provider=self.provider)
             # Use FilesystemBackend for non-agentic generation - no shell execution needed
             backend = FilesystemBackend(root_dir=self.cwd or ".")
 
@@ -323,7 +327,7 @@ class ApiDriver(DriverInterface):
         seen_message_ids: set[int] = set()
 
         try:
-            chat_model = _create_chat_model(self.model)
+            chat_model = _create_chat_model(self.model, provider=self.provider)
             backend = LocalSandbox(root_dir=cwd)
             agent = create_deep_agent(
                 model=chat_model,
