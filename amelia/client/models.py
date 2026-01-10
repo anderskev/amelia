@@ -14,6 +14,8 @@ class CreateWorkflowRequest(BaseModel):
         profile: Optional profile name from settings to use.
         task_title: Optional task title for noop tracker (bypasses issue lookup).
         task_description: Optional task description (requires task_title).
+        start: Whether to start workflow immediately (default True for backward compat).
+        plan_now: Whether to run Architect before queueing (requires start=False).
     """
 
     issue_id: str = Field(..., min_length=1, max_length=100)
@@ -22,6 +24,8 @@ class CreateWorkflowRequest(BaseModel):
     profile: str | None = Field(default=None, max_length=64)
     task_title: str | None = Field(default=None, max_length=500)
     task_description: str | None = Field(default=None, max_length=5000)
+    start: bool = True
+    plan_now: bool = False
 
 
 class CreateReviewWorkflowRequest(BaseModel):
@@ -122,3 +126,15 @@ class WorkflowListResponse(BaseModel):
     workflows: list[WorkflowSummary]
     total: int
     cursor: str | None = None
+
+
+class BatchStartResponse(BaseModel):
+    """Response from batch start operation.
+
+    Attributes:
+        started: Workflow IDs that were successfully started.
+        errors: Map of workflow_id to error message for failures.
+    """
+
+    started: list[str]
+    errors: dict[str, str]
