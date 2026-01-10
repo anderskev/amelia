@@ -24,10 +24,24 @@ def mock_event_bus() -> MagicMock:
 @pytest.fixture
 def mock_repository() -> MagicMock:
     """Create a mock repository."""
+    from amelia.server.models.state import ServerExecutionState
+
     repo = MagicMock()
-    repo.create = AsyncMock()
-    repo.get = AsyncMock(return_value=None)
-    repo.update = AsyncMock()
+    # Track the created workflow so get() can return it
+    created_workflow: dict[str, ServerExecutionState] = {}
+
+    async def mock_create(state: ServerExecutionState) -> None:
+        created_workflow[state.id] = state
+
+    async def mock_get(workflow_id: str) -> ServerExecutionState | None:
+        return created_workflow.get(workflow_id)
+
+    async def mock_update(state: ServerExecutionState) -> None:
+        created_workflow[state.id] = state
+
+    repo.create = AsyncMock(side_effect=mock_create)
+    repo.get = AsyncMock(side_effect=mock_get)
+    repo.update = AsyncMock(side_effect=mock_update)
     repo.save_event = AsyncMock()
     repo.get_max_event_sequence = AsyncMock(return_value=0)
     return repo

@@ -442,11 +442,15 @@ async def reject_workflow(
     return ActionResponse(status="rejected", workflow_id=workflow_id)
 
 
-@router.post("/{workflow_id}/start", status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/{workflow_id}/start",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ActionResponse,
+)
 async def start_workflow(
     workflow_id: str,
     orchestrator: OrchestratorService = Depends(get_orchestrator),
-) -> dict[str, str]:
+) -> ActionResponse:
     """Start a pending workflow.
 
     Transitions a workflow from pending to in_progress state and
@@ -461,16 +465,16 @@ async def start_workflow(
 
     Raises:
         WorkflowNotFoundError: If workflow doesn't exist (404).
-        InvalidStateError: If workflow is not in pending state (409).
+        InvalidStateError: If workflow is not in pending state (422 via global handler).
         WorkflowConflictError: If worktree already has an active workflow (409).
     """
     try:
         await orchestrator.start_pending_workflow(workflow_id)
         logger.info("Started pending workflow", workflow_id=workflow_id)
-        return {"workflow_id": workflow_id, "status": "started"}
+        return ActionResponse(workflow_id=workflow_id, status="started")
     except WorkflowNotFoundError as e:
         raise HTTPException(status_code=404, detail="Workflow not found") from e
-    except (InvalidStateError, WorkflowConflictError) as e:
+    except WorkflowConflictError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 

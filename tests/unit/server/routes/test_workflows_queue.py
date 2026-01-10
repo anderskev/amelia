@@ -156,7 +156,7 @@ class TestStartWorkflowEndpoint:
     def test_start_workflow_wrong_state(
         self, client: TestClient, mock_orchestrator: MagicMock
     ) -> None:
-        """Return 409 when workflow not pending."""
+        """Return 422 when workflow not pending (via global exception handler)."""
         mock_orchestrator.start_pending_workflow = AsyncMock(
             side_effect=InvalidStateError(
                 "Workflow is not in pending state",
@@ -167,7 +167,8 @@ class TestStartWorkflowEndpoint:
 
         response = client.post("/api/workflows/wf-running/start")
 
-        assert response.status_code == 409
+        # InvalidStateError is handled by global handler returning 422
+        assert response.status_code == 422
 
     def test_start_workflow_worktree_conflict(
         self, client: TestClient, mock_orchestrator: MagicMock

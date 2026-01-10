@@ -358,9 +358,10 @@ class OrchestratorService:
             InvalidWorktreeError: If path doesn't exist, isn't a directory,
                 or isn't a git repository.
         """
-        # Resolve to canonical form FIRST - this prevents path traversal attacks
-        # by converting paths like "/safe/../unsafe" to their real location
-        worktree = Path(worktree_path).resolve()
+        # Expand ~ and resolve to canonical form FIRST - this prevents path
+        # traversal attacks by converting paths like "/safe/../unsafe" to their
+        # real location
+        worktree = Path(worktree_path).expanduser().resolve()
 
         # Now validate the RESOLVED path
         if not worktree.exists():
@@ -669,7 +670,7 @@ class OrchestratorService:
         """
         # Validate and resolve worktree path securely
         # Note: review workflow doesn't require .git, so we do minimal validation
-        worktree = Path(worktree_path).resolve()
+        worktree = Path(worktree_path).expanduser().resolve()
         if not worktree.exists() or not worktree.is_dir():
             raise InvalidWorktreeError(str(worktree), "directory does not exist")
         resolved_path = str(worktree)
@@ -2099,10 +2100,30 @@ class OrchestratorService:
                     self._event_bus.emit(event)
 
             if final_state is not None:
-                # Update state with plan
-                state.execution_state = final_state
-                state.planned_at = datetime.now(UTC)
-                await self._repository.update(state)
+                # Re-fetch the latest state to avoid clobbering concurrent updates
+                # (e.g., if start_pending_workflow set started_at)
+                fresh = await self._repository.get(workflow_id)
+                if fresh is None:
+                    logger.warning(
+                        "Workflow deleted during planning",
+                        workflow_id=workflow_id,
+                    )
+                    return
+
+                # Only update if workflow is still pending - avoid overwriting
+                # status/started_at if the workflow was started concurrently
+                if fresh.workflow_status != "pending":
+                    logger.info(
+                        "Planning finished but workflow is no longer pending; skipping plan write",
+                        workflow_id=workflow_id,
+                        workflow_status=fresh.workflow_status,
+                    )
+                    return
+
+                # Update state with plan on the fresh snapshot
+                fresh.execution_state = final_state
+                fresh.planned_at = datetime.now(UTC)
+                await self._repository.update(fresh)
 
                 await self._emit(
                     workflow_id,
@@ -2118,7 +2139,7 @@ class OrchestratorService:
                 logger.info(
                     "Workflow queued with plan",
                     workflow_id=workflow_id,
-                    issue_id=state.issue_id,
+                    issue_id=fresh.issue_id,
                     goal=final_state.goal[:100] if final_state.goal else None,
                 )
             else:
@@ -2128,11 +2149,24 @@ class OrchestratorService:
                     workflow_id=workflow_id,
                 )
 
+        except asyncio.CancelledError:
+            # Don't treat cancellation (e.g., during shutdown) as a failure
+            logger.info("Planning task cancelled", workflow_id=workflow_id)
+            raise
         except Exception as e:
-            # Mark workflow as failed
-            state.workflow_status = "failed"
-            state.failure_reason = f"Planning failed: {e}"
-            await self._repository.update(state)
+            # Mark workflow as failed using fresh state
+            try:
+                fresh = await self._repository.get(workflow_id)
+                if fresh is not None and fresh.workflow_status == "pending":
+                    fresh.workflow_status = "failed"
+                    fresh.failure_reason = f"Planning failed: {e}"
+                    await self._repository.update(fresh)
+            except Exception as update_err:
+                logger.error(
+                    "Failed to mark workflow as failed",
+                    workflow_id=workflow_id,
+                    error=str(update_err),
+                )
 
             await self._emit(
                 workflow_id,
@@ -2393,6 +2427,9 @@ class OrchestratorService:
             try:
                 await self.start_pending_workflow(workflow_id)
                 started.append(workflow_id)
+            except asyncio.CancelledError:
+                # Don't swallow cancellation (e.g., during shutdown)
+                raise
             except Exception as e:
                 errors[workflow_id] = str(e)
                 logger.warning(

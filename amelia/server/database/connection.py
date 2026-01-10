@@ -358,8 +358,12 @@ class Database:
         # Note: 'pending' is intentionally excluded - multiple pending workflows
         # are allowed per worktree (per queue workflows design doc). Only
         # in_progress and blocked workflows must be unique per worktree.
+        #
+        # Drop and recreate to ensure predicate is correct on upgraded DBs.
+        # Older versions may have had 'pending' in the predicate.
+        await self.execute("DROP INDEX IF EXISTS idx_workflows_active_worktree")
         await self.execute("""
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_workflows_active_worktree
+            CREATE UNIQUE INDEX idx_workflows_active_worktree
                 ON workflows(worktree_path)
                 WHERE status IN ('in_progress', 'blocked')
         """)

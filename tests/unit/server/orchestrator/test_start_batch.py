@@ -173,7 +173,10 @@ class TestStartBatchWorkflows:
 
         assert response.started == ["wf-1"]
         assert "wf-2" in response.errors
-        assert "active" in response.errors["wf-2"].lower() or "workflow" in response.errors["wf-2"].lower()
+        # Check for stable substrings from WorkflowConflictError("/repo", "wf-1")
+        err = response.errors["wf-2"]
+        assert "/repo" in err
+        assert "wf-1" in err
 
     @pytest.mark.asyncio
     async def test_start_batch_empty_result(
