@@ -21,12 +21,14 @@ from amelia.server.exceptions import (
     WorkflowNotFoundError,
 )
 from amelia.server.models.requests import (
+    BatchStartRequest,
     CreateReviewWorkflowRequest,
     CreateWorkflowRequest,
     RejectRequest,
 )
 from amelia.server.models.responses import (
     ActionResponse,
+    BatchStartResponse,
     CreateWorkflowResponse,
     ErrorResponse,
     WorkflowDetailResponse,
@@ -60,17 +62,26 @@ async def create_workflow(
         ConcurrencyLimitError: If concurrent workflow limit is reached.
     """
     # Let orchestrator handle everything - it will raise appropriate exceptions
-    workflow_id = await orchestrator.start_workflow(
-        issue_id=request.issue_id,
-        worktree_path=request.worktree_path,
-        worktree_name=request.worktree_name,
-        profile=request.profile,
-        driver=request.driver,
-        task_title=request.task_title,
-        task_description=request.task_description,
-    )
+    # Choose method based on start/plan_now flags
+    if request.start:
+        # Immediate execution (existing behavior)
+        workflow_id = await orchestrator.start_workflow(
+            issue_id=request.issue_id,
+            worktree_path=request.worktree_path,
+            worktree_name=request.worktree_name,
+            profile=request.profile,
+            driver=request.driver,
+            task_title=request.task_title,
+            task_description=request.task_description,
+        )
+    elif request.plan_now:
+        # Queue with planning (run Architect, then queue)
+        workflow_id = await orchestrator.queue_and_plan_workflow(request)
+    else:
+        # Queue without planning
+        workflow_id = await orchestrator.queue_workflow(request)
 
-    logger.info("Created workflow", workflow_id=workflow_id, issue_id=request.issue_id)
+    logger.info("Created workflow", workflow_id=workflow_id, issue_id=request.issue_id, start=request.start, plan_now=request.plan_now)
 
     return CreateWorkflowResponse(
         id=workflow_id,
@@ -264,6 +275,26 @@ async def list_active_workflows(
     )
 
 
+@router.post("/start-batch", response_model=BatchStartResponse)
+async def start_batch(
+    request: BatchStartRequest,
+    orchestrator: OrchestratorService = Depends(get_orchestrator),
+) -> BatchStartResponse:
+    """Start multiple pending workflows.
+
+    Starts workflows sequentially, respecting concurrency limits.
+    Partial success is possible.
+
+    Args:
+        request: Batch start request with optional workflow_ids filter.
+        orchestrator: Orchestrator service dependency.
+
+    Returns:
+        BatchStartResponse with started IDs and errors.
+    """
+    return await orchestrator.start_batch_workflows(request)
+
+
 @router.get("/{workflow_id}", response_model=WorkflowDetailResponse)
 async def get_workflow(
     workflow_id: str,
@@ -403,6 +434,38 @@ async def reject_workflow(
     await orchestrator.reject_workflow(workflow_id, request.feedback)
     logger.info("Rejected workflow", workflow_id=workflow_id, feedback=request.feedback)
     return ActionResponse(status="rejected", workflow_id=workflow_id)
+
+
+@router.post("/{workflow_id}/start", status_code=status.HTTP_202_ACCEPTED)
+async def start_workflow(
+    workflow_id: str,
+    orchestrator: OrchestratorService = Depends(get_orchestrator),
+) -> dict[str, str]:
+    """Start a pending workflow.
+
+    Transitions a workflow from pending to in_progress state and
+    spawns an execution task.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+        orchestrator: Orchestrator service dependency.
+
+    Returns:
+        202 Accepted with workflow_id and status.
+
+    Raises:
+        WorkflowNotFoundError: If workflow doesn't exist (404).
+        InvalidStateError: If workflow is not in pending state (409).
+        WorkflowConflictError: If worktree already has an active workflow (409).
+    """
+    try:
+        await orchestrator.start_pending_workflow(workflow_id)
+        logger.info("Started pending workflow", workflow_id=workflow_id)
+        return {"workflow_id": workflow_id, "status": "started"}
+    except WorkflowNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Workflow not found") from e
+    except (InvalidStateError, WorkflowConflictError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 def configure_exception_handlers(app: FastAPI) -> None:
