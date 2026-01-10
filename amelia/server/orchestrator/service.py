@@ -2155,3 +2155,89 @@ class OrchestratorService:
             )
 
         return workflow_id
+
+    async def start_pending_workflow(self, workflow_id: str) -> None:
+        """Start a pending workflow.
+
+        Transitions a workflow from pending to in_progress state and
+        spawns an execution task. Enforces single workflow per worktree
+        and global concurrency limits.
+
+        Args:
+            workflow_id: The workflow ID to start.
+
+        Raises:
+            WorkflowNotFoundError: If workflow doesn't exist.
+            InvalidStateError: If workflow is not in pending state.
+            WorkflowConflictError: If worktree already has an active workflow.
+            ConcurrencyLimitError: If at max concurrent workflows.
+        """
+        async with self._start_lock:
+            # Get workflow from repository
+            workflow = await self._repository.get(workflow_id)
+            if not workflow:
+                raise WorkflowNotFoundError(workflow_id)
+
+            # Validate workflow is in pending state
+            if workflow.workflow_status != "pending":
+                raise InvalidStateError(
+                    f"Cannot start workflow in '{workflow.workflow_status}' state",
+                    workflow_id=workflow_id,
+                    current_status=workflow.workflow_status,
+                )
+
+            # Check for worktree conflict - another active workflow on same worktree
+            active_on_worktree = await self._repository.get_by_worktree(
+                workflow.worktree_path
+            )
+            if active_on_worktree and active_on_worktree.id != workflow_id:
+                raise WorkflowConflictError(
+                    workflow.worktree_path, active_on_worktree.id
+                )
+
+            # Also check in-memory tasks for worktree conflict
+            if workflow.worktree_path in self._active_tasks:
+                existing_id, _ = self._active_tasks[workflow.worktree_path]
+                raise WorkflowConflictError(workflow.worktree_path, existing_id)
+
+            # Check concurrency limit
+            current_count = len(self._active_tasks)
+            if current_count >= self._max_concurrent:
+                raise ConcurrencyLimitError(self._max_concurrent, current_count)
+
+            # Update workflow state to in_progress
+            workflow.workflow_status = "in_progress"
+            workflow.started_at = datetime.now(UTC)
+            await self._repository.update(workflow)
+
+            logger.info(
+                "Starting pending workflow",
+                workflow_id=workflow_id,
+                issue_id=workflow.issue_id,
+                worktree_path=workflow.worktree_path,
+            )
+
+            # Spawn execution task
+            task = asyncio.create_task(
+                self._run_workflow_with_retry(workflow_id, workflow)
+            )
+            self._active_tasks[workflow.worktree_path] = (workflow_id, task)
+
+        # Remove from active tasks on completion (same pattern as start_workflow)
+        def cleanup_task(_: asyncio.Task[None]) -> None:
+            """Clean up resources when workflow task completes.
+
+            Args:
+                _: The completed asyncio Task (unused).
+            """
+            self._active_tasks.pop(workflow.worktree_path, None)
+            self._sequence_counters.pop(workflow_id, None)
+            self._sequence_locks.pop(workflow_id, None)
+            self._approval_events.pop(workflow_id, None)
+            logger.debug(
+                "Workflow task completed",
+                workflow_id=workflow_id,
+                worktree_path=workflow.worktree_path,
+            )
+
+        task.add_done_callback(cleanup_task)
