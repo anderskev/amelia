@@ -123,6 +123,7 @@ class OrchestratorService:
         expanded_path.parent.mkdir(parents=True, exist_ok=True)
         self._checkpoint_path = str(expanded_path)
         self._active_tasks: dict[str, tuple[str, asyncio.Task[None]]] = {}  # worktree_path -> (workflow_id, task)
+        self._planning_tasks: dict[str, asyncio.Task[None]] = {}  # workflow_id -> planning task
         self._approval_events: dict[str, asyncio.Event] = {}  # workflow_id -> event
         self._approval_lock = asyncio.Lock()  # Prevents race conditions on approvals
         self._start_lock = asyncio.Lock()  # Prevents race conditions on workflow start
@@ -809,6 +810,12 @@ class OrchestratorService:
                 task.cancel()
                 with contextlib.suppress(TimeoutError, asyncio.CancelledError):
                     await asyncio.wait_for(task, timeout=timeout)
+
+        # Cancel any active planning tasks
+        for _workflow_id, task in list(self._planning_tasks.items()):
+            task.cancel()
+            with contextlib.suppress(TimeoutError, asyncio.CancelledError):
+                await asyncio.wait_for(task, timeout=timeout)
 
         # Flush any buffered audit events during graceful shutdown
         await flush_exporters()
@@ -2038,6 +2045,91 @@ class OrchestratorService:
         driver = get_driver(profile.driver, model=profile.model)
         return Architect(driver=driver, event_bus=self._event_bus, prompts=prompts)
 
+    async def _run_planning_task(
+        self,
+        workflow_id: str,
+        state: ServerExecutionState,
+        execution_state: ExecutionState,
+        profile: Profile,
+    ) -> None:
+        """Background task to run Architect and generate plan.
+
+        Updates the workflow with the generated plan or marks it as failed
+        if planning fails.
+
+        Args:
+            workflow_id: The workflow ID being planned.
+            state: The server execution state to update.
+            execution_state: The execution state for the architect.
+            profile: The profile with driver configuration.
+        """
+        # Resolve prompts for architect
+        prompts = await self._resolve_prompts(workflow_id)
+
+        try:
+            architect = self._create_architect_for_planning(profile, prompts)
+
+            # Run architect and collect the final state
+            final_state: ExecutionState | None = None
+            async for updated_state, event in architect.plan(
+                state=execution_state,
+                profile=profile,
+                workflow_id=workflow_id,
+            ):
+                final_state = updated_state
+                # Emit events from architect as they come
+                if event:
+                    self._event_bus.emit(event)
+
+            if final_state is not None:
+                # Update state with plan
+                state.execution_state = final_state
+                state.planned_at = datetime.now(UTC)
+                await self._repository.update(state)
+
+                await self._emit(
+                    workflow_id,
+                    EventType.STAGE_COMPLETED,
+                    "Plan generated, workflow queued for execution",
+                    agent="architect",
+                    data={
+                        "plan_ready": True,
+                        "goal": final_state.goal,
+                    },
+                )
+
+                logger.info(
+                    "Workflow queued with plan",
+                    workflow_id=workflow_id,
+                    issue_id=state.issue_id,
+                    goal=final_state.goal[:100] if final_state.goal else None,
+                )
+            else:
+                # Architect didn't yield any state (shouldn't happen)
+                logger.warning(
+                    "Architect completed without yielding state",
+                    workflow_id=workflow_id,
+                )
+
+        except Exception as e:
+            # Mark workflow as failed
+            state.workflow_status = "failed"
+            state.failure_reason = f"Planning failed: {e}"
+            await self._repository.update(state)
+
+            await self._emit(
+                workflow_id,
+                EventType.WORKFLOW_FAILED,
+                f"Planning failed: {e}",
+                data={"error": str(e)},
+            )
+
+            logger.error(
+                "Planning task failed",
+                workflow_id=workflow_id,
+                error=str(e),
+            )
+
     async def queue_and_plan_workflow(
         self,
         request: CreateWorkflowRequest,
@@ -2144,79 +2236,23 @@ class OrchestratorService:
         )
 
         logger.info(
-            "Workflow queued, starting planning",
+            "Workflow queued, spawning planning task",
             workflow_id=workflow_id,
             issue_id=request.issue_id,
             worktree=worktree_name,
         )
 
-        # Resolve prompts for architect
-        prompts = await self._resolve_prompts(workflow_id)
+        # Spawn planning task in background (non-blocking)
+        task = asyncio.create_task(
+            self._run_planning_task(workflow_id, state, execution_state, profile)
+        )
+        self._planning_tasks[workflow_id] = task
 
-        # Run Architect to generate plan
-        try:
-            architect = self._create_architect_for_planning(profile, prompts)
+        # Cleanup on completion
+        def cleanup_planning(_: asyncio.Task[None]) -> None:
+            self._planning_tasks.pop(workflow_id, None)
 
-            # Run architect and collect the final state
-            final_state: ExecutionState | None = None
-            async for updated_state, event in architect.plan(
-                state=execution_state,
-                profile=profile,
-                workflow_id=workflow_id,
-            ):
-                final_state = updated_state
-                # Emit events from architect as they come
-                if event:
-                    self._event_bus.emit(event)
-
-            if final_state is not None:
-                # Update state with plan
-                state.execution_state = final_state
-                state.planned_at = datetime.now(UTC)
-                await self._repository.update(state)
-
-                await self._emit(
-                    workflow_id,
-                    EventType.STAGE_COMPLETED,
-                    "Plan generated, workflow queued for execution",
-                    agent="architect",
-                    data={
-                        "plan_ready": True,
-                        "goal": final_state.goal,
-                    },
-                )
-
-                logger.info(
-                    "Workflow queued with plan",
-                    workflow_id=workflow_id,
-                    issue_id=request.issue_id,
-                    goal=final_state.goal[:100] if final_state.goal else None,
-                )
-            else:
-                # Architect didn't yield any state (shouldn't happen)
-                logger.warning(
-                    "Architect completed without yielding state",
-                    workflow_id=workflow_id,
-                )
-
-        except Exception as e:
-            # Mark workflow as failed
-            state.workflow_status = "failed"
-            state.failure_reason = f"Planning failed: {e}"
-            await self._repository.update(state)
-
-            await self._emit(
-                workflow_id,
-                EventType.WORKFLOW_FAILED,
-                f"Planning failed: {e}",
-                data={"error": str(e)},
-            )
-
-            logger.error(
-                "Queue and plan failed",
-                workflow_id=workflow_id,
-                error=str(e),
-            )
+        task.add_done_callback(cleanup_planning)
 
         return workflow_id
 

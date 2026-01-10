@@ -1,5 +1,6 @@
 """Tests for queue_and_plan_workflow orchestrator method."""
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -135,6 +136,10 @@ class TestQueueAndPlanWorkflow:
 
             workflow_id = await orchestrator.queue_and_plan_workflow(request)
 
+            # Wait for the background planning task to complete
+            if workflow_id in orchestrator._planning_tasks:
+                await orchestrator._planning_tasks[workflow_id]
+
         assert workflow_id is not None
 
         # Check state was saved with plan and planned_at
@@ -203,9 +208,13 @@ class TestQueueAndPlanWorkflow:
             )
             mock_create_tracker.return_value = mock_tracker
 
-            await orchestrator.queue_and_plan_workflow(request)
+            workflow_id = await orchestrator.queue_and_plan_workflow(request)
 
-        # No active task spawned
+            # Wait for the background planning task to complete
+            if workflow_id in orchestrator._planning_tasks:
+                await orchestrator._planning_tasks[workflow_id]
+
+        # No active workflow task spawned (planning task is separate)
         assert len(orchestrator._active_tasks) == 0
 
     @pytest.mark.asyncio
@@ -248,6 +257,10 @@ class TestQueueAndPlanWorkflow:
             mock_create_tracker.return_value = mock_tracker
 
             workflow_id = await orchestrator.queue_and_plan_workflow(request)
+
+            # Wait for the background planning task to complete
+            if workflow_id in orchestrator._planning_tasks:
+                await orchestrator._planning_tasks[workflow_id]
 
         assert workflow_id is not None
 
@@ -313,7 +326,11 @@ class TestQueueAndPlanWorkflow:
             )
             mock_create_tracker.return_value = mock_tracker
 
-            await orchestrator.queue_and_plan_workflow(request)
+            workflow_id = await orchestrator.queue_and_plan_workflow(request)
+
+            # Wait for the background planning task to complete
+            if workflow_id in orchestrator._planning_tasks:
+                await orchestrator._planning_tasks[workflow_id]
 
         # Should have emitted events (workflow_created, plan events, etc.)
         assert mock_event_bus.emit.called
@@ -335,3 +352,66 @@ class TestQueueAndPlanWorkflow:
 
         with pytest.raises(InvalidWorktreeError):
             await orchestrator.queue_and_plan_workflow(request)
+
+    @pytest.mark.asyncio
+    async def test_queue_and_plan_returns_immediately(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: MagicMock,
+        valid_worktree: str,
+    ) -> None:
+        """queue_and_plan_workflow returns immediately, planning runs in background."""
+        request = CreateWorkflowRequest(
+            issue_id="ISSUE-123",
+            worktree_path=valid_worktree,
+            task_title="Test task",
+            start=False,
+            plan_now=True,
+        )
+
+        # Use an event to track when planning starts
+        planning_started = asyncio.Event()
+        planning_complete = asyncio.Event()
+
+        mock_architect = MagicMock()
+
+        async def slow_plan_gen(*args, **kwargs):
+            """Mock async generator that signals when planning starts."""
+            planning_started.set()
+            # Wait to simulate slow planning
+            await planning_complete.wait()
+            state = ExecutionState(
+                profile_id="test",
+                issue=Issue(id="ISSUE-123", title="Test", description="Test desc"),
+                goal="Implement the test feature",
+                plan_markdown="# Plan",
+            )
+            yield state, None
+
+        mock_architect.plan = slow_plan_gen
+
+        with patch.object(
+            orchestrator, "_create_architect_for_planning", return_value=mock_architect
+        ):
+            # This should return immediately before planning completes
+            workflow_id = await orchestrator.queue_and_plan_workflow(request)
+
+            # Method returned - planning hasn't started yet or is just starting
+            assert workflow_id is not None
+            mock_repository.create.assert_called_once()
+
+            # Planning should start in background
+            await asyncio.wait_for(planning_started.wait(), timeout=1.0)
+
+            # But update shouldn't have been called yet since planning is blocked
+            mock_repository.update.assert_not_called()
+
+            # Let planning complete
+            planning_complete.set()
+
+            # Wait for the background task to finish
+            if workflow_id in orchestrator._planning_tasks:
+                await orchestrator._planning_tasks[workflow_id]
+
+            # Now update should have been called
+            mock_repository.update.assert_called_once()
