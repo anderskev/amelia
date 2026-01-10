@@ -1,6 +1,5 @@
 """Tests for queue_workflow orchestrator method."""
 
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
