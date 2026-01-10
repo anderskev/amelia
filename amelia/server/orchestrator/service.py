@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 import yaml
@@ -43,6 +43,10 @@ from amelia.server.models import ServerExecutionState
 from amelia.server.models.events import EventType, WorkflowEvent
 from amelia.server.models.requests import CreateWorkflowRequest
 from amelia.trackers.factory import create_tracker
+
+
+if TYPE_CHECKING:
+    from amelia.agents.architect import Architect
 
 
 # Nodes that emit stage events
@@ -1949,3 +1953,205 @@ class OrchestratorService:
         # TODO: Query for workflows with status=in_progress or blocked
         # and mark them as failed with appropriate reason
         logger.info("No interrupted workflows to recover")
+
+    def _create_architect_for_planning(
+        self,
+        profile: Profile,
+        prompts: dict[str, str] | None = None,
+    ) -> "Architect":
+        """Create an Architect instance for plan generation.
+
+        Args:
+            profile: Profile with driver configuration.
+            prompts: Optional custom prompts for the architect.
+
+        Returns:
+            Configured Architect instance.
+        """
+        from amelia.agents.architect import Architect  # noqa: PLC0415
+        from amelia.drivers.factory import get_driver  # noqa: PLC0415
+
+        driver = get_driver(profile.driver, model=profile.model)
+        return Architect(driver=driver, event_bus=self._event_bus, prompts=prompts)
+
+    async def queue_and_plan_workflow(
+        self,
+        request: CreateWorkflowRequest,
+    ) -> str:
+        """Queue a workflow and run Architect to generate plan.
+
+        Creates workflow, runs Architect to generate plan, stores plan,
+        then leaves workflow in pending state for manual start.
+
+        Args:
+            request: Workflow creation request with start=False, plan_now=True.
+
+        Returns:
+            The workflow ID.
+
+        Raises:
+            InvalidWorktreeError: If worktree doesn't exist or isn't a git repo.
+            ValueError: If settings are invalid or profile not found.
+        """
+        # Validate worktree before proceeding
+        worktree = Path(request.worktree_path)
+        if not worktree.exists():
+            raise InvalidWorktreeError(request.worktree_path, "directory does not exist")
+        if not worktree.is_dir():
+            raise InvalidWorktreeError(request.worktree_path, "path is not a directory")
+        git_path = worktree / ".git"
+        if not git_path.exists():
+            raise InvalidWorktreeError(request.worktree_path, "not a git repository (.git missing)")
+
+        # Load settings from worktree (required - no fallback)
+        try:
+            settings = self._load_settings_for_worktree(request.worktree_path)
+        except ValidationError as e:
+            raise ValueError(
+                f"Invalid settings.amelia.yaml in {request.worktree_path}: {e}"
+            ) from e
+        if settings is None:
+            raise ValueError(
+                f"No settings.amelia.yaml found in {request.worktree_path}. "
+                "Each worktree must have its own settings file."
+            )
+
+        # Load the profile (use provided profile name or active profile as fallback)
+        profile_name = request.profile or settings.active_profile
+        if profile_name not in settings.profiles:
+            raise ValueError(f"Profile '{profile_name}' not found in settings")
+        profile = settings.profiles[profile_name]
+
+        # ALWAYS set working_dir to worktree_path for agent execution
+        profile = profile.model_copy(update={"working_dir": request.worktree_path})
+
+        # Generate workflow ID
+        workflow_id = str(uuid4())
+        worktree_name = request.worktree_name or worktree.name
+
+        # Fetch issue from tracker (or construct from task_title)
+        if request.task_title is not None:
+            # Validate that tracker is noop when using task_title
+            if profile.tracker not in ("noop", "none"):
+                raise ValueError(
+                    f"task_title can only be used with noop tracker, "
+                    f"but profile '{profile.name}' uses tracker '{profile.tracker}'"
+                )
+            issue = Issue(
+                id=request.issue_id,
+                title=request.task_title,
+                description=request.task_description or request.task_title,
+            )
+        else:
+            # Fetch issue from tracker
+            tracker = create_tracker(profile)
+            issue = tracker.get_issue(request.issue_id, cwd=request.worktree_path)
+
+        # Get current HEAD to track changes
+        base_commit = await get_git_head(request.worktree_path)
+
+        # Create initial ExecutionState
+        execution_state = ExecutionState(
+            profile_id=profile.name,
+            issue=issue,
+            base_commit=base_commit,
+        )
+
+        # Create ServerExecutionState in pending status (not started)
+        state = ServerExecutionState(
+            id=workflow_id,
+            issue_id=request.issue_id,
+            worktree_path=request.worktree_path,
+            worktree_name=worktree_name,
+            execution_state=execution_state,
+            workflow_status="pending",
+            # Note: started_at is None - workflow hasn't started yet
+        )
+
+        # Save initial state
+        await self._repository.create(state)
+
+        # Emit workflow created event
+        await self._emit(
+            workflow_id,
+            EventType.WORKFLOW_CREATED,
+            f"Workflow queued for {request.issue_id}, planning...",
+            data={"issue_id": request.issue_id, "queued": True, "planning": True},
+        )
+
+        logger.info(
+            "Workflow queued, starting planning",
+            workflow_id=workflow_id,
+            issue_id=request.issue_id,
+            worktree=worktree_name,
+        )
+
+        # Resolve prompts for architect
+        prompts = await self._resolve_prompts(workflow_id)
+
+        # Run Architect to generate plan
+        try:
+            architect = self._create_architect_for_planning(profile, prompts)
+
+            # Run architect and collect the final state
+            final_state: ExecutionState | None = None
+            async for updated_state, event in architect.plan(
+                state=execution_state,
+                profile=profile,
+                workflow_id=workflow_id,
+            ):
+                final_state = updated_state
+                # Emit events from architect as they come
+                if event:
+                    self._event_bus.emit(event)
+
+            if final_state is not None:
+                # Update state with plan
+                state.execution_state = final_state
+                state.planned_at = datetime.now(UTC)
+                await self._repository.update(state)
+
+                await self._emit(
+                    workflow_id,
+                    EventType.STAGE_COMPLETED,
+                    "Plan generated, workflow queued for execution",
+                    agent="architect",
+                    data={
+                        "plan_ready": True,
+                        "goal": final_state.goal,
+                    },
+                )
+
+                logger.info(
+                    "Workflow queued with plan",
+                    workflow_id=workflow_id,
+                    issue_id=request.issue_id,
+                    goal=final_state.goal[:100] if final_state.goal else None,
+                )
+            else:
+                # Architect didn't yield any state (shouldn't happen)
+                logger.warning(
+                    "Architect completed without yielding state",
+                    workflow_id=workflow_id,
+                )
+
+        except Exception as e:
+            # Mark workflow as failed
+            state.workflow_status = "failed"
+            state.failure_reason = f"Planning failed: {e}"
+            await self._repository.update(state)
+
+            await self._emit(
+                workflow_id,
+                EventType.WORKFLOW_FAILED,
+                f"Planning failed: {e}",
+                data={"error": str(e)},
+            )
+
+            logger.error(
+                "Queue and plan failed",
+                workflow_id=workflow_id,
+                error=str(e),
+            )
+
+        return workflow_id
