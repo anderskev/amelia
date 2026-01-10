@@ -1,6 +1,5 @@
 """Reviewer agent for code review in the Amelia orchestrator."""
 
-import asyncio
 import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
@@ -95,38 +94,16 @@ class StructuredReviewResult(BaseModel):
     verdict: Literal["approved", "needs_fixes", "blocked"]
 
 
-class ReviewResponse(BaseModel):
-    """Schema for LLM-generated review response.
-
-    Attributes:
-        approved: Whether the code changes are acceptable and meet requirements.
-        comments: List of specific feedback items and suggestions.
-        severity: Overall severity of review findings (low, medium, high).
-
-    """
-
-    approved: bool = Field(description="Whether the changes are acceptable.")
-    comments: list[str] = Field(description="Specific feedback items.")
-    severity: Severity = Field(description="Overall severity of the review findings.")
-
-
 class Reviewer:
     """Agent responsible for reviewing code changes against requirements.
 
     Review Methods:
-        review(): Entry point - dispatches to single or competitive based on profile.strategy.
-        _single_review(): Single reviewer with specified persona. Returns ReviewResult.
-        _competitive_review(): Multiple reviewers in parallel with aggregated verdict.
         agentic_review(): Auto-detects technologies, loads review skills, fetches diff via git.
-            Best for large diffs that exceed CLI argument limits.
 
     Attributes:
         driver: LLM driver interface for generating reviews.
 
     """
-
-    SYSTEM_PROMPT_TEMPLATE = """You are an expert code reviewer with a focus on {persona} aspects.
-Analyze the provided code changes and provide a comprehensive review."""
 
     AGENTIC_REVIEW_PROMPT = """You are an expert code reviewer. Your task is to review code changes using the appropriate review skills.
 
@@ -199,8 +176,6 @@ Rationale: [1-2 sentences]
 - Only flag real issues - check linters first before flagging style issues
 - "Ready: Yes" means approved to merge as-is"""
 
-    DEFAULT_PERSONAS: list[str] = ["Security", "Performance", "Usability"]
-
     def __init__(
         self,
         driver: DriverInterface,
@@ -214,7 +189,7 @@ Rationale: [1-2 sentences]
             driver: LLM driver interface for generating reviews.
             event_bus: Optional EventBus for emitting workflow events.
             prompts: Optional dict mapping prompt IDs to custom content.
-                Supports keys: "reviewer.template", "reviewer.agentic".
+                Supports key: "reviewer.agentic".
             agent_name: Name used in logs/events. Use "task_reviewer" for task-based
                 execution to distinguish from final review.
 
@@ -223,10 +198,6 @@ Rationale: [1-2 sentences]
         self._event_bus = event_bus
         self._prompts = prompts or {}
         self._agent_name = agent_name
-
-    @property
-    def template_prompt(self) -> str:
-        return self._prompts.get("reviewer.template", self.SYSTEM_PROMPT_TEMPLATE)
 
     @property
     def agentic_prompt(self) -> str:
@@ -257,44 +228,6 @@ Rationale: [1-2 sentences]
                 return "\n\n".join(issue_parts)
 
         return None
-
-    def _handle_empty_changes(
-        self,
-        workflow_id: str,
-        method: str,
-        persona: str | None = None,
-    ) -> None:
-        """Log and emit event for empty code changes.
-
-        Args:
-            workflow_id: Workflow ID for stream events.
-            method: The review method name for logging context.
-            persona: Optional persona name (for single review).
-
-        """
-        log_kwargs: dict[str, str] = {
-            "agent": "reviewer",
-            "workflow_id": workflow_id,
-        }
-        if persona:
-            log_kwargs["persona"] = persona
-        else:
-            log_kwargs["method"] = method
-
-        logger.warning("No code changes to review, auto-approving", **log_kwargs)
-
-        if self._event_bus is not None:
-            event = WorkflowEvent(
-                id=str(uuid4()),
-                workflow_id=workflow_id,
-                sequence=0,
-                timestamp=datetime.now(UTC),
-                agent=self._agent_name,
-                event_type=EventType.AGENT_OUTPUT,
-                level=EventLevel.TRACE,
-                message="No code changes to review - auto-approved",
-            )
-            self._event_bus.emit(event)
 
     def _emit_review_completion(
         self,
@@ -340,205 +273,6 @@ Rationale: [1-2 sentences]
             message="\n".join(content_parts),
         )
         self._event_bus.emit(event)
-
-    def _build_prompt(
-        self,
-        state: ExecutionState,
-        base_commit: str | None = None,
-        code_changes: str | None = None,
-    ) -> str:
-        """Build the user prompt for review from state.
-
-        Args:
-            state: Current execution state containing task and issue context.
-            base_commit: Git commit hash to diff against. If provided, the agent
-                will fetch the diff using git tools.
-            code_changes: Pre-computed code changes. If provided, these are included
-                directly in the prompt (legacy mode for smaller diffs).
-
-        Returns:
-            Formatted user prompt string for the reviewer.
-
-        Raises:
-            ValueError: If no task or issue context is found for review.
-
-        """
-        parts: list[str] = []
-
-        # Get context for what was supposed to be done
-        task_context = self._extract_task_context(state)
-        if task_context:
-            # Determine header based on source (goal vs issue)
-            header = "## Task" if state.goal else "## Issue"
-            parts.append(f"{header}\n\n{task_context}")
-
-        if not parts:
-            raise ValueError("No task or issue context found for review")
-
-        # Add instructions for getting the diff
-        if base_commit:
-            parts.append(f"""## Instructions
-
-1. First, run `git diff {base_commit}` to get the code changes to review
-2. Analyze the diff carefully against the task requirements
-3. Provide your review in the required JSON format""")
-        elif code_changes:
-            # Legacy mode: code changes provided directly
-            parts.append(f"## Diff\n\n```diff\n{code_changes}\n```")
-
-        return "\n\n".join(parts)
-
-    async def review(
-        self,
-        state: ExecutionState,
-        code_changes: str,
-        profile: Profile,
-        *,
-        workflow_id: str,
-    ) -> tuple[ReviewResult, str | None]:
-        """Review code changes in context of execution state and issue.
-
-        Selects single or competitive review strategy based on profile settings.
-
-        Args:
-            state: Current execution state containing issue context.
-            code_changes: Diff or description of code changes to review.
-            profile: The profile containing review strategy settings.
-            workflow_id: Workflow ID for stream events (required).
-
-        Returns:
-            Tuple of (ReviewResult, session_id from driver).
-
-        """
-        if profile.strategy == "competitive":
-            return await self._competitive_review(state, code_changes, profile, workflow_id=workflow_id)
-        else:
-            # Default to single review
-            return await self._single_review(state, code_changes, profile, persona="General", workflow_id=workflow_id)
-
-    async def _single_review(
-        self,
-        state: ExecutionState,
-        code_changes: str,
-        profile: Profile,
-        persona: str,
-        *,
-        workflow_id: str,
-    ) -> tuple[ReviewResult, str | None]:
-        """Performs a single review with a specified persona.
-
-        Args:
-            state: Current execution state containing issue context.
-            code_changes: Diff or description of code changes to review.
-            profile: The profile containing working directory settings.
-            persona: Review perspective (e.g., "Security", "Performance").
-            workflow_id: Workflow ID for stream events (required).
-
-        Returns:
-            Tuple of (ReviewResult, session_id from driver).
-
-        """
-        # Handle empty code changes - warn and auto-approve
-        if not code_changes or not code_changes.strip():
-            self._handle_empty_changes(workflow_id, "_single_review", persona=persona)
-            result = ReviewResult(
-                reviewer_persona=persona,
-                approved=True,
-                comments=["No code changes to review"],
-                severity="low"
-            )
-            return result, state.driver_session_id
-
-        # Build prompt and system prompt
-        prompt = self._build_prompt(state, code_changes=code_changes)
-        system_prompt = self.template_prompt.format(persona=persona)
-
-        logger.debug(
-            "Built review prompt",
-            agent=self._agent_name,
-            persona=persona,
-            prompt_length=len(prompt),
-            system_prompt_length=len(system_prompt),
-        )
-
-        response, new_session_id = await self.driver.generate(
-            prompt=prompt,
-            system_prompt=system_prompt,
-            schema=ReviewResponse,
-            cwd=profile.working_dir,
-            session_id=state.driver_session_id,
-        )
-
-        # Emit completion event before return
-        self._emit_review_completion(
-            workflow_id,
-            response.approved,
-            response.severity,
-            response.comments,
-        )
-
-        result = ReviewResult(
-            reviewer_persona=persona,
-            approved=response.approved,
-            comments=response.comments,
-            severity=response.severity
-        )
-        return result, new_session_id
-
-    async def _competitive_review(
-        self,
-        state: ExecutionState,
-        code_changes: str,
-        profile: Profile,
-        *,
-        workflow_id: str,
-    ) -> tuple[ReviewResult, str | None]:
-        """Performs competitive review using multiple personas in parallel.
-
-        Args:
-            state: Current execution state containing issue context.
-            code_changes: Diff or description of code changes to review.
-            profile: The profile containing working directory settings.
-            workflow_id: Workflow ID for stream events (required).
-
-        Returns:
-            Tuple of (aggregated ReviewResult, None).
-            Note: session_id is always None for competitive reviews since multiple
-            parallel sessions are used and returning any single one would be misleading.
-
-        """
-        personas = self.DEFAULT_PERSONAS
-
-        # Run reviews in parallel
-        review_tasks = [self._single_review(state, code_changes, profile, persona, workflow_id=workflow_id) for persona in personas]
-        results_with_sessions = await asyncio.gather(*review_tasks)
-
-        # Unpack results (session_ids discarded for competitive reviews)
-        results = [r for r, _ in results_with_sessions]
-
-        # Aggregate results (simple aggregation: if any disapproves, overall disapproves)
-        overall_approved = all(res.approved for res in results)
-
-        # Prefix comments with persona name to preserve attribution
-        all_comments = [
-            f"[{res.reviewer_persona}] {comment}"
-            for res in results
-            for comment in res.comments
-        ]
-
-        # Determine overall severity (e.g., highest severity from any review)
-        severity_order: dict[Severity, int] = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-        severity_from_value: dict[int, Severity] = {v: k for k, v in severity_order.items()}
-        overall_severity_value = max(severity_order.get(res.severity, 0) for res in results)
-        overall_severity = severity_from_value[overall_severity_value]
-
-        aggregated_result = ReviewResult(
-            reviewer_persona="Competitive-Aggregated",
-            approved=overall_approved,
-            comments=all_comments,
-            severity=overall_severity
-        )
-        return aggregated_result, None
 
     async def agentic_review(
         self,

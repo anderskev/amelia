@@ -87,55 +87,6 @@ class TestStructuredReviewResult:
         assert result.good_patterns == []
 
 
-class TestReviewer:
-    """Tests for Reviewer agent review method."""
-
-    async def test_review_requires_context(
-        self,
-        mock_driver: MagicMock,
-        mock_profile_factory: Callable[..., Profile],
-    ) -> None:
-        """Test that review raises error when no task or issue context."""
-        # Create state manually without issue or goal (factory defaults issue)
-        profile = mock_profile_factory()
-        state = ExecutionState(
-            profile_id=profile.name,
-            issue=None,
-            goal=None,
-        )
-
-        reviewer = Reviewer(driver=mock_driver)
-        with pytest.raises(ValueError, match="No task or issue context"):
-            await reviewer.review(
-                state,
-                code_changes="diff content",
-                profile=profile,
-                workflow_id="wf-123",
-            )
-
-    async def test_review_empty_changes_auto_approves(
-        self,
-        mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
-    ) -> None:
-        """Test that empty code changes result in auto-approval."""
-        state, profile = mock_execution_state_factory(
-            goal="Implement feature",
-        )
-
-        reviewer = Reviewer(driver=mock_driver)
-        result, _ = await reviewer.review(
-            state,
-            code_changes="",
-            profile=profile,
-            workflow_id="wf-123",
-        )
-
-        assert result.approved is True
-        assert "No code changes" in result.comments[0]
-        mock_driver.generate.assert_not_called()
-
-
 class TestAgenticReview:
     """Tests for Reviewer.agentic_review with unified AgenticMessage processing."""
 
