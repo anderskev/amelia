@@ -672,7 +672,7 @@ async def call_reviewer_node(
         details={
             "severity": review_result.severity,
             "approved": review_result.approved,
-            "comment_count": len(review_result.comments),
+            "issue_count": len(review_result.comments),
             "review_iteration": next_iteration,
         },
     )
