@@ -47,6 +47,16 @@ class TestApiDriverInit:
         driver = ApiDriver(cwd="/some/path")
         assert driver.cwd == "/some/path"
 
+    def test_stores_provider(self) -> None:
+        """Should store the provider parameter."""
+        driver = ApiDriver(provider="openrouter")
+        assert driver.provider == "openrouter"
+
+    def test_provider_defaults_to_openrouter(self) -> None:
+        """Should default provider to 'openrouter' when not specified."""
+        driver = ApiDriver()
+        assert driver.provider == "openrouter"
+
 
 class TestGenerate:
     """Test generate() method."""
@@ -253,6 +263,27 @@ class TestCreateChatModel:
             _create_chat_model("gpt-4")
 
             mock_init.assert_called_once_with("gpt-4")
+
+    def test_openrouter_provider_without_prefix(self) -> None:
+        """Should configure OpenRouter when provider param is 'openrouter'."""
+        with (
+            patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-api-key"}),
+            patch("amelia.drivers.api.deepagents.init_chat_model") as mock_init,
+        ):
+            mock_init.return_value = MagicMock()
+
+            _create_chat_model("minimax/minimax-m2", provider="openrouter")
+
+            mock_init.assert_called_once_with(
+                model="minimax/minimax-m2",
+                model_provider="openai",
+                base_url="https://openrouter.ai/api/v1",
+                api_key="test-api-key",
+                default_headers={
+                    "HTTP-Referer": "https://github.com/existential-birds/amelia",
+                    "X-Title": "Amelia",
+                },
+            )
 
 
 class TestLocalSandbox:
