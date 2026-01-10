@@ -237,8 +237,6 @@ Rationale: [1-2 sentences]
         approved: bool,
         severity: Severity,
         comments: list[str],
-        *,
-        use_emoji: bool = True,
     ) -> None:
         """Emit event for review completion.
 
@@ -247,16 +245,12 @@ Rationale: [1-2 sentences]
             approved: Whether the review approved the changes.
             severity: The severity level of the review findings.
             comments: List of review comments.
-            use_emoji: Whether to include emoji in status display.
 
         """
         if self._event_bus is None:
             return
 
-        if use_emoji:
-            status = "Approved" if approved else "Changes requested"
-        else:
-            status = "Approved" if approved else "Changes requested"
+        status = "Approved" if approved else "Changes requested"
 
         content_parts = [f"**Review completed:** {status} (severity: {severity})"]
         if comments:
@@ -398,7 +392,6 @@ The changes are in git - diff against commit: {base_commit}"""
             result.approved,
             result.severity,
             result.comments,
-            use_emoji=False,
         )
 
         logger.info(
@@ -537,8 +530,8 @@ The changes are in git - diff against commit: {base_commit}"""
 
         # If no structured issues found, try legacy parsing
         if not comments:
-            for line in output.split("\n"):
-                line = line.strip()
+            for raw_line in output.split("\n"):
+                line = raw_line.strip()
                 if line.startswith(("- ", "* ", "• ")) or re.match(r"^\d+\.", line):
                     # Skip good patterns section items
                     if "good pattern" in output.lower():
