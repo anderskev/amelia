@@ -278,6 +278,86 @@ class OrchestratorService:
             )
             return None
 
+    async def _prepare_workflow_state(
+        self,
+        worktree_path: str,
+        issue_id: str,
+        profile_name: str | None = None,
+        task_title: str | None = None,
+        task_description: str | None = None,
+    ) -> tuple[str, Profile, ExecutionState]:
+        """Prepare common state needed to create or start a workflow.
+
+        Centralizes the common initialization logic for settings loading,
+        profile resolution, issue fetching, and ExecutionState creation
+        shared across queue_workflow, start_workflow, and queue_and_plan_workflow.
+
+        Args:
+            worktree_path: Resolved worktree path (already validated).
+            issue_id: The issue ID to work on.
+            profile_name: Optional profile name (defaults to active profile).
+            task_title: Optional task title for noop tracker.
+            task_description: Optional task description (defaults to task_title).
+
+        Returns:
+            Tuple of (resolved_path, profile, execution_state).
+
+        Raises:
+            ValueError: If settings are invalid, profile not found, or task_title
+                used with non-noop tracker.
+        """
+        # Load settings from worktree (required - no fallback)
+        try:
+            settings = self._load_settings_for_worktree(worktree_path)
+        except ValidationError as e:
+            raise ValueError(
+                f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+            ) from e
+        if settings is None:
+            raise ValueError(
+                f"No settings.amelia.yaml found in {worktree_path}. "
+                "Each worktree must have its own settings file."
+            )
+
+        # Load the profile (use provided profile name or active profile as fallback)
+        resolved_profile_name = profile_name or settings.active_profile
+        if resolved_profile_name not in settings.profiles:
+            raise ValueError(f"Profile '{resolved_profile_name}' not found in settings")
+        profile = settings.profiles[resolved_profile_name]
+
+        # ALWAYS set working_dir to worktree_path for agent execution
+        profile = profile.model_copy(update={"working_dir": worktree_path})
+
+        # Fetch issue from tracker (or construct from task_title)
+        if task_title is not None:
+            # Validate that tracker is noop when using task_title
+            if profile.tracker not in ("noop", "none"):
+                raise ValueError(
+                    f"task_title can only be used with noop tracker, "
+                    f"but profile '{profile.name}' uses tracker '{profile.tracker}'"
+                )
+            issue = Issue(
+                id=issue_id,
+                title=task_title,
+                description=task_description or task_title,
+            )
+        else:
+            # Fetch issue from tracker
+            tracker = create_tracker(profile)
+            issue = tracker.get_issue(issue_id, cwd=worktree_path)
+
+        # Get current HEAD to track changes
+        base_commit = await get_git_head(worktree_path)
+
+        # Create ExecutionState with all required fields
+        execution_state = ExecutionState(
+            profile_id=profile.name,
+            issue=issue,
+            base_commit=base_commit,
+        )
+
+        return worktree_path, profile, execution_state
+
     def _load_settings_for_worktree(self, worktree_path: str) -> Settings | None:
         """Load settings from a worktree directory.
 
@@ -462,40 +542,14 @@ class OrchestratorService:
                     hook_name=hook_name,
                 )
 
-            # ALWAYS set working_dir to resolved_path for agent execution
-            # This ensures agents run in the correct directory regardless of settings
-            # Create a copy to avoid mutating the shared settings profile
-            loaded_profile = loaded_profile.model_copy(
-                update={"working_dir": resolved_path}
-            )
-
-            # Construct Issue: either from task_title (noop tracker only) or from tracker
-            if task_title is not None:
-                # Validate that tracker is noop when using task_title
-                if loaded_profile.tracker not in ("noop", "none"):
-                    raise ValueError(
-                        f"task_title can only be used with noop tracker, "
-                        f"but profile '{loaded_profile.name}' uses tracker '{loaded_profile.tracker}'"
-                    )
-                # Construct Issue directly from task_title/task_description
-                issue = Issue(
-                    id=issue_id,
-                    title=task_title,
-                    description=task_description or task_title,
-                )
-            else:
-                # Fetch issue from tracker (pass resolved_path so gh CLI uses correct repo)
-                tracker = create_tracker(loaded_profile)
-                issue = tracker.get_issue(issue_id, cwd=resolved_path)
-
-            # Get current HEAD to track changes from workflow start
-            base_commit = await get_git_head(resolved_path)
-
-            # Initialize ExecutionState with profile_id, issue, and base commit
-            execution_state = ExecutionState(
-                profile_id=loaded_profile.name,
-                issue=issue,
-                base_commit=base_commit,
+            # Prepare issue and execution state using the helper
+            # (settings/profile loading done above for policy check)
+            _, loaded_profile, execution_state = await self._prepare_workflow_state(
+                worktree_path=resolved_path,
+                issue_id=issue_id,
+                profile_name=profile,
+                task_title=task_title,
+                task_description=task_description,
             )
 
             state = ServerExecutionState(
@@ -567,58 +621,17 @@ class OrchestratorService:
         worktree = self._validate_worktree_path(request.worktree_path)
         resolved_path = str(worktree)
 
-        # Load settings from worktree (required - no fallback)
-        try:
-            settings = self._load_settings_for_worktree(resolved_path)
-        except ValidationError as e:
-            raise ValueError(
-                f"Invalid settings.amelia.yaml in {resolved_path}: {e}"
-            ) from e
-        if settings is None:
-            raise ValueError(
-                f"No settings.amelia.yaml found in {resolved_path}. "
-                "Each worktree must have its own settings file."
-            )
-
-        # Load the profile (use provided profile name or active profile as fallback)
-        profile_name = request.profile or settings.active_profile
-        if profile_name not in settings.profiles:
-            raise ValueError(f"Profile '{profile_name}' not found in settings")
-        profile = settings.profiles[profile_name]
-
-        # ALWAYS set working_dir to resolved_path for agent execution
-        profile = profile.model_copy(update={"working_dir": resolved_path})
+        # Prepare common workflow state (settings, profile, issue, execution_state)
+        resolved_path, profile, execution_state = await self._prepare_workflow_state(
+            worktree_path=resolved_path,
+            issue_id=request.issue_id,
+            profile_name=request.profile,
+            task_title=request.task_title,
+            task_description=request.task_description,
+        )
 
         # Generate workflow ID
         workflow_id = str(uuid4())
-
-        # Fetch issue from tracker (or construct from task_title)
-        if request.task_title is not None:
-            # Validate that tracker is noop when using task_title
-            if profile.tracker not in ("noop", "none"):
-                raise ValueError(
-                    f"task_title can only be used with noop tracker, "
-                    f"but profile '{profile.name}' uses tracker '{profile.tracker}'"
-                )
-            issue = Issue(
-                id=request.issue_id,
-                title=request.task_title,
-                description=request.task_description or request.task_title,
-            )
-        else:
-            # Fetch issue from tracker
-            tracker = create_tracker(profile)
-            issue = tracker.get_issue(request.issue_id, cwd=resolved_path)
-
-        # Get current HEAD to track changes
-        base_commit = await get_git_head(resolved_path)
-
-        # Create ExecutionState with all required fields
-        execution_state = ExecutionState(
-            profile_id=profile.name,
-            issue=issue,
-            base_commit=base_commit,
-        )
 
         # Create ServerExecutionState in pending status (not started)
         state = ServerExecutionState(
@@ -2210,58 +2223,17 @@ class OrchestratorService:
         worktree = self._validate_worktree_path(request.worktree_path)
         resolved_path = str(worktree)
 
-        # Load settings from worktree (required - no fallback)
-        try:
-            settings = self._load_settings_for_worktree(resolved_path)
-        except ValidationError as e:
-            raise ValueError(
-                f"Invalid settings.amelia.yaml in {resolved_path}: {e}"
-            ) from e
-        if settings is None:
-            raise ValueError(
-                f"No settings.amelia.yaml found in {resolved_path}. "
-                "Each worktree must have its own settings file."
-            )
-
-        # Load the profile (use provided profile name or active profile as fallback)
-        profile_name = request.profile or settings.active_profile
-        if profile_name not in settings.profiles:
-            raise ValueError(f"Profile '{profile_name}' not found in settings")
-        profile = settings.profiles[profile_name]
-
-        # ALWAYS set working_dir to resolved_path for agent execution
-        profile = profile.model_copy(update={"working_dir": resolved_path})
+        # Prepare common workflow state (settings, profile, issue, execution_state)
+        resolved_path, profile, execution_state = await self._prepare_workflow_state(
+            worktree_path=resolved_path,
+            issue_id=request.issue_id,
+            profile_name=request.profile,
+            task_title=request.task_title,
+            task_description=request.task_description,
+        )
 
         # Generate workflow ID
         workflow_id = str(uuid4())
-
-        # Fetch issue from tracker (or construct from task_title)
-        if request.task_title is not None:
-            # Validate that tracker is noop when using task_title
-            if profile.tracker not in ("noop", "none"):
-                raise ValueError(
-                    f"task_title can only be used with noop tracker, "
-                    f"but profile '{profile.name}' uses tracker '{profile.tracker}'"
-                )
-            issue = Issue(
-                id=request.issue_id,
-                title=request.task_title,
-                description=request.task_description or request.task_title,
-            )
-        else:
-            # Fetch issue from tracker
-            tracker = create_tracker(profile)
-            issue = tracker.get_issue(request.issue_id, cwd=resolved_path)
-
-        # Get current HEAD to track changes
-        base_commit = await get_git_head(resolved_path)
-
-        # Create initial ExecutionState
-        execution_state = ExecutionState(
-            profile_id=profile.name,
-            issue=issue,
-            base_commit=base_commit,
-        )
 
         # Create ServerExecutionState in pending status (not started)
         state = ServerExecutionState(
