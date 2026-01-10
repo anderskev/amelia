@@ -140,6 +140,26 @@ function getPastTimestamp(daysAgo: number): string {
   return timestamp.toISOString();
 }
 
+/**
+ * Get created_at timestamp (5 minutes before started_at).
+ * @param hoursAgo - How many hours before now (same as getTimestamp)
+ */
+function getCreatedAt(hoursAgo: number): string {
+  return getTimestamp(hoursAgo, 5);
+}
+
+/**
+ * Get created_at timestamp for past workflows (5 minutes before started_at).
+ * @param daysAgo - How many days before now
+ */
+function getPastCreatedAt(daysAgo: number): string {
+  const now = new Date();
+  const timestamp = new Date(
+    now.getTime() - daysAgo * 24 * 60 * 60 * 1000 - 5 * 60 * 1000
+  );
+  return timestamp.toISOString();
+}
+
 // ============================================================================
 // Active Workflows (8 items - includes completed ones)
 // ============================================================================
@@ -153,6 +173,7 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/stellar-navigation',
       profile: null,
       status: 'completed',
+      created_at: getCreatedAt(24),
       started_at: getTimestamp(24),
       current_stage: null,
       total_cost_usd: 17.50,
@@ -165,6 +186,7 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/antimatter-refuel',
       profile: null,
       status: 'completed',
+      created_at: getCreatedAt(48),
       started_at: getTimestamp(48),
       current_stage: null,
       total_cost_usd: 25.00,
@@ -177,6 +199,7 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/deep-space-comms',
       profile: null,
       status: 'completed',
+      created_at: getCreatedAt(72),
       started_at: getTimestamp(72),
       current_stage: null,
       total_cost_usd: 12.00,
@@ -190,6 +213,7 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/heat-shields',
       profile: null,
       status: 'in_progress',
+      created_at: getCreatedAt(3),
       started_at: getTimestamp(3),
       current_stage: 'developer',
       total_cost_usd: 48.52,
@@ -202,6 +226,7 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/solar-distributed',
       profile: null,
       status: 'completed',
+      created_at: getCreatedAt(5),
       started_at: getTimestamp(5),
       current_stage: 'done',
       total_cost_usd: 71.00,
@@ -214,6 +239,7 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/microservices-thrust',
       profile: null,
       status: 'in_progress',
+      created_at: getCreatedAt(1),
       started_at: getTimestamp(1),
       current_stage: 'developer',
       total_cost_usd: 41.10,
@@ -227,6 +253,7 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/orbital-deployment',
       profile: null,
       status: 'blocked',
+      created_at: getCreatedAt(2),
       started_at: getTimestamp(2),
       current_stage: 'architect',
       total_cost_usd: 47.00,
@@ -239,6 +266,7 @@ export function getMockActiveWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/escape-velocity',
       profile: null,
       status: 'blocked',
+      created_at: getCreatedAt(8),
       started_at: getTimestamp(8),
       current_stage: 'architect',
       total_cost_usd: 45.00,
@@ -260,6 +288,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/dark-mode-final-straw',
       profile: null,
       status: 'completed',
+      created_at: getPastCreatedAt(1),
       started_at: getPastTimestamp(1),
       current_stage: null,
       total_cost_usd: 5.00,
@@ -272,6 +301,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/velocity-retrospective',
       profile: null,
       status: 'completed',
+      created_at: getPastCreatedAt(1.5),
       started_at: getPastTimestamp(1.5),
       current_stage: null,
       total_cost_usd: 42.35,
@@ -284,6 +314,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/47-page-spec',
       profile: null,
       status: 'completed',
+      created_at: getPastCreatedAt(2),
       started_at: getPastTimestamp(2),
       current_stage: null,
       total_cost_usd: 90.01,
@@ -296,6 +327,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/js-meaninglessness',
       profile: null,
       status: 'completed',
+      created_at: getPastCreatedAt(3),
       started_at: getPastTimestamp(3),
       current_stage: null,
       total_cost_usd: 10.00,
@@ -308,6 +340,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/lgtm-rocket',
       profile: null,
       status: 'completed',
+      created_at: getPastCreatedAt(3.5),
       started_at: getPastTimestamp(3.5),
       current_stage: null,
       total_cost_usd: 0.42,
@@ -320,6 +353,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/tabs-vs-spaces',
       profile: null,
       status: 'failed',
+      created_at: getPastCreatedAt(4),
       started_at: getPastTimestamp(4),
       current_stage: null,
       total_cost_usd: 99.99,
@@ -332,6 +366,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/queue-position',
       profile: null,
       status: 'cancelled',
+      created_at: getPastCreatedAt(5),
       started_at: getPastTimestamp(5),
       current_stage: null,
       total_cost_usd: 0.01,
@@ -344,6 +379,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/alien-contact',
       profile: null,
       status: 'completed',
+      created_at: getPastCreatedAt(5.5),
       started_at: getPastTimestamp(5.5),
       current_stage: null,
       total_cost_usd: 42.00,
@@ -356,6 +392,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/mass-uplift',
       profile: null,
       status: 'failed',
+      created_at: getPastCreatedAt(6),
       started_at: getPastTimestamp(6),
       current_stage: null,
       total_cost_usd: 150.00,
@@ -368,6 +405,7 @@ export function getMockHistoryWorkflows(): WorkflowSummary[] {
       worktree_path: '/Users/amelia/worktrees/final-commit',
       profile: null,
       status: 'completed',
+      created_at: getPastCreatedAt(7),
       started_at: getPastTimestamp(7),
       current_stage: null,
       total_cost_usd: 84.70,

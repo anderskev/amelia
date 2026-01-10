@@ -11,6 +11,7 @@ const mockWorkflows: WorkflowSummary[] = [
     worktree_path: '/tmp/worktrees/proj-123-feature',
     profile: null,
     status: 'completed',
+    created_at: '2025-12-07T08:55:00Z',
     started_at: '2025-12-07T09:00:00Z',
     current_stage: null,
     total_duration_ms: 154000, // 2m 34s
@@ -23,6 +24,7 @@ const mockWorkflows: WorkflowSummary[] = [
     worktree_path: '/tmp/worktrees/proj-124-bugfix',
     profile: null,
     status: 'failed',
+    created_at: '2025-12-07T07:55:00Z',
     started_at: '2025-12-07T08:00:00Z',
     current_stage: null,
     total_duration_ms: null,

@@ -43,6 +43,7 @@ describe('WorkflowsPage pending workflow actions', () => {
     worktree_path: '/tmp/worktrees/repo',
     profile: null,
     status: 'pending',
+    created_at: '2025-12-07T08:55:00Z',
     started_at: null,
     current_stage: null,
     total_cost_usd: null,
