@@ -104,7 +104,7 @@ class TestStartBatchWorkflows:
             request = BatchStartRequest(workflow_ids=["wf-1", "wf-2"])
             response = await orchestrator.start_batch_workflows(request)
 
-        assert response.started == ["wf-1", "wf-2"]
+        assert set(response.started) == {"wf-1", "wf-2"}
         assert response.errors == {}
 
     @pytest.mark.asyncio
@@ -162,13 +162,9 @@ class TestStartBatchWorkflows:
         ]
         mock_repository.find_by_status.return_value = pending
 
-        # First succeeds, second fails due to worktree conflict
-        call_count = 0
-
+        # wf-1 succeeds, wf-2 fails due to worktree conflict
         async def mock_start(wf_id: str) -> None:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 2:
+            if wf_id == "wf-2":
                 raise WorkflowConflictError("/repo", "wf-1")
 
         with patch.object(orchestrator, "start_pending_workflow", side_effect=mock_start):
