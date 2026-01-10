@@ -766,3 +766,87 @@ Rationale: Critical security issue must be fixed.
                 f"agentic_review references SDK-specific type '{pattern}'. "
                 "Should use unified AgenticMessage types instead."
             )
+
+
+class TestParseReviewResult:
+    """Tests for Reviewer._parse_review_result method."""
+
+    def test_markdown_bold_ready_yes_with_needs_fixes_in_rationale(
+        self,
+        mock_driver: MagicMock,
+    ) -> None:
+        """Test that **Ready:** Yes is correctly parsed even when 'needs fixes' in rationale.
+
+        Regression test for bug where:
+        1. Regex r"Ready:\\s*(Yes|No|With fixes[^\\n]*)" doesn't match **Ready:** Yes
+        2. Fallback finds "needs fixes" in rationale and incorrectly sets approved=False
+        """
+        # Beagle markdown with bold formatting and "needs fixes" in rationale
+        beagle_output = """## Review Summary
+
+Code looks good overall with no issues found.
+
+## Issues
+
+### Critical (Blocking)
+
+### Major (Should Fix)
+
+### Minor (Nice to Have)
+
+## Good Patterns
+
+- [file.py:10] Good use of type hints
+
+## Verdict
+
+**Ready:** Yes
+Rationale: Code needs fixes for edge cases but they are out of scope.
+"""
+        reviewer = Reviewer(driver=mock_driver)
+        result = reviewer._parse_review_result(beagle_output, workflow_id="wf-test")
+
+        # Should be approved because verdict says "Ready: Yes"
+        assert result.approved is True, (
+            "Review should be approved when **Ready:** Yes is present, "
+            "even if 'needs fixes' appears elsewhere in the output"
+        )
+
+    def test_markdown_bold_only_on_ready_word(
+        self,
+        mock_driver: MagicMock,
+    ) -> None:
+        """Test that **Ready**: Yes is correctly parsed (bold only on 'Ready', not 'Ready:').
+
+        Regression test for bug where regex r"[*_]{0,2}Ready:[*_]{0,2}..." failed
+        when bold markers appear between 'Ready' and ':' like **Ready**: Yes.
+        The fix changes the pattern to allow markers between Ready and colon.
+        """
+        beagle_output = """## Review Summary
+
+Code looks good overall.
+
+## Issues
+
+### Critical (Blocking)
+
+### Major (Should Fix)
+
+### Minor (Nice to Have)
+
+## Good Patterns
+
+- [file.py:10] Good use of type hints
+
+## Verdict
+
+**Ready**: Yes
+Rationale: All checks pass.
+"""
+        reviewer = Reviewer(driver=mock_driver)
+        result = reviewer._parse_review_result(beagle_output, workflow_id="wf-test")
+
+        assert result.approved is True, (
+            "Review should be approved when **Ready**: Yes is present "
+            "(bold only on 'Ready' word, colon outside bold)"
+        )

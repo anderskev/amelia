@@ -797,6 +797,12 @@ def route_after_review(
         "developer" if review rejected and under max iterations,
         "__end__" if approved or max iterations reached.
     """
+    logger.debug(
+        "route_after_review decision",
+        has_last_review=state.last_review is not None,
+        approved=state.last_review.approved if state.last_review else None,
+        review_iteration=state.review_iteration,
+    )
     if state.last_review and state.last_review.approved:
         return "__end__"
 

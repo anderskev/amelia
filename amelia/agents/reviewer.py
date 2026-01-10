@@ -745,8 +745,22 @@ The changes are in git - diff against commit: {base_commit}"""
         # Parse the result to extract review
         result = self._parse_review_result(final_result, workflow_id)
 
+        logger.debug(
+            "After _parse_review_result",
+            approved=result.approved,
+            has_error=has_error,
+            severity=result.severity,
+            comments_count=len(result.comments),
+            workflow_id=workflow_id,
+        )
+
         # If there was an error, ensure result is not approved
         if has_error and result.approved:
+            logger.warning(
+                "Overriding approved=True due to has_error=True",
+                original_approved=result.approved,
+                workflow_id=workflow_id,
+            )
             result = ReviewResult(
                 reviewer_persona=result.reviewer_persona,
                 approved=False,
@@ -805,14 +819,29 @@ The changes are in git - diff against commit: {base_commit}"""
             )
 
         # Parse verdict to determine approval
+        # Handle markdown formatting like **Ready:** Yes, **Ready**: Yes, or __Ready:__ Yes
+        # Pattern allows bold/italic markers before "Ready", between "Ready" and ":", and after ":"
         verdict_match = re.search(
-            r"Ready:\s*(Yes|No|With fixes[^\n]*)",
+            r"[*_]{0,2}Ready[*_]{0,2}:[*_]{0,2}\s*(Yes|No|With fixes[^\n]*)",
             output,
             re.IGNORECASE,
+        )
+        logger.debug(
+            "Parsing verdict from review output",
+            verdict_match_found=verdict_match is not None,
+            verdict_text=verdict_match.group(1) if verdict_match else None,
+            output_preview=output[:500] if output else None,
+            workflow_id=workflow_id,
         )
         if verdict_match:
             verdict_text = verdict_match.group(1).lower()
             approved = verdict_text == "yes"
+            logger.debug(
+                "Verdict parsed from regex match",
+                verdict_text=verdict_text,
+                approved=approved,
+                workflow_id=workflow_id,
+            )
         else:
             # Fallback: check for approval keywords
             output_lower = output.lower()
