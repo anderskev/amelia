@@ -40,7 +40,7 @@ class TestApiDriverInit:
         """Should default to MiniMax M2 when no model provided."""
         driver = ApiDriver()
         assert driver.model == ApiDriver.DEFAULT_MODEL
-        assert driver.model == "openrouter:minimax/minimax-m2"
+        assert driver.model == "minimax/minimax-m2"  # No prefix
 
     def test_stores_cwd(self) -> None:
         """Should store the cwd parameter."""

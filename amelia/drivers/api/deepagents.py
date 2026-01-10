@@ -161,7 +161,7 @@ class ApiDriver(DriverInterface):
         cwd: Working directory for agentic execution.
     """
 
-    DEFAULT_MODEL = "openrouter:minimax/minimax-m2"
+    DEFAULT_MODEL = "minimax/minimax-m2"
 
     def __init__(
         self,

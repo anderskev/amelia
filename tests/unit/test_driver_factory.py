@@ -54,3 +54,19 @@ class TestDriverInterfaceProtocol:
         driver = ApiDriver(cwd="/tmp")
         assert hasattr(driver, "execute_agentic")
         assert hasattr(driver, "generate")
+
+
+class TestDriverFactoryProviderPassing:
+    """Tests for factory passing provider to ApiDriver."""
+
+    def test_api_openrouter_passes_provider(self) -> None:
+        """Factory should pass provider='openrouter' to ApiDriver for api:openrouter."""
+        driver = DriverFactory.get_driver("api:openrouter")
+        assert isinstance(driver, ApiDriver)
+        assert driver.provider == "openrouter"
+
+    def test_api_shorthand_passes_provider(self) -> None:
+        """Factory should pass provider='openrouter' to ApiDriver for 'api' shorthand."""
+        driver = DriverFactory.get_driver("api")
+        assert isinstance(driver, ApiDriver)
+        assert driver.provider == "openrouter"
