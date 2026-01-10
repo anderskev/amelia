@@ -341,6 +341,38 @@ class OrchestratorService:
             )
             return None
 
+    def _validate_worktree_path(self, worktree_path: str) -> Path:
+        """Validate and resolve worktree path securely.
+
+        Resolves the path to its canonical form, removing any path traversal
+        sequences (../) and following symlinks. Then validates the resolved
+        path exists and is a git repository.
+
+        Args:
+            worktree_path: User-provided worktree path to validate.
+
+        Returns:
+            Resolved, validated Path object.
+
+        Raises:
+            InvalidWorktreeError: If path doesn't exist, isn't a directory,
+                or isn't a git repository.
+        """
+        # Resolve to canonical form FIRST - this prevents path traversal attacks
+        # by converting paths like "/safe/../unsafe" to their real location
+        worktree = Path(worktree_path).resolve()
+
+        # Now validate the RESOLVED path
+        if not worktree.exists():
+            raise InvalidWorktreeError(str(worktree), "directory does not exist")
+        if not worktree.is_dir():
+            raise InvalidWorktreeError(str(worktree), "path is not a directory")
+        git_path = worktree / ".git"
+        if not git_path.exists():
+            raise InvalidWorktreeError(str(worktree), "not a git repository (.git missing)")
+
+        return worktree
+
     async def start_workflow(
         self,
         issue_id: str,
@@ -369,21 +401,16 @@ class OrchestratorService:
             ConcurrencyLimitError: If at max concurrent workflows.
             ValueError: If task_title is provided but tracker is not noop.
         """
-        # Validate worktree before acquiring lock (fast-fail)
-        worktree = Path(worktree_path)
-        if not worktree.exists():
-            raise InvalidWorktreeError(worktree_path, "directory does not exist")
-        if not worktree.is_dir():
-            raise InvalidWorktreeError(worktree_path, "path is not a directory")
-        git_path = worktree / ".git"
-        if not git_path.exists():
-            raise InvalidWorktreeError(worktree_path, "not a git repository (.git missing)")
+        # Validate and resolve worktree before acquiring lock (fast-fail)
+        worktree = self._validate_worktree_path(worktree_path)
+        resolved_path = str(worktree)
 
         async with self._start_lock:
             # Check worktree conflict - workflow_id is cached in tuple
-            if worktree_path in self._active_tasks:
-                existing_id, _ = self._active_tasks[worktree_path]
-                raise WorkflowConflictError(worktree_path, existing_id)
+            # Use resolved path for consistent comparison
+            if resolved_path in self._active_tasks:
+                existing_id, _ = self._active_tasks[resolved_path]
+                raise WorkflowConflictError(resolved_path, existing_id)
 
             # Check concurrency limit
             current_count = len(self._active_tasks)
@@ -395,14 +422,14 @@ class OrchestratorService:
 
             # Load settings from worktree (required - no fallback)
             try:
-                settings = self._load_settings_for_worktree(worktree_path)
+                settings = self._load_settings_for_worktree(resolved_path)
             except ValidationError as e:
                 raise ValueError(
-                    f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+                    f"Invalid settings.amelia.yaml in {resolved_path}: {e}"
                 ) from e
             if settings is None:
                 raise ValueError(
-                    f"No settings.amelia.yaml found in {worktree_path}. "
+                    f"No settings.amelia.yaml found in {resolved_path}. "
                     "Each worktree must have its own settings file."
                 )
 
@@ -431,11 +458,11 @@ class OrchestratorService:
                     hook_name=hook_name,
                 )
 
-            # ALWAYS set working_dir to worktree_path for agent execution
+            # ALWAYS set working_dir to resolved_path for agent execution
             # This ensures agents run in the correct directory regardless of settings
             # Create a copy to avoid mutating the shared settings profile
             loaded_profile = loaded_profile.model_copy(
-                update={"working_dir": worktree_path}
+                update={"working_dir": resolved_path}
             )
 
             # Construct Issue: either from task_title (noop tracker only) or from tracker
@@ -453,12 +480,12 @@ class OrchestratorService:
                     description=task_description or task_title,
                 )
             else:
-                # Fetch issue from tracker (pass worktree_path so gh CLI uses correct repo)
+                # Fetch issue from tracker (pass resolved_path so gh CLI uses correct repo)
                 tracker = create_tracker(loaded_profile)
-                issue = tracker.get_issue(issue_id, cwd=worktree_path)
+                issue = tracker.get_issue(issue_id, cwd=resolved_path)
 
             # Get current HEAD to track changes from workflow start
-            base_commit = await get_git_head(worktree_path)
+            base_commit = await get_git_head(resolved_path)
 
             # Initialize ExecutionState with profile_id, issue, and base commit
             execution_state = ExecutionState(
@@ -470,7 +497,7 @@ class OrchestratorService:
             state = ServerExecutionState(
                 id=workflow_id,
                 issue_id=issue_id,
-                worktree_path=worktree_path,
+                worktree_path=resolved_path,
                 execution_state=execution_state,
                 workflow_status="pending",
                 started_at=datetime.now(UTC),
@@ -480,19 +507,19 @@ class OrchestratorService:
             except Exception as e:
                 # Handle DB constraint violation (e.g., crash recovery scenario)
                 if "UNIQUE constraint failed" in str(e):
-                    raise WorkflowConflictError(worktree_path, "existing") from e
+                    raise WorkflowConflictError(resolved_path, "existing") from e
                 raise
 
             logger.info(
                 "Starting workflow",
                 workflow_id=workflow_id,
                 issue_id=issue_id,
-                worktree_path=worktree_path,
+                worktree_path=resolved_path,
             )
 
             # Start async task with retry wrapper for transient failures
             task = asyncio.create_task(self._run_workflow_with_retry(workflow_id, state))
-            self._active_tasks[worktree_path] = (workflow_id, task)
+            self._active_tasks[resolved_path] = (workflow_id, task)
 
         # Remove from active tasks on completion
         def cleanup_task(_: asyncio.Task[None]) -> None:
@@ -501,14 +528,14 @@ class OrchestratorService:
             Args:
                 _: The completed asyncio Task (unused).
             """
-            self._active_tasks.pop(worktree_path, None)
+            self._active_tasks.pop(resolved_path, None)
             self._sequence_counters.pop(workflow_id, None)
             self._sequence_locks.pop(workflow_id, None)
             self._approval_events.pop(workflow_id, None)
             logger.debug(
                 "Workflow task completed",
                 workflow_id=workflow_id,
-                worktree_path=worktree_path,
+                worktree_path=resolved_path,
             )
 
         task.add_done_callback(cleanup_task)
@@ -532,26 +559,20 @@ class OrchestratorService:
             InvalidWorktreeError: If worktree doesn't exist or isn't a git repo.
             ValueError: If settings are invalid or profile not found.
         """
-        # Validate worktree before proceeding
-        worktree = Path(request.worktree_path)
-        if not worktree.exists():
-            raise InvalidWorktreeError(request.worktree_path, "directory does not exist")
-        if not worktree.is_dir():
-            raise InvalidWorktreeError(request.worktree_path, "path is not a directory")
-        git_path = worktree / ".git"
-        if not git_path.exists():
-            raise InvalidWorktreeError(request.worktree_path, "not a git repository (.git missing)")
+        # Validate and resolve worktree path securely
+        worktree = self._validate_worktree_path(request.worktree_path)
+        resolved_path = str(worktree)
 
         # Load settings from worktree (required - no fallback)
         try:
-            settings = self._load_settings_for_worktree(request.worktree_path)
+            settings = self._load_settings_for_worktree(resolved_path)
         except ValidationError as e:
             raise ValueError(
-                f"Invalid settings.amelia.yaml in {request.worktree_path}: {e}"
+                f"Invalid settings.amelia.yaml in {resolved_path}: {e}"
             ) from e
         if settings is None:
             raise ValueError(
-                f"No settings.amelia.yaml found in {request.worktree_path}. "
+                f"No settings.amelia.yaml found in {resolved_path}. "
                 "Each worktree must have its own settings file."
             )
 
@@ -561,8 +582,8 @@ class OrchestratorService:
             raise ValueError(f"Profile '{profile_name}' not found in settings")
         profile = settings.profiles[profile_name]
 
-        # ALWAYS set working_dir to worktree_path for agent execution
-        profile = profile.model_copy(update={"working_dir": request.worktree_path})
+        # ALWAYS set working_dir to resolved_path for agent execution
+        profile = profile.model_copy(update={"working_dir": resolved_path})
 
         # Generate workflow ID with wf- prefix
         workflow_id = f"wf-{uuid4().hex[:12]}"
@@ -583,10 +604,10 @@ class OrchestratorService:
         else:
             # Fetch issue from tracker
             tracker = create_tracker(profile)
-            issue = tracker.get_issue(request.issue_id, cwd=request.worktree_path)
+            issue = tracker.get_issue(request.issue_id, cwd=resolved_path)
 
         # Get current HEAD to track changes
-        base_commit = await get_git_head(request.worktree_path)
+        base_commit = await get_git_head(resolved_path)
 
         # Create ExecutionState with all required fields
         execution_state = ExecutionState(
@@ -599,7 +620,7 @@ class OrchestratorService:
         state = ServerExecutionState(
             id=workflow_id,
             issue_id=request.issue_id,
-            worktree_path=str(worktree.resolve()),
+            worktree_path=resolved_path,
             execution_state=execution_state,
             workflow_status="pending",
             # No started_at - workflow hasn't started
@@ -621,7 +642,7 @@ class OrchestratorService:
             "Workflow queued",
             workflow_id=workflow_id,
             issue_id=request.issue_id,
-            worktree_path=str(worktree.resolve()),
+            worktree_path=resolved_path,
         )
 
         return workflow_id
@@ -646,16 +667,18 @@ class OrchestratorService:
             WorkflowConflictError: If worktree already has active workflow.
             ConcurrencyLimitError: If at max concurrent workflows.
         """
-        # Validate worktree exists (for conflict detection, not git ops)
-        worktree = Path(worktree_path)
+        # Validate and resolve worktree path securely
+        # Note: review workflow doesn't require .git, so we do minimal validation
+        worktree = Path(worktree_path).resolve()
         if not worktree.exists() or not worktree.is_dir():
-            raise InvalidWorktreeError(worktree_path, "directory does not exist")
+            raise InvalidWorktreeError(str(worktree), "directory does not exist")
+        resolved_path = str(worktree)
 
         async with self._start_lock:
             # Same conflict and concurrency checks as start_workflow
-            if worktree_path in self._active_tasks:
-                existing_id, _ = self._active_tasks[worktree_path]
-                raise WorkflowConflictError(worktree_path, existing_id)
+            if resolved_path in self._active_tasks:
+                existing_id, _ = self._active_tasks[resolved_path]
+                raise WorkflowConflictError(resolved_path, existing_id)
 
             if len(self._active_tasks) >= self._max_concurrent:
                 raise ConcurrencyLimitError(self._max_concurrent, len(self._active_tasks))
@@ -664,14 +687,14 @@ class OrchestratorService:
 
             # Load settings from worktree (required - no fallback)
             try:
-                settings = self._load_settings_for_worktree(worktree_path)
+                settings = self._load_settings_for_worktree(resolved_path)
             except ValidationError as e:
                 raise ValueError(
-                    f"Invalid settings.amelia.yaml in {worktree_path}: {e}"
+                    f"Invalid settings.amelia.yaml in {resolved_path}: {e}"
                 ) from e
             if settings is None:
                 raise ValueError(
-                    f"No settings.amelia.yaml found in {worktree_path}. "
+                    f"No settings.amelia.yaml found in {resolved_path}. "
                     "Each worktree must have its own settings file."
                 )
 
@@ -680,8 +703,8 @@ class OrchestratorService:
             if profile_name not in settings.profiles:
                 raise ValueError(f"Profile '{profile_name}' not found in settings")
             loaded_profile = settings.profiles[profile_name]
-            # ALWAYS set working_dir to worktree_path for agent execution
-            loaded_profile = loaded_profile.model_copy(update={"working_dir": worktree_path})
+            # ALWAYS set working_dir to resolved_path for agent execution
+            loaded_profile = loaded_profile.model_copy(update={"working_dir": resolved_path})
 
             # Create dummy issue for review context
             dummy_issue = Issue(
@@ -691,7 +714,7 @@ class OrchestratorService:
             )
 
             # Get current HEAD for tracking (even though diff is provided)
-            base_commit = await get_git_head(worktree_path)
+            base_commit = await get_git_head(resolved_path)
 
             # Initialize ExecutionState with diff content
             execution_state = ExecutionState(
@@ -706,7 +729,7 @@ class OrchestratorService:
             state = ServerExecutionState(
                 id=workflow_id,
                 issue_id="LOCAL-REVIEW",
-                worktree_path=worktree_path,
+                worktree_path=resolved_path,
                 workflow_type="review",
                 execution_state=execution_state,
                 workflow_status="pending",
@@ -717,7 +740,7 @@ class OrchestratorService:
 
             # Start with review graph instead of full graph
             task = asyncio.create_task(self._run_review_workflow(workflow_id, state))
-            self._active_tasks[worktree_path] = (workflow_id, task)
+            self._active_tasks[resolved_path] = (workflow_id, task)
 
         # Same cleanup callback as start_workflow
         def cleanup_task(_: asyncio.Task[None]) -> None:
@@ -726,14 +749,14 @@ class OrchestratorService:
             Args:
                 _: The completed asyncio Task (unused).
             """
-            self._active_tasks.pop(worktree_path, None)
+            self._active_tasks.pop(resolved_path, None)
             self._sequence_counters.pop(workflow_id, None)
             self._sequence_locks.pop(workflow_id, None)
             self._approval_events.pop(workflow_id, None)
             logger.debug(
                 "Workflow task completed",
                 workflow_id=workflow_id,
-                worktree_path=worktree_path,
+                worktree_path=resolved_path,
             )
 
         task.add_done_callback(cleanup_task)
@@ -2143,26 +2166,20 @@ class OrchestratorService:
             InvalidWorktreeError: If worktree doesn't exist or isn't a git repo.
             ValueError: If settings are invalid or profile not found.
         """
-        # Validate worktree before proceeding
-        worktree = Path(request.worktree_path)
-        if not worktree.exists():
-            raise InvalidWorktreeError(request.worktree_path, "directory does not exist")
-        if not worktree.is_dir():
-            raise InvalidWorktreeError(request.worktree_path, "path is not a directory")
-        git_path = worktree / ".git"
-        if not git_path.exists():
-            raise InvalidWorktreeError(request.worktree_path, "not a git repository (.git missing)")
+        # Validate and resolve worktree path securely
+        worktree = self._validate_worktree_path(request.worktree_path)
+        resolved_path = str(worktree)
 
         # Load settings from worktree (required - no fallback)
         try:
-            settings = self._load_settings_for_worktree(request.worktree_path)
+            settings = self._load_settings_for_worktree(resolved_path)
         except ValidationError as e:
             raise ValueError(
-                f"Invalid settings.amelia.yaml in {request.worktree_path}: {e}"
+                f"Invalid settings.amelia.yaml in {resolved_path}: {e}"
             ) from e
         if settings is None:
             raise ValueError(
-                f"No settings.amelia.yaml found in {request.worktree_path}. "
+                f"No settings.amelia.yaml found in {resolved_path}. "
                 "Each worktree must have its own settings file."
             )
 
@@ -2172,8 +2189,8 @@ class OrchestratorService:
             raise ValueError(f"Profile '{profile_name}' not found in settings")
         profile = settings.profiles[profile_name]
 
-        # ALWAYS set working_dir to worktree_path for agent execution
-        profile = profile.model_copy(update={"working_dir": request.worktree_path})
+        # ALWAYS set working_dir to resolved_path for agent execution
+        profile = profile.model_copy(update={"working_dir": resolved_path})
 
         # Generate workflow ID
         workflow_id = str(uuid4())
@@ -2194,10 +2211,10 @@ class OrchestratorService:
         else:
             # Fetch issue from tracker
             tracker = create_tracker(profile)
-            issue = tracker.get_issue(request.issue_id, cwd=request.worktree_path)
+            issue = tracker.get_issue(request.issue_id, cwd=resolved_path)
 
         # Get current HEAD to track changes
-        base_commit = await get_git_head(request.worktree_path)
+        base_commit = await get_git_head(resolved_path)
 
         # Create initial ExecutionState
         execution_state = ExecutionState(
@@ -2210,7 +2227,7 @@ class OrchestratorService:
         state = ServerExecutionState(
             id=workflow_id,
             issue_id=request.issue_id,
-            worktree_path=request.worktree_path,
+            worktree_path=resolved_path,
             execution_state=execution_state,
             workflow_status="pending",
             # Note: started_at is None - workflow hasn't started yet
@@ -2231,7 +2248,7 @@ class OrchestratorService:
             "Workflow queued, spawning planning task",
             workflow_id=workflow_id,
             issue_id=request.issue_id,
-            worktree_path=request.worktree_path,
+            worktree_path=resolved_path,
         )
 
         # Spawn planning task in background (non-blocking)
