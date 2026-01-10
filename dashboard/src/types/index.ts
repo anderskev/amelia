@@ -50,6 +50,9 @@ export interface WorkflowSummary {
   /** Current execution state of the workflow. */
   status: WorkflowStatus;
 
+  /** ISO 8601 timestamp when the workflow was created/queued. */
+  created_at: string;
+
   /** ISO 8601 timestamp when the workflow started, or null if not yet started. */
   started_at: string | null;
 

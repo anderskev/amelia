@@ -47,6 +47,10 @@ class WorkflowSummary(BaseModel):
         Field(default=None, description="Profile name used for this workflow"),
     ] = None
     status: Annotated[WorkflowStatus, Field(description="Current workflow status")]
+    created_at: Annotated[
+        datetime,
+        Field(description="When the workflow was created/queued"),
+    ]
     started_at: Annotated[
         datetime | None,
         Field(default=None, description="When the workflow was started"),
@@ -105,6 +109,7 @@ class WorkflowDetailResponse(BaseModel):
         issue_id: Issue identifier
         worktree_path: Absolute path to worktree
         status: Current workflow status
+        created_at: When the workflow was created/queued
         started_at: When the workflow was started (optional)
         completed_at: When the workflow ended (optional)
         failure_reason: Error message when failed (optional)
@@ -122,6 +127,10 @@ class WorkflowDetailResponse(BaseModel):
     issue_id: Annotated[str, Field(description="Issue identifier")]
     worktree_path: Annotated[str, Field(description="Absolute path to worktree")]
     status: Annotated[WorkflowStatus, Field(description="Current workflow status")]
+    created_at: Annotated[
+        datetime,
+        Field(description="When the workflow was created/queued"),
+    ]
     started_at: Annotated[
         datetime | None,
         Field(default=None, description="When the workflow was started"),

@@ -264,6 +264,7 @@ class Database:
                 issue_id TEXT NOT NULL,
                 worktree_path TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 started_at TIMESTAMP,
                 completed_at TIMESTAMP,
                 failure_reason TEXT,

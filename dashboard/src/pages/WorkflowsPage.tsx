@@ -144,7 +144,7 @@ export default function WorkflowsPage() {
         <div className="px-4 pt-4">
           <PendingWorkflowControls
             workflowId={detail.id}
-            createdAt={detail.started_at}
+            createdAt={detail.created_at}
             hasPlan={!!detail.plan_markdown}
             worktreeHasActiveWorkflow={workflows.some(
               (w) =>

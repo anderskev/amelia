@@ -50,14 +50,15 @@ class WorkflowRepository:
             """
             INSERT INTO workflows (
                 id, issue_id, worktree_path,
-                status, started_at, completed_at, failure_reason, state_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                status, created_at, started_at, completed_at, failure_reason, state_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 state.id,
                 state.issue_id,
                 state.worktree_path,
                 state.workflow_status,
+                state.created_at,
                 state.started_at,
                 state.completed_at,
                 state.failure_reason,

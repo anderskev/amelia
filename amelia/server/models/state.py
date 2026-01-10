@@ -1,6 +1,6 @@
 """Workflow state models and state machine validation."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -100,6 +100,10 @@ class ServerExecutionState(BaseModel):
     workflow_status: WorkflowStatus = Field(
         default="pending",
         description="Current workflow status",
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        description="When workflow was created/queued",
     )
     started_at: datetime | None = Field(
         default=None,
