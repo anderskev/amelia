@@ -191,3 +191,108 @@ describe('WorkflowsPage pending workflow actions', () => {
     expect(screen.queryByRole('button', { name: /^start$/i })).not.toBeInTheDocument();
   });
 });
+
+describe('WorkflowsPage planning status', () => {
+  const planningWorkflow: WorkflowSummary = {
+    id: 'wf-planning',
+    issue_id: 'ISSUE-456',
+    worktree_path: '/tmp/worktrees/repo',
+    profile: null,
+    status: 'planning',
+    created_at: '2025-12-07T08:55:00Z',
+    started_at: null,
+    current_stage: 'architect',
+    total_cost_usd: null,
+    total_tokens: null,
+    total_duration_ms: null,
+  };
+
+  const planningWorkflowDetail: WorkflowDetail = {
+    ...planningWorkflow,
+    worktree_path: '/path/to/repo',
+    completed_at: null,
+    failure_reason: null,
+    token_usage: null,
+    recent_events: [],
+    goal: null,
+    plan_markdown: null,
+    plan_path: null,
+  };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(useLoaderData).mockReturnValue({
+      workflows: [],
+      detail: null,
+      detailError: null,
+    });
+  });
+
+  it('should show PlanningIndicator when status is planning', async () => {
+    vi.mocked(useLoaderData).mockReturnValue({
+      workflows: [planningWorkflow],
+      detail: planningWorkflowDetail,
+      detailError: null,
+    });
+
+    renderWithRouter(<WorkflowsPage />);
+
+    // PlanningIndicator should be shown with "PLANNING" heading
+    // Use findByRole with heading role since PlanningIndicator renders h4
+    const planningIndicator = await screen.findByRole('heading', { name: 'PLANNING' });
+    expect(planningIndicator).toBeInTheDocument();
+
+    // Should show the architect analyzing message
+    expect(screen.getByText(/Architect is analyzing/)).toBeInTheDocument();
+  });
+
+  it('should NOT show PendingWorkflowControls when status is planning', async () => {
+    vi.mocked(useLoaderData).mockReturnValue({
+      workflows: [planningWorkflow],
+      detail: planningWorkflowDetail,
+      detailError: null,
+    });
+
+    renderWithRouter(<WorkflowsPage />);
+
+    // Wait for PlanningIndicator to appear
+    // Use findByRole with heading role since PlanningIndicator renders h4
+    await screen.findByRole('heading', { name: 'PLANNING' });
+
+    // PendingWorkflowControls should NOT be shown (no QUEUED WORKFLOW heading)
+    expect(screen.queryByText('QUEUED WORKFLOW')).not.toBeInTheDocument();
+
+    // Start button should NOT be present (Start button is in PendingWorkflowControls)
+    expect(screen.queryByRole('button', { name: /^start$/i })).not.toBeInTheDocument();
+  });
+
+  it('should show PendingWorkflowControls when status is pending (not planning)', async () => {
+    const pendingWorkflow: WorkflowSummary = {
+      ...planningWorkflow,
+      id: 'wf-pending',
+      status: 'pending',
+      current_stage: null,
+    };
+    const pendingWorkflowDetail: WorkflowDetail = {
+      ...planningWorkflowDetail,
+      id: 'wf-pending',
+      status: 'pending',
+      current_stage: null,
+    };
+
+    vi.mocked(useLoaderData).mockReturnValue({
+      workflows: [pendingWorkflow],
+      detail: pendingWorkflowDetail,
+      detailError: null,
+    });
+
+    renderWithRouter(<WorkflowsPage />);
+
+    // Should show QUEUED WORKFLOW heading (from PendingWorkflowControls)
+    const queuedHeading = await screen.findByText('QUEUED WORKFLOW');
+    expect(queuedHeading).toBeInTheDocument();
+
+    // Should NOT show PLANNING heading (PlanningIndicator)
+    expect(screen.queryByText('PLANNING')).not.toBeInTheDocument();
+  });
+});

@@ -17,6 +17,7 @@ import { ActivityLog } from '@/components/ActivityLog';
 import { JobQueue } from '@/components/JobQueue';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { PendingWorkflowControls } from '@/components/PendingWorkflowControls';
+import { PlanningIndicator } from '@/components/PlanningIndicator';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { success, error } from '@/components/Toast';
@@ -139,7 +140,17 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      {/* Pending Workflow Controls - shown when workflow is queued */}
+      {/* Planning Indicator - shown when Architect is generating plan */}
+      {detail?.status === 'planning' && (
+        <div className="px-4 pt-4">
+          <PlanningIndicator
+            workflowId={detail.id}
+            startedAt={detail.created_at}
+          />
+        </div>
+      )}
+
+      {/* Pending Workflow Controls - shown when workflow is queued (not planning) */}
       {detail?.status === 'pending' && (
         <div className="px-4 pt-4">
           <PendingWorkflowControls
