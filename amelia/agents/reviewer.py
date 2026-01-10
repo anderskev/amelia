@@ -117,7 +117,6 @@ class Reviewer:
         review(): Entry point - dispatches to single or competitive based on profile.strategy.
         _single_review(): Single reviewer with specified persona. Returns ReviewResult.
         _competitive_review(): Multiple reviewers in parallel with aggregated verdict.
-        structured_review(): Detailed beagle format with file:line references. Returns StructuredReviewResult.
         agentic_review(): Auto-detects technologies, loads review skills, fetches diff via git.
             Best for large diffs that exceed CLI argument limits.
 
@@ -128,22 +127,6 @@ class Reviewer:
 
     SYSTEM_PROMPT_TEMPLATE = """You are an expert code reviewer with a focus on {persona} aspects.
 Analyze the provided code changes and provide a comprehensive review."""
-
-    STRUCTURED_SYSTEM_PROMPT = """You are an expert code reviewer. Review the provided code changes and produce structured feedback.
-
-OUTPUT FORMAT:
-- Summary: 1-2 sentence overview
-- Items: Numbered list with format [FILE:LINE] TITLE
-  - For each item provide: Issue (what's wrong), Why (why it matters), Fix (recommended solution)
-- Good Patterns: List things done well to preserve
-- Verdict: "approved" | "needs_fixes" | "blocked"
-
-SEVERITY LEVELS:
-- critical: Blocking issues (security, data loss, crashes)
-- major: Should fix before merge (bugs, performance, maintainability)
-- minor: Nice to have (style, minor improvements)
-
-Be specific with file paths and line numbers. Provide actionable feedback."""
 
     AGENTIC_REVIEW_PROMPT = """You are an expert code reviewer. Your task is to review code changes using the appropriate review skills.
 
@@ -231,7 +214,7 @@ Rationale: [1-2 sentences]
             driver: LLM driver interface for generating reviews.
             event_bus: Optional EventBus for emitting workflow events.
             prompts: Optional dict mapping prompt IDs to custom content.
-                Supports keys: "reviewer.template", "reviewer.structured", "reviewer.agentic".
+                Supports keys: "reviewer.template", "reviewer.agentic".
             agent_name: Name used in logs/events. Use "task_reviewer" for task-based
                 execution to distinguish from final review.
 
@@ -244,10 +227,6 @@ Rationale: [1-2 sentences]
     @property
     def template_prompt(self) -> str:
         return self._prompts.get("reviewer.template", self.SYSTEM_PROMPT_TEMPLATE)
-
-    @property
-    def structured_prompt(self) -> str:
-        return self._prompts.get("reviewer.structured", self.STRUCTURED_SYSTEM_PROMPT)
 
     @property
     def agentic_prompt(self) -> str:
@@ -560,101 +539,6 @@ Rationale: [1-2 sentences]
             severity=overall_severity
         )
         return aggregated_result, None
-
-    async def structured_review(
-        self,
-        state: ExecutionState,
-        code_changes: str,
-        profile: Profile,
-        *,
-        workflow_id: str,
-    ) -> tuple[StructuredReviewResult, str | None]:
-        """Perform structured code review with beagle format output.
-
-        Args:
-            state: Current execution state.
-            code_changes: Diff or description of changes to review.
-            profile: Active profile with driver settings.
-            workflow_id: Workflow identifier for streaming.
-
-        Returns:
-            Tuple of StructuredReviewResult and optional session ID.
-
-        """
-        # Handle empty code changes - return approved result with no items
-        if not code_changes or not code_changes.strip():
-            self._handle_empty_changes(workflow_id, "structured_review")
-            result = StructuredReviewResult(
-                summary="No code changes to review.",
-                items=[],
-                good_patterns=[],
-                verdict="approved",
-            )
-            return result, state.driver_session_id
-
-        # Build prompt using existing method
-        prompt = self._build_prompt(state, code_changes=code_changes)
-
-        logger.debug(
-            "Built structured review prompt",
-            agent=self._agent_name,
-            method="structured_review",
-            prompt_length=len(prompt),
-            system_prompt_length=len(self.structured_prompt),
-        )
-
-        response, new_session_id = await self.driver.generate(
-            prompt=prompt,
-            system_prompt=self.structured_prompt,
-            schema=StructuredReviewResult,
-            cwd=profile.working_dir,
-            session_id=state.driver_session_id,
-        )
-
-        # Emit completion event before return
-        if self._event_bus is not None:
-            verdict_display = {
-                "approved": "Approved",
-                "needs_fixes": "Needs fixes",
-                "blocked": "Blocked",
-            }
-            content_parts = [
-                f"**Structured review:** {verdict_display.get(response.verdict, response.verdict)}",
-                f"\n{response.summary}",
-            ]
-            if response.items:
-                content_parts.append("\n**Issues:**")
-                for item in response.items:
-                    content_parts.append(
-                        f"- **[{item.severity}]** {item.title} ({item.file_path}:{item.line}): {item.issue}"
-                    )
-            if response.good_patterns:
-                content_parts.append("\n**Good patterns:**")
-                for pattern in response.good_patterns:
-                    content_parts.append(f"- {pattern}")
-            event = WorkflowEvent(
-                id=str(uuid4()),
-                workflow_id=workflow_id,
-                sequence=0,
-                timestamp=datetime.now(UTC),
-                agent=self._agent_name,
-                event_type=EventType.AGENT_OUTPUT,
-                level=EventLevel.TRACE,
-                message="\n".join(content_parts),
-            )
-            self._event_bus.emit(event)
-
-        logger.info(
-            "Structured review completed",
-            agent=self._agent_name,
-            method="structured_review",
-            verdict=response.verdict,
-            item_count=len(response.items),
-            good_pattern_count=len(response.good_patterns),
-            workflow_id=workflow_id,
-        )
-
-        return response, new_session_id
 
     async def agentic_review(
         self,
