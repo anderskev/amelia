@@ -32,8 +32,12 @@ class TestStateTransitions:
         "current,target",
         [
             ("pending", "in_progress"),
+            ("pending", "planning"),
             ("pending", "cancelled"),
             ("pending", "failed"),  # Workflows can fail during startup
+            ("planning", "blocked"),
+            ("planning", "failed"),
+            ("planning", "cancelled"),
             ("in_progress", "blocked"),
             ("in_progress", "completed"),
             ("in_progress", "failed"),
@@ -55,6 +59,9 @@ class TestStateTransitions:
             ("pending", "completed"),
             # ("pending", "failed") is now valid - workflows can fail during startup
             ("pending", "blocked"),
+            ("planning", "pending"),
+            ("planning", "completed"),
+            ("planning", "in_progress"),
             ("in_progress", "pending"),
             ("in_progress", "in_progress"),
             ("blocked", "pending"),
@@ -75,6 +82,7 @@ class TestStateTransitions:
         """Terminal states cannot transition to any other state."""
         all_states: list[WorkflowStatus] = [
             "pending",
+            "planning",
             "in_progress",
             "blocked",
             "completed",

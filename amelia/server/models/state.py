@@ -11,6 +11,7 @@ from amelia.core.state import ExecutionState
 # Type alias for workflow status
 WorkflowStatus = Literal[
     "pending",  # Not yet started
+    "planning",  # Architect generating plan
     "in_progress",  # Currently executing
     "blocked",  # Awaiting human approval
     "completed",  # Successfully finished
@@ -21,7 +22,8 @@ WorkflowStatus = Literal[
 
 # State machine validation - prevents invalid transitions
 VALID_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
-    "pending": {"in_progress", "cancelled", "failed"},  # Can fail during startup
+    "pending": {"planning", "in_progress", "cancelled", "failed"},
+    "planning": {"blocked", "failed", "cancelled"},
     "in_progress": {"blocked", "completed", "failed", "cancelled"},
     "blocked": {"in_progress", "failed", "cancelled"},
     "completed": set(),  # Terminal state

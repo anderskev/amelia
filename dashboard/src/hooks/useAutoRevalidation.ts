@@ -7,6 +7,7 @@ import { useWorkflowStore } from '../store/workflowStore';
  * Includes stage events to ensure current_stage updates are reflected in the UI.
  */
 const STATUS_EVENTS = [
+  'workflow_created',
   'workflow_completed',
   'workflow_failed',
   'workflow_started',
@@ -22,7 +23,7 @@ const STATUS_EVENTS = [
  * status-changing workflow events are received via WebSocket.
  *
  * Watches the Zustand store for events and triggers revalidation when:
- * - workflow_started, workflow_completed, workflow_failed
+ * - workflow_created (for plan_now workflows), workflow_started, workflow_completed, workflow_failed
  * - approval_required, approval_granted, approval_rejected
  * - stage_started, stage_completed (for current_stage updates)
  *

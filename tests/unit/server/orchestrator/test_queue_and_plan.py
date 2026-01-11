@@ -1,14 +1,17 @@
 """Tests for queue_and_plan_workflow orchestrator method."""
 
 import asyncio
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from amelia.core.state import ExecutionState
 from amelia.core.types import Issue
+from amelia.server.models.events import WorkflowEvent
 from amelia.server.models.requests import CreateWorkflowRequest
 from amelia.server.orchestrator.service import OrchestratorService
 
@@ -109,7 +112,9 @@ class TestQueueAndPlanWorkflow:
         # Mock the architect to return an execution state with a plan
         mock_architect = MagicMock()
 
-        async def mock_plan_gen(*args, **kwargs):
+        async def mock_plan_gen(
+            *args: Any, **kwargs: Any
+        ) -> AsyncGenerator[tuple[ExecutionState, WorkflowEvent], None]:
             """Mock async generator that yields plan result."""
             state = ExecutionState(
                 profile_id="test",
@@ -117,7 +122,7 @@ class TestQueueAndPlanWorkflow:
                 goal="Implement the test feature",
                 plan_markdown="# Plan\n\n1. Do thing\n2. Do other thing",
             )
-            from amelia.server.models.events import EventType, WorkflowEvent
+            from amelia.server.models.events import EventType
 
             event = WorkflowEvent(
                 id="evt-1",
@@ -162,19 +167,19 @@ class TestQueueAndPlanWorkflow:
         mock_repository.update.assert_called_once()
 
         updated_state = mock_repository.update.call_args[0][0]
-        assert updated_state.workflow_status == "pending"
+        assert updated_state.workflow_status == "blocked"
         assert updated_state.planned_at is not None
         assert updated_state.execution_state is not None
         assert updated_state.execution_state.goal is not None
 
     @pytest.mark.asyncio
-    async def test_queue_and_plan_stays_pending(
+    async def test_queue_and_plan_transitions_to_blocked(
         self,
         orchestrator: OrchestratorService,
         mock_repository: MagicMock,
         valid_worktree: str,
     ) -> None:
-        """Workflow remains pending after planning (not started)."""
+        """Workflow transitions to blocked after planning completes (waiting for approval)."""
         request = CreateWorkflowRequest(
             issue_id="ISSUE-123",
             worktree_path=valid_worktree,
@@ -185,7 +190,9 @@ class TestQueueAndPlanWorkflow:
         # Mock the architect
         mock_architect = MagicMock()
 
-        async def mock_plan_gen(*args, **kwargs):
+        async def mock_plan_gen(
+            *args: Any, **kwargs: Any
+        ) -> AsyncGenerator[tuple[ExecutionState, WorkflowEvent], None]:
             """Mock async generator that yields plan result."""
             state = ExecutionState(
                 profile_id="test",
@@ -193,7 +200,7 @@ class TestQueueAndPlanWorkflow:
                 goal="Implement the test feature",
                 plan_markdown="# Plan",
             )
-            from amelia.server.models.events import EventType, WorkflowEvent
+            from amelia.server.models.events import EventType
 
             event = WorkflowEvent(
                 id="evt-1",
@@ -249,10 +256,12 @@ class TestQueueAndPlanWorkflow:
         # Mock architect that raises an exception
         mock_architect = MagicMock()
 
-        async def mock_plan_gen_fail(*args, **kwargs):
+        async def mock_plan_gen_fail(
+            *args: Any, **kwargs: Any
+        ) -> AsyncGenerator[tuple[ExecutionState, WorkflowEvent | None], None]:
             """Mock async generator that raises."""
             raise Exception("LLM API error")
-            yield  # Make it an async generator
+            yield  # Make it an async generator  # noqa: B901
 
         mock_architect.plan = mock_plan_gen_fail
 
@@ -303,7 +312,9 @@ class TestQueueAndPlanWorkflow:
 
         mock_architect = MagicMock()
 
-        async def mock_plan_gen(*args, **kwargs):
+        async def mock_plan_gen(
+            *args: Any, **kwargs: Any
+        ) -> AsyncGenerator[tuple[ExecutionState, WorkflowEvent], None]:
             """Mock async generator that yields plan result."""
             state = ExecutionState(
                 profile_id="test",
@@ -311,7 +322,7 @@ class TestQueueAndPlanWorkflow:
                 goal="Implement the test feature",
                 plan_markdown="# Plan",
             )
-            from amelia.server.models.events import EventType, WorkflowEvent
+            from amelia.server.models.events import EventType
 
             event = WorkflowEvent(
                 id="evt-1",
@@ -389,7 +400,9 @@ class TestQueueAndPlanWorkflow:
 
         mock_architect = MagicMock()
 
-        async def slow_plan_gen(*args, **kwargs):
+        async def slow_plan_gen(
+            *args: Any, **kwargs: Any
+        ) -> AsyncGenerator[tuple[ExecutionState, None], None]:
             """Mock async generator that signals when planning starts."""
             planning_started.set()
             # Wait to simulate slow planning
@@ -429,3 +442,50 @@ class TestQueueAndPlanWorkflow:
 
             # Now update should have been called
             mock_repository.update.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_queue_and_plan_sets_planning_status_immediately(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: MagicMock,
+        valid_worktree: str,
+    ) -> None:
+        """Workflow status is 'planning' immediately after queue_and_plan_workflow."""
+        request = CreateWorkflowRequest(
+            issue_id="ISSUE-123",
+            worktree_path=valid_worktree,
+            start=False,
+            plan_now=True,
+        )
+
+        # Use an event to block planning indefinitely
+        planning_started = asyncio.Event()
+
+        mock_architect = MagicMock()
+
+        async def blocking_plan_gen(
+            *args: Any, **kwargs: Any
+        ) -> AsyncGenerator[tuple[None, None], None]:
+            """Mock async generator that blocks forever."""
+            planning_started.set()
+            await asyncio.sleep(1000)  # Block indefinitely
+            yield None, None
+
+        mock_architect.plan = blocking_plan_gen
+
+        with patch.object(
+            orchestrator, "_create_architect_for_planning", return_value=mock_architect
+        ):
+            workflow_id = await orchestrator.queue_and_plan_workflow(request)
+
+            # Wait for planning to start
+            await asyncio.wait_for(planning_started.wait(), timeout=1.0)
+
+            # Check the created state has planning status
+            created_state = mock_repository.create.call_args[0][0]
+            assert created_state.workflow_status == "planning"
+            assert created_state.current_stage == "architect"
+
+            # Cancel the background task
+            if workflow_id in orchestrator._planning_tasks:
+                orchestrator._planning_tasks[workflow_id].cancel()
