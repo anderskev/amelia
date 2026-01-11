@@ -17,6 +17,7 @@ import { ActivityLog } from '@/components/ActivityLog';
 import { JobQueue } from '@/components/JobQueue';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { PendingWorkflowControls } from '@/components/PendingWorkflowControls';
+import { PlanningIndicator } from '@/components/PlanningIndicator';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { success, error } from '@/components/Toast';
@@ -139,7 +140,17 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      {/* Pending Workflow Controls - shown when workflow is queued */}
+      {/* Planning Indicator - shown when Architect is generating plan */}
+      {detail?.status === 'planning' && (
+        <div className="px-4 pt-4">
+          <PlanningIndicator
+            workflowId={detail.id}
+            startedAt={detail.created_at}
+          />
+        </div>
+      )}
+
+      {/* Pending Workflow Controls - shown when workflow is queued (not planning) */}
       {detail?.status === 'pending' && (
         <div className="px-4 pt-4">
           <PendingWorkflowControls
@@ -157,7 +168,7 @@ export default function WorkflowsPage() {
       )}
 
       {/* Bottom: Queue + Activity (split) - ScrollArea provides overflow handling */}
-      <div className="flex-1 grid grid-cols-[320px_1fr] grid-rows-[1fr] gap-4 p-4 overflow-hidden relative z-10 min-h-[300px]">
+      <div className="flex-1 grid grid-cols-[360px_1fr] grid-rows-[1fr] gap-4 p-4 overflow-hidden relative z-10 min-h-[300px]">
         <ScrollArea className="h-full overflow-hidden">
           <JobQueue
             workflows={workflows}

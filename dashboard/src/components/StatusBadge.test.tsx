@@ -25,4 +25,15 @@ describe('StatusBadge', () => {
     const badge = screen.getByRole('status');
     expect(badge).toHaveAttribute('data-status', 'running');
   });
+
+  it('renders PLANNING for planning status', () => {
+    render(<StatusBadge status="planning" />);
+    expect(screen.getByText('PLANNING')).toBeInTheDocument();
+  });
+
+  it('has correct data-status attribute for planning', () => {
+    render(<StatusBadge status="planning" />);
+    const badge = screen.getByRole('status');
+    expect(badge).toHaveAttribute('data-status', 'planning');
+  });
 });

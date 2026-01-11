@@ -230,7 +230,7 @@ async def list_active_workflows(
 ) -> WorkflowListResponse:
     """List all active workflows.
 
-    Active workflows are those in pending, in_progress, or blocked status.
+    Active workflows are those in pending, planning, in_progress, or blocked status.
 
     Args:
         worktree: Filter by worktree path.
@@ -332,6 +332,7 @@ async def get_workflow(
     # Extract agentic execution fields from execution_state
     goal = workflow.execution_state.goal if workflow.execution_state else None
     plan_markdown = workflow.execution_state.plan_markdown if workflow.execution_state else None
+    plan_path = str(workflow.execution_state.plan_path) if workflow.execution_state and workflow.execution_state.plan_path else None
 
     # DEBUG: Log what API sees from database
     logger.info(
@@ -363,6 +364,7 @@ async def get_workflow(
         current_stage=workflow.current_stage,
         goal=goal,
         plan_markdown=plan_markdown,
+        plan_path=plan_path,
         token_usage=token_usage,
         recent_events=recent_events,
         tool_calls=tool_calls,

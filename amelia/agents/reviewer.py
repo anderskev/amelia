@@ -253,7 +253,13 @@ Rationale: [1-2 sentences]
         status = "Approved" if approved else "Changes requested"
 
         content_parts = [f"**Review completed:** {status} (severity: {severity})"]
-        if comments:
+
+        # Comments are already filtered to actionable issues at the source
+        if not approved and comments:
+            content_parts.append("\n**Issues to fix:**")
+            for comment in comments:
+                content_parts.append(f"- {comment}")
+        elif comments:
             content_parts.append("\n**Comments:**")
             for comment in comments:
                 content_parts.append(f"- {comment}")
@@ -462,16 +468,24 @@ The changes are in git - diff against commit: {base_commit}"""
         else:
             # Fallback: check for approval keywords
             output_lower = output.lower()
-            approved = any(
-                word in output_lower
-                for word in ["ready: yes", "approved", "lgtm", "looks good"]
-            )
-            not_approved = any(
-                word in output_lower
-                for word in ["ready: no", "not approved", "needs fixes", "blocked"]
-            )
-            if not_approved:
+            approval_keywords_found = [
+                word for word in ["ready: yes", "approved", "lgtm", "looks good"]
+                if word in output_lower
+            ]
+            rejection_keywords_found = [
+                word for word in ["ready: no", "not approved", "needs fixes", "blocked"]
+                if word in output_lower
+            ]
+            approved = bool(approval_keywords_found)
+            if rejection_keywords_found:
                 approved = False
+            logger.debug(
+                "Verdict parsed from fallback keywords",
+                approval_keywords_found=approval_keywords_found,
+                rejection_keywords_found=rejection_keywords_found,
+                approved=approved,
+                workflow_id=workflow_id,
+            )
 
         # Parse issues from each severity section
         issues: list[tuple[str, str]] = []  # (severity, issue_text)
