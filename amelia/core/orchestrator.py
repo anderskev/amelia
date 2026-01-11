@@ -5,7 +5,6 @@ Developer (execute agentically) <-> Reviewer (review) -> Done. Provides node fun
 the state machine and the create_orchestrator_graph() factory.
 """
 import asyncio
-import json
 import os
 import re
 from datetime import UTC, datetime
@@ -1048,18 +1047,7 @@ async def next_task_node(
     completed_task = state.current_task_index + 1
     next_task = state.current_task_index + 2
 
-    # Debug: Log to file to track if next_task_node is being called
-    debug_file = Path.home() / ".amelia" / "routing_debug.jsonl"
-    with open(debug_file, "a") as f:
-        f.write(json.dumps({
-            "event": "NEXT_TASK_NODE_CALLED",
-            "timestamp": str(datetime.now()),
-            "current_task_index_before": state.current_task_index,
-            "will_increment_to": state.current_task_index + 1,
-            "total_tasks": state.total_tasks,
-        }) + "\n")
-
-    logger.warning(
+    logger.info(
         "NEXT_TASK_NODE: Transitioning to next task",
         completed=completed_task,
         next=next_task,
@@ -1262,53 +1250,23 @@ def route_after_review_or_task(
         Routing target: developer_node (legacy), developer (task retry),
         next_task_node (task approved), or __end__.
     """
-    # Debug: Log full routing context at WARNING level for visibility
-    debug_data = {
-        "timestamp": str(datetime.now()),
-        "total_tasks": state.total_tasks,
-        "current_task_index": state.current_task_index,
-        "review_iteration": state.review_iteration,
-        "task_review_iteration": state.task_review_iteration,
-        "has_last_review": state.last_review is not None,
-        "last_review_approved": state.last_review.approved if state.last_review else None,
-        "should_end": (state.current_task_index + 1 >= state.total_tasks) if state.total_tasks else None,
-    }
-    debug_file = Path.home() / ".amelia" / "routing_debug.jsonl"
-    with open(debug_file, "a") as f:
-        f.write(json.dumps(debug_data) + "\n")
-
-    logger.warning(
-        "ROUTING_DEBUG: route_after_review_or_task entry",
-        total_tasks=state.total_tasks,
-        current_task_index=state.current_task_index,
-        review_iteration=state.review_iteration,
-        task_review_iteration=state.task_review_iteration,
-        has_last_review=state.last_review is not None,
-        last_review_approved=state.last_review.approved if state.last_review else None,
-        last_review_severity=state.last_review.severity if state.last_review else None,
-        last_review_persona=state.last_review.reviewer_persona if state.last_review else None,
-    )
-
     if state.total_tasks is not None:
         result = route_after_task_review(state, config)
-        # Log result to file
-        with open(debug_file, "a") as f:
-            f.write(json.dumps({"result": result, "mode": "task"}) + "\n")
-        logger.warning(
-            "ROUTING_DEBUG: route_after_review_or_task decision (task mode)",
+        logger.debug(
+            "route_after_review_or_task: task mode",
             route=result,
-            total_tasks=state.total_tasks,
             current_task_index=state.current_task_index,
-            should_end=state.current_task_index + 1 >= state.total_tasks if state.total_tasks else False,
+            total_tasks=state.total_tasks,
         )
         return result
+
     # Legacy mode: route_after_review returns "developer" but graph uses "developer_node"
     result = route_after_review(state, config)
     final_result: Literal["developer_node", "__end__"] = (
         "developer_node" if result == "developer" else "__end__"
     )
-    logger.warning(
-        "ROUTING_DEBUG: route_after_review_or_task decision (legacy mode)",
+    logger.debug(
+        "route_after_review_or_task: legacy mode",
         inner_result=result,
         final_route=final_result,
     )
