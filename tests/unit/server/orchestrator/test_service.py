@@ -98,7 +98,6 @@ async def test_start_workflow_rejects_nonexistent_path(
         await orchestrator.start_workflow(
             issue_id="ISSUE-123",
             worktree_path="/nonexistent/path",
-            worktree_name="test",
         )
 
     assert exc_info.value.worktree_path == "/nonexistent/path"
@@ -117,7 +116,6 @@ async def test_start_workflow_rejects_file_path(
         await orchestrator.start_workflow(
             issue_id="ISSUE-123",
             worktree_path=str(file_path),
-            worktree_name="test",
         )
 
     assert "not a directory" in exc_info.value.reason
@@ -135,7 +133,6 @@ async def test_start_workflow_rejects_non_git_directory(
         await orchestrator.start_workflow(
             issue_id="ISSUE-123",
             worktree_path=str(plain_dir),
-            worktree_name="test",
         )
 
     assert ".git missing" in exc_info.value.reason
@@ -151,7 +148,6 @@ async def test_start_workflow_success(
         workflow_id = await orchestrator.start_workflow(
             issue_id="ISSUE-123",
             worktree_path=valid_worktree,
-            worktree_name="feat-123",
         )
 
         assert workflow_id  # Should return a UUID
@@ -164,7 +160,6 @@ async def test_start_workflow_success(
         assert state.id == workflow_id
         assert state.issue_id == "ISSUE-123"
         assert state.worktree_path == valid_worktree
-        assert state.worktree_name == "feat-123"
         assert state.workflow_status == "pending"
         # Verify execution_state is initialized with profile_id
         assert state.execution_state is not None
@@ -186,7 +181,6 @@ async def test_start_workflow_conflict(
         await orchestrator.start_workflow(
             issue_id="ISSUE-123",
             worktree_path=valid_worktree,
-            worktree_name="feat-123",
         )
 
     assert valid_worktree in str(exc_info.value)
@@ -216,7 +210,6 @@ async def test_start_workflow_concurrency_limit(
         await orchestrator.start_workflow(
             issue_id="ISSUE-123",
             worktree_path=valid_worktree,
-            worktree_name="feat-new",
         )
 
     assert exc_info.value.max_concurrent == 5
@@ -238,7 +231,6 @@ async def test_cancel_workflow(
         id="wf-1",
         issue_id="ISSUE-123",
         worktree_path="/path/to/worktree",
-        worktree_name="feat-123",
         workflow_status="in_progress",
         started_at=datetime.now(UTC),
     )
@@ -282,8 +274,7 @@ async def test_cancel_workflow(
                 id="wf-1",
                 issue_id="ISSUE-123",
                 worktree_path="/path/to/worktree",
-                worktree_name="feat-123",
-                workflow_status="completed",
+                    workflow_status="completed",
                 started_at=datetime.now(UTC),
             ),
         ),
@@ -305,8 +296,7 @@ async def test_cancel_workflow(
                 id="wf-1",
                 issue_id="ISSUE-123",
                 worktree_path="/path/to/worktree",
-                worktree_name="feat-123",
-                workflow_status="in_progress",
+                    workflow_status="in_progress",
                 started_at=datetime.now(UTC),
             ),
         ),
@@ -328,8 +318,7 @@ async def test_cancel_workflow(
                 id="wf-1",
                 issue_id="ISSUE-123",
                 worktree_path="/path/to/worktree",
-                worktree_name="feat-123",
-                workflow_status="in_progress",
+                    workflow_status="in_progress",
                 started_at=datetime.now(UTC),
             ),
         ),
@@ -439,7 +428,6 @@ async def test_approve_workflow_success(
         id="wf-1",
         issue_id="ISSUE-123",
         worktree_path="/path/to/worktree",
-        worktree_name="feat-123",
         workflow_status="blocked",
         started_at=datetime.now(UTC),
         execution_state=ExecutionState(profile_id="test"),
@@ -496,7 +484,6 @@ async def test_reject_workflow_success(
         id="wf-1",
         issue_id="ISSUE-123",
         worktree_path="/path/to/worktree",
-        worktree_name="feat-123",
         workflow_status="blocked",
         started_at=datetime.now(UTC),
         execution_state=ExecutionState(profile_id="test"),
@@ -547,7 +534,6 @@ class TestRejectWorkflowGraphState:
             id="wf-123",
             issue_id="ISSUE-456",
             worktree_path="/tmp/test",
-            worktree_name="test",
             workflow_status="blocked",
             execution_state=ExecutionState(profile_id="test"),
         )
@@ -581,7 +567,6 @@ class TestApproveWorkflowResume:
             id="wf-123",
             issue_id="ISSUE-456",
             worktree_path="/tmp/test",
-            worktree_name="test",
             workflow_status="blocked",
             execution_state=ExecutionState(profile_id="test"),
         )
@@ -778,7 +763,6 @@ async def test_handle_stream_chunk_updates_current_stage(
         id="wf-1",
         issue_id="ISSUE-123",
         worktree_path="/path/to/worktree",
-        worktree_name="feat-123",
         workflow_status="in_progress",
         started_at=datetime.now(UTC),
         current_stage=None,  # Initially null
@@ -813,7 +797,6 @@ async def test_handle_stream_chunk_updates_stage_for_each_stage_node(
             id="wf-1",
             issue_id="ISSUE-123",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-123",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
         )
@@ -859,7 +842,6 @@ async def test_completion_event_uses_fresh_current_stage(
         id="wf-1",
         issue_id="ISSUE-123",
         worktree_path="/path/to/worktree",
-        worktree_name="feat-123",
         workflow_status="in_progress",
         started_at=datetime.now(UTC),
         current_stage=None,  # Stale - will be updated by _handle_stream_chunk
@@ -870,7 +852,6 @@ async def test_completion_event_uses_fresh_current_stage(
         id="wf-1",
         issue_id="ISSUE-123",
         worktree_path="/path/to/worktree",
-        worktree_name="feat-123",
         workflow_status="in_progress",
         started_at=datetime.now(UTC),
         current_stage="reviewer_node",  # Fresh value from DB
@@ -922,7 +903,6 @@ async def test_get_workflow_by_worktree_uses_cache(
         id="wf-cached",
         issue_id="ISSUE-123",
         worktree_path="/cached/worktree",
-        worktree_name="cached",
         workflow_status="in_progress",
         started_at=datetime.now(UTC),
     )
@@ -995,8 +975,7 @@ async def test_start_workflow_denied_by_policy_hook(
             await orchestrator.start_workflow(
                 issue_id="ISSUE-123",
                 worktree_path=valid_worktree,
-                worktree_name="feat-123",
-            )
+                )
 
         assert "denied by policy" in exc_info.value.reason.lower()
         assert exc_info.value.hook_name == "DenyingPolicyHook"
@@ -1026,7 +1005,6 @@ class TestSyncPlanFromCheckpoint:
             id="wf-sync",
             issue_id="ISSUE-123",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-123",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
             execution_state=ExecutionState(profile_id=profile.name),
@@ -1209,8 +1187,7 @@ profiles:
             await orchestrator.start_workflow(
                 issue_id="ISSUE-123",
                 worktree_path=str(worktree),
-                worktree_name="feat-123",
-            )
+                )
 
         # Verify workflow was created with worktree profile
         call_args = mock_repository.create.call_args
@@ -1236,8 +1213,7 @@ profiles:
             await orchestrator.start_workflow(
                 issue_id="ISSUE-123",
                 worktree_path=str(worktree),
-                worktree_name="feat-123",
-            )
+                )
 
         # Should fail with clear error about settings
         assert "settings" in str(exc_info.value).lower() or "profile" in str(exc_info.value).lower()
@@ -1258,8 +1234,7 @@ profiles:
             await orchestrator.start_workflow(
                 issue_id="ISSUE-123",
                 worktree_path=str(worktree),
-                worktree_name="feat-123",
-            )
+                )
 
         # Should fail with clear error about missing settings
         assert "settings.amelia.yaml" in str(exc_info.value).lower()
@@ -1291,7 +1266,6 @@ profiles:
             await orchestrator.start_review_workflow(
                 diff_content="--- a/file.py\n+++ b/file.py\n@@ -1 +1 @@\n-old\n+new",
                 worktree_path=str(worktree),
-                worktree_name="review-test",
             )
 
         # Verify workflow was created with worktree profile
@@ -1333,7 +1307,6 @@ class TestRunWorkflowCheckpointResume:
             id="wf-retry-test",
             issue_id="ISSUE-123",
             worktree_path="/path/to/worktree",
-            worktree_name="feat-123",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
             execution_state=ExecutionState(profile_id="test"),
@@ -1594,7 +1567,6 @@ class TestApprovalEventCleanup:
             workflow_id = await orchestrator.start_workflow(
                 issue_id="ISSUE-123",
                 worktree_path=valid_worktree,
-                worktree_name="feat-cleanup",
             )
 
             # Wait for workflow to complete
