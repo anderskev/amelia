@@ -123,6 +123,10 @@ async def _extract_structured[T: BaseModel](
         messages.append(HumanMessage(content=prompt))
 
         result = await structured_model.ainvoke(messages)
+        if result is None:
+            raise RuntimeError(
+                f"Model returned output that could not be parsed into {schema.__name__}"
+            )
         logger.debug(
             "Structured extraction completed",
             schema=schema.__name__,
