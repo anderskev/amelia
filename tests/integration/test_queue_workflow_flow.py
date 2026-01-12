@@ -19,7 +19,6 @@ Real components:
 - Request/Response model validation
 """
 
-import subprocess
 import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -40,6 +39,9 @@ from amelia.server.events.bus import EventBus
 from amelia.server.main import create_app
 from amelia.server.models.state import ServerExecutionState
 from amelia.server.orchestrator.service import OrchestratorService
+
+# init_git_repo is imported from conftest.py via pytest fixture auto-discovery
+from tests.conftest import init_git_repo
 
 
 # =============================================================================
@@ -107,48 +109,6 @@ def test_client(
     app.dependency_overrides[get_repository] = lambda: test_repository
 
     return TestClient(app)
-
-
-def init_git_repo(path: Path) -> Path:
-    """Initialize a git repo with initial commit for testing.
-
-    Creates a minimal git repository with user config and an initial commit,
-    suitable for tests that require git operations.
-
-    Args:
-        path: Directory to initialize as git repo.
-
-    Returns:
-        Path to the initialized git repository.
-    """
-    subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@test.com"],
-        cwd=path,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=path,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "commit.gpgsign", "false"],
-        cwd=path,
-        capture_output=True,
-        check=True,
-    )
-    (path / "README.md").write_text("# Test")
-    subprocess.run(["git", "add", "."], cwd=path, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial"],
-        cwd=path,
-        capture_output=True,
-        check=True,
-    )
-    return path
 
 
 async def create_pending_workflow(

@@ -394,8 +394,6 @@ class TestClaudeCliDriverConfiguration:
         driver = ClaudeCliDriver()
         assert driver.model == "sonnet"
         assert driver.skip_permissions is False
-        assert driver.allowed_tools == []
-        assert driver.disallowed_tools == []
 
     def test_custom_model(self) -> None:
         """Test custom model configuration."""
@@ -406,16 +404,6 @@ class TestClaudeCliDriverConfiguration:
         """Test skip_permissions configuration."""
         driver = ClaudeCliDriver(skip_permissions=True)
         assert driver.skip_permissions is True
-
-    def test_allowed_tools(self) -> None:
-        """Test allowed_tools configuration."""
-        driver = ClaudeCliDriver(allowed_tools=["Read", "Write"])
-        assert driver.allowed_tools == ["Read", "Write"]
-
-    def test_disallowed_tools(self) -> None:
-        """Test disallowed_tools configuration."""
-        driver = ClaudeCliDriver(disallowed_tools=["Bash"])
-        assert driver.disallowed_tools == ["Bash"]
 
     async def test_skip_permissions_affects_options(self) -> None:
         """Test that skip_permissions affects SDK options."""
@@ -814,20 +802,6 @@ class TestBuildOptions:
         assert options.output_format["type"] == "json_schema"
         # SDK expects "schema" key, not "json_schema"
         assert "schema" in options.output_format
-
-    def test_build_options_allowed_tools(self) -> None:
-        """Test options include allowed_tools from driver."""
-        driver = ClaudeCliDriver(allowed_tools=["Read", "Write"])
-        options = driver._build_options()
-
-        assert options.allowed_tools == ["Read", "Write"]
-
-    def test_build_options_disallowed_tools(self) -> None:
-        """Test options include disallowed_tools from driver."""
-        driver = ClaudeCliDriver(disallowed_tools=["Bash"])
-        options = driver._build_options()
-
-        assert options.disallowed_tools == ["Bash"]
 
 
 class TestExecuteAgenticYieldsAgenticMessage:

@@ -24,7 +24,7 @@ Amelia follows the four-layer agent architecture pattern established in industry
 | Layer | Amelia Implementation |
 |-------|----------------------|
 | **Model** | Pluggable LLM drivers (API or CLI-wrapped) |
-| **Tools** | SafeShell, SafeFile with defense-in-depth security |
+| **Tools** | LLM-native tools via driver (shell, file, search) |
 | **Orchestration** | LangGraph state machine with human approval gates |
 | **Deployment** | Local-first server with SQLite persistence |
 
@@ -36,7 +36,7 @@ Amelia's architecture incorporates findings from industry research on agentic AI
 
 - **Orchestrator-worker pattern**: Specialized agents (Architect, Developer, Reviewer) coordinated through state machine
 - **Iterative refinement**: Developer + Reviewer loop implements the generator-critic pattern
-- **Defense in depth**: Layered guardrails (metacharacters -> blocklist -> patterns -> allowlist)
+- **Human-in-the-loop**: Approval gates before code execution and review cycles
 - **Trajectory as truth**: Full execution trace persisted for debugging, not just final outputs
 
 See the [roadmap](/reference/roadmap#research-foundation) for complete research synthesis.
@@ -49,7 +49,7 @@ See the [roadmap](/reference/roadmap#research-foundation) for complete research 
 | **Agents** | `amelia/agents/` | Specialized AI agents for planning, execution, and review | `Architect`, `Developer`, `Reviewer` |
 | **Drivers** | `amelia/drivers/` | LLM abstraction supporting API and CLI backends | `DriverInterface`, `DriverFactory` |
 | **Trackers** | `amelia/trackers/` | Issue source abstraction for different platforms | `BaseTracker` (Jira, GitHub, NoOp) |
-| **Tools** | `amelia/tools/` | Secure command and file operations with 4-layer security | `SafeShellExecutor`, `SafeFileWriter` |
+| **Tools** | `amelia/tools/` | Git utilities and shell helpers | `git_utils`, `shell_executor` |
 | **Client** | `amelia/client/` | CLI commands and REST client for server communication | `AmeliaClient`, Typer commands |
 | **Server** | `amelia/server/` | FastAPI backend with WebSocket events, SQLite persistence | `OrchestratorService`, `EventBus`, `WorkflowRepository` |
 
@@ -361,7 +361,6 @@ class ExecutionState(BaseModel):
     last_review: ReviewResult | None = None        # Most recent review result
     code_changes_for_review: str | None = None
     driver_session_id: str | None = None           # For driver session continuity
-    workflow_status: Literal["running", "completed", "failed", "aborted"] = "running"
     agent_history: Annotated[list[str], operator.add] = Field(default_factory=list)
 
     # Agentic execution tracking
@@ -481,92 +480,6 @@ The LangGraph state machine consists of these nodes:
 | `reviewer_node` | Calls `Reviewer.review()` | `developer_node` (changes requested) or END (approved) |
 | `next_task_node` | Advances to next task after commit | `developer_node` or END |
 | `commit_task_changes` | Commits changes after task review passes | `next_task_node` |
-
-## Conditional Edges
-
-```python
-# From human_approval_node
-def route_after_approval(state):
-    if state.human_approved:
-        return "developer_node"
-    return END
-
-# From reviewer_node
-def route_after_review(state, config):
-    profile = config["configurable"]["profile"]
-    if state.last_review and state.last_review.approved:
-        return END
-    if state.review_iteration >= profile.max_review_iterations:
-        return END  # Stop after max iterations
-    return "developer_node"  # Fix issues
-
-# From reviewer_node (task-based execution)
-def route_after_task_review(state, config):
-    profile = config["configurable"]["profile"]
-    if state.last_review and state.last_review.approved:
-        return "commit_task_changes"  # Commit and move to next task
-    if state.task_review_iteration >= profile.max_task_review_iterations:
-        return END  # Max iterations for this task
-    return "developer_node"  # Fix issues
-```
-
-## Security Architecture
-
-### Command Execution Security
-
-The `SafeShellExecutor` (`amelia/tools/safe_shell.py`) implements a 4-layer security model:
-
-| Layer | Check | Purpose |
-|-------|-------|---------|
-| 1. Metacharacters | Blocks `\|`, `;`, `&`, `$`, backticks, `>`, `<` | Prevents shell injection |
-| 2. Blocklist | Blocks `sudo`, `su`, `mkfs`, `dd`, `reboot`, etc. | Prevents privilege escalation |
-| 3. Dangerous Patterns | Regex detection of `rm -rf /`, `curl \| sh`, etc. | Prevents destructive commands |
-| 4. Strict Allowlist | Optional whitelist of ~50 safe commands | High-security mode |
-
-```python
-# Example: Command blocked at layer 1
-await executor.execute("cat file.txt | grep error")  # ShellInjectionError
-
-# Example: Command blocked at layer 2
-await executor.execute("sudo apt install foo")  # BlockedCommandError
-
-# Example: Strict mode
-executor = SafeShellExecutor(strict_mode=True)
-await executor.execute("git status")  # OK (in allowlist)
-await executor.execute("curl https://...")  # CommandNotAllowedError
-```
-
-### File Write Security
-
-The `SafeFileWriter` (`amelia/tools/safe_file.py`) protects against path traversal:
-
-- **Path Resolution**: All paths resolved to absolute before validation
-- **Directory Restriction**: Writes only allowed within specified directories (default: cwd)
-- **Symlink Detection**: Detects and blocks symlink escape attacks at every path component
-- **Parent Creation**: Auto-creates parent directories within allowed bounds
-
-```python
-# Example: Path traversal blocked
-await writer.write("../../../etc/passwd", content)  # PathTraversalError
-
-# Example: Symlink escape blocked
-# If /tmp/escape -> /etc, then:
-await writer.write("/allowed/tmp/escape/passwd", content)  # PathTraversalError
-```
-
-### Exception Hierarchy
-
-```
-AmeliaError (base)
-├── ConfigurationError          # Missing/invalid configuration
-├── SecurityError               # Base for security violations
-│   ├── DangerousCommandError   # Dangerous pattern detected
-│   ├── BlockedCommandError     # Command in blocklist
-│   ├── ShellInjectionError     # Shell metacharacters detected
-│   ├── PathTraversalError      # Path escape attempt
-│   └── CommandNotAllowedError  # Not in strict allowlist
-└── AgenticExecutionError       # Agentic mode failures
-```
 
 ## Observability Architecture
 
@@ -777,9 +690,8 @@ amelia/
 │   └── noop.py               # Placeholder tracker
 ├── tools/
 │   ├── __init__.py
-│   ├── safe_file.py          # SafeFileWriter with path traversal protection
-│   ├── safe_shell.py         # SafeShellExecutor with 4-layer security
-│   └── shell_executor.py     # Backward-compat wrappers
+│   ├── git_utils.py          # Git operations (diff, commit, worktree)
+│   └── shell_executor.py     # Simple shell command execution
 ├── utils/
 │   ├── __init__.py
 │   └── design_parser.py      # LLM-powered Design document parser

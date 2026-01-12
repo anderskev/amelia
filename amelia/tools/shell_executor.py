@@ -1,69 +1,55 @@
 # amelia/tools/shell_executor.py
-"""Shell command execution utilities.
+"""Shell command execution utilities."""
 
-This module provides backward-compatible wrappers around SafeShellExecutor
-and SafeFileWriter for existing code that uses the old interface.
-"""
-
-from amelia.tools.safe_file import SafeFileWriter
-from amelia.tools.safe_shell import SafeShellExecutor
+import asyncio
+import shlex
 
 
 async def run_shell_command(
     command: str,
     timeout: int | None = 30,
-    strict_mode: bool = False,
     cwd: str | None = None,
 ) -> str:
     """
-    Execute a shell command safely.
-
-    This is a backward-compatible wrapper around SafeShellExecutor.execute().
+    Execute a shell command.
 
     Args:
         command: The command to execute
         timeout: Maximum execution time in seconds
-        strict_mode: If True, only allow commands in strict allowlist
         cwd: Working directory to execute the command in (None for current directory)
 
     Returns:
         Command stdout as string
 
     Raises:
-        ValueError: If command is empty or has invalid syntax
-        ShellInjectionError: If shell metacharacters are detected
-        BlockedCommandError: If command is in blocklist
-        DangerousCommandError: If command matches dangerous pattern
-        CommandNotAllowedError: If strict mode and command not in allowlist
+        ValueError: If command is empty or malformed (e.g., unclosed quotes)
         RuntimeError: If command fails or times out
     """
-    return await SafeShellExecutor.execute(
-        command=command,
-        timeout=timeout,
-        strict_mode=strict_mode,
-        cwd=cwd,
-    )
+    if not command or not command.strip():
+        raise ValueError("Command cannot be empty")
 
+    args = shlex.split(command)
 
-async def write_file(file_path: str, content: str) -> str:
-    """
-    Write content to a file safely.
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
 
-    This is a backward-compatible wrapper around SafeFileWriter.write().
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(),
+            timeout=timeout,
+        )
 
-    Args:
-        file_path: Path to write to
-        content: Content to write
+        if process.returncode != 0:
+            error_msg = stderr.decode().strip() if stderr else "Command failed"
+            raise RuntimeError(f"Command failed with exit code {process.returncode}: {error_msg}")
 
-    Returns:
-        Success message
+        return stdout.decode().strip()
 
-    Raises:
-        ValueError: If path is empty
-        PathTraversalError: If path escapes allowed directories
-        OSError: If file cannot be written
-    """
-    return await SafeFileWriter.write(
-        file_path=file_path,
-        content=content,
-    )
+    except TimeoutError:
+        process.kill()
+        await process.wait()
+        raise RuntimeError(f"Command timed out after {timeout} seconds") from None

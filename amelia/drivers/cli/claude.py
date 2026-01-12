@@ -163,8 +163,6 @@ class ClaudeCliDriver:
     Attributes:
         model: Claude model to use (sonnet, opus, haiku).
         skip_permissions: Whether to bypass permission prompts.
-        allowed_tools: List of allowed tool names.
-        disallowed_tools: List of disallowed tool names.
         tool_call_history: List of tool calls made during agentic execution.
     """
 
@@ -172,21 +170,15 @@ class ClaudeCliDriver:
         self,
         model: str = "sonnet",
         skip_permissions: bool = False,
-        allowed_tools: list[str] | None = None,
-        disallowed_tools: list[str] | None = None,
     ):
         """Initialize the Claude CLI driver.
 
         Args:
             model: Claude model to use. Defaults to "sonnet".
             skip_permissions: Skip permission prompts. Defaults to False.
-            allowed_tools: List of allowed tool names. Defaults to None.
-            disallowed_tools: List of disallowed tool names. Defaults to None.
         """
         self.model = model
         self.skip_permissions = skip_permissions
-        self.allowed_tools = allowed_tools or []
-        self.disallowed_tools = disallowed_tools or []
         self.tool_call_history: list[ToolUseBlock] = []
         self.last_result_message: ResultMessage | None = None
 
@@ -230,8 +222,6 @@ class ClaudeCliDriver:
             permission_mode=permission_mode,
             system_prompt=system_prompt,
             resume=session_id,
-            allowed_tools=self.allowed_tools,
-            disallowed_tools=self.disallowed_tools,
             output_format=output_format,
         )
 
