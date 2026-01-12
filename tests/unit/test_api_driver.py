@@ -584,10 +584,11 @@ class TestIncompleteTaskDetection:
         assert len(result_msgs) == 1
 
         # Should have logged warning about incomplete tasks
-        warning_calls = [call for call in mock_logger.warning.call_args_list]
+        warning_calls = mock_logger.warning.call_args_list
         assert len(warning_calls) >= 1
         # Check that at least one warning mentions premature termination
-        warning_messages = [str(call) for call in warning_calls]
+        # Access the actual message from the call args (first positional argument)
+        warning_messages = [call.args[0] if call.args else "" for call in warning_calls]
         assert any("premature termination" in msg for msg in warning_messages)
 
     async def test_no_warning_when_all_tasks_completed(
@@ -623,8 +624,9 @@ class TestIncompleteTaskDetection:
         assert len(result_msgs) == 1
 
         # Should NOT have logged warning about incomplete tasks (no premature termination warning)
-        warning_calls = [call for call in mock_logger.warning.call_args_list]
-        warning_messages = [str(call) for call in warning_calls]
+        warning_calls = mock_logger.warning.call_args_list
+        # Access the actual message from the call args (first positional argument)
+        warning_messages = [call.args[0] if call.args else "" for call in warning_calls]
         assert not any("premature termination" in msg for msg in warning_messages)
 
     async def test_logs_warning_when_no_write_file_called(
@@ -662,6 +664,7 @@ class TestIncompleteTaskDetection:
         assert len(result_msgs) == 1
 
         # Should have logged warning about no write_file
-        warning_calls = [call for call in mock_logger.warning.call_args_list]
-        warning_messages = [str(call) for call in warning_calls]
+        warning_calls = mock_logger.warning.call_args_list
+        # Access the actual message from the call args (first positional argument)
+        warning_messages = [call.args[0] if call.args else "" for call in warning_calls]
         assert any("without calling write_file" in msg for msg in warning_messages)

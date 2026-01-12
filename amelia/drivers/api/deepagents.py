@@ -375,6 +375,8 @@ class ApiDriver(DriverInterface):
 
             # Continuation loop - keeps going until required_tool is called or max attempts
             while True:
+                # Track tool call count before this iteration for continuation detection
+                tools_before_iteration = len(all_tool_names)
                 async for chunk in agent.astream(
                     current_input,
                     config=config,
@@ -493,6 +495,17 @@ class ApiDriver(DriverInterface):
                 # After inner loop: check if we need to continue
                 if required_tool and required_tool not in all_tool_names:
                     continuation_count += 1
+                    tools_this_iteration = len(all_tool_names) - tools_before_iteration
+
+                    # Early exit if model made no tool calls - avoid wasteful retries
+                    if tools_this_iteration == 0 and continuation_count > 1:
+                        logger.warning(
+                            "Agent made no tool calls in continuation, stopping early",
+                            required_tool=required_tool,
+                            attempt=continuation_count,
+                        )
+                        break
+
                     if continuation_count > max_continuations:
                         logger.warning(
                             "Max continuations reached without required tool",
@@ -574,7 +587,9 @@ class ApiDriver(DriverInterface):
                 # Log the model's final response to understand why it stopped
                 preview = final_content[:500] if final_content else "EMPTY"
                 logger.info(
-                    f"Agent final response (len={len(final_content)}): {preview}"
+                    "Agent final response",
+                    length=len(final_content),
+                    preview=preview,
                 )
 
                 yield AgenticMessage(

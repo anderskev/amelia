@@ -602,18 +602,22 @@ async def call_architect_node(
         # Log all tool names explicitly for debugging
         tool_names = [tc.tool_name for tc in final_state.tool_calls]
         logger.debug(
-            f"Looking for write_file in tool calls: {tool_names}"
+            "Looking for write_file in tool calls",
+            tool_names=tool_names,
         )
         for tc in final_state.tool_calls:
             input_keys = list(tc.tool_input.keys()) if tc.tool_input else []
             is_match = tc.tool_name == ToolName.WRITE_FILE and "content" in tc.tool_input
             logger.debug(
-                f"tool_name={tc.tool_name!r}, input_keys={input_keys}, is_write_file={is_match}"
+                "Checking tool call for write_file",
+                tool_name=tc.tool_name,
+                input_keys=input_keys,
+                is_write_file=is_match,
             )
             if tc.tool_name == ToolName.WRITE_FILE and "content" in tc.tool_input:
                 plan_content = tc.tool_input.get("content", "")
                 if plan_content:
-                    plan_path.write_text(plan_content)
+                    await asyncio.to_thread(plan_path.write_text, plan_content)
                     logger.info(
                         "Wrote plan file from Write tool call content",
                         plan_path=str(plan_path),
@@ -625,7 +629,7 @@ async def call_architect_node(
             # Some models output the plan as text instead of using the write tool
             raw_output = final_state.raw_architect_output or ""
             if raw_output and _looks_like_plan(raw_output):
-                plan_path.write_text(raw_output)
+                await asyncio.to_thread(plan_path.write_text, raw_output)
                 logger.warning(
                     "Wrote plan file from raw output (model didn't use write tool)",
                     plan_path=str(plan_path),
