@@ -164,7 +164,7 @@ class ExecutionState(BaseModel):
     pending_approval_for: AgentType | None = None  # Set when waiting for human
     human_approved: bool | None = None
     last_review: ReviewResult | None = None
-    # Note: Workflow status is tracked server-side via WorkflowState.workflow_status
+    # Note: Workflow status is tracked server-side via ServerExecutionState.workflow_status
     # with values: pending, planning, in_progress, blocked, completed, failed, cancelled
 
     # --- Helpers ---
