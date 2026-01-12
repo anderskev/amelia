@@ -7,8 +7,8 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend  # type: ignore[import-untyped]
-from deepagents.backends.protocol import (  # type: ignore[import-untyped]
+from deepagents.backends import FilesystemBackend
+from deepagents.backends.protocol import (
     ExecuteResponse,
     SandboxBackendProtocol,
 )
@@ -36,7 +36,7 @@ _MAX_OUTPUT_SIZE = 100_000
 _DEFAULT_TIMEOUT = 300
 
 
-class LocalSandbox(FilesystemBackend, SandboxBackendProtocol):  # type: ignore[misc]
+class LocalSandbox(FilesystemBackend, SandboxBackendProtocol):
     """FilesystemBackend with local shell execution support.
 
     Extends FilesystemBackend and implements SandboxBackendProtocol for shell
