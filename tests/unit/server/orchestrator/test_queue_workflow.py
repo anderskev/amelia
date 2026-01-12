@@ -1,6 +1,5 @@
 """Tests for queue_workflow orchestrator method."""
 
-import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -10,37 +9,8 @@ from amelia.server.models.requests import CreateWorkflowRequest
 from amelia.server.models.state import ServerExecutionState
 from amelia.server.orchestrator.service import OrchestratorService
 
-
-def init_git_repo(path: Path) -> Path:
-    """Initialize a git repo with initial commit for testing."""
-    subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@test.com"],
-        cwd=path,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=path,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "commit.gpgsign", "false"],
-        cwd=path,
-        capture_output=True,
-        check=True,
-    )
-    (path / "README.md").write_text("# Test")
-    subprocess.run(["git", "add", "."], cwd=path, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "-m", "Initial"],
-        cwd=path,
-        capture_output=True,
-        check=True,
-    )
-    return path
+# init_git_repo is imported from conftest.py via pytest fixture auto-discovery
+from tests.conftest import init_git_repo
 
 
 def create_settings_file(path: Path) -> None:

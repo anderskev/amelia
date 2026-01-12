@@ -4,6 +4,7 @@ This module provides factory fixtures for creating test data and mocks
 used throughout the test suite for the agentic execution model.
 """
 import os
+import subprocess
 from collections.abc import AsyncGenerator, Callable, Generator
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -29,6 +30,167 @@ from amelia.server.events.bus import EventBus
 # Rebuild ExecutionState to resolve forward references for StructuredReviewResult
 # and EvaluationResult. This must be called before any tests instantiate ExecutionState.
 rebuild_execution_state()
+
+
+# =============================================================================
+# Git Repository Test Fixture
+# =============================================================================
+
+
+def _get_repo_root() -> Path:
+    """Get the root directory of this repository.
+
+    Returns:
+        Path to the repository root (directory containing .git).
+
+    Raises:
+        RuntimeError: If not inside a git repository.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("Not inside a git repository")
+    return Path(result.stdout.strip())
+
+
+def _run_git_command(
+    git_dir: Path,
+    work_tree: Path,
+    args: list[str],
+    *,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    """Run a git command with explicit --git-dir and --work-tree flags.
+
+    Using explicit flags instead of relying on cwd ensures commands run in the
+    intended directory even in worktree setups or when cwd is not respected.
+
+    Args:
+        git_dir: Path to the .git directory.
+        work_tree: Path to the working tree.
+        args: Git command arguments (without 'git' prefix).
+        check: If True, raise CalledProcessError on failure.
+
+    Returns:
+        CompletedProcess instance.
+
+    Raises:
+        subprocess.CalledProcessError: If command fails and check=True.
+            The error message includes stderr for easier debugging.
+    """
+    cmd = [
+        "git",
+        "--git-dir", str(git_dir),
+        "--work-tree", str(work_tree),
+        *args,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if check and result.returncode != 0:
+        error_msg = f"Git command failed: {' '.join(cmd)}\nstderr: {result.stderr}"
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            cmd,
+            output=result.stdout,
+            stderr=error_msg,
+        )
+
+    return result
+
+
+def init_git_repo(path: Path) -> Path:
+    """Initialize a git repo with initial commit for testing.
+
+    Creates a minimal git repository with user config and an initial commit,
+    suitable for tests that require git operations.
+
+    Safety features:
+    - Validates that path is not inside the actual repository root
+    - Uses explicit --git-dir and --work-tree flags instead of cwd
+    - Includes stderr in error messages for easier debugging
+
+    Args:
+        path: Directory to initialize as git repo. Must be outside the
+            actual repository root (typically a tmp_path fixture).
+
+    Returns:
+        Path to the initialized git repository.
+
+    Raises:
+        ValueError: If path is inside the actual repository root.
+        subprocess.CalledProcessError: If any git command fails.
+    """
+    # Safety check: Ensure we're not initializing a repo inside the actual repo
+    try:
+        repo_root = _get_repo_root()
+        resolved_path = path.resolve()
+        # Check if the path is inside the repo root
+        try:
+            resolved_path.relative_to(repo_root)
+            raise ValueError(
+                f"Cannot init git repo inside actual repository. "
+                f"Path {resolved_path} is inside repo root {repo_root}. "
+                f"Use tmp_path fixture for test repositories."
+            )
+        except ValueError as e:
+            # ValueError from relative_to means path is NOT inside repo_root (good!)
+            if "Cannot init git repo" in str(e):
+                raise  # Re-raise our own ValueError
+            # Otherwise, the path is outside the repo root, which is what we want
+            pass
+    except RuntimeError:
+        # Not inside a git repository, so any path is safe
+        pass
+
+    # Initialize the repository using git init (special case - no existing .git dir)
+    git_dir = path / ".git"
+    init_cmd = ["git", "init", str(path)]
+    result = subprocess.run(init_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            init_cmd,
+            output=result.stdout,
+            stderr=f"Git init failed: {result.stderr}",
+        )
+
+    # Configure user email
+    _run_git_command(git_dir, path, ["config", "user.email", "test@test.com"])
+
+    # Configure user name
+    _run_git_command(git_dir, path, ["config", "user.name", "Test"])
+
+    # Disable GPG signing
+    _run_git_command(git_dir, path, ["config", "commit.gpgsign", "false"])
+
+    # Create a README file
+    (path / "README.md").write_text("# Test")
+
+    # Stage all files
+    _run_git_command(git_dir, path, ["add", "."])
+
+    # Create initial commit
+    _run_git_command(git_dir, path, ["commit", "-m", "Initial"])
+
+    return path
+
+
+@pytest.fixture
+def git_repo(tmp_path: Path) -> Path:
+    """Create a temporary git repository for testing.
+
+    This fixture creates a minimal git repository in a temporary directory
+    with proper isolation from the actual repository.
+
+    Returns:
+        Path to the initialized git repository.
+    """
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    return init_git_repo(repo_dir)
 
 
 @pytest.fixture
