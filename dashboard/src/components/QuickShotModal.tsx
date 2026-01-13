@@ -139,7 +139,6 @@ const fields: FieldConfig[] = [
  */
 export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLaunching, setIsLaunching] = useState(false);
   const [importPath, setImportPath] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -269,10 +268,7 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
    */
   const submitWithAction = (action: 'start' | 'queue' | 'plan_queue') => {
     return handleSubmit(async (data: QuickShotFormData) => {
-      setIsLaunching(true);
-      // Brief ripple animation
-      await new Promise((r) => setTimeout(r, 400));
-      setIsLaunching(false);
+      // Start submission immediately - animation is CSS-only via isSubmitting state
       setIsSubmitting(true);
 
       try {
@@ -439,7 +435,7 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
             <Button
               type="button"
               variant="secondary"
-              disabled={!isValid || isSubmitting || isLaunching}
+              disabled={!isValid || isSubmitting}
               onClick={submitWithAction('queue')}
               className="font-heading uppercase tracking-wide"
             >
@@ -448,7 +444,7 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
             <Button
               type="button"
               variant="secondary"
-              disabled={!isValid || isSubmitting || isLaunching}
+              disabled={!isValid || isSubmitting}
               onClick={submitWithAction('plan_queue')}
               className="font-heading uppercase tracking-wide"
             >
@@ -456,13 +452,12 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
             </Button>
             <Button
               type="button"
-              disabled={!isValid || isSubmitting || isLaunching}
+              disabled={!isValid || isSubmitting}
               onClick={submitWithAction('start')}
               className={cn(
                 'font-heading uppercase tracking-wide relative overflow-hidden',
                 'transition-all duration-normal',
-                isValid && !isSubmitting && 'animate-quick-shot-charge',
-                isLaunching && 'after:absolute after:inset-0 after:animate-quick-shot-ripple after:bg-primary/20 after:rounded-[inherit]'
+                isValid && !isSubmitting && 'animate-quick-shot-charge'
               )}
             >
               {isSubmitting ? (

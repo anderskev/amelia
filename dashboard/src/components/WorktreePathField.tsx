@@ -70,6 +70,18 @@ interface WorktreePathFieldProps {
 type ValidationStatus = 'idle' | 'validating' | 'valid' | 'warning' | 'error';
 
 /**
+ * Status icons mapped by validation state.
+ * Defined outside component to avoid re-creation on each render.
+ */
+const statusIcons = {
+  validating: <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />,
+  valid: <Check className="h-4 w-4 text-status-completed" />,
+  warning: <AlertTriangle className="h-4 w-4 text-primary" />,
+  error: <XCircle className="h-4 w-4 text-destructive" />,
+  idle: <Folder className="h-4 w-4 text-muted-foreground" />,
+} as const;
+
+/**
  * Extracts the repo/folder name from a path.
  */
 function getPathLabel(path: string): string {
@@ -142,8 +154,10 @@ export function WorktreePathField({
 
   /**
    * Validates the path against the server.
+   * @param pathToValidate - The path to validate.
+   * @param signal - Optional AbortSignal to cancel the request on unmount.
    */
-  const validatePath = useCallback(async (pathToValidate: string) => {
+  const validatePath = useCallback(async (pathToValidate: string, signal?: AbortSignal) => {
     if (!pathToValidate || !pathToValidate.startsWith('/')) {
       setStatus('idle');
       setValidation(null);
@@ -154,6 +168,8 @@ export function WorktreePathField({
 
     try {
       const result = await api.validatePath(pathToValidate);
+      // Check if aborted before updating state
+      if (signal?.aborted) return;
       setValidation(result);
 
       if (!result.exists) {
@@ -164,6 +180,8 @@ export function WorktreePathField({
         setStatus('valid');
       }
     } catch (err) {
+      // Don't update state if the request was aborted
+      if (signal?.aborted) return;
       // API endpoint might not exist yet - fall back to basic validation
       if (err instanceof ApiError && err.status === 404) {
         // Endpoint doesn't exist, show as unvalidated
@@ -180,20 +198,23 @@ export function WorktreePathField({
     }
   }, []);
 
-  // Debounced validation on value change
+  // Debounced validation on value change with cleanup to prevent memory leaks
   useEffect(() => {
+    const controller = new AbortController();
+
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
 
     debounceRef.current = setTimeout(() => {
-      validatePath(value);
+      validatePath(value, controller.signal);
     }, 500);
 
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
+      controller.abort();
     };
   }, [value, validatePath]);
 
@@ -207,23 +228,8 @@ export function WorktreePathField({
     validatePath(path);
   };
 
-  /**
-   * Gets the status icon based on validation state.
-   */
-  const StatusIcon = () => {
-    switch (status) {
-      case 'validating':
-        return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
-      case 'valid':
-        return <Check className="h-4 w-4 text-status-completed" />;
-      case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-primary" />;
-      case 'error':
-        return <XCircle className="h-4 w-4 text-destructive" />;
-      default:
-        return <Folder className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
+  // Get the status icon from the pre-defined lookup
+  const statusIcon = statusIcons[status];
 
   /**
    * Gets status-specific border color class.
@@ -278,7 +284,7 @@ export function WorktreePathField({
                 Select Worktree
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {suggestions.map((suggestion, index) => (
+              {suggestions.map((suggestion) => (
                 <DropdownMenuItem
                   key={suggestion.path}
                   onClick={() => handleSelectPath(suggestion.path)}
@@ -299,11 +305,12 @@ export function WorktreePathField({
                         Server Default
                       </span>
                     )}
-                    {!suggestion.isServerDefault && index === 1 && (
-                      <span className="ml-auto text-[10px] font-heading uppercase tracking-wider text-muted-foreground">
-                        Last Used
-                      </span>
-                    )}
+                    {!suggestion.isServerDefault &&
+                      suggestion === suggestions.find((s) => !s.isServerDefault) && (
+                        <span className="ml-auto text-[10px] font-heading uppercase tracking-wider text-muted-foreground">
+                          Last Used
+                        </span>
+                      )}
                   </div>
                   <span className="text-xs font-mono text-muted-foreground truncate w-full pl-5">
                     {suggestion.path}
@@ -367,7 +374,7 @@ export function WorktreePathField({
 
         {/* Status Indicator */}
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <StatusIcon />
+          {statusIcon}
         </div>
       </div>
 
@@ -383,7 +390,7 @@ export function WorktreePathField({
             status === 'error' && 'bg-destructive/10 border-destructive/30 text-destructive'
           )}
         >
-          <StatusIcon />
+          {statusIcon}
           <span className="flex-1">{validation.message}</span>
 
           {/* Git info when valid */}

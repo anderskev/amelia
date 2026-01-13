@@ -101,12 +101,13 @@ describe('QuickShotModal queue buttons', () => {
   });
 
   it('should call api.createWorkflow with start=false for Queue button', async () => {
+    const user = userEvent.setup();
     render(<QuickShotModal {...defaultProps} />);
 
     await fillRequiredFields();
 
     const queueButton = screen.getByRole('button', { name: /^queue$/i });
-    fireEvent.click(queueButton);
+    await user.click(queueButton);
 
     await waitFor(() => {
       expect(api.createWorkflow).toHaveBeenCalledWith(
@@ -119,12 +120,13 @@ describe('QuickShotModal queue buttons', () => {
   });
 
   it('should call api.createWorkflow with plan_now=true for Plan & Queue button', async () => {
+    const user = userEvent.setup();
     render(<QuickShotModal {...defaultProps} />);
 
     await fillRequiredFields();
 
     const planQueueButton = screen.getByRole('button', { name: /plan.*queue/i });
-    fireEvent.click(planQueueButton);
+    await user.click(planQueueButton);
 
     await waitFor(() => {
       expect(api.createWorkflow).toHaveBeenCalledWith(
@@ -137,12 +139,13 @@ describe('QuickShotModal queue buttons', () => {
   });
 
   it('should call api.createWorkflow with start=true for Start button', async () => {
+    const user = userEvent.setup();
     render(<QuickShotModal {...defaultProps} />);
 
     await fillRequiredFields();
 
     const startButton = screen.getByRole('button', { name: /^start$/i });
-    fireEvent.click(startButton);
+    await user.click(startButton);
 
     await waitFor(() => {
       expect(api.createWorkflow).toHaveBeenCalledWith(
@@ -181,13 +184,14 @@ describe('QuickShotModal queue buttons', () => {
   });
 
   it('should close modal after successful Plan & Queue submission', async () => {
+    const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(<QuickShotModal open={true} onOpenChange={onOpenChange} />);
 
     await fillRequiredFields();
 
     const planQueueButton = screen.getByRole('button', { name: /plan.*queue/i });
-    fireEvent.click(planQueueButton);
+    await user.click(planQueueButton);
 
     await waitFor(() => {
       expect(api.createWorkflow).toHaveBeenCalled();
@@ -196,13 +200,14 @@ describe('QuickShotModal queue buttons', () => {
   });
 
   it('should close modal after successful Queue submission', async () => {
+    const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(<QuickShotModal open={true} onOpenChange={onOpenChange} />);
 
     await fillRequiredFields();
 
     const queueButton = screen.getByRole('button', { name: /^queue$/i });
-    fireEvent.click(queueButton);
+    await user.click(queueButton);
 
     await waitFor(() => {
       expect(api.createWorkflow).toHaveBeenCalled();

@@ -133,6 +133,29 @@ describe('buildPipelineFromEvents', () => {
     expect(devNode.data.status).toBe('active');  // Currently running
   });
 
+  it('should mark previous running iterations as superseded when retry occurs', () => {
+    // Scenario: Architect starts, fails mid-execution (no stage_completed emitted),
+    // workflow retries, architect starts again, then completes successfully.
+    // The first iteration should be marked as completed (superseded) when the retry starts.
+    const events = [
+      makeStageEvent('architect', 'stage_started', 1, '2026-01-06T10:00:00Z'),  // First attempt
+      // No stage_completed - transient failure occurred
+      makeStageEvent('architect', 'stage_started', 2, '2026-01-06T10:01:00Z'),  // Retry attempt
+      makeStageEvent('architect', 'stage_completed', 3, '2026-01-06T10:02:00Z'),  // Retry succeeds
+    ];
+    const result = buildPipelineFromEvents(events);
+
+    const archNode = result.nodes.find(n => n.id === 'architect')!;
+    // Should have 2 iterations
+    expect(archNode.data.iterations).toHaveLength(2);
+    // First iteration should be marked as completed (superseded by retry)
+    expect(archNode.data.iterations[0]!.status).toBe('completed');
+    // Second iteration should be completed (actually finished)
+    expect(archNode.data.iterations[1]!.status).toBe('completed');
+    // Node status should be 'completed', not 'active'
+    expect(archNode.data.status).toBe('completed');
+  });
+
   it('should create edges between adjacent agents in order of first appearance', () => {
     const events = [
       makeStageEvent('architect', 'stage_started', 1),

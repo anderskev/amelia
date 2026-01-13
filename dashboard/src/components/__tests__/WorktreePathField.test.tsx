@@ -202,21 +202,25 @@ describe('WorktreePathField', () => {
     });
 
     it('does not validate relative paths', async () => {
+      vi.useFakeTimers();
       render(<WorktreePathField {...defaultProps} value="relative/path" />);
 
-      // Wait a bit to ensure no validation was triggered
-      await new Promise((r) => setTimeout(r, 600));
+      // Advance past debounce delay to ensure no validation was triggered
+      await vi.advanceTimersByTimeAsync(600);
 
       expect(api.validatePath).not.toHaveBeenCalled();
+      vi.useRealTimers();
     });
 
     it('does not validate empty paths', async () => {
+      vi.useFakeTimers();
       render(<WorktreePathField {...defaultProps} value="" />);
 
-      // Wait a bit to ensure no validation was triggered
-      await new Promise((r) => setTimeout(r, 600));
+      // Advance past debounce delay to ensure no validation was triggered
+      await vi.advanceTimersByTimeAsync(600);
 
       expect(api.validatePath).not.toHaveBeenCalled();
+      vi.useRealTimers();
     });
   });
 

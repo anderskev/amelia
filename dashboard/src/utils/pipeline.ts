@@ -104,6 +104,12 @@ export function buildPipelineFromEvents(
       }
       const iterations = agentMap.get(agent);
       if (iterations) {
+        // Mark any previous running iterations as superseded (retry scenario)
+        for (const iter of iterations) {
+          if (iter.status === 'running') {
+            iter.status = 'completed';
+          }
+        }
         iterations.push({
           id: `${agent}-${id}`,
           startedAt: timestamp,
