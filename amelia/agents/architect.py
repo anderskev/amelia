@@ -267,6 +267,7 @@ Before planning, discover:
         user_prompt = self._build_agentic_prompt(state, profile)
 
         cwd = profile.working_dir or "."
+        plan_path = resolve_plan_path(profile.plan_path_pattern, state.issue.id)
         tool_calls: list[ToolCall] = list(state.tool_calls)
         tool_results: list[ToolResult] = list(state.tool_results)
         raw_output = ""
@@ -275,13 +276,15 @@ Before planning, discover:
         logger.info(
             "Architect starting agentic execution",
             cwd=cwd,
+            plan_path=plan_path,
         )
 
         async for message in self.driver.execute_agentic(
             prompt=user_prompt,
             cwd=cwd,
             instructions=self.plan_prompt,
-            required_tool="write_file",  # Ensure agent creates the plan file
+            required_tool="write_file",
+            required_file_path=plan_path,
         ):
             event: WorkflowEvent | None = None
 

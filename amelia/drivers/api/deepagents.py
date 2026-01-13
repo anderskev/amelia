@@ -326,7 +326,8 @@ class ApiDriver(DriverInterface):
 
         # Extract optional parameters from kwargs
         required_tool: str | None = kwargs.get("required_tool")
-        max_continuations: int = kwargs.get("max_continuations", 3)
+        required_file_path: str | None = kwargs.get("required_file_path")
+        max_continuations: int = kwargs.get("max_continuations", 10)
 
         # Initialize usage tracking
         start_time = time.perf_counter()
@@ -373,10 +374,8 @@ class ApiDriver(DriverInterface):
             # Initial message
             current_input: dict[str, Any] = {"messages": [HumanMessage(content=prompt)]}
 
-            # Continuation loop - keeps going until required_tool is called or max attempts
+            # Continuation loop - keeps going until required file is created or max attempts
             while True:
-                # Track tool call count before this iteration for continuation detection
-                tools_before_iteration = len(all_tool_names)
                 async for chunk in agent.astream(
                     current_input,
                     config=config,
@@ -493,40 +492,67 @@ class ApiDriver(DriverInterface):
                         )
 
                 # After inner loop: check if we need to continue
-                if required_tool and required_tool not in all_tool_names:
-                    continuation_count += 1
-                    tools_this_iteration = len(all_tool_names) - tools_before_iteration
+                needs_continuation = False
+                continuation_reason = ""
 
-                    # Early exit if model made no tool calls - avoid wasteful retries
-                    if tools_this_iteration == 0 and continuation_count > 1:
-                        logger.warning(
-                            "Agent made no tool calls in continuation, stopping early",
-                            required_tool=required_tool,
-                            attempt=continuation_count,
-                        )
-                        break
+                # Check if required tool was called
+                if required_tool and required_tool not in all_tool_names:
+                    needs_continuation = True
+                    continuation_reason = "required tool not called"
+
+                # If required_file_path is specified, verify file exists with content
+                if required_file_path and not needs_continuation:
+                    file_path = backend.cwd / required_file_path
+                    if not file_path.exists():
+                        needs_continuation = True
+                        continuation_reason = "file not created"
+                    elif file_path.stat().st_size == 0:
+                        needs_continuation = True
+                        continuation_reason = "file is empty"
+
+                if needs_continuation:
+                    continuation_count += 1
 
                     if continuation_count > max_continuations:
                         logger.warning(
-                            "Max continuations reached without required tool",
-                            required_tool=required_tool,
+                            "Max continuations reached",
+                            reason=continuation_reason,
+                            required_file_path=required_file_path,
                             attempts=continuation_count,
                             tool_sequence=all_tool_names,
                         )
                         break
+
+                    # Extract agent's final response for debugging
+                    agent_response = ""
+                    if last_message:
+                        if isinstance(last_message.content, str):
+                            agent_response = last_message.content
+                        elif isinstance(last_message.content, list):
+                            for block in last_message.content:
+                                if isinstance(block, dict) and block.get("type") == "text":
+                                    agent_response += block.get("text", "")
+
+                    response_preview = agent_response[:500] if agent_response else "EMPTY"
                     logger.info(
-                        "Agent stopped without required tool, continuing",
-                        required_tool=required_tool,
-                        attempt=continuation_count,
-                        max_attempts=max_continuations,
+                        f"Agent stopped before completing task ({continuation_reason}), "
+                        f"continuing ({continuation_count}/{max_continuations}). "
+                        f"Agent said: {response_preview}",
                     )
-                    # Send continuation message - empty messages = resume from checkpoint
-                    current_input = {"messages": [HumanMessage(
-                        content="Continue. You haven't finished the task yet - "
-                        f"you need to use the {required_tool} tool to complete it."
-                    )]}
+
+                    # Build continuation message - focus on the file, not the tool
+                    if required_file_path:
+                        continuation_msg = (
+                            f"You haven't completed the task yet. "
+                            f"Please create the file `{required_file_path}` with the required content."
+                        )
+                    else:
+                        continuation_msg = (
+                            "You haven't completed the task yet. Please continue."
+                        )
+                    current_input = {"messages": [HumanMessage(content=continuation_msg)]}
                 else:
-                    break  # Done - required tool was called or no required tool specified
+                    break  # Done - required tool was called and file exists
 
             # Store accumulated usage before yielding result
             duration_ms = int((time.perf_counter() - start_time) * 1000)
