@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { WorktreePathField } from '@/components/WorktreePathField';
 import { cn } from '@/lib/utils';
 
 /**
@@ -63,6 +64,8 @@ interface QuickShotDefaults {
   worktree_path?: string;
   /** Default profile from most recent workflow. */
   profile?: string;
+  /** Recent worktree paths from workflow history. */
+  recent_worktree_paths?: string[];
 }
 
 /**
@@ -88,17 +91,15 @@ interface FieldConfig {
   multiline?: boolean;
 }
 
+/**
+ * Fields rendered with standard input styling.
+ * Note: worktree_path uses a custom component (WorktreePathField).
+ */
 const fields: FieldConfig[] = [
   {
     name: 'issue_id',
     label: 'Task ID',
     placeholder: 'TASK-001',
-    required: true,
-  },
-  {
-    name: 'worktree_path',
-    label: 'Worktree Path',
-    placeholder: '/Users/me/projects/my-repo',
     required: true,
   },
   {
@@ -141,6 +142,7 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
   const [importPath, setImportPath] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [serverWorkingDir, setServerWorkingDir] = useState<string | undefined>();
 
   const {
     register,
@@ -148,6 +150,8 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
     formState: { errors, isValid },
     reset,
     getValues,
+    setValue,
+    watch,
   } = useForm<QuickShotFormData>({
     resolver: zodResolver(quickShotSchema),
     mode: 'all',
@@ -159,6 +163,9 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
       task_description: '',
     },
   });
+
+  // Watch worktree_path for controlled input
+  const worktreePath = watch('worktree_path');
 
   // Update form when defaults change (e.g., after initial fetch completes)
   useEffect(() => {
@@ -180,6 +187,7 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
       try {
         const config = await api.getConfig();
         if (config.working_dir) {
+          setServerWorkingDir(config.working_dir);
           reset(
             (currentValues) => ({
               ...currentValues,
@@ -214,28 +222,6 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
       task_description: buildDescriptionReference(filename),
     });
   }, [reset, getValues]);
-
-  /**
-   * Handles importing a design doc from a file path.
-   */
-  const handleImportFromPath = useCallback(async () => {
-    if (!importPath.trim()) return;
-
-    setIsImporting(true);
-    try {
-      const file = await api.readFile(importPath);
-      populateFromContent(file.content, file.filename);
-      setImportPath('');
-    } catch (error) {
-      if (error instanceof ApiError) {
-        toast.error(error.message);
-      } else {
-        toast.error('Failed to read file');
-      }
-    } finally {
-      setIsImporting(false);
-    }
-  }, [importPath, populateFromContent]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -353,7 +339,7 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
           {/* Import Zone */}
           <Card
             className={cn(
-              'border-2 border-dashed p-4 text-center transition-colors',
+              'border-2 border-dashed p-3 text-center transition-colors',
               isDragOver ? 'border-primary bg-primary/5' : 'border-border',
               isImporting && 'opacity-50'
             )}
@@ -361,40 +347,34 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-            <div className="flex flex-col items-center gap-2">
-              <Upload className="h-6 w-6 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Drop design doc here
-              </p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>or</span>
-              </div>
-              <div className="flex w-full gap-2">
-                <Input
-                  placeholder="/path/to/design.md"
-                  value={importPath}
-                  onChange={(e) => setImportPath(e.target.value)}
-                  className="flex-1 font-mono text-xs"
-                  disabled={isImporting}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleImportFromPath}
-                  disabled={isImporting || !importPath.trim()}
-                >
-                  Import
-                </Button>
-              </div>
+            <div className="flex items-center justify-center gap-2">
+              <Upload className="h-4 w-4 text-muted-foreground" />
+              {importPath ? (
+                <span className="text-sm font-mono text-foreground">{importPath}</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">Drop design doc here</span>
+              )}
             </div>
           </Card>
+
+          {/* Worktree Path - Critical Field with Enhanced UX */}
+          <div className="animate-quick-shot-field">
+            <WorktreePathField
+              id="worktree_path"
+              value={worktreePath}
+              onChange={(value) => setValue('worktree_path', value, { shouldValidate: true })}
+              error={errors.worktree_path?.message}
+              disabled={isSubmitting}
+              serverWorkingDir={serverWorkingDir}
+              recentPaths={defaults?.recent_worktree_paths}
+            />
+          </div>
 
           {fields.map((field, index) => (
             <div
               key={field.name}
               className="animate-quick-shot-field"
-              style={{ animationDelay: `${index * 50}ms` }}
+              style={{ animationDelay: `${(index + 1) * 50}ms` }}
             >
               <div className="relative">
                 <Label

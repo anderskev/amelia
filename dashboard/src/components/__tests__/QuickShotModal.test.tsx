@@ -16,6 +16,14 @@ vi.mock('@/api/client', () => ({
       content: '# Test Design\n\n## Problem\n\nTest problem.',
       filename: 'test-design.md',
     }),
+    validatePath: vi.fn().mockResolvedValue({
+      exists: true,
+      is_git_repo: true,
+      branch: 'main',
+      repo_name: 'repo',
+      has_changes: false,
+      message: 'Git repository on branch main',
+    }),
   },
   ApiError: class ApiError extends Error {
     constructor(

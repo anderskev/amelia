@@ -70,6 +70,7 @@ from amelia.server.routes import (
     config_router,
     files_router,
     health_router,
+    paths_router,
     websocket_router,
     workflows_router,
 )
@@ -184,6 +185,7 @@ def create_app() -> FastAPI:
     application.include_router(config_router, prefix="/api")
     application.include_router(files_router, prefix="/api")
     application.include_router(health_router, prefix="/api")
+    application.include_router(paths_router, prefix="/api")
     application.include_router(workflows_router, prefix="/api")
     application.include_router(websocket_router)  # No prefix - route is /ws/events
     application.include_router(prompts_router)  # Already has /api/prompts prefix

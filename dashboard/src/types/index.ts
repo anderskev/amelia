@@ -729,3 +729,40 @@ export interface FileReadResponse {
   /** Filename without path. */
   filename: string;
 }
+
+// ============================================================================
+// Path Validation API Types
+// ============================================================================
+
+/**
+ * Request payload for validating a worktree path.
+ * Used by POST /api/paths/validate endpoint.
+ */
+export interface PathValidationRequest {
+  /** Absolute path to validate. */
+  path: string;
+}
+
+/**
+ * Response from POST /api/paths/validate endpoint.
+ * Provides detailed information about a filesystem path.
+ */
+export interface PathValidationResponse {
+  /** Whether the path exists on disk. */
+  exists: boolean;
+
+  /** Whether the path is a git repository. */
+  is_git_repo: boolean;
+
+  /** Current branch name if git repo. */
+  branch?: string;
+
+  /** Repository name (directory name). */
+  repo_name?: string;
+
+  /** Whether there are uncommitted changes. */
+  has_changes?: boolean;
+
+  /** Human-readable status message. */
+  message: string;
+}

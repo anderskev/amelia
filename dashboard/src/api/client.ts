@@ -16,6 +16,7 @@ import type {
   BatchStartResponse,
   ConfigResponse,
   FileReadResponse,
+  PathValidationResponse,
 } from '../types';
 
 /**
@@ -610,6 +611,34 @@ export const api = {
       body: JSON.stringify({ path }),
     });
     return handleResponse<FileReadResponse>(response);
+  },
+
+  // ==========================================================================
+  // Path Validation API
+  // ==========================================================================
+
+  /**
+   * Validates a filesystem path and returns git repository info.
+   *
+   * @param path - Absolute path to validate.
+   * @returns Validation result with exists, is_git_repo, branch info.
+   * @throws {ApiError} When API request fails.
+   *
+   * @example
+   * ```typescript
+   * const result = await api.validatePath('/Users/me/my-repo');
+   * if (result.is_git_repo) {
+   *   console.log(`On branch: ${result.branch}`);
+   * }
+   * ```
+   */
+  async validatePath(path: string): Promise<PathValidationResponse> {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/paths/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    return handleResponse<PathValidationResponse>(response);
   },
 };
 
