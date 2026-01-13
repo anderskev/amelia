@@ -66,7 +66,13 @@ from amelia.server.lifecycle.health_checker import WorktreeHealthChecker
 from amelia.server.lifecycle.retention import LogRetentionService
 from amelia.server.lifecycle.server import ServerLifecycle
 from amelia.server.orchestrator.service import OrchestratorService
-from amelia.server.routes import config_router, files_router, health_router, websocket_router, workflows_router
+from amelia.server.routes import (
+    config_router,
+    files_router,
+    health_router,
+    websocket_router,
+    workflows_router,
+)
 from amelia.server.routes.prompts import get_prompt_repository, router as prompts_router
 from amelia.server.routes.websocket import connection_manager
 from amelia.server.routes.workflows import configure_exception_handlers

@@ -16,7 +16,7 @@
 export function extractTitle(markdown: string): string {
   // Match first H1 heading: # Title
   const match = markdown.match(/^#\s+(.+?)(?:\s+Design)?\s*$/m);
-  if (!match) {
+  if (!match || !match[1]) {
     return 'Untitled';
   }
   return match[1].trim();
