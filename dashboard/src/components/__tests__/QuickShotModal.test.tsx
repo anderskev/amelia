@@ -231,26 +231,27 @@ describe('QuickShotModal Import Zone', () => {
     });
   });
 
-  it('renders drop zone and path input', () => {
+  it('renders drop zone for design doc import', () => {
     render(<QuickShotModal {...defaultProps} />);
 
     expect(screen.getByText(/drop design doc here/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/\/path\/to\/design\.md/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /import/i })).toBeInTheDocument();
   });
 
-  it('populates form fields when importing via path', async () => {
+  it('populates form fields when importing via drag-drop', async () => {
     render(<QuickShotModal {...defaultProps} />);
 
-    const pathInput = screen.getByPlaceholderText(/\/path\/to\/design\.md/i);
-    await userEvent.type(pathInput, '/path/to/test-design.md');
+    const dropZone = screen
+      .getByText(/drop design doc here/i)
+      .closest('[data-slot="card"]');
 
-    const importButton = screen.getByRole('button', { name: /import/i });
-    await userEvent.click(importButton);
-
-    await waitFor(() => {
-      expect(api.readFile).toHaveBeenCalledWith('/path/to/test-design.md');
+    const content = '# Test Design\n\n## Problem\n\nTest problem.';
+    const file = new File([content], 'test-design.md', {
+      type: 'text/markdown',
     });
+    file.text = () => Promise.resolve(content);
+
+    const dataTransfer = { files: [file], types: ['Files'] };
+    fireEvent.drop(dropZone!, { dataTransfer });
 
     // Check form fields are populated
     await waitFor(() => {
@@ -275,14 +276,13 @@ describe('QuickShotModal Import Zone', () => {
     });
   });
 
-  it('shows filename in import input after successful drag-drop', async () => {
+  it('shows filename in drop zone after successful drag-drop', async () => {
     render(<QuickShotModal {...defaultProps} />);
 
     // Get the Card element with the drop handler (parent of the inner content)
     const dropZone = screen
       .getByText(/drop design doc here/i)
       .closest('[data-slot="card"]');
-    const importInput = screen.getByPlaceholderText('/path/to/design.md');
 
     // Create file with content that can be read
     const content = '# My Design Doc\n\nContent here.';
@@ -296,8 +296,9 @@ describe('QuickShotModal Import Zone', () => {
     const dataTransfer = { files: [file], types: ['Files'] };
     fireEvent.drop(dropZone!, { dataTransfer });
 
+    // Filename is displayed in a span element, not an input
     await waitFor(() => {
-      expect(importInput).toHaveValue('my-design.md');
+      expect(screen.getByText('my-design.md')).toBeInTheDocument();
     });
   });
 });

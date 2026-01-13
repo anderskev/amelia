@@ -16,6 +16,7 @@ import { extractTitle, extractTitleFromFilename, generateDesignId, buildDescript
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -333,6 +334,9 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
             <Zap className="h-6 w-6" />
             QUICK SHOT
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Create a new workflow by specifying task details and worktree path
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">

@@ -319,7 +319,7 @@ export function WorktreePathField({
       {pathSegments.length > 0 && (
         <div className="flex items-center gap-1 text-[10px] font-mono overflow-hidden">
           {pathSegments.map((segment, index) => (
-            <span key={index} className="flex items-center">
+            <span key={`segment-${index}-${segment}`} className="flex items-center">
               {index > 0 && (
                 <span className="text-muted-foreground/50 mx-0.5">/</span>
               )}
