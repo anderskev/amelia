@@ -11,7 +11,8 @@ import uvicorn
 from fastapi import FastAPI
 
 import amelia.server.main as main_module
-from amelia.server.main import app, get_config, lifespan
+from amelia.server.dependencies import get_config
+from amelia.server.main import app, lifespan
 
 
 class TestServerStartup:
