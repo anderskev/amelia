@@ -245,9 +245,7 @@ describe('QuickShotModal Import Zone', () => {
   it('populates form fields when importing via drag-drop', async () => {
     render(<QuickShotModal {...defaultProps} />);
 
-    const dropZone = screen
-      .getByText(/drop design doc here/i)
-      .closest('[data-slot="card"]');
+    const dropZone = screen.getByTestId('import-zone');
 
     const content = '# Test Design\n\n## Problem\n\nTest problem.';
     const file = new File([content], 'test-design.md', {
@@ -287,9 +285,7 @@ describe('QuickShotModal Import Zone', () => {
     render(<QuickShotModal {...defaultProps} />);
 
     // Get the Card element with the drop handler (parent of the inner content)
-    const dropZone = screen
-      .getByText(/drop design doc here/i)
-      .closest('[data-slot="card"]');
+    const dropZone = screen.getByTestId('import-zone');
 
     // Create file with content that can be read
     const content = '# My Design Doc\n\nContent here.';

@@ -338,6 +338,7 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
         <div className="space-y-4 py-4">
           {/* Import Zone */}
           <Card
+            data-testid="import-zone"
             className={cn(
               'border-2 border-dashed p-3 text-center transition-colors',
               isDragOver ? 'border-primary bg-primary/5' : 'border-border',
