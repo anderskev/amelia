@@ -14,6 +14,8 @@ import type {
   StartWorkflowResponse,
   BatchStartRequest,
   BatchStartResponse,
+  ConfigResponse,
+  FileReadResponse,
 } from '../types';
 
 /**
@@ -561,6 +563,53 @@ export const api = {
   async getPromptDefault(promptId: string): Promise<DefaultContent> {
     const response = await fetchWithTimeout(`${API_BASE_URL}/prompts/${promptId}/default`);
     return handleResponse<DefaultContent>(response);
+  },
+
+  // ==========================================================================
+  // Config API
+  // ==========================================================================
+
+  /**
+   * Retrieves server configuration for dashboard.
+   *
+   * @returns Server configuration including working_dir and max_concurrent.
+   * @throws {ApiError} When the API request fails.
+   *
+   * @example
+   * ```typescript
+   * const config = await api.getConfig();
+   * console.log(`Working dir: ${config.working_dir}`);
+   * ```
+   */
+  async getConfig(): Promise<ConfigResponse> {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/config`);
+    return handleResponse<ConfigResponse>(response);
+  },
+
+  // ==========================================================================
+  // Files API
+  // ==========================================================================
+
+  /**
+   * Reads file content for design document import.
+   *
+   * @param path - Absolute path to the file to read.
+   * @returns File content and filename.
+   * @throws {ApiError} When file not found, path invalid, or API request fails.
+   *
+   * @example
+   * ```typescript
+   * const file = await api.readFile('/path/to/design.md');
+   * console.log(`Content: ${file.content}`);
+   * ```
+   */
+  async readFile(path: string): Promise<FileReadResponse> {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/files/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    return handleResponse<FileReadResponse>(response);
   },
 };
 
