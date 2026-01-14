@@ -1,6 +1,5 @@
 """CLI commands for the Amelia server."""
 import os
-from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -63,9 +62,13 @@ def server(
     log_level = os.environ.get("AMELIA_LOG_LEVEL", "INFO").upper()
     configure_logging(level=log_level)
 
+    # Set working_dir in environment so it propagates to uvicorn's reimported module
+    # (uvicorn uses string reference "amelia.server.main:app" which reimports the module)
+    if working_dir:
+        os.environ["AMELIA_WORKING_DIR"] = str(working_dir)
+
     # Load config (respects environment variables)
-    # CLI --working-dir overrides AMELIA_WORKING_DIR
-    config = ServerConfig(working_dir=Path(working_dir)) if working_dir else ServerConfig()
+    config = ServerConfig()
 
     # CLI flags override config
     effective_port = port if port is not None else config.port

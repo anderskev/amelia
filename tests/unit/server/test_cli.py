@@ -48,28 +48,34 @@ class TestServerCLI:
 
             assert "Warning" in result.stdout or "warning" in result.stdout.lower()
 
-    def test_working_dir_option_sets_config(self, runner: CliRunner) -> None:
-        """--working-dir should set working_dir in ServerConfig."""
-        with patch("amelia.server.cli.uvicorn") as mock_uvicorn, \
-             patch("amelia.server.cli.ServerConfig") as MockConfig, \
-             patch("amelia.server.cli.configure_logging"), \
-             patch("amelia.server.cli.print_banner"):
-            from unittest.mock import MagicMock
-            mock_config = MagicMock()
-            mock_config.port = 8420
-            mock_config.host = "127.0.0.1"
-            mock_config.working_dir = None
-            MockConfig.return_value = mock_config
-            mock_uvicorn.run.side_effect = KeyboardInterrupt()
+    def test_working_dir_option_sets_env_var(self, runner: CliRunner) -> None:
+        """--working-dir should set AMELIA_WORKING_DIR env var before uvicorn starts."""
+        # Clear any existing env var to ensure isolation
+        original_env = os.environ.pop("AMELIA_WORKING_DIR", None)
+        try:
+            captured_env: dict[str, str | None] = {}
 
-            runner.invoke(
-                app,
-                ["server", "--working-dir", "/tmp/test-repo"],
-                catch_exceptions=False
-            )
+            def capture_env_and_exit(*args: object, **kwargs: object) -> None:
+                # Capture the env var state when uvicorn.run is called
+                captured_env["AMELIA_WORKING_DIR"] = os.environ.get("AMELIA_WORKING_DIR")
+                raise KeyboardInterrupt()
 
-            # Verify working_dir was passed to config as a Path
-            from pathlib import Path
-            assert MockConfig.call_count == 1
-            call_kwargs = MockConfig.call_args[1]
-            assert call_kwargs.get("working_dir") == Path("/tmp/test-repo")
+            with patch("amelia.server.cli.uvicorn") as mock_uvicorn, \
+                 patch("amelia.server.cli.configure_logging"), \
+                 patch("amelia.server.cli.print_banner"):
+                mock_uvicorn.run.side_effect = capture_env_and_exit
+
+                runner.invoke(
+                    app,
+                    ["server", "--working-dir", "/tmp/test-repo"],
+                    catch_exceptions=False
+                )
+
+                # Verify env var was set before uvicorn.run was called
+                assert captured_env["AMELIA_WORKING_DIR"] == "/tmp/test-repo"
+        finally:
+            # Clean up: restore or remove env var
+            if original_env is not None:
+                os.environ["AMELIA_WORKING_DIR"] = original_env
+            else:
+                os.environ.pop("AMELIA_WORKING_DIR", None)

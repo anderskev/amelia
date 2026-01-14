@@ -71,8 +71,11 @@ class TestServerConfig:
 
     def test_working_dir_defaults_to_none(self) -> None:
         """working_dir should be None by default."""
-        config = ServerConfig()
-        assert config.working_dir is None
+        # Explicitly clear env var in case it's set by another test
+        env = {k: v for k, v in os.environ.items() if k != "AMELIA_WORKING_DIR"}
+        with patch.dict(os.environ, env, clear=True):
+            config = ServerConfig()
+            assert config.working_dir is None
 
     def test_working_dir_from_env_var(self) -> None:
         """working_dir should be set from AMELIA_WORKING_DIR env var."""
