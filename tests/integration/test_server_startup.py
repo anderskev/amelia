@@ -12,7 +12,6 @@ import uvicorn
 from fastapi import FastAPI
 
 import amelia.server.dependencies as deps_module
-import amelia.server.main as main_module
 from amelia.server.dependencies import get_config
 from amelia.server.main import app, lifespan
 
