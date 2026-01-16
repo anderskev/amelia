@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-01-15
+
+### Added
+
+- **server:** Add workflow queueing and batch execution for running multiple workflows sequentially ([#264](https://github.com/existential-birds/amelia/pull/264))
+  - New `pending` workflow status allows queuing workflows for later execution
+  - CLI `amelia queue` command and `--queue` flag to queue workflows
+  - API endpoints for starting pending workflows and batch execution
+  - Dashboard displays pending workflows with start/cancel controls
+- **orchestrator:** Add planning status and LangGraph checkpointing for `plan_now` mode ([#269](https://github.com/existential-birds/amelia/pull/269))
+  - New `planning` workflow status shown during architect planning phase
+  - LangGraph checkpointing preserves state during human approval interrupts
+  - Dashboard PlanningIndicator component shows planning progress
+- **dashboard:** Add design document import for Quick Shot modal ([#282](https://github.com/existential-birds/amelia/pull/282))
+  - Import task descriptions directly from design document markdown files
+  - Dropdown menu with available design docs from `docs/design/` directory
+
+### Removed
+
+- **core:** Remove unused `ExecutionState.workflow_status`, `SafeShellExecutor`, and `SafeFileWriter` ([#275](https://github.com/existential-birds/amelia/pull/275))
+
+### Fixed
+
+- **drivers:** Prevent premature DeepAgents agent termination and improve reliability ([#278](https://github.com/existential-birds/amelia/pull/278))
+- **reviewer:** Use beagle markdown format for agentic reviews ([#257](https://github.com/existential-birds/amelia/pull/257))
+- **reviewer:** Rename remaining `comment_count` to `issue_count` for consistency ([#259](https://github.com/existential-birds/amelia/pull/259))
+
 ## [0.8.0] - 2026-01-09
 
 ### Added
@@ -217,7 +244,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FastAPI server with WebSocket support
 - React dashboard for workflow visualization
 
-[Unreleased]: https://github.com/existential-birds/amelia/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/existential-birds/amelia/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/existential-birds/amelia/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/existential-birds/amelia/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/existential-birds/amelia/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/existential-birds/amelia/compare/v0.5.1...v0.6.0
