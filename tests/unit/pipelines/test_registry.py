@@ -2,7 +2,7 @@
 
 import pytest
 
-from amelia.pipelines.registry import get_pipeline, list_pipelines, PIPELINES
+from amelia.pipelines.registry import PIPELINES, get_pipeline, list_pipelines
 
 
 class TestPipelineRegistry:

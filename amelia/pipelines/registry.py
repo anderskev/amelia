@@ -7,11 +7,15 @@ and factory functions to instantiate them.
 from typing import Any
 
 from amelia.pipelines.base import Pipeline
+from amelia.pipelines.implementation.pipeline import ImplementationPipeline
+from amelia.pipelines.review.pipeline import ReviewPipeline
 
 
 # Registry mapping pipeline names to their classes
-# Will be populated after pipeline implementations exist (Task 11)
-PIPELINES: dict[str, type[Pipeline[Any]]] = {}
+PIPELINES: dict[str, type[Pipeline[Any]]] = {
+    "implementation": ImplementationPipeline,
+    "review": ReviewPipeline,
+}
 
 
 def get_pipeline(name: str) -> Pipeline[Any]:
