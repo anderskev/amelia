@@ -28,12 +28,17 @@ def extract_config_params(
         event_bus may be None if not running in server mode.
 
     Raises:
-        KeyError: If workflow_id or profile is missing from config.
+        ValueError: If workflow_id (thread_id) or profile is missing from config.
     """
     configurable = config.get("configurable", {})
 
     event_bus = configurable.get("event_bus")
-    workflow_id = configurable["workflow_id"]
-    profile = configurable["profile"]
+    workflow_id = configurable.get("thread_id")
+    profile = configurable.get("profile")
+
+    if not workflow_id:
+        raise ValueError("workflow_id (thread_id) is required in config.configurable")
+    if not profile:
+        raise ValueError("profile is required in config.configurable")
 
     return event_bus, workflow_id, profile

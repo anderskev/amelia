@@ -19,7 +19,7 @@ class TestExtractConfigParams:
         config = {
             "configurable": {
                 "event_bus": mock_event_bus,
-                "workflow_id": "wf-123",
+                "thread_id": "wf-123",
                 "profile": mock_profile,
             }
         }
@@ -36,7 +36,7 @@ class TestExtractConfigParams:
 
         config = {
             "configurable": {
-                "workflow_id": "wf-456",
+                "thread_id": "wf-456",
                 "profile": mock_profile,
             }
         }
@@ -47,15 +47,15 @@ class TestExtractConfigParams:
         assert workflow_id == "wf-456"
 
     def test_raises_on_missing_workflow_id(self) -> None:
-        """Should raise KeyError if workflow_id is missing."""
+        """Should raise ValueError if workflow_id (thread_id) is missing."""
         config = {"configurable": {"profile": MagicMock()}}
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="workflow_id"):
             extract_config_params(config)
 
     def test_raises_on_missing_profile(self) -> None:
-        """Should raise KeyError if profile is missing."""
-        config = {"configurable": {"workflow_id": "wf-1"}}
+        """Should raise ValueError if profile is missing."""
+        config = {"configurable": {"thread_id": "wf-1"}}
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="profile"):
             extract_config_params(config)
