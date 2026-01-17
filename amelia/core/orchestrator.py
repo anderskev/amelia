@@ -954,15 +954,16 @@ async def review_approval_node(
 ) -> dict[str, Any]:
     """Node for human approval of which review items to fix.
 
-    In server mode, this interrupts for human input.
-    In CLI mode, this prompts interactively.
+    In server mode, this interrupts for human input via LangGraph interrupt.
+    In CLI mode, this currently auto-approves all items (interactive prompts not yet implemented).
 
     Args:
         state: Current execution state containing the evaluation result.
         config: Optional RunnableConfig with execution_mode in configurable.
 
     Returns:
-        Partial state dict with approved_items (CLI mode) or empty dict (server mode).
+        Empty dict (approval handled via LangGraph interrupt in server mode,
+        auto-approved in CLI mode).
     """
     config = config or {}
     execution_mode = config.get("configurable", {}).get("execution_mode", "cli")
@@ -970,8 +971,8 @@ async def review_approval_node(
     if execution_mode == "server":
         return {}
 
-    # CLI mode: prompt user (this would use typer.confirm or similar)
-    # For now, auto-approve all items marked for implementation
+    # CLI mode: auto-approve all items marked for implementation
+    # TODO: Implement interactive prompts using typer.confirm
     return {}
 
 

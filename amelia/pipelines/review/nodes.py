@@ -4,8 +4,7 @@ This module contains node functions specific to the review pipeline
 that evaluate review feedback and handle human approval.
 """
 
-from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from langchain_core.runnables.config import RunnableConfig
 from loguru import logger
@@ -13,69 +12,8 @@ from loguru import logger
 from amelia.agents.evaluator import Evaluator
 from amelia.core.state import ExecutionState
 from amelia.drivers.factory import DriverFactory
+from amelia.pipelines.nodes import _save_token_usage
 from amelia.pipelines.utils import extract_config_params
-from amelia.server.models.tokens import TokenUsage
-
-
-if TYPE_CHECKING:
-    from amelia.server.database.repository import WorkflowRepository
-
-
-async def _save_token_usage(
-    driver: Any,
-    workflow_id: str,
-    agent: str,
-    repository: "WorkflowRepository | None",
-) -> None:
-    """Extract token usage from driver and save to repository.
-
-    This is a best-effort operation - failures are logged but don't fail the workflow.
-    Uses the driver-agnostic get_usage() method when available.
-
-    Args:
-        driver: The driver that was used for execution.
-        workflow_id: Current workflow ID.
-        agent: Agent name (architect, developer, reviewer).
-        repository: Repository to save usage to (may be None in CLI mode).
-    """
-    if repository is None:
-        return
-
-    # Get usage via the driver-agnostic get_usage() method
-    driver_usage = driver.get_usage() if hasattr(driver, "get_usage") else None
-    if driver_usage is None:
-        return
-
-    try:
-        usage = TokenUsage(
-            workflow_id=workflow_id,
-            agent=agent,
-            model=driver_usage.model or getattr(driver, "model", "unknown"),
-            input_tokens=driver_usage.input_tokens or 0,
-            output_tokens=driver_usage.output_tokens or 0,
-            cache_read_tokens=driver_usage.cache_read_tokens or 0,
-            cache_creation_tokens=driver_usage.cache_creation_tokens or 0,
-            cost_usd=driver_usage.cost_usd or 0.0,
-            duration_ms=driver_usage.duration_ms or 0,
-            num_turns=driver_usage.num_turns or 1,
-            timestamp=datetime.now(UTC),
-        )
-        await repository.save_token_usage(usage)
-        logger.debug(
-            "Token usage saved",
-            agent=agent,
-            workflow_id=workflow_id,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            cost_usd=usage.cost_usd,
-        )
-    except Exception:
-        # Best-effort - don't fail workflow on token tracking errors
-        logger.exception(
-            "Failed to save token usage",
-            agent=agent,
-            workflow_id=workflow_id,
-        )
 
 
 async def call_evaluation_node(
@@ -139,15 +77,16 @@ async def review_approval_node(
 ) -> dict[str, Any]:
     """Node for human approval of which review items to fix.
 
-    In server mode, this interrupts for human input.
-    In CLI mode, this prompts interactively.
+    In server mode, this interrupts for human input via LangGraph interrupt.
+    In CLI mode, this currently auto-approves all items (interactive prompts not yet implemented).
 
     Args:
         state: Current execution state containing the evaluation result.
         config: Optional RunnableConfig with execution_mode in configurable.
 
     Returns:
-        Partial state dict with approved_items (CLI mode) or empty dict (server mode).
+        Empty dict (approval handled via LangGraph interrupt in server mode,
+        auto-approved in CLI mode).
     """
     config = config or {}
     execution_mode = config.get("configurable", {}).get("execution_mode", "cli")
@@ -155,6 +94,6 @@ async def review_approval_node(
     if execution_mode == "server":
         return {}
 
-    # CLI mode: prompt user (this would use typer.confirm or similar)
-    # For now, auto-approve all items marked for implementation
+    # CLI mode: auto-approve all items marked for implementation
+    # TODO: Implement interactive prompts using typer.confirm
     return {}

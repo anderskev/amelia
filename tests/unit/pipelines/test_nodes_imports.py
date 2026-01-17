@@ -1,4 +1,9 @@
-"""Unit tests for shared pipeline nodes."""
+"""Import verification tests for shared pipeline nodes module.
+
+These tests verify that the amelia.pipelines.nodes module correctly re-exports
+node functions. Functional tests for the actual node behavior are in
+tests/unit/core/test_developer_node.py and tests/unit/core/test_orchestrator_review.py.
+"""
 
 
 class TestCallDeveloperNodeImport:

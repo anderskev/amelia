@@ -9,7 +9,7 @@ This module contains node functions specific to the implementation pipeline:
 
 import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import typer
 from langchain_core.runnables.config import RunnableConfig
@@ -29,10 +29,6 @@ from amelia.pipelines.implementation.utils import (
 )
 from amelia.pipelines.nodes import _save_token_usage
 from amelia.pipelines.utils import extract_config_params
-
-
-if TYPE_CHECKING:
-    pass
 
 
 async def plan_validator_node(
