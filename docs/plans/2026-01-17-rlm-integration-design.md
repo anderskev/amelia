@@ -279,6 +279,34 @@ The existing Oracle implementation plan establishes:
 | OracleConsultation model | Add `tools_used`, `recursive_calls`, `capability_requests` fields |
 | Event types | Add `ORACLE_RLM_TOOL_CALL`, `ORACLE_CAPABILITY_REQUESTED` |
 
+### Coordination with Pipeline Foundation
+
+The [Pipeline Foundation Design](./2026-01-10-pipeline-foundation-design.md) refactors Amelia's state management:
+
+| Oracle Plan References | Pipeline Foundation Changes To |
+|------------------------|-------------------------------|
+| `ExecutionState` | Replaced by `BasePipelineState` + `ImplementationState` |
+| `amelia/core/state.py` | Deleted; state moves to `amelia/pipelines/` |
+
+**Impact on Oracle integration:**
+
+The existing Oracle plan adds `oracle_consultations: list[OracleConsultation]` to `ExecutionState`. Since `ExecutionState` is being replaced:
+
+- Add `oracle_consultations` to `BasePipelineState` (not the old `ExecutionState`)
+- This allows all pipeline types (Implementation, Review, future pipelines) to use Oracle consultations
+- The field uses `Annotated[list[OracleConsultation], operator.add]` for append-only semantics
+
+```python
+# amelia/pipelines/base.py
+class BasePipelineState(BaseModel):
+    # ... existing fields ...
+
+    # Oracle consultations (append-only)
+    oracle_consultations: Annotated[
+        list[OracleConsultation], operator.add
+    ] = Field(default_factory=list)
+```
+
 ---
 
 ## Implementation Phases
