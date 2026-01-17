@@ -18,6 +18,7 @@ from amelia.pipelines.base import (
     Pipeline,
     PipelineMetadata,
 )
+from amelia.pipelines.registry import get_pipeline, list_pipelines
 
 
 __all__ = [
@@ -25,4 +26,6 @@ __all__ = [
     "HistoryEntry",
     "Pipeline",
     "PipelineMetadata",
+    "get_pipeline",
+    "list_pipelines",
 ]
