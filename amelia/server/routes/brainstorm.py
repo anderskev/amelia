@@ -225,7 +225,7 @@ async def send_message(
         HTTPException: 404 if session not found.
     """
     # Validate session exists before returning 202
-    session = await service.get_session_with_history(session_id)
+    session = await service.get_session(session_id)
     if session is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -197,18 +197,16 @@ class TestSendMessage(TestBrainstormRoutes):
 
         now = datetime.now(UTC)
 
-        # Mock get_session_with_history to return a session (validation passes)
-        mock_service.get_session_with_history.return_value = {
-            "session": BrainstormingSession(
+        # Mock get_session to return a session (validation passes)
+        mock_service.get_session = AsyncMock(
+            return_value=BrainstormingSession(
                 id="sess-123",
                 profile_id="work",
                 status="active",
                 created_at=now,
                 updated_at=now,
-            ),
-            "messages": [],
-            "artifacts": [],
-        }
+            )
+        )
 
         # Mock send_message as async generator yielding WorkflowEvent (matches production type)
         async def mock_send_message(*args, **kwargs):
@@ -237,8 +235,8 @@ class TestSendMessage(TestBrainstormRoutes):
         self, client: TestClient, mock_service: MagicMock
     ) -> None:
         """Should return 404 when session not found."""
-        # Mock get_session_with_history to return None (session not found)
-        mock_service.get_session_with_history.return_value = None
+        # Mock get_session to return None (session not found)
+        mock_service.get_session = AsyncMock(return_value=None)
 
         response = client.post(
             "/api/brainstorm/sessions/nonexistent/message",

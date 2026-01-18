@@ -116,6 +116,17 @@ class BrainstormService:
 
         return session
 
+    async def get_session(self, session_id: str) -> BrainstormingSession | None:
+        """Get a session by ID.
+
+        Args:
+            session_id: Session to retrieve.
+
+        Returns:
+            The session if found, None otherwise.
+        """
+        return await self._repository.get_session(session_id)
+
     async def get_session_with_history(
         self, session_id: str
     ) -> dict[str, Any] | None:
