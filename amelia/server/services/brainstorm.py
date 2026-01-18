@@ -4,6 +4,7 @@ Handles business logic for brainstorming sessions, coordinating
 between the repository, event bus, and Claude driver.
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
@@ -59,6 +60,20 @@ class BrainstormService:
         """
         self._repository = repository
         self._event_bus = event_bus
+        self._session_locks: dict[str, asyncio.Lock] = {}
+
+    def _get_session_lock(self, session_id: str) -> asyncio.Lock:
+        """Get or create a lock for a session.
+
+        Args:
+            session_id: Session to get lock for.
+
+        Returns:
+            Lock for the session.
+        """
+        if session_id not in self._session_locks:
+            self._session_locks[session_id] = asyncio.Lock()
+        return self._session_locks[session_id]
 
     async def create_session(
         self,
@@ -204,17 +219,23 @@ class BrainstormService:
         content: str,
         driver: DriverInterface,
         cwd: str,
+        assistant_message_id: str | None = None,
     ) -> AsyncIterator[WorkflowEvent]:
         """Send a message in a brainstorming session.
 
         Saves the user message, invokes the driver, streams events,
         and saves the assistant response.
 
+        Uses a session-level lock to prevent race conditions when
+        computing sequence numbers for concurrent sends.
+
         Args:
             session_id: Session to send message in.
             content: User message content.
             driver: LLM driver for generating response.
             cwd: Working directory for driver execution.
+            assistant_message_id: Optional ID for the assistant message.
+                If not provided, a UUID will be generated.
 
         Yields:
             WorkflowEvent for each driver message.
@@ -227,83 +248,92 @@ class BrainstormService:
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
 
-        # Get next sequence number and save user message
-        max_seq = await self._repository.get_max_sequence(session_id)
-        user_sequence = max_seq + 1
+        # Acquire session lock to prevent sequence collisions under concurrent sends
+        lock = self._get_session_lock(session_id)
+        await lock.acquire()
 
-        now = datetime.now(UTC)
-        user_message = Message(
-            id=str(uuid4()),
-            session_id=session_id,
-            sequence=user_sequence,
-            role="user",
-            content=content,
-            created_at=now,
-        )
-        await self._repository.save_message(user_message)
+        try:
+            # Get next sequence number and save user message
+            max_seq = await self._repository.get_max_sequence(session_id)
+            user_sequence = max_seq + 1
 
-        # Invoke driver and stream events
-        assistant_content_parts: list[str] = []
-        driver_session_id: str | None = None
-        pending_write_files: dict[str, str] = {}  # tool_call_id -> path
+            now = datetime.now(UTC)
+            user_message = Message(
+                id=str(uuid4()),
+                session_id=session_id,
+                sequence=user_sequence,
+                role="user",
+                content=content,
+                created_at=now,
+            )
+            await self._repository.save_message(user_message)
 
-        async for agentic_msg in driver.execute_agentic(
-            prompt=content,
-            cwd=cwd,
-            session_id=session.driver_session_id,
-            instructions=BRAINSTORMER_SYSTEM_PROMPT,
-        ):
-            # Convert to event and emit
-            event = self._agentic_message_to_event(agentic_msg, session_id)
-            self._event_bus.emit(event)
-            yield event
+            # Invoke driver and stream events
+            assistant_content_parts: list[str] = []
+            driver_session_id: str | None = None
+            pending_write_files: dict[str, str] = {}  # tool_call_id -> path
 
-            # Track write_file tool calls for artifact detection
-            if (
-                agentic_msg.type == AgenticMessageType.TOOL_CALL
-                and agentic_msg.tool_name == "write_file"
-                and agentic_msg.tool_call_id
-                and agentic_msg.tool_input
+            async for agentic_msg in driver.execute_agentic(
+                prompt=content,
+                cwd=cwd,
+                session_id=session.driver_session_id,
+                instructions=BRAINSTORMER_SYSTEM_PROMPT,
             ):
-                path = agentic_msg.tool_input.get("path")
-                if path:
-                    pending_write_files[agentic_msg.tool_call_id] = path
+                # Convert to event and emit
+                event = self._agentic_message_to_event(agentic_msg, session_id)
+                self._event_bus.emit(event)
+                yield event
 
-            # Detect successful write_file completions and create artifacts
-            if (
-                agentic_msg.type == AgenticMessageType.TOOL_RESULT
-                and agentic_msg.tool_call_id in pending_write_files
-                and not agentic_msg.is_error
-            ):
-                path = pending_write_files.pop(agentic_msg.tool_call_id)
-                artifact_event = await self._create_artifact_from_path(session_id, path)
-                yield artifact_event
+                # Track write_file tool calls for artifact detection
+                if (
+                    agentic_msg.type == AgenticMessageType.TOOL_CALL
+                    and agentic_msg.tool_name == "write_file"
+                    and agentic_msg.tool_call_id
+                    and agentic_msg.tool_input
+                ):
+                    path = agentic_msg.tool_input.get("path")
+                    if path:
+                        pending_write_files[agentic_msg.tool_call_id] = path
 
-            # Collect result content and session ID
-            if agentic_msg.type == AgenticMessageType.RESULT:
-                if agentic_msg.content:
-                    assistant_content_parts.append(agentic_msg.content)
-                if agentic_msg.session_id:
-                    driver_session_id = agentic_msg.session_id
+                # Detect successful write_file completions and create artifacts
+                if (
+                    agentic_msg.type == AgenticMessageType.TOOL_RESULT
+                    and agentic_msg.tool_call_id in pending_write_files
+                    and not agentic_msg.is_error
+                ):
+                    path = pending_write_files.pop(agentic_msg.tool_call_id)
+                    artifact_event = await self._create_artifact_from_path(
+                        session_id, path
+                    )
+                    yield artifact_event
 
-        # Update driver session ID if we got one
-        if driver_session_id and driver_session_id != session.driver_session_id:
-            session.driver_session_id = driver_session_id
-            session.updated_at = datetime.now(UTC)
-            await self._repository.update_session(session)
+                # Collect result content and session ID
+                if agentic_msg.type == AgenticMessageType.RESULT:
+                    if agentic_msg.content:
+                        assistant_content_parts.append(agentic_msg.content)
+                    if agentic_msg.session_id:
+                        driver_session_id = agentic_msg.session_id
 
-        # Save assistant message
-        assistant_sequence = user_sequence + 1
-        assistant_content = "\n".join(assistant_content_parts)
-        assistant_message = Message(
-            id=str(uuid4()),
-            session_id=session_id,
-            sequence=assistant_sequence,
-            role="assistant",
-            content=assistant_content,
-            created_at=datetime.now(UTC),
-        )
-        await self._repository.save_message(assistant_message)
+            # Update driver session ID if we got one
+            if driver_session_id and driver_session_id != session.driver_session_id:
+                session.driver_session_id = driver_session_id
+                session.updated_at = datetime.now(UTC)
+                await self._repository.update_session(session)
+
+            # Save assistant message
+            assistant_sequence = user_sequence + 1
+            assistant_content = "\n".join(assistant_content_parts)
+            assistant_message = Message(
+                id=assistant_message_id or str(uuid4()),
+                session_id=session_id,
+                sequence=assistant_sequence,
+                role="assistant",
+                content=assistant_content,
+                created_at=datetime.now(UTC),
+            )
+            await self._repository.save_message(assistant_message)
+        finally:
+            lock.release()
 
         # Emit message complete event
         complete_event = WorkflowEvent(

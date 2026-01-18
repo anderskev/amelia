@@ -7,7 +7,7 @@ import os
 from typing import TYPE_CHECKING, Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from amelia.server.models.brainstorm import (
@@ -200,6 +200,7 @@ async def delete_session(
 async def send_message(
     session_id: str,
     request: SendMessageRequest,
+    background_tasks: BackgroundTasks,
     service: BrainstormService = Depends(get_brainstorm_service),
     driver: "DriverInterface" = Depends(get_driver),
     cwd: str = Depends(get_cwd),
@@ -212,6 +213,7 @@ async def send_message(
     Args:
         session_id: Session to send message to.
         request: Message content.
+        background_tasks: FastAPI background tasks for async processing.
         service: Brainstorm service dependency.
         driver: LLM driver dependency.
         cwd: Current working directory.
@@ -222,25 +224,29 @@ async def send_message(
     Raises:
         HTTPException: 404 if session not found.
     """
+    # Validate session exists before returning 202
+    session = await service.get_session_with_history(session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session not found: {session_id}",
+        )
+
     # Generate message ID upfront for tracking
     message_id = str(uuid4())
 
-    # Start async processing (consume generator to trigger execution)
-    # In real implementation, this would be a background task
-    try:
+    async def _process_message() -> None:
+        """Background task to process the message."""
         async for _ in service.send_message(
             session_id=session_id,
             content=request.content,
             driver=driver,
             cwd=cwd,
+            assistant_message_id=message_id,
         ):
             pass
-    except ValueError as e:
-        # Service raises ValueError if session not found
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        ) from e
+
+    background_tasks.add_task(_process_message)
 
     return SendMessageResponse(message_id=message_id)
 

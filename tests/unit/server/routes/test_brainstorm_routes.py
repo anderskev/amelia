@@ -193,6 +193,22 @@ class TestSendMessage(TestBrainstormRoutes):
     ) -> None:
         """Should return message_id on success."""
         from amelia.drivers.base import AgenticMessage, AgenticMessageType
+        from amelia.server.models.brainstorm import BrainstormingSession
+
+        now = datetime.now(UTC)
+
+        # Mock get_session_with_history to return a session (validation passes)
+        mock_service.get_session_with_history.return_value = {
+            "session": BrainstormingSession(
+                id="sess-123",
+                profile_id="work",
+                status="active",
+                created_at=now,
+                updated_at=now,
+            ),
+            "messages": [],
+            "artifacts": [],
+        }
 
         # Mock send_message as async generator
         async def mock_send_message(*args, **kwargs):
@@ -216,13 +232,8 @@ class TestSendMessage(TestBrainstormRoutes):
         self, client: TestClient, mock_service: MagicMock
     ) -> None:
         """Should return 404 when session not found."""
-        # Mock send_message to raise ValueError (session not found)
-        async def mock_send_message(*args, **kwargs):
-            raise ValueError("Session not found: nonexistent")
-            # Make it an async generator by yielding (unreachable)
-            yield  # noqa: B901
-
-        mock_service.send_message = mock_send_message
+        # Mock get_session_with_history to return None (session not found)
+        mock_service.get_session_with_history.return_value = None
 
         response = client.post(
             "/api/brainstorm/sessions/nonexistent/message",
