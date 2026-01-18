@@ -4,11 +4,11 @@ from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import END
 
 from amelia.agents.evaluator import Disposition, EvaluatedItem, EvaluationResult
 from amelia.core.orchestrator import (
-    call_reviewer_node,
     create_orchestrator_graph,
     create_review_graph,
     next_task_node,
@@ -19,6 +19,7 @@ from amelia.core.orchestrator import (
 )
 from amelia.core.state import ExecutionState, ReviewResult
 from amelia.core.types import Profile
+from amelia.pipelines.nodes import call_reviewer_node
 
 
 class TestGraphEdges:
@@ -177,6 +178,7 @@ class TestRouteAfterTaskReview:
             name="test",
             driver="cli:claude",
             model="sonnet",
+            validator_model="sonnet",
             working_dir="/tmp/test",
             max_task_review_iterations=3,
         )
@@ -209,7 +211,7 @@ class TestRouteAfterTaskReview:
             current_task_index=1,  # On task 2 (0-indexed)
             last_review=approved_review,
         )
-        config = {"configurable": {"profile": mock_profile_task_review}}
+        config: RunnableConfig = {"configurable": {"profile": mock_profile_task_review}}
 
         result = route_after_task_review(state, config)
         assert result == "__end__"
@@ -224,7 +226,7 @@ class TestRouteAfterTaskReview:
             current_task_index=0,  # On task 1, more tasks remain
             last_review=approved_review,
         )
-        config = {"configurable": {"profile": mock_profile_task_review}}
+        config: RunnableConfig = {"configurable": {"profile": mock_profile_task_review}}
 
         result = route_after_task_review(state, config)
         assert result == "next_task_node"
@@ -240,7 +242,7 @@ class TestRouteAfterTaskReview:
             task_review_iteration=1,  # Under limit of 3
             last_review=rejected_review,
         )
-        config = {"configurable": {"profile": mock_profile_task_review}}
+        config: RunnableConfig = {"configurable": {"profile": mock_profile_task_review}}
 
         result = route_after_task_review(state, config)
         assert result == "developer"
@@ -256,7 +258,7 @@ class TestRouteAfterTaskReview:
             task_review_iteration=3,  # At limit
             last_review=rejected_review,
         )
-        config = {"configurable": {"profile": mock_profile_task_review}}
+        config: RunnableConfig = {"configurable": {"profile": mock_profile_task_review}}
 
         result = route_after_task_review(state, config)
         assert result == "__end__"
@@ -267,6 +269,7 @@ class TestRouteAfterTaskReview:
             name="test",
             driver="cli:claude",
             model="sonnet",
+            validator_model="sonnet",
             working_dir="/tmp/test",
             max_task_review_iterations=10,
         )
@@ -283,7 +286,7 @@ class TestRouteAfterTaskReview:
             task_review_iteration=5,  # Under custom limit of 10
             last_review=rejected_review,
         )
-        config = {"configurable": {"profile": profile}}
+        config: RunnableConfig = {"configurable": {"profile": profile}}
 
         result = route_after_task_review(state, config)
         assert result == "developer"  # Should retry since under limit
@@ -307,7 +310,7 @@ class TestNextTaskNode:
         self, task_state_for_next: ExecutionState
     ) -> None:
         """next_task_node should increment current_task_index."""
-        config = {"configurable": {"profile": MagicMock()}}
+        config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
             "amelia.core.orchestrator.commit_task_changes", new_callable=AsyncMock
@@ -321,7 +324,7 @@ class TestNextTaskNode:
         self, task_state_for_next: ExecutionState
     ) -> None:
         """next_task_node should reset task_review_iteration to 0."""
-        config = {"configurable": {"profile": MagicMock()}}
+        config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
             "amelia.core.orchestrator.commit_task_changes", new_callable=AsyncMock
@@ -335,7 +338,7 @@ class TestNextTaskNode:
         self, task_state_for_next: ExecutionState
     ) -> None:
         """next_task_node should clear driver_session_id for fresh session."""
-        config = {"configurable": {"profile": MagicMock()}}
+        config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
             "amelia.core.orchestrator.commit_task_changes", new_callable=AsyncMock
@@ -349,7 +352,7 @@ class TestNextTaskNode:
         self, task_state_for_next: ExecutionState
     ) -> None:
         """next_task_node should commit current task changes."""
-        config = {"configurable": {"profile": MagicMock()}}
+        config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
             "amelia.core.orchestrator.commit_task_changes", new_callable=AsyncMock
@@ -367,7 +370,7 @@ class TestNextTaskNode:
         This halts the workflow to preserve one-commit-per-task semantics,
         allowing manual intervention before proceeding.
         """
-        config = {"configurable": {"profile": MagicMock()}}
+        config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
             "amelia.core.orchestrator.commit_task_changes",
@@ -393,8 +396,8 @@ class TestReviewerNodeTaskIteration:
             task_review_iteration=1,
             base_commit="abc123",  # Required for agentic_review
         )
-        profile = Profile(name="test", driver="cli:claude", model="sonnet", working_dir="/tmp/test")
-        config = {"configurable": {"profile": profile, "thread_id": "test-wf"}}
+        profile = Profile(name="test", driver="cli:claude", model="sonnet", validator_model="sonnet", working_dir="/tmp/test")
+        config: RunnableConfig = {"configurable": {"profile": profile, "thread_id": "test-wf"}}
 
         # Mock reviewer to return a review result
         mock_review = ReviewResult(
@@ -404,7 +407,11 @@ class TestReviewerNodeTaskIteration:
             severity="medium",
         )
 
-        with patch("amelia.core.orchestrator.Reviewer") as mock_reviewer_class:
+        with patch("amelia.pipelines.nodes.Reviewer") as mock_reviewer_class, \
+             patch("amelia.pipelines.nodes.DriverFactory") as mock_factory:
+            mock_driver = MagicMock()
+            mock_factory.get_driver.return_value = mock_driver
+
             mock_reviewer = MagicMock()
             # Use agentic_review instead of review (legacy method removed)
             mock_reviewer.agentic_review = AsyncMock(return_value=(mock_review, "session-123"))

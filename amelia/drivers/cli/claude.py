@@ -170,15 +170,18 @@ class ClaudeCliDriver:
         self,
         model: str = "sonnet",
         skip_permissions: bool = False,
+        cwd: str | None = None,
     ):
         """Initialize the Claude CLI driver.
 
         Args:
             model: Claude model to use. Defaults to "sonnet".
             skip_permissions: Skip permission prompts. Defaults to False.
+            cwd: Working directory for Claude CLI context. Defaults to None.
         """
         self.model = model
         self.skip_permissions = skip_permissions
+        self.cwd = cwd
         self.tool_call_history: list[ToolUseBlock] = []
         self.last_result_message: ResultMessage | None = None
 
@@ -251,7 +254,7 @@ class ClaudeCliDriver:
             RuntimeError: If Claude CLI fails or returns unexpected output.
         """
         session_id = kwargs.get("session_id")
-        cwd = kwargs.get("cwd")
+        cwd = kwargs.get("cwd") or self.cwd
         session_id_result: str | None = None
 
         options = self._build_options(
