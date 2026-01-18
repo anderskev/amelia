@@ -10,8 +10,8 @@ import pytest
 from langchain_core.runnables.config import RunnableConfig
 from pydantic import ValidationError
 
-from amelia.core.state import ExecutionState
 from amelia.core.types import Settings
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.exceptions import (
@@ -397,7 +397,7 @@ async def test_approve_workflow_success(
         worktree_path="/path/to/worktree",
         workflow_status="blocked",
         started_at=datetime.now(UTC),
-        execution_state=ExecutionState(profile_id="test"),
+        execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
     )
     mock_repository.get.return_value = mock_state
 
@@ -447,7 +447,7 @@ async def test_reject_workflow_success(
         worktree_path="/path/to/worktree",
         workflow_status="blocked",
         started_at=datetime.now(UTC),
-        execution_state=ExecutionState(profile_id="test"),
+        execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
     )
     mock_repository.get.return_value = mock_state
 
@@ -495,7 +495,7 @@ class TestRejectWorkflowGraphState:
             issue_id="ISSUE-456",
             worktree_path="/tmp/test",
             workflow_status="blocked",
-            execution_state=ExecutionState(profile_id="test"),
+            execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
         )
         mock_repository.get.return_value = workflow
 
@@ -528,7 +528,7 @@ class TestApproveWorkflowResume:
             issue_id="ISSUE-456",
             worktree_path="/tmp/test",
             workflow_status="blocked",
-            execution_state=ExecutionState(profile_id="test"),
+            execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
         )
         mock_repository.get.return_value = workflow
         orchestrator._active_tasks["/tmp/test"] = ("wf-123", AsyncMock())
@@ -967,7 +967,7 @@ class TestSyncPlanFromCheckpoint:
             worktree_path="/path/to/worktree",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
-            execution_state=ExecutionState(profile_id=profile.name),
+            execution_state=ImplementationState(workflow_id="wf-sync", created_at=datetime.now(UTC), status="running", profile_id=profile.name),
         )
         mock_repository.get.return_value = mock_state
 
@@ -1275,7 +1275,7 @@ class TestRunWorkflowCheckpointResume:
             worktree_path="/path/to/worktree",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
-            execution_state=ExecutionState(profile_id="test"),
+            execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
         )
 
     async def test_run_workflow_resumes_when_checkpoint_exists(

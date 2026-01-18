@@ -8,15 +8,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.runnables.config import RunnableConfig
 
-from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile
+from amelia.pipelines.implementation.state import ImplementationState
 
 
 async def test_call_architect_node_creates_plan_directory_if_missing(
     tmp_path: Path,
     mock_issue_factory: Callable[..., Issue],
     mock_profile_factory: Callable[..., Profile],
-    mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+    mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
 ) -> None:
     """The docs/plans directory should be created if it doesn't exist."""
     from amelia.core.orchestrator import call_architect_node

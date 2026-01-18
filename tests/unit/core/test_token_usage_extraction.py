@@ -17,9 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.runnables.config import RunnableConfig
 
-from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile
 from amelia.drivers.base import DriverUsage
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.server.models.tokens import TokenUsage
 
 
@@ -88,7 +88,11 @@ class TestDeveloperNodeTokenUsage(TestTokenUsageExtraction):
         mock_repository = config_with_repository[1]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import UTC, datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Implement test feature",
@@ -98,7 +102,7 @@ class TestDeveloperNodeTokenUsage(TestTokenUsageExtraction):
         # Mock Developer.run to yield events
         async def mock_run(
             *args: Any, **kwargs: Any
-        ) -> AsyncGenerator[tuple[ExecutionState, MagicMock], None]:
+        ) -> AsyncGenerator[tuple[ImplementationState, MagicMock], None]:
             final_state = state.model_copy(update={
                 "agentic_status": "completed",
                 "final_response": "Done",
@@ -150,7 +154,11 @@ class TestDeveloperNodeTokenUsage(TestTokenUsageExtraction):
         mock_repository = config_with_repository[1]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import UTC, datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Implement test feature",
@@ -159,7 +167,7 @@ class TestDeveloperNodeTokenUsage(TestTokenUsageExtraction):
 
         async def mock_run(
             *args: Any, **kwargs: Any
-        ) -> AsyncGenerator[tuple[ExecutionState, MagicMock], None]:
+        ) -> AsyncGenerator[tuple[ImplementationState, MagicMock], None]:
             final_state = state.model_copy(update={
                 "agentic_status": "completed",
             })
@@ -194,7 +202,11 @@ class TestDeveloperNodeTokenUsage(TestTokenUsageExtraction):
         profile = base_config["configurable"]["profile"]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import UTC, datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -203,7 +215,7 @@ class TestDeveloperNodeTokenUsage(TestTokenUsageExtraction):
 
         async def mock_run(
             *args: Any, **kwargs: Any
-        ) -> AsyncGenerator[tuple[ExecutionState, MagicMock], None]:
+        ) -> AsyncGenerator[tuple[ImplementationState, MagicMock], None]:
             final_state = state.model_copy(update={"agentic_status": "completed"})
             mock_event = MagicMock()
             yield final_state, mock_event
@@ -241,7 +253,11 @@ class TestReviewerNodeTokenUsage(TestTokenUsageExtraction):
         mock_repository = config_with_repository[1]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import UTC, datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Review test feature",
@@ -298,12 +314,16 @@ class TestArchitectNodeTokenUsage(TestTokenUsageExtraction):
         mock_repository = config_with_repository[1]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
         )
 
-        # The architect.plan() now yields (ExecutionState, WorkflowEvent) tuples
+        # The architect.plan() now yields (ImplementationState, WorkflowEvent) tuples
         mock_final_state = state.model_copy(update={
             "raw_architect_output": "**Goal:** Implement feature X\n\n# Plan\n\nStep 1...",
             "plan_path": Path("/docs/plans/test.md"),
@@ -322,7 +342,7 @@ class TestArchitectNodeTokenUsage(TestTokenUsageExtraction):
 
         async def mock_plan_generator(
             *args: Any, **kwargs: Any
-        ) -> AsyncGenerator[tuple[ExecutionState, WorkflowEvent], None]:
+        ) -> AsyncGenerator[tuple[ImplementationState, WorkflowEvent], None]:
             """Mock async generator that yields (state, event) tuples."""
             yield (mock_final_state, mock_event)
 
@@ -362,7 +382,11 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
         mock_repository = config_with_repository[1]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import UTC, datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test",
@@ -378,7 +402,7 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
 
         async def mock_run(
             *args: Any, **kwargs: Any
-        ) -> AsyncGenerator[tuple[ExecutionState, MagicMock], None]:
+        ) -> AsyncGenerator[tuple[ImplementationState, MagicMock], None]:
             final_state = state.model_copy(update={"agentic_status": "completed"})
             mock_event = MagicMock()
             yield final_state, mock_event
@@ -419,7 +443,11 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
         mock_repository = config_with_repository[1]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import UTC, datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test",
@@ -435,7 +463,7 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
 
         async def mock_run(
             *args: Any, **kwargs: Any
-        ) -> AsyncGenerator[tuple[ExecutionState, MagicMock], None]:
+        ) -> AsyncGenerator[tuple[ImplementationState, MagicMock], None]:
             final_state = state.model_copy(update={"agentic_status": "completed"})
             mock_event = MagicMock()
             yield final_state, mock_event
@@ -473,7 +501,11 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
         mock_repository = config_with_repository[1]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import UTC, datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test",
@@ -485,7 +517,7 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
 
         async def mock_run(
             *args: Any, **kwargs: Any
-        ) -> AsyncGenerator[tuple[ExecutionState, MagicMock], None]:
+        ) -> AsyncGenerator[tuple[ImplementationState, MagicMock], None]:
             final_state = state.model_copy(update={"agentic_status": "completed"})
             mock_event = MagicMock()
             yield final_state, mock_event
@@ -517,7 +549,11 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
         mock_repository = config_with_repository[1]
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        from datetime import UTC, datetime as dt  # noqa: PLC0415
+        state = ImplementationState(
+            workflow_id="wf-test-123",
+            created_at=dt.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test",
@@ -526,7 +562,7 @@ class TestTokenUsageEdgeCases(TestTokenUsageExtraction):
 
         async def mock_run(
             *args: Any, **kwargs: Any
-        ) -> AsyncGenerator[tuple[ExecutionState, MagicMock], None]:
+        ) -> AsyncGenerator[tuple[ImplementationState, MagicMock], None]:
             final_state = state.model_copy(update={"agentic_status": "completed"})
             mock_event = MagicMock()
             yield final_state, mock_event

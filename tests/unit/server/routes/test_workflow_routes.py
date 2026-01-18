@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from amelia.core.state import ExecutionState
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.dependencies import get_orchestrator, get_repository
 from amelia.server.main import create_app
@@ -78,7 +78,7 @@ def make_workflow(
         worktree_path=worktree_path or f"/tmp/{workflow_id}",
         workflow_status=status,
         started_at=datetime.now(UTC),
-        execution_state=ExecutionState(profile_id="test"),
+        execution_state=ImplementationState(workflow_id=workflow_id, created_at=datetime.now(UTC), status="running", profile_id="test"),
     )
 
 

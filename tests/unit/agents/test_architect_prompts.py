@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from amelia.agents.architect import Architect, MarkdownPlanOutput
-from amelia.core.state import ExecutionState
 from amelia.core.types import Profile
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
+from amelia.pipelines.implementation.state import ImplementationState
 
 
 class TestArchitectPromptInjection:
@@ -26,7 +26,7 @@ class TestArchitectPromptInjection:
     async def test_uses_injected_system_prompt_for_analyze(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Should use injected system prompt instead of default for analyze."""
         custom_prompt = "You are a custom architect..."
@@ -48,7 +48,7 @@ class TestArchitectPromptInjection:
     async def test_uses_injected_plan_prompt(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
         plan_output: MarkdownPlanOutput,
     ) -> None:
         """Should use injected plan prompt for plan method.
@@ -87,7 +87,7 @@ class TestArchitectPromptInjection:
     async def test_falls_back_to_class_default_for_analyze(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Should use class default when system prompt not injected."""
         state, profile = mock_execution_state_factory()
@@ -107,7 +107,7 @@ class TestArchitectPromptInjection:
     async def test_falls_back_to_class_default_for_plan(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
         plan_output: MarkdownPlanOutput,
     ) -> None:
         """Should use class default when plan prompt not injected.
@@ -178,7 +178,7 @@ class TestArchitectPromptInjection:
     async def test_empty_prompts_dict_uses_defaults(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Empty prompts dict should fall back to defaults."""
         state, profile = mock_execution_state_factory()

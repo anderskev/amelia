@@ -11,8 +11,8 @@ from amelia.agents.evaluator import (
     EvaluationResult,
     Evaluator,
 )
-from amelia.core.state import ExecutionState
 from amelia.core.types import Profile, ReviewResult
+from amelia.pipelines.implementation.state import ImplementationState
 
 
 class TestEvaluatedItem:
@@ -138,7 +138,7 @@ class TestEvaluator:
     async def test_evaluate_with_review_feedback(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
         evaluation_output_with_items: EvaluationOutput,
     ) -> None:
         """Test evaluation with review comments."""
@@ -180,7 +180,7 @@ class TestEvaluator:
     async def test_evaluate_empty_comments(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test evaluation with empty review comments returns empty result."""
         # Setup state with empty review comments
@@ -213,7 +213,7 @@ class TestEvaluator:
     async def test_evaluate_partitions_by_disposition(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that items are correctly partitioned by disposition."""
         # Create output with multiple items of same disposition
@@ -283,7 +283,7 @@ class TestEvaluator:
     async def test_evaluate_requires_last_review(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that evaluation raises error when no last_review in state."""
         state, profile = mock_execution_state_factory(
@@ -298,7 +298,7 @@ class TestEvaluator:
     async def test_evaluate_with_event_bus(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that event_bus.emit is called during evaluation."""
         mock_event_bus = MagicMock()
@@ -343,7 +343,7 @@ class TestEvaluator:
     async def test_evaluate_builds_prompt_with_goal(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that prompt includes goal when available."""
         review_result = ReviewResult(
@@ -375,7 +375,7 @@ class TestEvaluator:
     async def test_evaluate_builds_prompt_with_issue_fallback(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that prompt uses issue context when no goal available."""
         review_result = ReviewResult(

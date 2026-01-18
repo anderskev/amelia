@@ -1,6 +1,7 @@
 """Tests for call_developer_node using profile from config."""
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -8,10 +9,10 @@ import pytest
 from langchain_core.runnables.config import RunnableConfig
 
 from amelia.core.constants import ToolName
-from amelia.core.orchestrator import call_developer_node
-from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
+from amelia.pipelines.implementation.state import ImplementationState
+from amelia.pipelines.nodes import call_developer_node
 from amelia.server.models.events import EventType
 from tests.conftest import create_mock_execute_agentic
 
@@ -30,7 +31,10 @@ class TestDeveloperNodeProfileFromConfig:
 
         # State has profile_id, not profile object
         # Uses goal and plan_markdown instead of execution_plan
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -84,7 +88,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Implement a feature",
@@ -141,7 +148,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -185,7 +195,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -230,7 +243,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -275,7 +291,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -320,7 +339,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -359,7 +381,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -411,7 +436,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -462,7 +490,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal="Test goal",
@@ -511,7 +542,10 @@ class TestDeveloperUnifiedExecution:
         profile = mock_profile_factory()
         issue = mock_issue_factory()
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
             goal=None,  # No goal set
@@ -539,7 +573,7 @@ class TestDeveloperTaskBasedExecution:
         )
 
     @pytest.fixture
-    def multi_task_state(self, tmp_path: Any) -> ExecutionState:
+    def multi_task_state(self, tmp_path: Any) -> ImplementationState:
         plan_path = tmp_path / "docs" / "plans" / "plan.md"
         # Plan with proper structure for task extraction
         plan_markdown = """# Implementation Plan
@@ -559,7 +593,10 @@ Step 2: Configure
 
 Step 1: Build the thing
 """
-        return ExecutionState(
+        return ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Implement feature",
             plan_markdown=plan_markdown,
@@ -571,7 +608,7 @@ Step 1: Build the thing
 
     async def test_developer_node_clears_session_for_task_execution(
         self,
-        multi_task_state: ExecutionState,
+        multi_task_state: ImplementationState,
         mock_profile_with_working_dir: Profile,
     ) -> None:
         """Developer node should clear driver_session_id for fresh task sessions."""
@@ -586,7 +623,7 @@ Step 1: Build the thing
         captured_session_id: str | None = "NOT_SET"
 
         async def mock_run(
-            state: ExecutionState, profile: Profile, workflow_id: str = ""
+            state: ImplementationState, profile: Profile, workflow_id: str = ""
         ) -> Any:
             nonlocal captured_session_id
             captured_session_id = state.driver_session_id
@@ -605,7 +642,7 @@ Step 1: Build the thing
 
     async def test_developer_node_preserves_full_plan_markdown(
         self,
-        multi_task_state: ExecutionState,
+        multi_task_state: ImplementationState,
         mock_profile_with_working_dir: Profile,
     ) -> None:
         """Developer node should pass full plan_markdown to Developer.
@@ -623,7 +660,7 @@ Step 1: Build the thing
         captured_plan: str | None = None
 
         async def mock_run(
-            state: ExecutionState, profile: Profile, workflow_id: str = ""
+            state: ImplementationState, profile: Profile, workflow_id: str = ""
         ) -> Any:
             nonlocal captured_plan
             captured_plan = state.plan_markdown
@@ -649,7 +686,10 @@ Step 1: Build the thing
         mock_profile_with_working_dir: Profile,
     ) -> None:
         """Developer node should preserve session_id when total_tasks is None."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Legacy goal",
             plan_markdown="Do stuff",
@@ -666,7 +706,7 @@ Step 1: Build the thing
         captured_session_id: str | None = "NOT_SET"
 
         async def mock_run(
-            state: ExecutionState, profile: Profile, workflow_id: str = ""
+            state: ImplementationState, profile: Profile, workflow_id: str = ""
         ) -> Any:
             nonlocal captured_session_id
             captured_session_id = state.driver_session_id

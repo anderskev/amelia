@@ -1,6 +1,6 @@
 """Tests for plan_validator_node function."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,8 +8,8 @@ import pytest
 from langchain_core.runnables.config import RunnableConfig
 
 from amelia.agents.architect import MarkdownPlanOutput
-from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile
+from amelia.pipelines.implementation.state import ImplementationState
 
 
 @pytest.fixture
@@ -62,9 +62,15 @@ def mock_issue() -> Issue:
 
 
 @pytest.fixture
-def mock_state(mock_issue: Issue) -> ExecutionState:
+def mock_state(mock_issue: Issue) -> ImplementationState:
     """Create a test execution state."""
-    return ExecutionState(profile_id="test", issue=mock_issue)
+    return ImplementationState(
+        workflow_id="test-workflow-123",
+        created_at=datetime.now(UTC),
+        status="running",
+        profile_id="test",
+        issue=mock_issue,
+    )
 
 
 def make_config(profile: Profile) -> RunnableConfig:
@@ -91,7 +97,7 @@ class TestPlanValidatorNode:
 
     async def test_validator_extracts_goal_from_plan(
         self,
-        mock_state: ExecutionState,
+        mock_state: ImplementationState,
         mock_profile: Profile,
         plan_content: str,
         tmp_path: Path,
@@ -127,7 +133,7 @@ class TestPlanValidatorNode:
 
     async def test_validator_raises_for_missing_file(
         self,
-        mock_state: ExecutionState,
+        mock_state: ImplementationState,
         mock_profile: Profile,
         tmp_path: Path,
     ) -> None:
@@ -142,7 +148,7 @@ class TestPlanValidatorNode:
 
     async def test_validator_raises_for_empty_file(
         self,
-        mock_state: ExecutionState,
+        mock_state: ImplementationState,
         mock_profile: Profile,
         tmp_path: Path,
     ) -> None:
@@ -157,7 +163,7 @@ class TestPlanValidatorNode:
 
     async def test_validator_model_selection(
         self,
-        mock_state: ExecutionState,
+        mock_state: ImplementationState,
         plan_content: str,
         tmp_path: Path,
     ) -> None:
@@ -319,7 +325,7 @@ class TestPlanValidatorNodeTotalTasks:
         )
 
     @pytest.fixture
-    def state_with_plan(self, tmp_path: Path, mock_profile: Profile) -> tuple[ExecutionState, Path]:
+    def state_with_plan(self, tmp_path: Path, mock_profile: Profile) -> tuple[ImplementationState, Path]:
         plan_content = """
 # Test Plan
 
@@ -335,7 +341,10 @@ Do second thing.
         plan_path.parent.mkdir(parents=True, exist_ok=True)
         plan_path.write_text(plan_content)
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow-123",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             raw_architect_output=str(plan_path),
             issue=Issue(id="TEST-123", title="Test", description="Test"),
@@ -343,7 +352,7 @@ Do second thing.
         return state, plan_path
 
     async def test_plan_validator_sets_total_tasks(
-        self, state_with_plan: tuple[ExecutionState, Path], tmp_path: Path
+        self, state_with_plan: tuple[ImplementationState, Path], tmp_path: Path
     ) -> None:
         """plan_validator_node should extract and return total_tasks from plan."""
         from amelia.core.orchestrator import plan_validator_node
@@ -402,7 +411,10 @@ Do implementation.
         plan_path.parent.mkdir(parents=True, exist_ok=True)
         plan_path.write_text(plan_content)
 
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow-456",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             raw_architect_output=str(plan_path),
             issue=Issue(id="TEST-456", title="Legacy", description="Legacy test"),

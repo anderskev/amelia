@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 
-from amelia.core.state import ExecutionState
 from amelia.core.types import Profile
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.server.models.state import (
     InvalidStateTransitionError,
     ServerExecutionState,
@@ -124,12 +124,15 @@ class TestServerExecutionState:
 
 
 class TestServerExecutionStateComposition:
-    """Test ServerExecutionState with embedded ExecutionState."""
+    """Test ServerExecutionState with embedded ImplementationState."""
 
     def test_server_state_accepts_execution_state(self) -> None:
-        """ServerExecutionState can hold an ExecutionState."""
+        """ServerExecutionState can hold an ImplementationState."""
         profile = Profile(name="test", driver="cli:claude", model="sonnet", validator_model="sonnet", working_dir="/tmp/test")
-        core_state = ExecutionState(
+        core_state = ImplementationState(
+            workflow_id="wf-123",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
         )
         server_state = ServerExecutionState(

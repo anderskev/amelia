@@ -1,6 +1,6 @@
 """Tests for Architect agent plan path in prompt."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -8,9 +8,9 @@ import pytest
 
 from amelia.agents.architect import Architect
 from amelia.core.constants import ToolName
-from amelia.core.state import ExecutionState
 from amelia.core.types import Issue, Profile
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
+from amelia.pipelines.implementation.state import ImplementationState
 
 
 class TestArchitectPlanPath:
@@ -22,17 +22,23 @@ class TestArchitectPlanPath:
         return MagicMock()
 
     @pytest.fixture
-    def state_and_profile(self) -> tuple[ExecutionState, Profile]:
+    def state_and_profile(self) -> tuple[ImplementationState, Profile]:
         """Create state and profile for testing."""
         issue = Issue(id="TEST-123", title="Test Issue", description="Test description")
         profile = Profile(name="test", driver="cli:claude", model="sonnet", validator_model="sonnet", working_dir="/tmp/test")
-        state = ExecutionState(profile_id="test", issue=issue)
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
+            profile_id="test",
+            issue=issue,
+        )
         return state, profile
 
     def test_architect_agentic_prompt_includes_plan_path(
         self,
         mock_driver: MagicMock,
-        state_and_profile: tuple[ExecutionState, Profile],
+        state_and_profile: tuple[ImplementationState, Profile],
     ) -> None:
         """Prompt should include the resolved plan path with Write instruction."""
         state, profile = state_and_profile
@@ -50,7 +56,7 @@ class TestArchitectPlanPath:
     def test_architect_agentic_prompt_uses_todays_date(
         self,
         mock_driver: MagicMock,
-        state_and_profile: tuple[ExecutionState, Profile],
+        state_and_profile: tuple[ImplementationState, Profile],
     ) -> None:
         """Prompt should include today's date in the plan path."""
         state, profile = state_and_profile
@@ -75,7 +81,13 @@ class TestArchitectPlanPath:
             working_dir="/tmp/test",
             plan_path_pattern=".amelia/plans/{issue_key}.md",
         )
-        state = ExecutionState(profile_id="test", issue=issue)
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
+            profile_id="test",
+            issue=issue,
+        )
         architect = Architect(driver=mock_driver)
 
         prompt = architect._build_agentic_prompt(state, profile)
@@ -85,7 +97,7 @@ class TestArchitectPlanPath:
     async def test_plan_method_passes_profile_to_build_agentic_prompt(
         self,
         mock_driver: MagicMock,
-        state_and_profile: tuple[ExecutionState, Profile],
+        state_and_profile: tuple[ImplementationState, Profile],
     ) -> None:
         """Plan method should pass profile to _build_agentic_prompt."""
         state, profile = state_and_profile
@@ -115,7 +127,7 @@ class TestArchitectPlanPath:
     async def test_plan_extracts_plan_path_from_write_tool_call(
         self,
         mock_driver: MagicMock,
-        state_and_profile: tuple[ExecutionState, Profile],
+        state_and_profile: tuple[ImplementationState, Profile],
     ) -> None:
         """Plan method should extract plan_path from Write tool call."""
         from pathlib import Path
