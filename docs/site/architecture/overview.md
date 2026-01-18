@@ -45,7 +45,8 @@ See the [roadmap](/reference/roadmap#research-foundation) for complete research 
 
 | Layer | Location | Purpose | Key Abstractions |
 |-------|----------|---------|------------------|
-| **Core** | `amelia/core/` | LangGraph orchestrator, state management, shared types | `ExecutionState`, `AgenticState`, `ToolCall`, `ToolResult`, `Profile`, `Issue` |
+| **Core** | `amelia/core/` | Shared types and agentic state | `AgenticState`, `ToolCall`, `ToolResult`, `Profile`, `Issue` |
+| **Pipelines** | `amelia/pipelines/` | LangGraph state machines and workflow logic | `BasePipelineState`, `ImplementationState`, `Pipeline` |
 | **Agents** | `amelia/agents/` | Specialized AI agents for planning, execution, and review | `Architect`, `Developer`, `Reviewer` |
 | **Drivers** | `amelia/drivers/` | LLM abstraction supporting API and CLI backends | `DriverInterface`, `DriverFactory` |
 | **Trackers** | `amelia/trackers/` | Issue source abstraction for different platforms | `BaseTracker` (Jira, GitHub, NoOp) |
@@ -63,171 +64,51 @@ Amelia uses a server-based execution architecture.
 
 This is the production architecture where CLI commands communicate with a background server via REST API.
 
-#### 1. CLI → Client (`client/cli.py`)
+#### 1. CLI to Client
 
-```python
-# Detect git worktree context
-worktree_path, worktree_name = get_worktree_context()
+The CLI detects git worktree context and sends requests to the server via the API client.
 
-# Create API client
-client = AmeliaClient(base_url="http://localhost:8420")
+See [`amelia/client/cli.py`](https://github.com/existential-birds/amelia/blob/main/amelia/client/cli.py) and [`amelia/client/api.py`](https://github.com/existential-birds/amelia/blob/main/amelia/client/api.py) for implementation.
 
-# Send create workflow request
-response = await client.create_workflow(
-    issue_id="PROJ-123",
-    worktree_path=worktree_path,
-    profile="work"
-)
-# Returns: CreateWorkflowResponse(id="uuid", status="pending")
-```
+#### 2. Server to OrchestratorService
 
-#### 2. Server → OrchestratorService (`server/orchestrator/service.py`)
+The server validates the worktree, checks concurrency limits (one active workflow per worktree, max 5 global), creates a workflow record in the database, and starts the workflow in a background task.
 
-```python
-# Validate worktree (exists, is directory, has .git)
-validate_worktree(worktree_path)
-
-# Check concurrency limits (one per worktree, max 5 global)
-if worktree_path in active_workflows:
-    raise WorkflowConflictError(active_workflow_id)
-
-# Create workflow record in database
-workflow = await repository.create_workflow(...)
-
-# Start workflow in background task
-asyncio.create_task(run_workflow_with_retry(workflow_id))
-```
+See [`OrchestratorService`](https://github.com/existential-birds/amelia/blob/main/amelia/server/orchestrator/service.py) for implementation.
 
 #### 3. Workflow Execution (LangGraph)
 
-```python
-# Load settings and create tracker
-settings = load_settings()
-profile = settings.profiles[profile_name]
-tracker = create_tracker(profile)
-issue = tracker.get_issue("PROJ-123")
+The workflow loads settings, creates a tracker for the issue source, initializes state, and runs the LangGraph pipeline with SQLite checkpointing. The profile is passed via LangGraph's RunnableConfig for deterministic replay.
 
-# Initialize state
-initial_state = ExecutionState(profile_id=profile.name, issue=issue)
+See the implementation pipeline:
+- [`ImplementationPipeline`](https://github.com/existential-birds/amelia/blob/main/amelia/pipelines/implementation/pipeline.py) - Pipeline entry point
+- [`create_implementation_graph()`](https://github.com/existential-birds/amelia/blob/main/amelia/pipelines/implementation/graph.py) - LangGraph state machine
 
-# Run with SQLite checkpointing and profile in config
-checkpointer = AsyncSqliteSaver(db_path)
-app = create_orchestrator_graph().compile(checkpointer=checkpointer)
-config = {
-    "configurable": {
-        "thread_id": workflow_id,
-        "profile": profile,  # Profile passed via config, not state
-    }
-}
-final_state = await app.ainvoke(initial_state, config=config)
-```
+#### 4. Real-Time Events to Dashboard
 
-#### 4. Real-Time Events → WebSocket → Dashboard
+Events are emitted at each stage and broadcast to WebSocket clients for real-time dashboard updates.
 
-```python
-# Emit events at each stage
-await event_bus.publish(WorkflowEvent(
-    workflow_id=workflow_id,
-    event_type=EventType.STAGE_STARTED,
-    agent="architect",
-    message="Generating implementation plan"
-))
-
-# WebSocket broadcasts to subscribed clients
-await connection_manager.broadcast(event, workflow_id)
-
-# Dashboard receives and displays updates
-```
+See the event system:
+- [`EventBus`](https://github.com/existential-birds/amelia/blob/main/amelia/server/events/bus.py) - Pub/sub event bus
+- [`ConnectionManager`](https://github.com/existential-birds/amelia/blob/main/amelia/server/events/connection_manager.py) - WebSocket client management
 
 #### 5. Human Approval Gate
 
-```python
-# Workflow blocks at human_approval_node
-await event_bus.publish(WorkflowEvent(
-    event_type=EventType.APPROVAL_REQUIRED,
-    message="Plan ready for review"
-))
-
-# User runs: amelia approve
-await client.approve_workflow(workflow_id)
-
-# Server resumes workflow
-await orchestrator_service.approve_workflow(workflow_id)
-```
+The workflow blocks at the human approval node (using LangGraph interrupt), emits an `APPROVAL_REQUIRED` event, and waits for user approval via CLI (`amelia approve`) or dashboard.
 
 ### Orchestrator Nodes (LangGraph)
 
-#### Node: `architect_node`
+See [`amelia/pipelines/implementation/nodes.py`](https://github.com/existential-birds/amelia/blob/main/amelia/pipelines/implementation/nodes.py) for implementation-specific nodes and [`amelia/pipelines/nodes.py`](https://github.com/existential-birds/amelia/blob/main/amelia/pipelines/nodes.py) for shared nodes.
 
-```python
-# Get driver for LLM communication
-driver = DriverFactory.get_driver(profile.driver)
+**Node: `call_architect_node`** - Gets driver, calls `Architect.plan()` to generate markdown plan with goal extraction, updates state with plan content.
 
-# Generate markdown plan with goal extraction
-architect = Architect(driver)
-plan_output = await architect.plan(state=state, profile=profile, workflow_id=workflow_id)
-# Returns: PlanOutput(markdown_content=str, markdown_path=Path, goal=str, key_files=list)
+**Node: `plan_validator_node`** - Validates plan file and extracts structured fields (goal, plan_markdown, key_files) using lightweight LLM extraction.
 
-# Update state with goal for Developer
-state = state.model_copy(update={
-    "goal": plan_output.goal,
-    "plan_markdown": plan_output.markdown_content,
-    "plan_path": plan_output.markdown_path,
-})
-```
+**Node: `human_approval_node`** - In server mode: emits `APPROVAL_REQUIRED` event and uses LangGraph interrupt to block. In CLI mode: prompts user directly via typer.
 
-#### Node: `human_approval_node`
+**Node: `developer_node`** - Executes goal agentically using streaming tool calls. Handles events (tool_call, tool_result, thinking, result) and updates state with tool history.
 
-```python
-# In server mode: emit event and block (LangGraph interrupt)
-if server_mode:
-    emit_event(EventType.APPROVAL_REQUIRED)
-    return interrupt(state)  # Blocks until approve/reject
-
-# In CLI mode: prompt user directly
-approved = typer.confirm("Approve this plan?")
-state.human_approved = approved
-```
-
-#### Node: `developer_node` (agentic execution)
-
-```python
-# Execute goal agentically using tool calls
-developer = Developer(driver)
-async for event in developer.execute_agentic(
-    goal=state.goal,
-    cwd=worktree_path,
-    session_id=state.driver_session_id,
-):
-    # Handle streaming events: tool_call, tool_result, thinking, result
-    if event.type == "tool_call":
-        state = state.model_copy(update={
-            "tool_calls": state.tool_calls + [event.tool_call]
-        })
-    elif event.type == "result":
-        state = state.model_copy(update={
-            "agentic_status": "completed",
-            "final_response": event.content,
-        })
-
-# Proceed to reviewer when complete
-```
-
-#### Node: `reviewer_node`
-
-```python
-# Get code changes
-code_changes = state.code_changes_for_review or get_git_diff("HEAD")
-
-# Run review
-reviewer = Reviewer(driver)
-review_result = await reviewer.review(state, code_changes)
-
-state.last_review = review_result
-
-# If not approved and iteration < max → back to developer_node for fixes
-# If approved or max iterations reached → END
-```
+**Node: `reviewer_node`** - Gets code changes, runs `Reviewer.review()`, updates state with review result. Routes back to developer if changes requested, or to END if approved.
 
 ## Key Types
 
@@ -235,237 +116,71 @@ state.last_review = review_result
 
 #### Profile
 
-```python
-class Profile(BaseModel):
-    name: str
-    driver: DriverType                             # "api:openrouter" | "cli:claude" | "cli" | "api"
-    model: str | None = None                       # Model identifier for API drivers
-    tracker: TrackerType = "none"                  # "jira" | "github" | "none" | "noop"
-    working_dir: str | None = None
-    plan_output_dir: str = "docs/plans"
-    retry: RetryConfig = Field(default_factory=RetryConfig)
-    max_review_iterations: int = 3                 # Max review-fix loop iterations
-    max_task_review_iterations: int = 5        # Per-task review iteration limit
-```
+See [`Profile`](https://github.com/existential-birds/amelia/blob/main/amelia/core/types.py#L37-L72) for the full definition. Key fields:
+
+- `driver`: LLM driver type (`api:openrouter`, `cli:claude`)
+- `model`: LLM model identifier
+- `tracker`: Issue tracker type (`jira`, `github`, `none`)
+- `max_review_iterations`: Maximum review-fix loop iterations
+- `max_task_review_iterations`: Per-task review iteration limit
 
 #### RetryConfig
 
-```python
-class RetryConfig(BaseModel):
-    max_retries: int = Field(default=3, ge=0, le=10)
-    base_delay: float = Field(default=1.0, ge=0.1, le=30.0)
-    max_delay: float = Field(default=60.0, ge=1.0, le=300.0)
-```
+See [`RetryConfig`](https://github.com/existential-birds/amelia/blob/main/amelia/core/types.py#L17-L34) for the full definition.
 
 #### ServerConfig
 
-```python
-class ServerConfig(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="AMELIA_")
-
-    host: str = "127.0.0.1"
-    port: int = Field(default=8420, ge=1, le=65535)
-    database_path: Path = Path("~/.amelia/amelia.db")
-    log_retention_days: int = 30
-    log_retention_max_events: int = 100_000
-    websocket_idle_timeout_seconds: float = 300.0
-    workflow_start_timeout_seconds: float = 60.0
-    max_concurrent: int = 5
-```
+See [`ServerConfig`](https://github.com/existential-birds/amelia/blob/main/amelia/server/config.py#L8-L113) for the full definition. All settings can be overridden via `AMELIA_*` environment variables.
 
 ### Domain Types
 
-#### Issue
-
-```python
-class Issue(BaseModel):
-    id: str
-    title: str
-    description: str
-    status: str = "open"
-```
-
-#### Design
-
-```python
-class Design(BaseModel):
-    title: str
-    goal: str
-    architecture: str
-    tech_stack: list[str]
-    components: list[str]
-    data_flow: str | None = None
-    error_handling: str | None = None
-    testing_strategy: str | None = None
-    relevant_files: list[str] = Field(default_factory=list)
-    conventions: str | None = None
-    raw_content: str
-```
+See the source files:
+- [`Issue`](https://github.com/existential-birds/amelia/blob/main/amelia/core/types.py#L84-L96) - Issue or ticket to be worked on
+- [`Design`](https://github.com/existential-birds/amelia/blob/main/amelia/core/types.py#L99-L116) - Design document for implementation
 
 ### Agentic Types
 
-#### ToolCall
+See [`amelia/core/agentic_state.py`](https://github.com/existential-birds/amelia/blob/main/amelia/core/agentic_state.py) for the full definitions:
 
-```python
-class ToolCall(BaseModel):
-    """A tool call made by the LLM during agentic execution."""
-    model_config = ConfigDict(frozen=True)
-
-    id: str                          # Unique identifier for this call
-    tool_name: str                   # Name of the tool (run_shell_command, write_file)
-    tool_input: dict[str, Any]       # Input parameters for the tool
-    timestamp: str | None = None     # When the call was made (ISO format)
-```
-
-#### ToolResult
-
-```python
-class ToolResult(BaseModel):
-    """Result from a tool execution."""
-    model_config = ConfigDict(frozen=True)
-
-    call_id: str                     # ID of the ToolCall this result is for
-    tool_name: str                   # Name of the tool that was called
-    output: str                      # Output from the tool (stdout, file content, etc.)
-    success: bool                    # Whether the tool executed successfully
-    error: str | None = None         # Error message if success is False
-    duration_ms: int | None = None   # Execution time in milliseconds
-```
-
-#### AgenticStatus
-
-```python
-AgenticStatus = Literal["running", "awaiting_approval", "completed", "failed", "cancelled"]
-```
+- [`ToolCall`](https://github.com/existential-birds/amelia/blob/main/amelia/core/agentic_state.py#L14-L29) - A tool call made by the LLM during agentic execution
+- [`ToolResult`](https://github.com/existential-birds/amelia/blob/main/amelia/core/agentic_state.py#L32-L51) - Result from a tool execution
+- [`AgenticStatus`](https://github.com/existential-birds/amelia/blob/main/amelia/core/agentic_state.py#L11) - Execution status literal type
 
 ### State Types
 
-#### ExecutionState
+Amelia uses a pipeline-based state architecture with a common base class and pipeline-specific extensions.
 
-```python
-class ExecutionState(BaseModel):
-    """State for the LangGraph orchestrator execution.
+#### BasePipelineState
 
-    This model is frozen (immutable) to support the stateless reducer pattern.
-    """
-    model_config = ConfigDict(frozen=True)
+See [`BasePipelineState`](https://github.com/existential-birds/amelia/blob/main/amelia/pipelines/base.py#L53-L95) for the common state fields shared by all pipelines (workflow identity, lifecycle, human interaction, agentic execution).
 
-    profile_id: str                                # Profile name for replay determinism
-    issue: Issue | None = None
-    design: Design | None = None                   # Optional design context
-    goal: str | None = None                        # High-level goal for agentic execution
-    plan_markdown: str | None = None               # Markdown plan content from Architect
-    plan_path: Path | None = None                  # Path where markdown plan was saved
-    human_approved: bool | None = None
-    human_feedback: str | None = None              # Optional feedback from human
-    last_review: ReviewResult | None = None        # Most recent review result
-    code_changes_for_review: str | None = None
-    driver_session_id: str | None = None           # For driver session continuity
-    agent_history: Annotated[list[str], operator.add] = Field(default_factory=list)
+#### ImplementationState
 
-    # Agentic execution tracking
-    tool_calls: Annotated[list[ToolCall], operator.add] = Field(default_factory=list)
-    tool_results: Annotated[list[ToolResult], operator.add] = Field(default_factory=list)
-    agentic_status: AgenticStatus = "running"
-    final_response: str | None = None
-    error: str | None = None
-    review_iteration: int = 0                      # Current iteration in review-fix loop
+See [`ImplementationState`](https://github.com/existential-birds/amelia/blob/main/amelia/pipelines/implementation/state.py#L25-L75) for the implementation pipeline state, which extends `BasePipelineState` with:
+- Domain data (issue, design, plan)
+- Human approval workflow
+- Code review tracking
+- Multi-task execution
 
-    # Task execution tracking (for multi-task plans)
-    total_tasks: int | None = None             # Parsed from plan (None = legacy single-session)
-    current_task_index: int = 0                # 0-indexed, increments after each task passes review
-    task_review_iteration: int = 0             # Resets to 0 when moving to next task
-```
-
-**Note**: The full `Profile` object is not stored in state for determinism. Instead, it's passed via LangGraph's RunnableConfig:
-
-```python
-config = {
-    "configurable": {
-        "thread_id": workflow_id,
-        "profile": profile,  # Runtime config passed here
-    }
-}
-```
-
-This ensures that when replaying from checkpoints, the profile configuration at invocation time is used, preventing bugs from stale profile data in checkpointed state.
+**Note**: The full `Profile` object is not stored in state for determinism. Instead, it's passed via LangGraph's RunnableConfig. This ensures that when replaying from checkpoints, the profile configuration at invocation time is used, preventing bugs from stale profile data in checkpointed state.
 
 **Agentic Execution**: The `tool_calls` and `tool_results` fields use the `operator.add` reducer, allowing parallel-safe appending of tool history during streaming execution.
 
 #### ReviewResult
 
-```python
-class ReviewResult(BaseModel):
-    reviewer_persona: str          # "General", "Security", "Performance", "Usability"
-    approved: bool
-    comments: list[str]
-    severity: Severity             # "low" | "medium" | "high" | "critical"
-```
-
-#### AgentMessage
-
-```python
-class AgentMessage(BaseModel):
-    role: str                      # "system" | "assistant" | "user"
-    content: str
-    tool_calls: list[Any] | None = None
-```
+See [`ReviewResult`](https://github.com/existential-birds/amelia/blob/main/amelia/core/types.py#L122-L138) for the full definition.
 
 ### Server Types
 
-#### WorkflowEvent
+See [`amelia/server/models/events.py`](https://github.com/existential-birds/amelia/blob/main/amelia/server/models/events.py) for the full definitions:
 
-```python
-class WorkflowEvent(BaseModel):
-    id: str                        # UUID
-    workflow_id: str
-    sequence: int                  # Monotonic counter for ordering
-    timestamp: datetime
-    agent: str                     # "architect" | "developer" | "reviewer" | "system"
-    event_type: EventType          # See EventType enum below
-    message: str
-    data: dict[str, Any] | None = None
-    correlation_id: str | None = None
-```
-
-#### EventType (Enum)
-
-```python
-class EventType(str, Enum):
-    WORKFLOW_STARTED = "workflow_started"
-    WORKFLOW_COMPLETED = "workflow_completed"
-    WORKFLOW_FAILED = "workflow_failed"
-    WORKFLOW_CANCELLED = "workflow_cancelled"
-    STAGE_STARTED = "stage_started"
-    STAGE_COMPLETED = "stage_completed"
-    APPROVAL_REQUIRED = "approval_required"
-    APPROVAL_GRANTED = "approval_granted"
-    APPROVAL_REJECTED = "approval_rejected"
-    FILE_CREATED = "file_created"
-    FILE_MODIFIED = "file_modified"
-    FILE_DELETED = "file_deleted"
-    REVIEW_REQUESTED = "review_requested"
-    REVIEW_COMPLETED = "review_completed"
-    REVISION_REQUESTED = "revision_requested"
-    SYSTEM_ERROR = "system_error"
-    SYSTEM_WARNING = "system_warning"
-```
+- [`WorkflowEvent`](https://github.com/existential-birds/amelia/blob/main/amelia/server/models/events.py#L150-L238) - Event for activity log and real-time updates
+- [`EventType`](https://github.com/existential-birds/amelia/blob/main/amelia/server/models/events.py#L24-L108) - Exhaustive list of workflow event types (lifecycle, stage, approval, artifact, review, agent message, and system events)
+- [`EventLevel`](https://github.com/existential-birds/amelia/blob/main/amelia/server/models/events.py#L10-L22) - Event severity level for filtering and retention (info, debug, trace)
 
 #### TokenUsage
 
-```python
-class TokenUsage(BaseModel):
-    id: str
-    workflow_id: str
-    agent: str
-    model: str = "claude-sonnet-4-20250514"
-    input_tokens: int
-    output_tokens: int
-    cache_read_tokens: int = 0
-    cache_creation_tokens: int = 0
-    cost_usd: float | None = None
-    timestamp: datetime
-```
+See [`TokenUsage`](https://github.com/existential-birds/amelia/blob/main/amelia/server/models/tokens.py#L47-L96) for the full definition. Includes cache token semantics for cost calculation with prompt caching.
 
 ## Orchestrator Nodes
 
@@ -509,46 +224,15 @@ Orchestrator → EventBus → WebSocket → Dashboard
 
 ### Database Schema
 
-```sql
--- Workflow state persistence
-CREATE TABLE workflows (
-    id TEXT PRIMARY KEY,
-    issue_id TEXT NOT NULL,
-    worktree_path TEXT NOT NULL,
-    status TEXT DEFAULT 'pending',  -- pending/running/completed/failed/cancelled
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP,
-    failure_reason TEXT,
-    state_json TEXT NOT NULL
-);
+See [`Database.ensure_schema()`](https://github.com/existential-birds/amelia/blob/main/amelia/server/database/connection.py#L254-L471) for the complete schema definition. Core tables:
 
--- Append-only event log
-CREATE TABLE events (
-    id TEXT PRIMARY KEY,
-    workflow_id TEXT REFERENCES workflows(id),
-    sequence INTEGER NOT NULL,      -- Monotonic ordering
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    agent TEXT NOT NULL,
-    event_type TEXT NOT NULL,
-    message TEXT NOT NULL,
-    data_json TEXT,
-    correlation_id TEXT             -- Links related events
-);
-
--- Token usage tracking
-CREATE TABLE token_usage (
-    id TEXT PRIMARY KEY,
-    workflow_id TEXT REFERENCES workflows(id),
-    agent TEXT NOT NULL,
-    model TEXT DEFAULT 'claude-sonnet-4-20250514',
-    input_tokens INTEGER NOT NULL,
-    output_tokens INTEGER NOT NULL,
-    cache_read_tokens INTEGER DEFAULT 0,
-    cache_creation_tokens INTEGER DEFAULT 0,
-    cost_usd REAL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+| Table | Purpose |
+|-------|---------|
+| `workflows` | Workflow state persistence with status tracking |
+| `events` | Append-only event log with monotonic ordering |
+| `token_usage` | Token consumption tracking per agent |
+| `prompts` / `prompt_versions` | Prompt configuration and versioning |
+| `brainstorm_sessions` / `brainstorm_messages` | Brainstorming chat sessions |
 
 ### Health Endpoints
 
@@ -560,17 +244,15 @@ CREATE TABLE token_usage (
 
 ### Logging
 
-Loguru-based logging with custom Amelia dashboard colors:
+Loguru-based logging with custom Amelia dashboard colors. See [`amelia/logging.py`](https://github.com/existential-birds/amelia/blob/main/amelia/logging.py) for configuration.
 
-```python
-from loguru import logger
-
-logger.debug("Low-level details")    # Sage muted
-logger.info("General information")   # Blue
-logger.success("Operation succeeded") # Sage green
-logger.warning("Potential issue")    # Gold
-logger.error("Error occurred")       # Rust red
-```
+| Level | Color | Usage |
+|-------|-------|-------|
+| `debug` | Sage muted | Low-level details |
+| `info` | Blue | General information |
+| `success` | Sage green | Operation succeeded |
+| `warning` | Gold | Potential issue |
+| `error` | Rust red | Error occurred |
 
 ### Log Retention
 
@@ -621,81 +303,73 @@ The Developer agent uses autonomous tool-calling execution where the LLM decides
 ```
 amelia/
 ├── agents/
-│   ├── __init__.py
 │   ├── architect.py          # Markdown plan generation with goal extraction
 │   ├── developer.py          # Agentic execution with streaming tool calls
 │   └── reviewer.py           # Code review
 ├── client/
-│   ├── __init__.py
 │   ├── api.py                # AmeliaClient REST client
 │   ├── cli.py                # CLI commands: start, approve, reject, status, cancel
 │   └── git.py                # get_worktree_context() for git detection
 ├── core/
-│   ├── __init__.py
-│   ├── agentic_state.py      # ToolCall, ToolResult, AgenticState
+│   ├── agentic_state.py      # ToolCall, ToolResult, AgenticState, AgenticStatus
 │   ├── constants.py          # Security constants: blocked commands, patterns
 │   ├── exceptions.py         # AmeliaError hierarchy
-│   ├── orchestrator.py       # LangGraph state machine
-│   ├── state.py              # ExecutionState with agentic execution tracking
-│   └── types.py              # Profile, Issue, Settings, Design, RetryConfig
+│   ├── extraction.py         # LLM-based structured extraction utilities
+│   └── types.py              # Profile, Issue, Settings, Design, RetryConfig, ReviewResult
+├── pipelines/
+│   ├── base.py               # BasePipelineState, Pipeline protocol
+│   ├── nodes.py              # Shared LangGraph node functions
+│   ├── registry.py           # Pipeline registry
+│   ├── implementation/
+│   │   ├── graph.py          # LangGraph state machine for implementation
+│   │   ├── nodes.py          # Implementation-specific nodes
+│   │   ├── pipeline.py       # ImplementationPipeline class
+│   │   ├── routing.py        # Conditional edge routing logic
+│   │   └── state.py          # ImplementationState
+│   └── review/               # Review-only pipeline
 ├── drivers/
 │   ├── api/
-│   │   ├── __init__.py
 │   │   └── openrouter.py     # OpenRouter API driver
 │   ├── cli/
-│   │   ├── __init__.py
 │   │   ├── base.py           # CliDriver base with retry logic
 │   │   └── claude.py         # Claude CLI wrapper with agentic mode
-│   ├── __init__.py
 │   ├── base.py               # DriverInterface protocol
 │   └── factory.py            # DriverFactory
 ├── server/
 │   ├── database/
-│   │   ├── __init__.py
 │   │   ├── connection.py     # Async SQLite wrapper, schema init
 │   │   └── repository.py     # WorkflowRepository CRUD operations
 │   ├── events/
-│   │   ├── __init__.py
 │   │   ├── bus.py            # EventBus pub/sub
 │   │   └── connection_manager.py  # WebSocket client management
 │   ├── lifecycle/
-│   │   ├── __init__.py
 │   │   ├── retention.py      # LogRetentionService
 │   │   └── server.py         # Server startup/shutdown
 │   ├── models/
-│   │   ├── __init__.py
-│   │   ├── events.py         # WorkflowEvent, EventType
+│   │   ├── events.py         # WorkflowEvent, EventType, EventLevel
 │   │   ├── requests.py       # CreateWorkflowRequest, RejectRequest
 │   │   ├── responses.py      # WorkflowResponse, ActionResponse
-│   │   └── tokens.py         # TokenUsage
+│   │   ├── state.py          # ServerExecutionState, WorkflowStatus
+│   │   └── tokens.py         # TokenUsage, TokenSummary
 │   ├── orchestrator/
-│   │   ├── __init__.py
 │   │   └── service.py        # OrchestratorService
 │   ├── routes/
-│   │   ├── __init__.py
 │   │   ├── health.py         # Health check endpoints
 │   │   ├── websocket.py      # /ws/events WebSocket handler
 │   │   └── workflows.py      # /api/workflows REST endpoints
-│   ├── __init__.py
 │   ├── cli.py                # amelia server command
 │   ├── config.py             # ServerConfig with AMELIA_* env vars
 │   ├── dev.py                # amelia dev command (server + dashboard)
 │   └── main.py               # FastAPI application
 ├── trackers/
-│   ├── __init__.py
 │   ├── base.py               # BaseTracker protocol
 │   ├── factory.py            # create_tracker()
 │   ├── github.py             # GitHub via gh CLI
 │   ├── jira.py               # Jira REST API
 │   └── noop.py               # Placeholder tracker
 ├── tools/
-│   ├── __init__.py
 │   ├── git_utils.py          # Git operations (diff, commit, worktree)
 │   └── shell_executor.py     # Simple shell command execution
-├── utils/
-│   ├── __init__.py
-│   └── design_parser.py      # LLM-powered Design document parser
-├── __init__.py
 ├── config.py                 # load_settings(), validate_profile()
 ├── logging.py                # Loguru configuration
 └── main.py                   # Typer CLI entry point
