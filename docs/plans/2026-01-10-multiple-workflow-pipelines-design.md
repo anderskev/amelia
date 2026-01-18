@@ -6,6 +6,25 @@
 
 ---
 
+## Implementation Status
+
+| Phase | Status | PRs |
+|-------|--------|-----|
+| **Phase 1: Foundation** | **COMPLETE** | #295, #296, feat/pipeline-cleanup-262 |
+| Phase 2: Brainstorming Pipeline Backend | Not started | - |
+| Phase 3: Dashboard UI | Not started | - |
+| Phase 4: Integration & Polish | Not started | - |
+
+**Phase 1 completed 2026-01-18:**
+- Created `amelia/pipelines/` package with `Pipeline` protocol and `BasePipelineState`
+- Implemented `ImplementationPipeline` and `ReviewPipeline` (bonus: Review pipeline added)
+- Created pipeline registry with `get_pipeline()` and `list_pipelines()`
+- Migrated all callers to new pipeline locations
+- Deleted legacy `orchestrator.py` and `state.py`
+- 932 unit tests passing
+
+---
+
 ## MVP Scope
 
 **In scope:**
@@ -417,18 +436,44 @@ Add pipeline selector to Quick Shot modal:
 
 ## File Structure
 
+### Implemented (Phase 1)
+
 ```
 amelia/
 ├── pipelines/
-│   ├── __init__.py
-│   ├── base.py                    # BasePipelineState, Pipeline protocol
-│   ├── registry.py                # PIPELINES dict, get_pipeline()
+│   ├── __init__.py                # Re-exports: Pipeline, BasePipelineState, get_pipeline
+│   ├── base.py                    # PipelineMetadata, HistoryEntry, BasePipelineState, Pipeline protocol
+│   ├── registry.py                # PIPELINES dict, get_pipeline(), list_pipelines()
+│   ├── nodes.py                   # Shared nodes: call_developer_node, call_reviewer_node
+│   ├── routing.py                 # Shared routing: route_after_review_or_task
+│   ├── utils.py                   # Shared utilities: extract_config_params
 │   │
 │   ├── implementation/
-│   │   ├── __init__.py            # ImplementationPipeline class
-│   │   ├── state.py               # ImplementationState
-│   │   └── graph.py               # create_implementation_graph()
+│   │   ├── __init__.py            # Re-exports
+│   │   ├── pipeline.py            # ImplementationPipeline class
+│   │   ├── state.py               # ImplementationState, rebuild_implementation_state()
+│   │   ├── graph.py               # create_implementation_graph()
+│   │   ├── nodes.py               # call_architect_node, plan_validator_node, human_approval_node, next_task_node
+│   │   ├── routing.py             # route_approval, route_after_task_review
+│   │   └── utils.py               # extract_task_count, extract_task_section, commit_task_changes
 │   │
+│   └── review/
+│       ├── __init__.py            # Re-exports
+│       ├── pipeline.py            # ReviewPipeline class
+│       ├── graph.py               # create_review_graph()
+│       ├── nodes.py               # call_evaluation_node, review_approval_node
+│       └── routing.py             # route_after_evaluation, route_after_fixes, route_after_end_approval
+│
+├── core/
+│   ├── types.py                   # Design, ReviewResult, Severity (domain types)
+│   └── extraction.py              # extract_structured() utility
+```
+
+### Planned (Phase 2+)
+
+```
+amelia/
+├── pipelines/
 │   └── brainstorming/
 │       ├── __init__.py            # BrainstormingPipeline class
 │       ├── state.py               # BrainstormingState
@@ -442,9 +487,6 @@ amelia/
 │           ├── research_codebase.py
 │           ├── explore_files.py
 │           └── web_search.py
-│
-├── core/
-│   └── orchestrator.py            # Thin wrapper, delegates to pipelines
 
 dashboard/src/
 ├── components/
@@ -465,12 +507,13 @@ dashboard/src/
 
 ## Implementation Phases
 
-### Phase 1: Foundation
-- Create `amelia/pipelines/` structure
-- Define `BasePipelineState` and `Pipeline` protocol
-- Create registry with just Implementation pipeline
-- Refactor current orchestrator → `ImplementationPipeline`
-- Verify existing functionality still works
+### Phase 1: Foundation [COMPLETE]
+- [x] Create `amelia/pipelines/` structure
+- [x] Define `BasePipelineState` and `Pipeline` protocol
+- [x] Create registry with Implementation + Review pipelines
+- [x] Refactor current orchestrator → `ImplementationPipeline`
+- [x] Create `ReviewPipeline` for `amelia review --local` workflow
+- [x] Verify existing functionality still works (932 tests passing)
 
 ### Phase 2: Brainstorming Pipeline Backend
 - Create `BrainstormingState`
