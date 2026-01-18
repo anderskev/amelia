@@ -18,7 +18,7 @@ from langgraph.graph.state import CompiledStateGraph
 from amelia.core.types import DriverType, Issue, Profile, TrackerType
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
 from amelia.pipelines.implementation import create_implementation_graph
-from amelia.pipelines.implementation.state import ImplementationState
+from amelia.pipelines.implementation.state import ImplementationState, rebuild_implementation_state
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.events.connection_manager import ConnectionManager
@@ -29,7 +29,9 @@ from amelia.server.models.state import (
 )
 
 
-# Rebuild ServerExecutionState to resolve forward reference to ImplementationState
+# Rebuild ImplementationState first (resolves StructuredReviewResult, EvaluationResult),
+# then ServerExecutionState (resolves ImplementationState union member)
+rebuild_implementation_state()
 rebuild_server_execution_state()
 
 

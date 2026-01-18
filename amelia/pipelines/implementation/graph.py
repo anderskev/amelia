@@ -11,7 +11,6 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
-from amelia.core.state import ExecutionState, rebuild_execution_state
 from amelia.pipelines.implementation.nodes import (
     call_architect_node,
     human_approval_node,
@@ -23,13 +22,14 @@ from amelia.pipelines.implementation.routing import (
     route_after_task_review,
     route_approval,
 )
+from amelia.pipelines.implementation.state import ImplementationState, rebuild_implementation_state
 from amelia.pipelines.nodes import call_developer_node, call_reviewer_node
 from amelia.pipelines.utils import extract_config_params
 
 
-# Resolve forward references in ExecutionState. Must be done after importing
+# Resolve forward references in ImplementationState. Must be done after importing
 # Reviewer and Evaluator since they define StructuredReviewResult and EvaluationResult.
-rebuild_execution_state()
+rebuild_implementation_state()
 
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 
 def _route_after_review_or_task(
-    state: ExecutionState, config: RunnableConfig
+    state: ImplementationState, config: RunnableConfig
 ) -> Literal["developer", "developer_node", "next_task_node", "__end__"]:
     """Route after review: handles both legacy and task-based execution.
 
@@ -103,7 +103,7 @@ def create_implementation_graph(
     Returns:
         Compiled StateGraph ready for execution.
     """
-    workflow = StateGraph(ExecutionState)
+    workflow = StateGraph(ImplementationState)
 
     # Add nodes
     workflow.add_node("architect_node", call_architect_node)

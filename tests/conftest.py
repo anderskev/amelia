@@ -14,6 +14,7 @@ import pytest
 from pytest import TempPathFactory
 
 from amelia.core.agentic_state import ToolCall, ToolResult
+from amelia.core.state import rebuild_execution_state
 from amelia.core.types import (
     DriverType,
     Issue,
@@ -29,8 +30,10 @@ from amelia.pipelines.implementation.state import (
 from amelia.server.events.bus import EventBus
 
 
-# Rebuild ImplementationState to resolve forward references for StructuredReviewResult
-# and EvaluationResult. This must be called before any tests instantiate ImplementationState.
+# Rebuild state models to resolve forward references for StructuredReviewResult
+# and EvaluationResult. This must be called before any tests instantiate these states.
+# ExecutionState is still used by the orchestrator service during migration.
+rebuild_execution_state()
 rebuild_implementation_state()
 
 

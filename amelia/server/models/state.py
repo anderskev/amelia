@@ -173,8 +173,8 @@ def rebuild_server_execution_state() -> None:
     Must be called after the application has finished importing to enable
     Pydantic validation of ImplementationState in execution_state field.
 
-    This function imports ImplementationState and calls model_rebuild()
-    to refresh Pydantic's type resolution.
+    This function imports ImplementationState and its TYPE_CHECKING dependencies,
+    then calls model_rebuild() to refresh Pydantic's type resolution.
 
     Example:
         from amelia.server.models.state import rebuild_server_execution_state
@@ -182,14 +182,20 @@ def rebuild_server_execution_state() -> None:
     """
     import sys  # noqa: PLC0415
 
+    from amelia.agents.evaluator import EvaluationResult  # noqa: PLC0415
+    from amelia.agents.reviewer import StructuredReviewResult  # noqa: PLC0415
     from amelia.pipelines.implementation.state import ImplementationState  # noqa: PLC0415
 
-    # Inject type into this module's namespace for get_type_hints() compatibility
+    # Inject types into this module's namespace for get_type_hints() compatibility
     module = sys.modules[__name__]
     module.ImplementationState = ImplementationState  # type: ignore[attr-defined]
+    module.StructuredReviewResult = StructuredReviewResult  # type: ignore[attr-defined]
+    module.EvaluationResult = EvaluationResult  # type: ignore[attr-defined]
 
     ServerExecutionState.model_rebuild(
         _types_namespace={
             "ImplementationState": ImplementationState,
+            "StructuredReviewResult": StructuredReviewResult,
+            "EvaluationResult": EvaluationResult,
         }
     )

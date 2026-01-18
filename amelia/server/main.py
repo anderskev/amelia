@@ -48,6 +48,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from amelia import __version__
+from amelia.core.state import rebuild_execution_state
 from amelia.logging import configure_logging, log_server_startup
 from amelia.server.config import ServerConfig
 from amelia.server.database import WorkflowRepository
@@ -65,6 +66,7 @@ from amelia.server.events.bus import EventBus
 from amelia.server.lifecycle.health_checker import WorktreeHealthChecker
 from amelia.server.lifecycle.retention import LogRetentionService
 from amelia.server.lifecycle.server import ServerLifecycle
+from amelia.server.models.state import rebuild_server_execution_state
 from amelia.server.orchestrator.service import OrchestratorService
 from amelia.server.routes import (
     config_router,
@@ -86,6 +88,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Sets start_time on startup for uptime calculation.
     Initializes configuration, database, orchestrator, and lifecycle components.
     """
+    # Rebuild Pydantic models with forward references before any instantiation.
+    # ExecutionState is still used by the orchestrator service.
+    # ServerExecutionState has ImplementationState in its union type.
+    rebuild_execution_state()
+    rebuild_server_execution_state()
+
     # Configure logging (needed when uvicorn loads app directly, e.g. with --reload)
     log_level = os.environ.get("AMELIA_LOG_LEVEL", "INFO").upper()
     configure_logging(level=log_level)

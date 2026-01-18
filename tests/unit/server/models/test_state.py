@@ -11,8 +11,13 @@ from amelia.server.models.state import (
     InvalidStateTransitionError,
     ServerExecutionState,
     WorkflowStatus,
+    rebuild_server_execution_state,
     validate_transition,
 )
+
+
+# Resolve forward references for ImplementationState
+rebuild_server_execution_state()
 
 
 def make_state(**overrides: Any) -> ServerExecutionState:

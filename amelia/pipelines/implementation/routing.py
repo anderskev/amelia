@@ -8,11 +8,11 @@ from typing import Literal
 
 from loguru import logger
 
-from amelia.core.state import ExecutionState
 from amelia.core.types import Profile
+from amelia.pipelines.implementation.state import ImplementationState
 
 
-def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
+def route_approval(state: ImplementationState) -> Literal["approve", "reject"]:
     """Route based on human approval status.
 
     Args:
@@ -26,7 +26,7 @@ def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
 
 
 def route_after_review(
-    state: ExecutionState,
+    state: ImplementationState,
     profile: Profile,
 ) -> Literal["developer", "__end__"]:
     """Route after review based on approval and iteration count (legacy mode).
@@ -61,7 +61,7 @@ def route_after_review(
 
 
 def route_after_task_review(
-    state: ExecutionState,
+    state: ImplementationState,
     profile: Profile,
 ) -> Literal["developer", "next_task_node", "__end__"]:
     """Route after task review: next task, retry developer, or end.

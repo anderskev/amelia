@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from amelia.core.state import ExecutionState
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.pipelines.nodes import call_developer_node, call_reviewer_node
 from amelia.pipelines.review.nodes import call_evaluation_node, review_approval_node
 from amelia.pipelines.review.routing import (
@@ -45,7 +45,7 @@ def create_review_graph(
     Returns:
         Compiled LangGraph state graph ready for execution.
     """
-    workflow = StateGraph(ExecutionState)
+    workflow = StateGraph(ImplementationState)
 
     # Add nodes
     workflow.add_node("reviewer_node", call_reviewer_node)

@@ -11,19 +11,29 @@ from langchain_core.runnables.config import RunnableConfig
 from pydantic import ValidationError
 
 from amelia.core.types import Settings
-from amelia.pipelines.implementation.state import ImplementationState
+from amelia.pipelines.implementation.state import (
+    ImplementationState,
+    rebuild_implementation_state,
+)
 from amelia.server.database.repository import WorkflowRepository
-from amelia.server.events.bus import EventBus
-from amelia.server.exceptions import (
+from amelia.server.models.state import rebuild_server_execution_state
+
+
+# Rebuild models to resolve forward references before module-level ServerExecutionState usage
+rebuild_implementation_state()
+rebuild_server_execution_state()
+
+from amelia.server.events.bus import EventBus  # noqa: E402
+from amelia.server.exceptions import (  # noqa: E402
     ConcurrencyLimitError,
     InvalidStateError,
     InvalidWorktreeError,
     WorkflowConflictError,
     WorkflowNotFoundError,
 )
-from amelia.server.models import ServerExecutionState
-from amelia.server.models.events import EventType
-from amelia.server.orchestrator.service import OrchestratorService
+from amelia.server.models import ServerExecutionState  # noqa: E402
+from amelia.server.models.events import EventType  # noqa: E402
+from amelia.server.orchestrator.service import OrchestratorService  # noqa: E402
 
 
 @pytest.fixture
