@@ -1,9 +1,11 @@
 """Unit tests for Developer prompt building with task extraction."""
 
+from datetime import UTC, datetime
+
 import pytest
 
 from amelia.agents.developer import Developer
-from amelia.core.state import ExecutionState
+from amelia.pipelines.implementation.state import ImplementationState
 
 
 @pytest.fixture
@@ -45,7 +47,10 @@ class TestDeveloperBuildPrompt:
 
     def test_single_task_uses_full_plan(self) -> None:
         """When total_tasks is None or 1, use full plan without extraction."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Implement feature",
             plan_markdown="# Simple Plan\n\nJust do the thing.",
@@ -62,7 +67,10 @@ class TestDeveloperBuildPrompt:
         self, multi_task_plan: str
     ) -> None:
         """For multi-task execution, extract only the current task section."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Implement feature",
             plan_markdown=multi_task_plan,
@@ -81,7 +89,10 @@ class TestDeveloperBuildPrompt:
 
     def test_multi_task_includes_breadcrumb(self, multi_task_plan: str) -> None:
         """Breadcrumb shows task progress for context."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Implement feature",
             plan_markdown=multi_task_plan,
@@ -97,7 +108,10 @@ class TestDeveloperBuildPrompt:
 
     def test_first_task_breadcrumb(self, multi_task_plan: str) -> None:
         """First task shows appropriate breadcrumb."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Implement feature",
             plan_markdown=multi_task_plan,
@@ -114,7 +128,10 @@ class TestDeveloperBuildPrompt:
 
     def test_missing_plan_raises_error(self) -> None:
         """Developer requires plan_markdown from Architect."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Implement feature",
             plan_markdown=None,

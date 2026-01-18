@@ -12,8 +12,8 @@ from pathlib import Path
 from langchain_core.runnables.config import RunnableConfig
 from loguru import logger
 
-from amelia.core.state import ExecutionState
 from amelia.core.types import Profile
+from amelia.pipelines.implementation.state import ImplementationState
 
 
 def extract_task_count(plan_markdown: str) -> int | None:
@@ -234,7 +234,7 @@ def extract_task_section(plan_markdown: str, task_index: int) -> str:
     return "".join(result_parts)
 
 
-async def commit_task_changes(state: ExecutionState, config: RunnableConfig) -> bool:
+async def commit_task_changes(state: ImplementationState, config: RunnableConfig) -> bool:
     """Commit changes for completed task.
 
     Args:

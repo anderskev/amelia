@@ -1,11 +1,17 @@
 """Workflow state models and state machine validation."""
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
 from amelia.core.state import ExecutionState
+
+
+if TYPE_CHECKING:
+    from amelia.pipelines.implementation.state import ImplementationState
 
 
 # Type alias for workflow status
@@ -95,7 +101,7 @@ class ServerExecutionState(BaseModel):
         description="Type of workflow: 'full' for standard, 'review' for review-only",
     )
 
-    execution_state: ExecutionState | None = Field(
+    execution_state: ExecutionState | ImplementationState | None = Field(
         default=None,
         description="Core orchestration state",
     )
@@ -159,3 +165,37 @@ class ServerExecutionState(BaseModel):
     def is_planned(self) -> bool:
         """Return True if the workflow has completed planning."""
         return self.planned_at is not None
+
+
+def rebuild_server_execution_state() -> None:
+    """Rebuild ServerExecutionState to resolve forward references.
+
+    Must be called after the application has finished importing to enable
+    Pydantic validation of ImplementationState in execution_state field.
+
+    This function imports ImplementationState and its TYPE_CHECKING dependencies,
+    then calls model_rebuild() to refresh Pydantic's type resolution.
+
+    Example:
+        from amelia.server.models.state import rebuild_server_execution_state
+        rebuild_server_execution_state()
+    """
+    import sys  # noqa: PLC0415
+
+    from amelia.agents.evaluator import EvaluationResult  # noqa: PLC0415
+    from amelia.agents.reviewer import StructuredReviewResult  # noqa: PLC0415
+    from amelia.pipelines.implementation.state import ImplementationState  # noqa: PLC0415
+
+    # Inject types into this module's namespace for get_type_hints() compatibility
+    module = sys.modules[__name__]
+    module.ImplementationState = ImplementationState  # type: ignore[attr-defined]
+    module.StructuredReviewResult = StructuredReviewResult  # type: ignore[attr-defined]
+    module.EvaluationResult = EvaluationResult  # type: ignore[attr-defined]
+
+    ServerExecutionState.model_rebuild(
+        _types_namespace={
+            "ImplementationState": ImplementationState,
+            "StructuredReviewResult": StructuredReviewResult,
+            "EvaluationResult": EvaluationResult,
+        }
+    )

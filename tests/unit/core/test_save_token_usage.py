@@ -10,7 +10,7 @@ class TestSaveTokenUsageWithDriverUsage:
 
     async def test_saves_usage_from_driver_get_usage(self) -> None:
         """_save_token_usage should call driver.get_usage() and save to repository."""
-        from amelia.core.orchestrator import _save_token_usage
+        from amelia.pipelines.nodes import _save_token_usage
 
         mock_driver = MagicMock()
         mock_driver.get_usage.return_value = DriverUsage(
@@ -51,7 +51,7 @@ class TestSaveTokenUsageWithDriverUsage:
 
     async def test_noop_when_get_usage_returns_none(self) -> None:
         """_save_token_usage should not save when get_usage() returns None."""
-        from amelia.core.orchestrator import _save_token_usage
+        from amelia.pipelines.nodes import _save_token_usage
 
         mock_driver = MagicMock()
         mock_driver.get_usage.return_value = None
@@ -69,7 +69,7 @@ class TestSaveTokenUsageWithDriverUsage:
 
     async def test_noop_when_repository_is_none(self) -> None:
         """_save_token_usage should not attempt save when repository is None."""
-        from amelia.core.orchestrator import _save_token_usage
+        from amelia.pipelines.nodes import _save_token_usage
 
         mock_driver = MagicMock()
         mock_driver.get_usage.return_value = DriverUsage(input_tokens=100)
@@ -86,7 +86,7 @@ class TestSaveTokenUsageWithDriverUsage:
 
     async def test_defaults_none_fields_to_zero(self) -> None:
         """_save_token_usage should use 0 for None fields in DriverUsage."""
-        from amelia.core.orchestrator import _save_token_usage
+        from amelia.pipelines.nodes import _save_token_usage
 
         mock_driver = MagicMock()
         mock_driver.model = "fallback-model"
@@ -116,7 +116,7 @@ class TestSaveTokenUsageWithDriverUsage:
 
     async def test_uses_driver_model_when_usage_model_is_none(self) -> None:
         """_save_token_usage should fall back to driver.model when DriverUsage.model is None."""
-        from amelia.core.orchestrator import _save_token_usage
+        from amelia.pipelines.nodes import _save_token_usage
 
         mock_driver = MagicMock()
         mock_driver.model = "driver-model"
@@ -140,7 +140,7 @@ class TestSaveTokenUsageWithDriverUsage:
 
     async def test_uses_unknown_when_no_model_available(self) -> None:
         """_save_token_usage should use 'unknown' when model unavailable everywhere."""
-        from amelia.core.orchestrator import _save_token_usage
+        from amelia.pipelines.nodes import _save_token_usage
 
         mock_driver = MagicMock(spec=["get_usage"])  # No model attribute
         mock_driver.get_usage.return_value = DriverUsage(
@@ -163,7 +163,7 @@ class TestSaveTokenUsageWithDriverUsage:
 
     async def test_handles_driver_without_get_usage(self) -> None:
         """_save_token_usage should handle drivers without get_usage gracefully."""
-        from amelia.core.orchestrator import _save_token_usage
+        from amelia.pipelines.nodes import _save_token_usage
 
         # Driver without get_usage (uses spec to exclude it)
         mock_driver = MagicMock(spec=["generate", "execute_agentic"])
@@ -182,7 +182,7 @@ class TestSaveTokenUsageWithDriverUsage:
 
     async def test_handles_repository_error_gracefully(self) -> None:
         """_save_token_usage should log but not raise on repository errors."""
-        from amelia.core.orchestrator import _save_token_usage
+        from amelia.pipelines.nodes import _save_token_usage
 
         mock_driver = MagicMock()
         mock_driver.get_usage.return_value = DriverUsage(

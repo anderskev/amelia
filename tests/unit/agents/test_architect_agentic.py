@@ -1,14 +1,15 @@
 """Tests for Architect agent agentic execution."""
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from amelia.agents.architect import Architect
-from amelia.core.state import ExecutionState
 from amelia.core.types import Profile
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.server.models.events import WorkflowEvent
 
 
@@ -23,17 +24,23 @@ class TestArchitectPlanAsyncGenerator:
         return driver
 
     @pytest.fixture
-    def state_with_issue(self, mock_issue_factory, mock_profile_factory) -> tuple[ExecutionState, Profile]:
-        """ExecutionState with required issue."""
+    def state_with_issue(self, mock_issue_factory, mock_profile_factory) -> tuple[ImplementationState, Profile]:
+        """ImplementationState with required issue."""
         issue = mock_issue_factory(title="Add feature", description="Add feature X")
         profile = mock_profile_factory()
-        state = ExecutionState(profile_id="test", issue=issue)
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
+            profile_id="test",
+            issue=issue,
+        )
         return state, profile
 
     async def test_plan_returns_async_iterator(
         self,
         mock_agentic_driver: MagicMock,
-        state_with_issue: tuple[ExecutionState, Profile],
+        state_with_issue: tuple[ImplementationState, Profile],
     ) -> None:
         """plan() should return an async iterator."""
         state, profile = state_with_issue
@@ -57,9 +64,9 @@ class TestArchitectPlanAsyncGenerator:
     async def test_plan_yields_state_and_event_tuples(
         self,
         mock_agentic_driver: MagicMock,
-        state_with_issue: tuple[ExecutionState, Profile],
+        state_with_issue: tuple[ImplementationState, Profile],
     ) -> None:
-        """plan() should yield (ExecutionState, WorkflowEvent) tuples."""
+        """plan() should yield (ImplementationState, WorkflowEvent) tuples."""
         state, profile = state_with_issue
 
         async def mock_stream(*args: Any, **kwargs: Any) -> AsyncIterator[AgenticMessage]:
@@ -83,7 +90,7 @@ class TestArchitectPlanAsyncGenerator:
 
         assert len(results) >= 1
         for new_state, event in results:
-            assert isinstance(new_state, ExecutionState)
+            assert isinstance(new_state, ImplementationState)
             assert isinstance(event, WorkflowEvent)
 
 
@@ -102,7 +109,13 @@ class TestArchitectCwdPassing:
         # Use tmp_path as working_dir to verify it's passed correctly
         expected_cwd = str(tmp_path)
         profile = mock_profile_factory(working_dir=expected_cwd)
-        state = ExecutionState(profile_id="test", issue=issue)
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
+            profile_id="test",
+            issue=issue,
+        )
 
         # Track the actual cwd passed to execute_agentic
         captured_cwd = None
@@ -140,7 +153,13 @@ class TestArchitectToolCallAccumulation:
         """Should accumulate tool calls in yielded state."""
         issue = mock_issue_factory()
         profile = mock_profile_factory()
-        state = ExecutionState(profile_id="test", issue=issue)
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
+            profile_id="test",
+            issue=issue,
+        )
 
         async def mock_stream(*args, **kwargs):
             yield AgenticMessage(

@@ -1,6 +1,7 @@
 """Tests for the Reviewer agent."""
 import inspect
 from collections.abc import Callable
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,9 +12,9 @@ from amelia.agents.reviewer import (
     StructuredReviewResult,
     normalize_severity,
 )
-from amelia.core.state import ExecutionState
 from amelia.core.types import Profile
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.server.models.events import EventType
 from tests.conftest import AsyncIteratorMock
 
@@ -116,7 +117,7 @@ class TestAgenticReview:
     async def test_processes_agentic_message_stream(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that agentic_review processes AgenticMessage stream from driver."""
         state, profile = mock_execution_state_factory(
@@ -187,7 +188,7 @@ Rationale: No issues found, code is ready to merge.
     async def test_agentic_review_emits_workflow_events(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that workflow events are emitted for AgenticMessage stream."""
         mock_event_bus = MagicMock()
@@ -239,7 +240,7 @@ Rationale: No issues found, code is ready to merge.
     async def test_agentic_review_handles_error_result(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that agentic_review handles error results correctly."""
         state, profile = mock_execution_state_factory(
@@ -276,7 +277,7 @@ Rationale: No issues found, code is ready to merge.
     async def test_agentic_review_uses_to_workflow_event(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that agentic_review uses AgenticMessage.to_workflow_event() for conversion."""
         mock_event_bus = MagicMock()
@@ -315,7 +316,7 @@ Rationale: No issues found, code is ready to merge.
     async def test_agentic_review_parses_beagle_markdown_result(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that agentic_review correctly parses beagle markdown result from agent."""
         state, profile = mock_execution_state_factory(
@@ -380,7 +381,7 @@ Rationale: Two major issues need to be fixed first.
     async def test_agentic_review_determines_severity_from_highest_issue(
         self,
         mock_driver: MagicMock,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Test that agentic_review determines overall severity from highest issue severity.
 
@@ -581,7 +582,10 @@ Third task content.
 
     def test_single_task_returns_full_plan(self) -> None:
         """When total_tasks is None or 1, return full plan."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Implement feature",
             plan_markdown="# Simple Plan\n\nJust do it.",
@@ -599,7 +603,10 @@ Third task content.
         self, multi_task_plan: str
     ) -> None:
         """For multi-task, extract current task with index label."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Implement feature",
             plan_markdown=multi_task_plan,
@@ -615,7 +622,10 @@ Third task content.
 
     def test_no_plan_returns_goal_fallback(self) -> None:
         """Without plan, fall back to goal."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             goal="Just do the thing",
             plan_markdown=None,

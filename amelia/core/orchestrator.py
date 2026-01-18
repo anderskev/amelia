@@ -19,9 +19,12 @@ from amelia.agents.architect import Architect, MarkdownPlanOutput
 from amelia.agents.evaluator import Evaluator
 from amelia.core.constants import ToolName, resolve_plan_path
 from amelia.core.extraction import extract_structured
-from amelia.core.state import ExecutionState, rebuild_execution_state
 from amelia.core.types import Profile
 from amelia.drivers.factory import DriverFactory
+from amelia.pipelines.implementation.state import (
+    ImplementationState,
+    rebuild_implementation_state,
+)
 from amelia.pipelines.implementation.utils import (
     _extract_goal_from_plan,
     _extract_key_files_from_plan,
@@ -37,13 +40,13 @@ from amelia.pipelines.nodes import (
 from amelia.pipelines.utils import extract_config_params
 
 
-# Resolve forward references in ExecutionState. Must be done after importing
+# Resolve forward references in ImplementationState. Must be done after importing
 # Reviewer and Evaluator since they define StructuredReviewResult and EvaluationResult.
-rebuild_execution_state()
+rebuild_implementation_state()
 
 
 async def plan_validator_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Validate and extract structure from architect's plan file.
@@ -144,7 +147,7 @@ Return:
 
 
 async def call_architect_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Orchestrator node for the Architect agent to generate an implementation plan.
@@ -289,7 +292,7 @@ async def call_architect_node(
 
 
 async def human_approval_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Node to prompt for human approval before proceeding.
@@ -336,7 +339,7 @@ async def human_approval_node(
 
 
 async def call_evaluation_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Node that evaluates review feedback.
@@ -388,7 +391,7 @@ async def call_evaluation_node(
 
 
 async def review_approval_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Node for human approval of which review items to fix.
@@ -415,7 +418,7 @@ async def review_approval_node(
     return {}
 
 
-def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
+def route_approval(state: ImplementationState) -> Literal["approve", "reject"]:
     """Route based on human approval status.
 
     Args:
@@ -429,7 +432,7 @@ def route_approval(state: ExecutionState) -> Literal["approve", "reject"]:
 
 
 def route_after_review(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> Literal["developer", "__end__"]:
     """Route after review based on approval and iteration count.
@@ -465,7 +468,7 @@ def route_after_review(
 
 
 async def next_task_node(
-    state: ExecutionState, config: RunnableConfig
+    state: ImplementationState, config: RunnableConfig
 ) -> dict[str, Any]:
     """Transition to next task: commit changes, increment index, reset iteration.
 
@@ -510,7 +513,7 @@ async def next_task_node(
 
 
 def route_after_task_review(
-    state: ExecutionState, config: RunnableConfig
+    state: ImplementationState, config: RunnableConfig
 ) -> Literal["developer", "next_task_node", "__end__"]:
     """Route after task review: next task, retry developer, or end.
 
@@ -577,7 +580,7 @@ def route_after_task_review(
 
 
 def route_after_review_or_task(
-    state: ExecutionState, config: RunnableConfig
+    state: ImplementationState, config: RunnableConfig
 ) -> Literal["developer", "developer_node", "next_task_node", "__end__"]:
     """Route after review: handles both legacy and task-based execution.
 
@@ -615,7 +618,7 @@ def route_after_review_or_task(
     return final_result
 
 
-def route_after_evaluation(state: ExecutionState) -> str:
+def route_after_evaluation(state: ImplementationState) -> str:
     """Route after evaluation node.
 
     If auto_approve is set, skip to developer.
@@ -632,7 +635,7 @@ def route_after_evaluation(state: ExecutionState) -> str:
     return "review_approval_node"
 
 
-def route_after_fixes(state: ExecutionState) -> str:
+def route_after_fixes(state: ImplementationState) -> str:
     """Route after developer fixes.
 
     Check if there are still critical/major items to fix.
@@ -663,7 +666,7 @@ def route_after_fixes(state: ExecutionState) -> str:
     return "end_approval_node"
 
 
-def route_after_end_approval(state: ExecutionState) -> str:
+def route_after_end_approval(state: ImplementationState) -> str:
     """Route after end approval.
 
     If human approves, end. Otherwise, loop back to reviewer.
@@ -705,7 +708,7 @@ def create_orchestrator_graph(
     Returns:
         Compiled StateGraph ready for execution.
     """
-    workflow = StateGraph(ExecutionState)
+    workflow = StateGraph(ImplementationState)
 
     # Add nodes
     workflow.add_node("architect_node", call_architect_node)
@@ -787,7 +790,7 @@ def create_review_graph(
     Returns:
         Compiled LangGraph state graph ready for execution.
     """
-    workflow = StateGraph(ExecutionState)
+    workflow = StateGraph(ImplementationState)
 
     # Add nodes
     workflow.add_node("reviewer_node", call_reviewer_node)

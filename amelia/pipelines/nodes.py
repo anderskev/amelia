@@ -13,8 +13,8 @@ from loguru import logger
 
 from amelia.agents.developer import Developer
 from amelia.agents.reviewer import Reviewer
-from amelia.core.state import ExecutionState
 from amelia.drivers.factory import DriverFactory
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.pipelines.utils import extract_config_params
 from amelia.server.models.tokens import TokenUsage
 from amelia.tools.git_utils import get_current_commit
@@ -82,7 +82,7 @@ async def _save_token_usage(
 
 
 async def call_developer_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Orchestrator node for the Developer agent to execute agentically.
@@ -164,7 +164,7 @@ async def call_developer_node(
 
 
 async def call_reviewer_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Orchestrator node for the Reviewer agent to review code changes.

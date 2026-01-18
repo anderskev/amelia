@@ -6,13 +6,14 @@ fields specific to the implementation workflow (Architect -> Developer <-> Revie
 
 from __future__ import annotations
 
+import operator
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from pydantic import Field
 
-from amelia.core.state import ReviewResult
-from amelia.core.types import Design, Issue
+from amelia.core.agentic_state import AgenticStatus, ToolCall, ToolResult
+from amelia.core.types import Design, Issue, ReviewResult
 from amelia.pipelines.base import BasePipelineState
 
 
@@ -33,6 +34,11 @@ class ImplementationState(BasePipelineState):
 
     # Override pipeline_type with literal
     pipeline_type: Literal["implementation"] = "implementation"
+
+    # Agentic execution tracking (from agent interactions)
+    tool_calls: Annotated[list[ToolCall], operator.add] = Field(default_factory=list)
+    tool_results: Annotated[list[ToolResult], operator.add] = Field(default_factory=list)
+    agentic_status: AgenticStatus = "running"
 
     # Domain data (from planning phase)
     issue: Issue | None = None

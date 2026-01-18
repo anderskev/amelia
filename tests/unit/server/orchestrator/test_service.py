@@ -10,20 +10,30 @@ import pytest
 from langchain_core.runnables.config import RunnableConfig
 from pydantic import ValidationError
 
-from amelia.core.state import ExecutionState
 from amelia.core.types import Settings
+from amelia.pipelines.implementation.state import (
+    ImplementationState,
+    rebuild_implementation_state,
+)
 from amelia.server.database.repository import WorkflowRepository
-from amelia.server.events.bus import EventBus
-from amelia.server.exceptions import (
+from amelia.server.models.state import rebuild_server_execution_state
+
+
+# Rebuild models to resolve forward references before module-level ServerExecutionState usage
+rebuild_implementation_state()
+rebuild_server_execution_state()
+
+from amelia.server.events.bus import EventBus  # noqa: E402
+from amelia.server.exceptions import (  # noqa: E402
     ConcurrencyLimitError,
     InvalidStateError,
     InvalidWorktreeError,
     WorkflowConflictError,
     WorkflowNotFoundError,
 )
-from amelia.server.models import ServerExecutionState
-from amelia.server.models.events import EventType
-from amelia.server.orchestrator.service import OrchestratorService
+from amelia.server.models import ServerExecutionState  # noqa: E402
+from amelia.server.models.events import EventType  # noqa: E402
+from amelia.server.orchestrator.service import OrchestratorService  # noqa: E402
 
 
 @pytest.fixture
@@ -376,7 +386,7 @@ def test_get_active_workflows(orchestrator: OrchestratorService) -> None:
 
 
 @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-@patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+@patch("amelia.server.orchestrator.service.create_implementation_graph")
 async def test_approve_workflow_success(
     mock_create_graph,
     mock_saver_class,
@@ -397,7 +407,7 @@ async def test_approve_workflow_success(
         worktree_path="/path/to/worktree",
         workflow_status="blocked",
         started_at=datetime.now(UTC),
-        execution_state=ExecutionState(profile_id="test"),
+        execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
     )
     mock_repository.get.return_value = mock_state
 
@@ -426,7 +436,7 @@ async def test_approve_workflow_success(
 
 
 @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-@patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+@patch("amelia.server.orchestrator.service.create_implementation_graph")
 async def test_reject_workflow_success(
     mock_create_graph,
     mock_saver_class,
@@ -447,7 +457,7 @@ async def test_reject_workflow_success(
         worktree_path="/path/to/worktree",
         workflow_status="blocked",
         started_at=datetime.now(UTC),
-        execution_state=ExecutionState(profile_id="test"),
+        execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
     )
     mock_repository.get.return_value = mock_state
 
@@ -485,7 +495,7 @@ class TestRejectWorkflowGraphState:
     """Test reject_workflow updates LangGraph state."""
 
     @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    @patch("amelia.server.orchestrator.service.create_implementation_graph")
     async def test_reject_updates_graph_state(
         self, mock_create_graph, mock_saver_class, orchestrator, mock_repository, mock_settings, langgraph_mock_factory
     ):
@@ -495,7 +505,7 @@ class TestRejectWorkflowGraphState:
             issue_id="ISSUE-456",
             worktree_path="/tmp/test",
             workflow_status="blocked",
-            execution_state=ExecutionState(profile_id="test"),
+            execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
         )
         mock_repository.get.return_value = workflow
 
@@ -517,7 +527,7 @@ class TestApproveWorkflowResume:
     """Test approve_workflow resumes LangGraph execution."""
 
     @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    @patch("amelia.server.orchestrator.service.create_implementation_graph")
     async def test_approve_updates_state_and_resumes(
         self, mock_create_graph, mock_saver_class, orchestrator, mock_repository, mock_settings, langgraph_mock_factory
     ):
@@ -528,7 +538,7 @@ class TestApproveWorkflowResume:
             issue_id="ISSUE-456",
             worktree_path="/tmp/test",
             workflow_status="blocked",
-            execution_state=ExecutionState(profile_id="test"),
+            execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
         )
         mock_repository.get.return_value = workflow
         orchestrator._active_tasks["/tmp/test"] = ("wf-123", AsyncMock())
@@ -967,7 +977,7 @@ class TestSyncPlanFromCheckpoint:
             worktree_path="/path/to/worktree",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
-            execution_state=ExecutionState(profile_id=profile.name),
+            execution_state=ImplementationState(workflow_id="wf-sync", created_at=datetime.now(UTC), status="running", profile_id=profile.name),
         )
         mock_repository.get.return_value = mock_state
 
@@ -1275,7 +1285,7 @@ class TestRunWorkflowCheckpointResume:
             worktree_path="/path/to/worktree",
             workflow_status="in_progress",
             started_at=datetime.now(UTC),
-            execution_state=ExecutionState(profile_id="test"),
+            execution_state=ImplementationState(workflow_id="wf-1", created_at=datetime.now(UTC), status="running", profile_id="test"),
         )
 
     async def test_run_workflow_resumes_when_checkpoint_exists(

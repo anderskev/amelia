@@ -7,10 +7,10 @@ that determine transitions between nodes in the review-fix workflow.
 from langgraph.graph import END
 from loguru import logger
 
-from amelia.core.state import ExecutionState
+from amelia.pipelines.implementation.state import ImplementationState
 
 
-def route_after_evaluation(state: ExecutionState) -> str:
+def route_after_evaluation(state: ImplementationState) -> str:
     """Route after evaluation node.
 
     If auto_approve is set, skip to developer.
@@ -27,7 +27,7 @@ def route_after_evaluation(state: ExecutionState) -> str:
     return "review_approval_node"
 
 
-def route_after_fixes(state: ExecutionState) -> str:
+def route_after_fixes(state: ImplementationState) -> str:
     """Route after developer fixes.
 
     Check if there are still critical/major items to fix.
@@ -58,7 +58,7 @@ def route_after_fixes(state: ExecutionState) -> str:
     return "end_approval_node"
 
 
-def route_after_end_approval(state: ExecutionState) -> str:
+def route_after_end_approval(state: ImplementationState) -> str:
     """Route after end approval.
 
     If human approves, end. Otherwise, loop back to reviewer.

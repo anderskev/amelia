@@ -83,7 +83,7 @@ class TestLifecycleEvents:
     """Test workflow lifecycle event emission."""
 
     @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    @patch("amelia.server.orchestrator.service.create_implementation_graph")
     async def test_workflow_started_event_emitted(
         self,
         mock_create_graph,
@@ -133,7 +133,7 @@ class TestGraphInterruptHandling:
     """Test GraphInterrupt is handled correctly."""
 
     @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    @patch("amelia.server.orchestrator.service.create_implementation_graph")
     async def test_interrupt_sets_status_blocked(
         self,
         mock_create_graph,

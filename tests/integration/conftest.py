@@ -15,15 +15,24 @@ import pytest
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
-from amelia.core.orchestrator import create_orchestrator_graph
-from amelia.core.state import ExecutionState
 from amelia.core.types import DriverType, Issue, Profile, TrackerType
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
+from amelia.pipelines.implementation import create_implementation_graph
+from amelia.pipelines.implementation.state import ImplementationState, rebuild_implementation_state
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.events.connection_manager import ConnectionManager
 from amelia.server.models.events import WorkflowEvent
-from amelia.server.models.state import ServerExecutionState
+from amelia.server.models.state import (
+    ServerExecutionState,
+    rebuild_server_execution_state,
+)
+
+
+# Rebuild ImplementationState first (resolves StructuredReviewResult, EvaluationResult),
+# then ServerExecutionState (resolves ImplementationState union member)
+rebuild_implementation_state()
+rebuild_server_execution_state()
 
 
 # =============================================================================
@@ -58,7 +67,7 @@ def make_issue(
 def make_profile(
     name: str = "test",
     driver: DriverType = "api:openrouter",
-    model: str = "openrouter:anthropic/claude-sonnet-4-20250514",
+    model: str = "anthropic/claude-sonnet-4-20250514",
     tracker: TrackerType = "noop",
     plan_output_dir: str | None = None,
     validator_model: str | None = None,
@@ -76,17 +85,48 @@ def make_profile(
     )
 
 
+_NOT_PROVIDED: object = object()  # Sentinel for distinguishing explicit None
+
+
 def make_execution_state(
-    issue: Issue | None = None,
+    issue: Issue | None | object = _NOT_PROVIDED,
     profile: Profile | None = None,
     goal: str | None = None,
     **kwargs: Any,
-) -> ExecutionState:
-    """Create an ExecutionState with sensible defaults."""
+) -> ImplementationState:
+    """Create an ImplementationState with sensible defaults.
+
+    Args:
+        issue: Issue to use. If not provided, creates a default issue.
+            Pass None explicitly to create state with no issue.
+        profile: Profile to use. If None, creates a default profile.
+        goal: Goal string.
+        **kwargs: Additional fields to pass to ImplementationState.
+
+    Returns:
+        ImplementationState with sensible defaults for testing.
+    """
+    from datetime import UTC, datetime  # noqa: PLC0415
+    from uuid import uuid4  # noqa: PLC0415
+
     if profile is None:
         profile = make_profile()
-    return ExecutionState(
-        issue=issue or make_issue(),
+
+    # Provide defaults for required BasePipelineState fields
+    workflow_id = kwargs.pop("workflow_id", str(uuid4()))
+    created_at = kwargs.pop("created_at", datetime.now(UTC))
+    status = kwargs.pop("status", "pending")
+
+    # Use sentinel to distinguish between "not provided" and "explicitly None"
+    resolved_issue: Issue | None = (
+        make_issue() if issue is _NOT_PROVIDED else issue  # type: ignore[assignment]
+    )
+
+    return ImplementationState(
+        workflow_id=workflow_id,
+        created_at=created_at,
+        status=status,
+        issue=resolved_issue,
         profile_id=profile.name,
         goal=goal,
         **kwargs,
@@ -371,7 +411,7 @@ def orchestrator_graph() -> CompiledStateGraph[Any]:
     The graph is configured with interrupts before approval nodes
     for testing human-in-the-loop flows.
     """
-    return create_orchestrator_graph(
-        checkpoint_saver=MemorySaver(),
+    return create_implementation_graph(
+        checkpointer=MemorySaver(),
         interrupt_before=["human_approval_node"],
     )

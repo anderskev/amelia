@@ -1,19 +1,23 @@
 """Tests for human_approval_node execution mode behavior."""
 
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
 
-from amelia.core.orchestrator import human_approval_node
-from amelia.core.state import ExecutionState
 from amelia.core.types import Profile
+from amelia.pipelines.implementation.nodes import human_approval_node
+from amelia.pipelines.implementation.state import ImplementationState
 
 
 @pytest.fixture
 def base_state():
-    """Create a base ExecutionState for testing."""
+    """Create a base ImplementationState for testing."""
     profile = Profile(name="test", driver="cli:claude", model="sonnet", validator_model="sonnet", working_dir="/tmp/test")
-    return ExecutionState(
+    return ImplementationState(
+        workflow_id="wf-test-123",
+        created_at=datetime.now(UTC),
+        status="running",
         profile_id=profile.name,
         human_approved=None,
     )
@@ -43,10 +47,10 @@ class TestHumanApprovalNodeServerMode:
 class TestHumanApprovalNodeCLIMode:
     """Test human_approval_node in CLI mode."""
 
-    @patch("amelia.core.orchestrator.typer.confirm")
-    @patch("amelia.core.orchestrator.typer.prompt")
-    @patch("amelia.core.orchestrator.typer.secho")
-    @patch("amelia.core.orchestrator.typer.echo")
+    @patch("amelia.pipelines.implementation.nodes.typer.confirm")
+    @patch("amelia.pipelines.implementation.nodes.typer.prompt")
+    @patch("amelia.pipelines.implementation.nodes.typer.secho")
+    @patch("amelia.pipelines.implementation.nodes.typer.echo")
     async def test_cli_mode_prompts_user(
         self, mock_echo, mock_secho, mock_prompt, mock_confirm, base_state
     ) -> None:
@@ -58,12 +62,13 @@ class TestHumanApprovalNodeCLIMode:
         result = await human_approval_node(base_state, config)
 
         mock_confirm.assert_called_once()
-        assert result == {"human_approved": True}
+        assert result["human_approved"] is True
+        assert result.get("human_feedback") is None
 
-    @patch("amelia.core.orchestrator.typer.confirm")
-    @patch("amelia.core.orchestrator.typer.prompt")
-    @patch("amelia.core.orchestrator.typer.secho")
-    @patch("amelia.core.orchestrator.typer.echo")
+    @patch("amelia.pipelines.implementation.nodes.typer.confirm")
+    @patch("amelia.pipelines.implementation.nodes.typer.prompt")
+    @patch("amelia.pipelines.implementation.nodes.typer.secho")
+    @patch("amelia.pipelines.implementation.nodes.typer.echo")
     async def test_cli_mode_default_when_no_config(
         self, mock_echo, mock_secho, mock_prompt, mock_confirm, base_state
     ) -> None:
@@ -75,4 +80,5 @@ class TestHumanApprovalNodeCLIMode:
         result = await human_approval_node(base_state, config)
 
         mock_confirm.assert_called_once()
-        assert result == {"human_approved": False}
+        assert result["human_approved"] is False
+        assert result["human_feedback"] == "rejected"

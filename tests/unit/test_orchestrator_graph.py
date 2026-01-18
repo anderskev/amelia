@@ -1,6 +1,7 @@
 """Tests for orchestrator graph creation and routing logic."""
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,15 +12,17 @@ from amelia.agents.evaluator import Disposition, EvaluatedItem, EvaluationResult
 from amelia.core.orchestrator import (
     create_orchestrator_graph,
     create_review_graph,
-    next_task_node,
+    route_after_task_review,
+)
+from amelia.core.types import Profile, ReviewResult
+from amelia.pipelines.implementation.nodes import next_task_node
+from amelia.pipelines.implementation.state import ImplementationState
+from amelia.pipelines.nodes import call_reviewer_node
+from amelia.pipelines.review.routing import (
     route_after_end_approval,
     route_after_evaluation,
     route_after_fixes,
-    route_after_task_review,
 )
-from amelia.core.state import ExecutionState, ReviewResult
-from amelia.core.types import Profile
-from amelia.pipelines.nodes import call_reviewer_node
 
 
 class TestGraphEdges:
@@ -71,7 +74,7 @@ class TestReviewRoutingFunctions:
     )
     def test_route_after_evaluation(
         self,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
         auto_approve: bool,
         expected: str,
     ) -> None:
@@ -81,7 +84,7 @@ class TestReviewRoutingFunctions:
 
     def test_route_after_fixes_max_passes_ends(
         self,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Reaching max_review_passes should end the workflow."""
         state, _ = mock_execution_state_factory(
@@ -93,7 +96,7 @@ class TestReviewRoutingFunctions:
 
     def test_route_after_fixes_auto_approve_loops_when_items_remain(
         self,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Auto mode should loop back to reviewer if items remain."""
         evaluation_result = EvaluationResult(
@@ -123,7 +126,7 @@ class TestReviewRoutingFunctions:
 
     def test_route_after_fixes_auto_approve_ends_when_no_items(
         self,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Auto mode should end when no items remain."""
         evaluation_result = EvaluationResult(items_to_implement=[], summary="No items")
@@ -139,7 +142,7 @@ class TestReviewRoutingFunctions:
 
     def test_route_after_fixes_manual_goes_to_end_approval(
         self,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
         """Manual mode should route to end_approval_node."""
         state, _ = mock_execution_state_factory(
@@ -160,7 +163,7 @@ class TestReviewRoutingFunctions:
     )
     def test_route_after_end_approval(
         self,
-        mock_execution_state_factory: Callable[..., tuple[ExecutionState, Profile]],
+        mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
         human_approved: bool | None,
         expected: str,
     ) -> None:
@@ -205,7 +208,10 @@ class TestRouteAfterTaskReview:
         self, mock_profile_task_review: Profile, approved_review: ReviewResult
     ) -> None:
         """Should END when approved and all tasks complete."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             total_tasks=2,
             current_task_index=1,  # On task 2 (0-indexed)
@@ -220,7 +226,10 @@ class TestRouteAfterTaskReview:
         self, mock_profile_task_review: Profile, approved_review: ReviewResult
     ) -> None:
         """Should go to next_task_node when approved and more tasks remain."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             total_tasks=3,
             current_task_index=0,  # On task 1, more tasks remain
@@ -235,7 +244,10 @@ class TestRouteAfterTaskReview:
         self, mock_profile_task_review: Profile, rejected_review: ReviewResult
     ) -> None:
         """Should retry developer when review not approved and iterations remain."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             total_tasks=2,
             current_task_index=0,
@@ -251,7 +263,10 @@ class TestRouteAfterTaskReview:
         self, mock_profile_task_review: Profile, rejected_review: ReviewResult
     ) -> None:
         """Should END when max iterations reached without approval."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             total_tasks=2,
             current_task_index=0,
@@ -279,7 +294,10 @@ class TestRouteAfterTaskReview:
             comments=["Needs fixes"],
             severity="medium",
         )
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             total_tasks=2,
             current_task_index=0,
@@ -296,8 +314,11 @@ class TestNextTaskNode:
     """Tests for next_task_node function."""
 
     @pytest.fixture
-    def task_state_for_next(self) -> ExecutionState:
-        return ExecutionState(
+    def task_state_for_next(self) -> ImplementationState:
+        return ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             total_tasks=3,
             current_task_index=0,
@@ -307,13 +328,13 @@ class TestNextTaskNode:
 
     @pytest.mark.asyncio
     async def test_next_task_node_increments_task_index(
-        self, task_state_for_next: ExecutionState
+        self, task_state_for_next: ImplementationState
     ) -> None:
         """next_task_node should increment current_task_index."""
         config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
-            "amelia.core.orchestrator.commit_task_changes", new_callable=AsyncMock
+            "amelia.pipelines.implementation.nodes.commit_task_changes", new_callable=AsyncMock
         ):
             result = await next_task_node(task_state_for_next, config)
 
@@ -321,13 +342,13 @@ class TestNextTaskNode:
 
     @pytest.mark.asyncio
     async def test_next_task_node_resets_review_iteration(
-        self, task_state_for_next: ExecutionState
+        self, task_state_for_next: ImplementationState
     ) -> None:
         """next_task_node should reset task_review_iteration to 0."""
         config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
-            "amelia.core.orchestrator.commit_task_changes", new_callable=AsyncMock
+            "amelia.pipelines.implementation.nodes.commit_task_changes", new_callable=AsyncMock
         ):
             result = await next_task_node(task_state_for_next, config)
 
@@ -335,13 +356,13 @@ class TestNextTaskNode:
 
     @pytest.mark.asyncio
     async def test_next_task_node_clears_session_id(
-        self, task_state_for_next: ExecutionState
+        self, task_state_for_next: ImplementationState
     ) -> None:
         """next_task_node should clear driver_session_id for fresh session."""
         config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
-            "amelia.core.orchestrator.commit_task_changes", new_callable=AsyncMock
+            "amelia.pipelines.implementation.nodes.commit_task_changes", new_callable=AsyncMock
         ):
             result = await next_task_node(task_state_for_next, config)
 
@@ -349,13 +370,13 @@ class TestNextTaskNode:
 
     @pytest.mark.asyncio
     async def test_next_task_node_commits_changes(
-        self, task_state_for_next: ExecutionState
+        self, task_state_for_next: ImplementationState
     ) -> None:
         """next_task_node should commit current task changes."""
         config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
-            "amelia.core.orchestrator.commit_task_changes", new_callable=AsyncMock
+            "amelia.pipelines.implementation.nodes.commit_task_changes", new_callable=AsyncMock
         ) as mock_commit:
             await next_task_node(task_state_for_next, config)
 
@@ -363,7 +384,7 @@ class TestNextTaskNode:
 
     @pytest.mark.asyncio
     async def test_next_task_node_raises_on_commit_failure(
-        self, task_state_for_next: ExecutionState
+        self, task_state_for_next: ImplementationState
     ) -> None:
         """next_task_node should raise RuntimeError when commit fails.
 
@@ -373,7 +394,7 @@ class TestNextTaskNode:
         config: RunnableConfig = {"configurable": {"profile": MagicMock()}}
 
         with patch(
-            "amelia.core.orchestrator.commit_task_changes",
+            "amelia.pipelines.implementation.nodes.commit_task_changes",
             new_callable=AsyncMock,
             return_value=False,
         ), pytest.raises(RuntimeError) as exc_info:
@@ -389,7 +410,10 @@ class TestReviewerNodeTaskIteration:
     @pytest.mark.asyncio
     async def test_reviewer_node_increments_task_review_iteration(self) -> None:
         """Reviewer node should increment task_review_iteration for task-based execution."""
-        state = ExecutionState(
+        state = ImplementationState(
+            workflow_id="test-workflow",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id="test",
             total_tasks=2,  # Task-based mode
             current_task_index=0,
