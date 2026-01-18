@@ -1,6 +1,6 @@
 # Ideas & Inspirations
 
-This page documents the white papers, blog posts, videos, and open-source projects that have influenced Amelia's design.
+White papers, blog posts, videos, and open-source projects that influenced Amelia's design.
 
 ## Foundational Inspirations
 
@@ -9,21 +9,21 @@ This page documents the white papers, blog posts, videos, and open-source projec
 #### [Claude Code SDK and HaaS](https://www.vtrivedy.com/posts/claude-code-sdk-haas-harness-as-a-service)
 *by Vikram Trivedy*
 
-This blog post introduced the concept of **Harness as a Service (HaaS)** - the idea that agent infrastructure is commoditizing. A harness provides complete runtime environments (context management, tool invocation, permissions, loop control) so developers can focus on domain specialization rather than building infrastructure from scratch.
+This blog post introduced **Harness as a Service (HaaS)**, arguing that agent infrastructure is commoditizing. A harness provides complete runtime environments (context management, tool invocation, permissions, loop control) so developers can focus on domain specialization rather than building infrastructure from scratch.
 
 **Key influence:** Amelia's driver abstraction (`api:openrouter` vs `cli:claude`), profile-based configuration, and multi-agent architecture (Architect, Developer, Reviewer as specialized subagents).
 
 #### [Ralph Wiggum as a Software Engineer](https://ghuntley.com/ralph/)
 *by Geoffrey Huntley*
 
-This post frames LLMs as "deterministically bad in an undeterministic world" - success comes from iteration, not expecting perfection. The Ralph technique represents continuous refinement through an iterative loop where each failure teaches you about gaps in your instructions.
+This post frames LLMs as "deterministically bad in an undeterministic world." Success comes from iteration, not expecting perfection. The Ralph technique represents continuous refinement through an iterative loop where each failure teaches you about gaps in your instructions.
 
 **Key influence:** Validates the Developer-Reviewer iteration loop. Each review rejection "tunes" the developer like tuning a guitar. Eventual consistency over immediate correctness.
 
 #### [Software is Changing (Again)](https://www.youtube.com/watch?v=zDmW5hJPsvQ)
 *by Andrej Karpathy*
 
-Introduces the concept of **Software 3.0** - where prompts are programs, English is the programming language, and LLMs are the new CPUs. Key insights include treating LLMs as operating systems with context windows as working memory, recognizing their "jagged intelligence," and preferring partial autonomy ("Iron Man suit") over full autonomy.
+Introduces **Software 3.0**: prompts are programs, English is the programming language, and LLMs are the new CPUs. Karpathy frames LLMs as operating systems with context windows as working memory, notes their "jagged intelligence," and advocates partial autonomy ("Iron Man suit") over full autonomy.
 
 **Key influence:** Human-in-the-loop approval gates, treating prompts as source code (version controlled in profiles), building for LLM consumption.
 
@@ -36,7 +36,7 @@ Introduces the concept of **Software 3.0** - where prompts are programs, English
 #### [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948)
 *DeepSeek-AI, 2025*
 
-Demonstrates that sophisticated reasoning capabilities can emerge from reinforcement learning alone. Introduces GRPO (Group Relative Policy Optimization) which eliminates the critic network by computing advantages relative to group statistics. Shows emergent self-reflection, backtracking, and "aha moment" behaviors from pure RL.
+Demonstrates that sophisticated reasoning capabilities can emerge from reinforcement learning alone. Introduces GRPO (Group Relative Policy Optimization), which eliminates the critic network by computing advantages relative to group statistics. Shows emergent self-reflection, backtracking, and "aha moment" behaviors from pure RL.
 
 **Key influence:** Self-verification patterns, rejection sampling for quality filtering (applies to reviewer), GRPO's group comparison parallels competitive review strategy, multi-stage training pipeline mirrors Architect-Developer-Reviewer flow.
 
@@ -79,21 +79,21 @@ Treats long prompts as external environment variables rather than direct inputs.
 #### [LongBench v2: Towards Deeper Understanding and Reasoning on Realistic Long-context Multitasks](https://arxiv.org/abs/2412.15204)
 *Tsinghua University / THUDM, 2024*
 
-Comprehensive long-context benchmark showing reasoning-enhanced models (o1-preview, DeepSeek-R1) significantly outperform standard models. Human experts achieve only 53.7% accuracy, validating benchmark difficulty. Identifies code repository understanding as a distinct skill category.
+A comprehensive long-context benchmark shows reasoning-enhanced models (o1-preview, DeepSeek-R1) significantly outperform standard models. Human experts achieve only 53.7% accuracy, validating benchmark difficulty. Identifies code repository understanding as a distinct skill category.
 
 **Key influence:** Invest in extended reasoning for Architect/Reviewer agents, specialized prompting for codebase navigation, use reasoning-enhanced models for planning stages.
 
 #### [Long Context vs. RAG for LLMs: An Evaluation and Revisits](https://arxiv.org/abs/2501.01880)
 *Li et al., 2025*
 
-Systematic comparison finding RAPTOR (summarization-based retrieval) achieves 38.5% vs 20-22% for chunk-based methods. Self-contained narratives favor Long Context while fragmented sources favor RAG. Context relevance is the most overlooked factor.
+A systematic comparison shows RAPTOR (summarization-based retrieval) achieves 38.5% vs 20-22% for chunk-based methods. Self-contained narratives favor Long Context while fragmented sources favor RAG. Context relevance is the most overlooked factor.
 
 **Key influence:** Single file analysis uses Long Context, multi-file codebase search uses RAG with summarization, quality of retrieved context matters more than quantity, RAPTOR pattern for hierarchical code understanding.
 
 #### [ONERULER: Benchmarking Multilingual Long-Context Language Models](https://arxiv.org/abs/2503.01996)
 *Kim et al., 2025*
 
-Multilingual extension of RULER benchmark showing performance degrades significantly at 128K tokens, models struggle to recognize when no answer exists, and up to 20% fluctuation from instruction/context language mismatch.
+A multilingual extension of RULER shows performance degrades significantly at 128K tokens, models struggle to recognize absent answers, and language mismatch causes up to 20% fluctuation.
 
 **Key influence:** Focused context extraction over raw context length, handle "issue already resolved" scenarios, consistent language in prompts and analyzed code.
 
@@ -104,7 +104,7 @@ Multilingual extension of RULER benchmark showing performance degrades significa
 ### [12-Factor Agents](https://github.com/humanlayer/12-factor-agents)
 *HumanLayer*
 
-Production-grade patterns for building reliable agentic systems. The most frequently referenced external influence in Amelia's architecture.
+Production-grade patterns for building reliable agentic systems. Amelia's architecture references this more than any other external source.
 
 **Key factors implemented:**
 - **Stateless Reducer Pattern (F12):** Frozen models, append-only fields, dict_merge reducers

@@ -1,6 +1,6 @@
 # Inspirations Research Notes
 
-This document captures research findings about the papers, blog posts, and projects that influenced Amelia's design.
+Research findings about the papers, blog posts, and projects that influenced Amelia's design.
 
 ## Blog Posts & Videos
 
