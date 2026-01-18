@@ -31,6 +31,7 @@ from amelia.ext.hooks import (
     flush_exporters,
 )
 from amelia.pipelines.implementation import create_implementation_graph
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.pipelines.review import create_review_graph
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
@@ -277,19 +278,21 @@ class OrchestratorService:
 
     async def _prepare_workflow_state(
         self,
+        workflow_id: str,
         worktree_path: str,
         issue_id: str,
         profile_name: str | None = None,
         task_title: str | None = None,
         task_description: str | None = None,
-    ) -> tuple[str, Profile, ExecutionState]:
+    ) -> tuple[str, Profile, ImplementationState]:
         """Prepare common state needed to create or start a workflow.
 
         Centralizes the common initialization logic for settings loading,
-        profile resolution, issue fetching, and ExecutionState creation
+        profile resolution, issue fetching, and ImplementationState creation
         shared across queue_workflow, start_workflow, and queue_and_plan_workflow.
 
         Args:
+            workflow_id: The workflow ID (UUID).
             worktree_path: Resolved worktree path (already validated).
             issue_id: The issue ID to work on.
             profile_name: Optional profile name (defaults to active profile).
@@ -346,9 +349,12 @@ class OrchestratorService:
         # Get current HEAD to track changes
         base_commit = await get_git_head(worktree_path)
 
-        # Create ExecutionState with all required fields
-        execution_state = ExecutionState(
+        # Create ImplementationState with all required fields
+        execution_state = ImplementationState(
+            workflow_id=workflow_id,
             profile_id=profile.name,
+            created_at=datetime.now(UTC),
+            status="pending",
             issue=issue,
             base_commit=base_commit,
         )
@@ -542,6 +548,7 @@ class OrchestratorService:
             # Prepare issue and execution state using the helper
             # (settings/profile loading done above for policy check)
             _, loaded_profile, execution_state = await self._prepare_workflow_state(
+                workflow_id=workflow_id,
                 worktree_path=resolved_path,
                 issue_id=issue_id,
                 profile_name=profile,
@@ -617,17 +624,18 @@ class OrchestratorService:
         worktree = self._validate_worktree_path(request.worktree_path)
         resolved_path = str(worktree)
 
+        # Generate workflow ID before preparing state (required by ImplementationState)
+        workflow_id = str(uuid4())
+
         # Prepare common workflow state (settings, profile, issue, execution_state)
         resolved_path, profile, execution_state = await self._prepare_workflow_state(
+            workflow_id=workflow_id,
             worktree_path=resolved_path,
             issue_id=request.issue_id,
             profile_name=request.profile,
             task_title=request.task_title,
             task_description=request.task_description,
         )
-
-        # Generate workflow ID
-        workflow_id = str(uuid4())
 
         # Create ServerExecutionState in pending status (not started)
         state = ServerExecutionState(
@@ -732,9 +740,12 @@ class OrchestratorService:
             # Get current HEAD for tracking (even though diff is provided)
             base_commit = await get_git_head(resolved_path)
 
-            # Initialize ExecutionState with diff content
-            execution_state = ExecutionState(
+            # Initialize ImplementationState with diff content
+            execution_state = ImplementationState(
+                workflow_id=workflow_id,
                 profile_id=loaded_profile.name,
+                created_at=datetime.now(UTC),
+                status="pending",
                 issue=dummy_issue,
                 code_changes_for_review=diff_content,
                 base_commit=base_commit,
@@ -2037,7 +2048,7 @@ class OrchestratorService:
         self,
         workflow_id: str,
         state: ServerExecutionState,
-        execution_state: ExecutionState,
+        execution_state: ImplementationState,
         profile: Profile,
     ) -> None:
         """Background task to run planning via LangGraph.
@@ -2209,17 +2220,18 @@ class OrchestratorService:
         worktree = self._validate_worktree_path(request.worktree_path)
         resolved_path = str(worktree)
 
+        # Generate workflow ID before preparing state (required by ImplementationState)
+        workflow_id = str(uuid4())
+
         # Prepare common workflow state (settings, profile, issue, execution_state)
         resolved_path, profile, execution_state = await self._prepare_workflow_state(
+            workflow_id=workflow_id,
             worktree_path=resolved_path,
             issue_id=request.issue_id,
             profile_name=request.profile,
             task_title=request.task_title,
             task_description=request.task_description,
         )
-
-        # Generate workflow ID
-        workflow_id = str(uuid4())
 
         # Create ServerExecutionState in planning status (architect running)
         state = ServerExecutionState(
