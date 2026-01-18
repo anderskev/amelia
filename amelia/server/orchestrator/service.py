@@ -17,7 +17,6 @@ from loguru import logger
 from pydantic import ValidationError
 
 from amelia.core.constants import ToolName
-from amelia.core.orchestrator import create_orchestrator_graph, create_review_graph
 from amelia.core.state import ExecutionState
 from amelia.core.types import (
     Issue,
@@ -31,6 +30,8 @@ from amelia.ext.hooks import (
     emit_workflow_event,
     flush_exporters,
 )
+from amelia.pipelines.implementation import create_implementation_graph
+from amelia.pipelines.review import create_review_graph
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.exceptions import (
@@ -138,8 +139,8 @@ class OrchestratorService:
         Returns:
             Compiled LangGraph with interrupts before all human-input nodes.
         """
-        return create_orchestrator_graph(
-            checkpoint_saver=checkpointer,
+        return create_implementation_graph(
+            checkpointer=checkpointer,
             interrupt_before=[
                 "human_approval_node",
             ],
@@ -1199,7 +1200,7 @@ class OrchestratorService:
 
             # Use dedicated review graph for review workflows
             graph = create_review_graph(
-                checkpoint_saver=checkpointer,
+                checkpointer=checkpointer,
                 interrupt_before=interrupt_before,
             )
 

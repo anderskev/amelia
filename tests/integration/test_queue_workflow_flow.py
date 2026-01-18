@@ -10,7 +10,7 @@ Only mocks at external boundaries (LangGraph checkpoint/resume).
 
 Mock boundaries:
 - AsyncSqliteSaver: Prevents actual graph execution
-- create_orchestrator_graph: Returns mock graph
+- create_implementation_graph: Returns mock graph
 
 Real components:
 - FastAPI route handlers
@@ -222,7 +222,7 @@ profiles:
                 "amelia.server.orchestrator.service.AsyncSqliteSaver"
             ) as mock_saver_class,
             patch(
-                "amelia.server.orchestrator.service.create_orchestrator_graph"
+                "amelia.server.orchestrator.service.create_implementation_graph"
             ) as mock_create_graph,
             patch.object(
                 OrchestratorService,
@@ -277,7 +277,7 @@ class TestStartPendingWorkflow:
                     "amelia.server.orchestrator.service.AsyncSqliteSaver"
                 ) as mock_saver_class,
                 patch(
-                    "amelia.server.orchestrator.service.create_orchestrator_graph"
+                    "amelia.server.orchestrator.service.create_implementation_graph"
                 ) as mock_create_graph,
                 patch.object(
                     OrchestratorService,
@@ -367,7 +367,7 @@ class TestBatchStartWorkflows:
                     "amelia.server.orchestrator.service.AsyncSqliteSaver"
                 ) as mock_saver_class,
                 patch(
-                    "amelia.server.orchestrator.service.create_orchestrator_graph"
+                    "amelia.server.orchestrator.service.create_implementation_graph"
                 ) as mock_create_graph,
                 patch.object(
                     OrchestratorService,
@@ -436,7 +436,7 @@ class TestBatchStartWorkflows:
                     "amelia.server.orchestrator.service.AsyncSqliteSaver"
                 ) as mock_saver_class,
                 patch(
-                    "amelia.server.orchestrator.service.create_orchestrator_graph"
+                    "amelia.server.orchestrator.service.create_implementation_graph"
                 ) as mock_create_graph,
                 patch.object(
                     OrchestratorService,
@@ -537,7 +537,7 @@ profiles:
                 "amelia.server.orchestrator.service.AsyncSqliteSaver"
             ) as mock_saver_class,
             patch(
-                "amelia.server.orchestrator.service.create_orchestrator_graph"
+                "amelia.server.orchestrator.service.create_implementation_graph"
             ) as mock_create_graph,
         ):
             mock_create_graph.return_value = mocks.graph
@@ -765,7 +765,7 @@ profiles:
                 "amelia.server.orchestrator.service.AsyncSqliteSaver"
             ) as mock_saver_class,
             patch(
-                "amelia.server.orchestrator.service.create_orchestrator_graph"
+                "amelia.server.orchestrator.service.create_implementation_graph"
             ) as mock_create_graph,
         ):
             mock_create_graph.return_value = mocks.graph
@@ -893,7 +893,7 @@ profiles:
                 "amelia.server.orchestrator.service.AsyncSqliteSaver"
             ) as mock_saver_class,
             patch(
-                "amelia.server.orchestrator.service.create_orchestrator_graph"
+                "amelia.server.orchestrator.service.create_implementation_graph"
             ) as mock_create_graph,
         ):
             mock_create_graph.return_value = mocks.graph
@@ -984,7 +984,7 @@ profiles:
                 "amelia.server.orchestrator.service.AsyncSqliteSaver"
             ) as mock_saver_class,
             patch(
-                "amelia.server.orchestrator.service.create_orchestrator_graph"
+                "amelia.server.orchestrator.service.create_implementation_graph"
             ) as mock_create_graph,
         ):
             mock_create_graph.return_value = mocks.graph

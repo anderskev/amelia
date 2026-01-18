@@ -15,10 +15,10 @@ import pytest
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
-from amelia.core.orchestrator import create_orchestrator_graph
 from amelia.core.state import ExecutionState
 from amelia.core.types import DriverType, Issue, Profile, TrackerType
 from amelia.drivers.base import AgenticMessage, AgenticMessageType
+from amelia.pipelines.implementation import create_implementation_graph
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.events.connection_manager import ConnectionManager
@@ -371,7 +371,7 @@ def orchestrator_graph() -> CompiledStateGraph[Any]:
     The graph is configured with interrupts before approval nodes
     for testing human-in-the-loop flows.
     """
-    return create_orchestrator_graph(
-        checkpoint_saver=MemorySaver(),
+    return create_implementation_graph(
+        checkpointer=MemorySaver(),
         interrupt_before=["human_approval_node"],
     )

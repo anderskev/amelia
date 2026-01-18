@@ -301,7 +301,7 @@ class TestPlanNowApproveFlow:
                 "amelia.server.orchestrator.service.AsyncSqliteSaver"
             ) as mock_saver_class,
             patch(
-                "amelia.server.orchestrator.service.create_orchestrator_graph"
+                "amelia.server.orchestrator.service.create_implementation_graph"
             ) as mock_create_graph,
         ):
             mock_create_graph.return_value = mocks.graph

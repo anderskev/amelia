@@ -376,7 +376,7 @@ def test_get_active_workflows(orchestrator: OrchestratorService) -> None:
 
 
 @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-@patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+@patch("amelia.server.orchestrator.service.create_implementation_graph")
 async def test_approve_workflow_success(
     mock_create_graph,
     mock_saver_class,
@@ -426,7 +426,7 @@ async def test_approve_workflow_success(
 
 
 @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-@patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+@patch("amelia.server.orchestrator.service.create_implementation_graph")
 async def test_reject_workflow_success(
     mock_create_graph,
     mock_saver_class,
@@ -485,7 +485,7 @@ class TestRejectWorkflowGraphState:
     """Test reject_workflow updates LangGraph state."""
 
     @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    @patch("amelia.server.orchestrator.service.create_implementation_graph")
     async def test_reject_updates_graph_state(
         self, mock_create_graph, mock_saver_class, orchestrator, mock_repository, mock_settings, langgraph_mock_factory
     ):
@@ -517,7 +517,7 @@ class TestApproveWorkflowResume:
     """Test approve_workflow resumes LangGraph execution."""
 
     @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
-    @patch("amelia.server.orchestrator.service.create_orchestrator_graph")
+    @patch("amelia.server.orchestrator.service.create_implementation_graph")
     async def test_approve_updates_state_and_resumes(
         self, mock_create_graph, mock_saver_class, orchestrator, mock_repository, mock_settings, langgraph_mock_factory
     ):

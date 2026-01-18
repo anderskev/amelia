@@ -6,7 +6,7 @@ LangGraph checkpoint/resume boundary.
 
 Mock boundaries:
 - AsyncSqliteSaver: Prevents actual graph execution
-- create_orchestrator_graph: Returns mock graph for approve/reject/cancel
+- create_implementation_graph: Returns mock graph for approve/reject/cancel
 
 Real components:
 - FastAPI route handlers
@@ -173,7 +173,7 @@ class TestApproveWorkflowEndpoint:
                 "amelia.server.orchestrator.service.AsyncSqliteSaver"
             ) as mock_saver_class,
             patch(
-                "amelia.server.orchestrator.service.create_orchestrator_graph"
+                "amelia.server.orchestrator.service.create_implementation_graph"
             ) as mock_create_graph,
             patch.object(
                 OrchestratorService,
@@ -255,7 +255,7 @@ class TestRejectWorkflowEndpoint:
                 "amelia.server.orchestrator.service.AsyncSqliteSaver"
             ) as mock_saver_class,
             patch(
-                "amelia.server.orchestrator.service.create_orchestrator_graph"
+                "amelia.server.orchestrator.service.create_implementation_graph"
             ) as mock_create_graph,
             patch.object(
                 OrchestratorService,
