@@ -62,8 +62,21 @@ export function useBrainstormSession() {
 
       // Send the message
       setStreaming(true, null);
-      await brainstormApi.sendMessage(session.id, firstMessage);
-      // Response comes via WebSocket - streaming will be set to false when complete
+      const response = await brainstormApi.sendMessage(session.id, firstMessage);
+
+      // Create assistant placeholder with streaming status
+      const assistantMessage = {
+        id: response.message_id,
+        session_id: session.id,
+        sequence: 2,
+        role: "assistant" as const,
+        content: "",
+        parts: null,
+        created_at: new Date().toISOString(),
+        status: "streaming" as const,
+      };
+      addMessage(assistantMessage);
+      setStreaming(true, response.message_id);
     },
     [addSession, setActiveSessionId, clearMessages, addMessage, setStreaming]
   );
@@ -88,8 +101,21 @@ export function useBrainstormSession() {
       try {
         addMessage(userMessage);
         setStreaming(true, null);
-        await brainstormApi.sendMessage(activeSessionId, content);
-        // Response comes via WebSocket
+        const response = await brainstormApi.sendMessage(activeSessionId, content);
+
+        // Create assistant placeholder with streaming status
+        const assistantMessage = {
+          id: response.message_id,
+          session_id: activeSessionId,
+          sequence: messages.length + 2,
+          role: "assistant" as const,
+          content: "",
+          parts: null,
+          created_at: new Date().toISOString(),
+          status: "streaming" as const,
+        };
+        addMessage(assistantMessage);
+        setStreaming(true, response.message_id);
       } catch (error) {
         // Rollback optimistic update
         removeMessage(optimisticId);

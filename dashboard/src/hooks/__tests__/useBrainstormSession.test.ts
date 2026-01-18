@@ -131,9 +131,10 @@ describe("useBrainstormSession", () => {
       });
 
       expect(brainstormApi.sendMessage).toHaveBeenCalledWith("s1", "Hello");
-      // User message should be optimistically added
-      expect(useBrainstormStore.getState().messages).toHaveLength(1);
+      // User message should be optimistically added, plus assistant placeholder
+      expect(useBrainstormStore.getState().messages).toHaveLength(2);
       expect(useBrainstormStore.getState().messages[0]!.role).toBe("user");
+      expect(useBrainstormStore.getState().messages[1]!.role).toBe("assistant");
     });
 
     it("throws if no active session", async () => {
@@ -144,6 +145,30 @@ describe("useBrainstormSession", () => {
           await result.current.sendMessage("Hello");
         })
       ).rejects.toThrow("No active session");
+    });
+
+    it("creates assistant placeholder with streaming status after sending", async () => {
+      useBrainstormStore.setState({ activeSessionId: "s1" });
+      vi.mocked(brainstormApi.sendMessage).mockResolvedValueOnce({
+        message_id: "assistant-1",
+      });
+
+      const { result } = renderHook(() => useBrainstormSession());
+
+      await act(async () => {
+        await result.current.sendMessage("Hello");
+      });
+
+      const messages = useBrainstormStore.getState().messages;
+      const assistantMsg = messages.find((m) => m.id === "assistant-1");
+
+      expect(assistantMsg).toBeDefined();
+      expect(assistantMsg?.role).toBe("assistant");
+      expect(assistantMsg?.content).toBe("");
+      expect(assistantMsg?.status).toBe("streaming");
+      expect(useBrainstormStore.getState().streamingMessageId).toBe(
+        "assistant-1"
+      );
     });
   });
 
