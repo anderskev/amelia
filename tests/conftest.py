@@ -14,7 +14,6 @@ import pytest
 from pytest import TempPathFactory
 
 from amelia.core.agentic_state import ToolCall, ToolResult
-from amelia.core.state import ExecutionState, rebuild_execution_state
 from amelia.core.types import (
     DriverType,
     Issue,
@@ -23,12 +22,16 @@ from amelia.core.types import (
     TrackerType,
 )
 from amelia.drivers.base import AgenticMessage, DriverInterface
+from amelia.pipelines.implementation.state import (
+    ImplementationState,
+    rebuild_implementation_state,
+)
 from amelia.server.events.bus import EventBus
 
 
-# Rebuild ExecutionState to resolve forward references for StructuredReviewResult
-# and EvaluationResult. This must be called before any tests instantiate ExecutionState.
-rebuild_execution_state()
+# Rebuild ImplementationState to resolve forward references for StructuredReviewResult
+# and EvaluationResult. This must be called before any tests instantiate ImplementationState.
+rebuild_implementation_state()
 
 
 # =============================================================================
@@ -340,13 +343,16 @@ def mock_settings(mock_profile_factory: Callable[..., Profile]) -> Settings:
 def mock_execution_state_factory(
     mock_profile_factory: Callable[..., Profile],
     mock_issue_factory: Callable[..., Issue]
-) -> Callable[..., tuple[ExecutionState, Profile]]:
-    """Factory fixture for creating ExecutionState instances for agentic execution.
+) -> Callable[..., tuple[ImplementationState, Profile]]:
+    """Factory fixture for creating ImplementationState instances for agentic execution.
 
     Returns:
-        Factory function that returns tuple[ExecutionState, Profile] where profile
+        Factory function that returns tuple[ImplementationState, Profile] where profile
         is the Profile object that was used to create the state.
     """
+    from datetime import UTC, datetime  # noqa: PLC0415
+    from uuid import uuid4  # noqa: PLC0415
+
     def _create(
         profile: Profile | None = None,
         profile_preset: str = "cli_single",
@@ -356,7 +362,7 @@ def mock_execution_state_factory(
         tool_calls: list[ToolCall] | None = None,
         tool_results: list[ToolResult] | None = None,
         **kwargs: Any
-    ) -> tuple[ExecutionState, Profile]:
+    ) -> tuple[ImplementationState, Profile]:
         if profile is None:
             profile = mock_profile_factory(preset=profile_preset)
         if issue is None:
@@ -365,7 +371,15 @@ def mock_execution_state_factory(
         # Extract profile_id from profile
         profile_id = kwargs.pop("profile_id", profile.name)
 
-        state = ExecutionState(
+        # Provide defaults for required BasePipelineState fields
+        workflow_id = kwargs.pop("workflow_id", str(uuid4()))
+        created_at = kwargs.pop("created_at", datetime.now(UTC))
+        status = kwargs.pop("status", "pending")
+
+        state = ImplementationState(
+            workflow_id=workflow_id,
+            created_at=created_at,
+            status=status,
             profile_id=profile_id,
             issue=issue,
             goal=goal,
