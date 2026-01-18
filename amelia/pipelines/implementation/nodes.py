@@ -318,7 +318,10 @@ async def human_approval_node(
         comment=comment,
     )
 
-    return {"human_approved": approved}
+    return {
+        "human_approved": approved,
+        "human_feedback": comment if comment else None,
+    }
 
 
 async def next_task_node(

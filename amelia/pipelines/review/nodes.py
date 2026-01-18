@@ -85,8 +85,7 @@ async def review_approval_node(
         config: Optional RunnableConfig with execution_mode in configurable.
 
     Returns:
-        Empty dict (approval handled via LangGraph interrupt in server mode,
-        auto-approved in CLI mode).
+        Dict with approved_items list, or empty dict for server mode (interrupt handles it).
     """
     config = config or {}
     execution_mode = config.get("configurable", {}).get("execution_mode", "cli")
@@ -96,4 +95,7 @@ async def review_approval_node(
 
     # CLI mode: auto-approve all items marked for implementation
     # TODO: Implement interactive prompts using typer.confirm
-    return {}
+    if not state.evaluation_result:
+        return {}
+    approved_items = [item.number for item in state.evaluation_result.items_to_implement]
+    return {"approved_items": approved_items}

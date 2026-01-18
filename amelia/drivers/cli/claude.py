@@ -254,7 +254,7 @@ class ClaudeCliDriver:
             RuntimeError: If Claude CLI fails or returns unexpected output.
         """
         session_id = kwargs.get("session_id")
-        cwd = kwargs.get("cwd")
+        cwd = kwargs.get("cwd") or self.cwd
         session_id_result: str | None = None
 
         options = self._build_options(

@@ -32,17 +32,12 @@ def extract_task_count(plan_markdown: str) -> int | None:
     matches = re.findall(pattern, plan_markdown, re.MULTILINE)
     count = len(matches) if matches else None
 
-    # Debug: Log task extraction details
-    task_lines = [
-        line for line in plan_markdown.split("\n")
-        if line.strip().startswith("### Task") or line.strip().startswith("## Task")
-    ]
+    # Debug: Log task extraction details (without plan content)
     logger.debug(
         "extract_task_count analysis",
         pattern=pattern,
         match_count=len(matches) if matches else 0,
         result_count=count,
-        sample_task_lines=task_lines[:5],  # First 5 task-like lines for debugging
         plan_length=len(plan_markdown),
     )
 
@@ -273,6 +268,7 @@ async def commit_task_changes(state: ExecutionState, config: RunnableConfig) -> 
     except TimeoutError:
         logger.warning("Timeout staging changes for task commit", task=task_number)
         proc.kill()
+        await proc.wait()
         return False
     if proc.returncode != 0:
         logger.warning(
@@ -294,6 +290,7 @@ async def commit_task_changes(state: ExecutionState, config: RunnableConfig) -> 
     except TimeoutError:
         logger.warning("Timeout checking staged changes for task", task=task_number)
         proc.kill()
+        await proc.wait()
         return False
     if proc.returncode == 0:
         # Exit code 0 means no changes (diff is quiet/empty)
@@ -324,6 +321,7 @@ async def commit_task_changes(state: ExecutionState, config: RunnableConfig) -> 
     except TimeoutError:
         logger.warning("Timeout committing task changes", task=task_number)
         proc.kill()
+        await proc.wait()
         return False
     if proc.returncode == 0:
         logger.info("Committed task changes", task=task_number, message=commit_msg)

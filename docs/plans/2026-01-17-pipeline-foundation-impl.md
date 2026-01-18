@@ -750,17 +750,17 @@ class TestExtractConfigParams:
         assert workflow_id == "wf-456"
 
     def test_raises_on_missing_workflow_id(self) -> None:
-        """Should raise KeyError if workflow_id is missing."""
+        """Should raise ValueError if workflow_id is missing."""
         config = {"configurable": {"profile": MagicMock()}}
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError):
             extract_config_params(config)
 
     def test_raises_on_missing_profile(self) -> None:
-        """Should raise KeyError if profile is missing."""
+        """Should raise ValueError if profile is missing."""
         config = {"configurable": {"workflow_id": "wf-1"}}
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError):
             extract_config_params(config)
 ```
 
