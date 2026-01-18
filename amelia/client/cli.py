@@ -20,9 +20,9 @@ from amelia.client.api import (
 from amelia.client.git import get_worktree_context
 from amelia.client.models import BatchStartResponse, CreateWorkflowResponse, WorkflowSummary
 from amelia.config import load_settings
-from amelia.core.state import ExecutionState
 from amelia.core.types import Issue
 from amelia.drivers.factory import DriverFactory
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.trackers.factory import create_tracker
 
 
@@ -430,7 +430,7 @@ def plan_command(
 
     worktree_path, _ = _get_worktree_context()
 
-    async def _generate_plan() -> ExecutionState:
+    async def _generate_plan() -> ImplementationState:
         # Load settings from worktree
         settings_path = Path(worktree_path) / "settings.amelia.yaml"
         settings = load_settings(settings_path)
@@ -461,8 +461,13 @@ def plan_command(
             tracker = create_tracker(profile)
             issue = tracker.get_issue(issue_id, cwd=worktree_path)
 
-        # Create minimal execution state
-        state = ExecutionState(
+        # Create minimal implementation state
+        from datetime import UTC, datetime  # noqa: PLC0415
+
+        state = ImplementationState(
+            workflow_id=f"plan-{issue_id}",
+            created_at=datetime.now(UTC),
+            status="running",
             profile_id=profile.name,
             issue=issue,
         )
