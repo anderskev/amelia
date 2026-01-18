@@ -526,40 +526,40 @@ export interface BatchStartResponse {
 // ============================================================================
 
 /**
+ * Event types for brainstorm streaming messages.
+ */
+export type BrainstormEventType =
+  | 'text'
+  | 'reasoning'
+  | 'tool_call'
+  | 'tool_result'
+  | 'message_complete'
+  | 'artifact_created'
+  | 'session_created'
+  | 'session_completed';
+
+/**
+ * Brainstorm streaming message from the server.
+ * Uses a flat format (no nested payload) for direct handling.
+ */
+export interface BrainstormMessage {
+  type: 'brainstorm';
+  event_type: BrainstormEventType;
+  session_id: string;
+  message_id?: string;
+  data: Record<string, unknown>;
+  timestamp: string;
+}
+
+/**
  * Messages sent from the server to the dashboard client over WebSocket.
- * The dashboard receives these messages to update the UI in real-time.
- *
- * @example
- * ```typescript
- * // Ping message (keepalive)
- * const ping: WebSocketMessage = { type: 'ping' };
- *
- * // Event message
- * const event: WebSocketMessage = {
- *   type: 'event',
- *   payload: { id: 'evt1', workflow_id: 'wf1', ... }
- * };
- *
- * // Backfill complete
- * const backfill: WebSocketMessage = { type: 'backfill_complete', count: 10 };
- * ```
  */
 export type WebSocketMessage =
   | { type: 'ping' }
   | { type: 'event'; payload: WorkflowEvent }
   | { type: 'backfill_complete'; count: number }
   | { type: 'backfill_expired'; message: string }
-  // Brainstorm streaming events
-  | { type: 'brainstorm_text'; data: { session_id: string; message_id: string; text: string } }
-  | { type: 'brainstorm_reasoning'; data: { session_id: string; message_id: string; text: string } }
-  | { type: 'brainstorm_message_complete'; data: { session_id: string; message_id: string } }
-  | {
-      type: 'brainstorm_artifact_created';
-      data: {
-        session_id: string;
-        artifact: import('./api').BrainstormArtifact;
-      };
-    };
+  | BrainstormMessage;
 
 /**
  * Messages sent from the dashboard client to the server over WebSocket.
