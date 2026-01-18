@@ -88,6 +88,21 @@ class SendMessageResponse(BaseModel):
     message_id: str
 
 
+class HandoffRequest(BaseModel):
+    """Request to hand off session to implementation."""
+
+    artifact_path: str
+    issue_title: str | None = None
+    issue_description: str | None = None
+
+
+class HandoffResponse(BaseModel):
+    """Response from handoff request."""
+
+    workflow_id: str
+    status: str
+
+
 # Session Lifecycle Endpoints
 @router.post(
     "/sessions",
@@ -228,3 +243,43 @@ async def send_message(
         ) from e
 
     return SendMessageResponse(message_id=message_id)
+
+
+# Handoff Endpoint
+@router.post(
+    "/sessions/{session_id}/handoff",
+    response_model=HandoffResponse,
+)
+async def handoff_to_implementation(
+    session_id: str,
+    request: HandoffRequest,
+    service: BrainstormService = Depends(get_brainstorm_service),
+) -> HandoffResponse:
+    """Hand off brainstorming session to implementation pipeline.
+
+    Creates an implementation workflow from the design artifact.
+
+    Args:
+        session_id: Session to hand off.
+        request: Handoff request with artifact path.
+        service: Brainstorm service dependency.
+
+    Returns:
+        Handoff response with workflow ID.
+
+    Raises:
+        HTTPException: 404 if session or artifact not found.
+    """
+    try:
+        result = await service.handoff_to_implementation(
+            session_id=session_id,
+            artifact_path=request.artifact_path,
+            issue_title=request.issue_title,
+            issue_description=request.issue_description,
+        )
+        return HandoffResponse(**result)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e

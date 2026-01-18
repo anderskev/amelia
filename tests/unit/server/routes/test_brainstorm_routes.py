@@ -230,3 +230,55 @@ class TestSendMessage(TestBrainstormRoutes):
         )
 
         assert response.status_code == 404
+
+
+class TestHandoff(TestBrainstormRoutes):
+    """Test POST /api/brainstorm/sessions/{id}/handoff."""
+
+    def test_handoff_success(
+        self, client: TestClient, mock_service: MagicMock
+    ) -> None:
+        """Should return workflow_id on successful handoff."""
+        mock_service.handoff_to_implementation = AsyncMock(
+            return_value={"workflow_id": "impl-123", "status": "created"}
+        )
+
+        response = client.post(
+            "/api/brainstorm/sessions/sess-123/handoff",
+            json={"artifact_path": "docs/plans/design.md"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["workflow_id"] == "impl-123"
+        assert data["status"] == "created"
+
+    def test_handoff_session_not_found(
+        self, client: TestClient, mock_service: MagicMock
+    ) -> None:
+        """Should return 404 if session not found."""
+        mock_service.handoff_to_implementation = AsyncMock(
+            side_effect=ValueError("Session not found: nonexistent")
+        )
+
+        response = client.post(
+            "/api/brainstorm/sessions/nonexistent/handoff",
+            json={"artifact_path": "docs/plans/design.md"},
+        )
+
+        assert response.status_code == 404
+
+    def test_handoff_artifact_not_found(
+        self, client: TestClient, mock_service: MagicMock
+    ) -> None:
+        """Should return 404 if artifact not found."""
+        mock_service.handoff_to_implementation = AsyncMock(
+            side_effect=ValueError("Artifact not found: missing.md")
+        )
+
+        response = client.post(
+            "/api/brainstorm/sessions/sess-123/handoff",
+            json={"artifact_path": "missing.md"},
+        )
+
+        assert response.status_code == 404
