@@ -109,7 +109,7 @@ Slides from left edge using shadcn `Sheet`.
 **Behavior:**
 - Opens via hamburger menu
 - Clicking a session loads it and closes drawer
-- Sessions grouped: Active, Ready for Handoff, Completed
+- Sessions grouped: Active, Ready for Handoff, Completed, Failed
 - Each item shows: status indicator, topic (or "Untitled"), relative time
 - Right-click reveals delete option
 
@@ -278,7 +278,7 @@ React re-renders conversation
 
 - Reuses existing `/ws/events` connection
 - Subscribes to `workflow_id=session_id`
-- Event types: `brainstorm_text`, `brainstorm_reasoning`, `brainstorm_message_complete`, `brainstorm_artifact_created`
+- Event types: `brainstorm_text`, `brainstorm_reasoning`, `brainstorm_tool_call`, `brainstorm_tool_result`, `brainstorm_message_complete`, `brainstorm_artifact_created`
 
 ---
 
