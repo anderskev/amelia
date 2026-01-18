@@ -1,0 +1,140 @@
+import { useCallback } from "react";
+import { nanoid } from "nanoid";
+import { brainstormApi } from "@/api/brainstorm";
+import { useBrainstormStore } from "@/store/brainstormStore";
+import type { SessionStatus } from "@/types/api";
+
+export function useBrainstormSession() {
+  const {
+    activeSessionId,
+    messages,
+    setSessions,
+    addSession,
+    removeSession,
+    setActiveSessionId,
+    setMessages,
+    addMessage,
+    removeMessage,
+    setArtifacts,
+    clearMessages,
+    setStreaming,
+    setDrawerOpen,
+  } = useBrainstormStore();
+
+  const loadSessions = useCallback(
+    async (filters?: { profileId?: string; status?: SessionStatus }) => {
+      const sessions = await brainstormApi.listSessions(filters);
+      setSessions(sessions);
+    },
+    [setSessions]
+  );
+
+  const loadSession = useCallback(
+    async (sessionId: string) => {
+      const data = await brainstormApi.getSession(sessionId);
+      setActiveSessionId(sessionId);
+      setMessages(data.messages);
+      setArtifacts(data.artifacts);
+      setDrawerOpen(false);
+    },
+    [setActiveSessionId, setMessages, setArtifacts, setDrawerOpen]
+  );
+
+  const createSession = useCallback(
+    async (profileId: string, firstMessage: string) => {
+      // Create session with first message as topic
+      const session = await brainstormApi.createSession(profileId, firstMessage);
+      addSession(session);
+      setActiveSessionId(session.id);
+      clearMessages();
+
+      // Add optimistic user message
+      const userMessage = {
+        id: nanoid(),
+        session_id: session.id,
+        sequence: 1,
+        role: "user" as const,
+        content: firstMessage,
+        parts: null,
+        created_at: new Date().toISOString(),
+      };
+      addMessage(userMessage);
+
+      // Send the message
+      setStreaming(true, null);
+      await brainstormApi.sendMessage(session.id, firstMessage);
+      // Response comes via WebSocket - streaming will be set to false when complete
+    },
+    [addSession, setActiveSessionId, clearMessages, addMessage, setStreaming]
+  );
+
+  const sendMessage = useCallback(
+    async (content: string) => {
+      if (!activeSessionId) {
+        throw new Error("No active session");
+      }
+
+      const optimisticId = nanoid();
+      const userMessage = {
+        id: optimisticId,
+        session_id: activeSessionId,
+        sequence: messages.length + 1,
+        role: "user" as const,
+        content,
+        parts: null,
+        created_at: new Date().toISOString(),
+      };
+
+      try {
+        addMessage(userMessage);
+        setStreaming(true, null);
+        await brainstormApi.sendMessage(activeSessionId, content);
+        // Response comes via WebSocket
+      } catch (error) {
+        // Rollback optimistic update
+        removeMessage(optimisticId);
+        setStreaming(false, null);
+        throw error;
+      }
+    },
+    [activeSessionId, messages.length, addMessage, removeMessage, setStreaming]
+  );
+
+  const deleteSession = useCallback(
+    async (sessionId: string) => {
+      await brainstormApi.deleteSession(sessionId);
+      removeSession(sessionId);
+      if (activeSessionId === sessionId) {
+        clearMessages();
+      }
+    },
+    [activeSessionId, removeSession, clearMessages]
+  );
+
+  const handoff = useCallback(
+    async (artifactPath: string, issueTitle?: string) => {
+      if (!activeSessionId) {
+        throw new Error("No active session");
+      }
+      return brainstormApi.handoff(activeSessionId, artifactPath, issueTitle);
+    },
+    [activeSessionId]
+  );
+
+  const startNewSession = useCallback(() => {
+    setActiveSessionId(null);
+    clearMessages();
+    setDrawerOpen(false);
+  }, [setActiveSessionId, clearMessages, setDrawerOpen]);
+
+  return {
+    activeSessionId,
+    loadSessions,
+    loadSession,
+    createSession,
+    sendMessage,
+    deleteSession,
+    handoff,
+    startNewSession,
+  };
+}
