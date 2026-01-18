@@ -18,8 +18,8 @@ from loguru import logger
 from amelia.agents.architect import Architect, MarkdownPlanOutput
 from amelia.core.constants import ToolName, resolve_plan_path
 from amelia.core.extraction import extract_structured
-from amelia.core.state import ExecutionState
 from amelia.drivers.factory import DriverFactory
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.pipelines.implementation.utils import (
     _extract_goal_from_plan,
     _extract_key_files_from_plan,
@@ -32,7 +32,7 @@ from amelia.pipelines.utils import extract_config_params
 
 
 async def plan_validator_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Validate and extract structure from architect's plan file.
@@ -130,7 +130,7 @@ Return:
 
 
 async def call_architect_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Orchestrator node for the Architect agent to generate an implementation plan.
@@ -279,7 +279,7 @@ async def call_architect_node(
 
 
 async def human_approval_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Node to prompt for human approval before proceeding.
@@ -329,7 +329,7 @@ async def human_approval_node(
 
 
 async def next_task_node(
-    state: ExecutionState, config: RunnableConfig
+    state: ImplementationState, config: RunnableConfig
 ) -> dict[str, Any]:
     """Transition to next task: commit changes, increment index, reset iteration.
 

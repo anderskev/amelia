@@ -10,14 +10,14 @@ from langchain_core.runnables.config import RunnableConfig
 from loguru import logger
 
 from amelia.agents.evaluator import Evaluator
-from amelia.core.state import ExecutionState
 from amelia.drivers.factory import DriverFactory
+from amelia.pipelines.implementation.state import ImplementationState
 from amelia.pipelines.nodes import _save_token_usage
 from amelia.pipelines.utils import extract_config_params
 
 
 async def call_evaluation_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Node that evaluates review feedback.
@@ -72,7 +72,7 @@ async def call_evaluation_node(
 
 
 async def review_approval_node(
-    state: ExecutionState,
+    state: ImplementationState,
     config: RunnableConfig | None = None,
 ) -> dict[str, Any]:
     """Node for human approval of which review items to fix.
