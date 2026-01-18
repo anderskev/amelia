@@ -48,6 +48,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from amelia import __version__
+from amelia.config import load_settings
+from amelia.drivers.base import DriverInterface
+from amelia.drivers.factory import get_driver as factory_get_driver
 from amelia.logging import configure_logging, log_server_startup
 from amelia.pipelines.implementation.state import rebuild_implementation_state
 from amelia.server.config import ServerConfig
@@ -79,6 +82,8 @@ from amelia.server.routes import (
 )
 from amelia.server.routes.brainstorm import (
     get_brainstorm_service,
+    get_cwd,
+    get_driver,
     router as brainstorm_router,
 )
 from amelia.server.routes.prompts import get_prompt_repository, router as prompts_router
@@ -223,6 +228,27 @@ def create_app() -> FastAPI:
         return service
 
     application.dependency_overrides[get_brainstorm_service] = get_brainstorm_svc
+
+    # Set up driver dependency for brainstorm routes
+    def get_brainstorm_driver() -> DriverInterface:
+        """Get driver for brainstorming using active profile from settings."""
+        try:
+            settings = load_settings()
+            profile = settings.profiles[settings.active_profile]
+            return factory_get_driver(profile.driver)
+        except FileNotFoundError:
+            # Settings file not found - use CLI driver as default
+            return factory_get_driver("cli:claude")
+
+    application.dependency_overrides[get_driver] = get_brainstorm_driver
+
+    # Set up cwd dependency for brainstorm routes
+    def get_brainstorm_cwd() -> str:
+        """Get working directory from server config."""
+        from amelia.server.dependencies import get_config
+        return str(get_config().working_dir)
+
+    application.dependency_overrides[get_cwd] = get_brainstorm_cwd
 
     # Serve dashboard static files
     # Priority: bundled static files (installed package) > dev build (dashboard/dist)
