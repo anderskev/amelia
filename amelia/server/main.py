@@ -48,7 +48,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from amelia import __version__
-from amelia.config import load_settings
 from amelia.drivers.base import DriverInterface
 from amelia.drivers.factory import get_driver as factory_get_driver
 from amelia.logging import configure_logging, log_server_startup
