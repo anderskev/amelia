@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useWorkflowStore } from '../store/workflowStore';
+import { useBrainstormStore } from '../store/brainstormStore';
 import type { WebSocketMessage, WorkflowEvent } from '../types';
 
 /**
@@ -182,6 +183,48 @@ export function useWebSocket() {
             console.warn('Backfill expired:', message.message);
             setLastEventId(null);
             break;
+
+          // Brainstorm events
+          case 'brainstorm_text': {
+            const { message_id, text, session_id } = message.data ?? {};
+            const state = useBrainstormStore.getState();
+            if (
+              session_id === state.activeSessionId &&
+              message_id &&
+              typeof text === 'string'
+            ) {
+              state.appendMessageContent(message_id, text);
+            }
+            break;
+          }
+
+          case 'brainstorm_reasoning': {
+            // Handle reasoning updates (for now, can be a no-op or append to parts)
+            const { session_id } = message.data ?? {};
+            const state = useBrainstormStore.getState();
+            if (session_id !== state.activeSessionId) break;
+            // Reasoning handling can be deferred
+            break;
+          }
+
+          case 'brainstorm_message_complete': {
+            const { session_id } = message.data ?? {};
+            const state = useBrainstormStore.getState();
+            if (session_id === state.activeSessionId) {
+              state.setStreaming(false, null);
+            }
+            break;
+          }
+
+          case 'brainstorm_artifact_created': {
+            const { session_id, artifact } = message.data ?? {};
+            const state = useBrainstormStore.getState();
+            if (session_id === state.activeSessionId && artifact) {
+              state.addArtifact(artifact);
+              state.updateSession(session_id, { status: 'ready_for_handoff' });
+            }
+            break;
+          }
 
           default:
             console.warn('Unknown WebSocket message type:', message);
