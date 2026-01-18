@@ -2064,15 +2064,6 @@ class OrchestratorService:
         # Resolve prompts for architect
         prompts = await self._resolve_prompts(workflow_id)
 
-        # Emit STAGE_STARTED for architect so dashboard shows it as active
-        await self._emit(
-            workflow_id,
-            EventType.STAGE_STARTED,
-            "Starting architect",
-            agent="architect",
-            data={"stage": "architect_node"},
-        )
-
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
         ) as checkpointer:
