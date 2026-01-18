@@ -11,9 +11,16 @@
 | Phase | Status | PRs |
 |-------|--------|-----|
 | **Phase 1: Foundation** | **COMPLETE** | #295, #296, feat/pipeline-cleanup-262 |
-| Phase 2: Brainstorming Pipeline Backend | Not started | - |
+| Phase 2: Brainstorming Pipeline Backend | **DESIGNED** | - |
 | Phase 3: Dashboard UI | Not started | - |
 | Phase 4: Integration & Polish | Not started | - |
+
+**Phase 2 design completed 2026-01-18:**
+- See [Brainstorming Pipeline Design](./2026-01-18-brainstorming-pipeline-design.md) for detailed design
+- Key decision: Direct chat sessions with driver continuity, NOT a LangGraph workflow
+- Reuses existing WebSocket infrastructure for streaming
+- Dedicated database tables for sessions, messages, artifacts
+- ai-elements React components for chat UI
 
 **Phase 1 completed 2026-01-18:**
 - Created `amelia/pipelines/` package with `Pipeline` protocol and `BasePipelineState`
