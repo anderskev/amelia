@@ -17,7 +17,7 @@ This document captures research findings about the papers, blog posts, and proje
 - **Influence on Amelia:** Validates the Developer ↔ Reviewer iteration loop. Each review rejection "tunes" the developer like tuning a guitar. Eventual consistency over immediate correctness.
 
 ### Andrej Karpathy - Software is Changing (Again)
-- **URL:** https://www.youtube.com/watch?v=zDmW5hJPsvQ (likely this talk or related)
+- **URL:** https://www.youtube.com/watch?v=zDmW5hJPsvQ
 - **Key thesis:** Software 3.0 - prompts are programs, English is the programming language, LLMs are the new CPUs
 - **Key concepts:**
   - LLMs as operating systems with context windows as working memory

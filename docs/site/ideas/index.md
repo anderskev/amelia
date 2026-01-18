@@ -1,6 +1,6 @@
 # Ideas & Inspirations
 
-This page documents the white papers, blog posts, videos, and open source projects that have influenced Amelia's design.
+This page documents the white papers, blog posts, videos, and open-source projects that have influenced Amelia's design.
 
 ## Foundational Inspirations
 
