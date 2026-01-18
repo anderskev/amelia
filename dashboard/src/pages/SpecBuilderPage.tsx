@@ -1,9 +1,32 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, Plus, Lightbulb } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Menu, Lightbulb } from "lucide-react";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message";
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputProvider,
+  usePromptInputController,
+  type PromptInputMessage,
+} from "@/components/ai-elements/prompt-input";
+import {
+  Reasoning,
+  ReasoningTrigger,
+  ReasoningContent,
+} from "@/components/ai-elements/reasoning";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/PageHeader";
 import { useBrainstormStore } from "@/store/brainstormStore";
 import { useBrainstormSession } from "@/hooks/useBrainstormSession";
@@ -14,7 +37,7 @@ import {
 } from "@/components/brainstorm";
 import type { BrainstormArtifact } from "@/types/api";
 
-export default function SpecBuilderPage() {
+function SpecBuilderPageContent() {
   const navigate = useNavigate();
   const {
     activeSessionId,
@@ -34,7 +57,7 @@ export default function SpecBuilderPage() {
     startNewSession,
   } = useBrainstormSession();
 
-  const [inputValue, setInputValue] = useState("");
+  const { textInput } = usePromptInputController();
   const [handoffArtifact, setHandoffArtifact] = useState<BrainstormArtifact | null>(null);
   const [isHandingOff, setIsHandingOff] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,28 +67,32 @@ export default function SpecBuilderPage() {
     loadSessions();
   }, [loadSessions]);
 
-  const handleSubmit = useCallback(async () => {
-    const content = inputValue.trim();
-    if (!content || isSubmitting) return;
+  const handleSubmit = useCallback(
+    async (message: PromptInputMessage, _event: FormEvent<HTMLFormElement>) => {
+      const content = message.text.trim();
+      if (!content || isSubmitting) return;
 
-    setIsSubmitting(true);
-    setInputValue("");
+      setIsSubmitting(true);
 
-    try {
-      if (activeSessionId) {
-        await sendMessage(content);
-      } else {
-        // Create new session with first message
-        // TODO: Get actual profile ID from settings
-        await createSession("default", content);
+      try {
+        if (activeSessionId) {
+          await sendMessage(content);
+        } else {
+          // Create new session with first message
+          // TODO: Get actual profile ID from settings
+          await createSession("default", content);
+        }
+        textInput.clear();
+      } catch {
+        // Restore input on error
+        textInput.setInput(content);
+        // TODO: Show error toast
+      } finally {
+        setIsSubmitting(false);
       }
-    } catch (error) {
-      setInputValue(content); // Restore on error
-      // TODO: Show error toast
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [inputValue, isSubmitting, activeSessionId, sendMessage, createSession]);
+    },
+    [isSubmitting, activeSessionId, sendMessage, createSession, textInput]
+  );
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
@@ -106,21 +133,20 @@ export default function SpecBuilderPage() {
     setHandoffArtifact(null);
   }, []);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSubmit();
-      }
-    },
-    [handleSubmit]
-  );
+  const getStatus = () => {
+    if (isStreaming) return "streaming";
+    if (isSubmitting) return "submitted";
+    return "ready";
+  };
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <PageHeader>
         <PageHeader.Left>
+          <PageHeader.Title>Spec Builder</PageHeader.Title>
+        </PageHeader.Left>
+        <PageHeader.Right>
           <Button
             variant="ghost"
             size="icon"
@@ -128,13 +154,6 @@ export default function SpecBuilderPage() {
             aria-label="Open sessions"
           >
             <Menu className="h-5 w-5" />
-          </Button>
-          <PageHeader.Title>Spec Builder</PageHeader.Title>
-        </PageHeader.Left>
-        <PageHeader.Right>
-          <Button variant="outline" size="sm" onClick={startNewSession}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Session
           </Button>
         </PageHeader.Right>
       </PageHeader>
@@ -147,66 +166,71 @@ export default function SpecBuilderPage() {
       />
 
       {/* Conversation Area */}
-      <div className="flex-1 overflow-auto px-4 py-6">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <Lightbulb className="h-12 w-12 text-muted-foreground mb-4" />
-            <h2 className="text-lg font-medium mb-2">Start a brainstorming session</h2>
-            <p className="text-muted-foreground max-w-md">
-              Type a message below to begin exploring ideas and producing design documents.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4 max-w-3xl mx-auto">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  "p-4 rounded-lg",
-                  message.role === "user"
-                    ? "ml-auto max-w-[80%] bg-secondary"
-                    : "bg-muted"
-                )}
-              >
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  {message.content}
-                </div>
-              </div>
-            ))}
+      <Conversation className="flex-1 overflow-hidden">
+        <ConversationContent className="px-4 py-6">
+          {messages.length === 0 ? (
+            <ConversationEmptyState
+              icon={<Lightbulb className="h-12 w-12" />}
+              title="Start a brainstorming session"
+              description="Type a message below to begin exploring ideas and producing design documents."
+            />
+          ) : (
+            <div className="space-y-4 max-w-3xl mx-auto">
+              {messages.map((message) => {
+                const hasReasoning = message.parts?.some((p) => p.type === "reasoning");
+                const reasoningText = message.parts
+                  ?.filter((p) => p.type === "reasoning")
+                  .map((p) => p.text)
+                  .join("\n") || "";
 
-            {/* Inline artifacts */}
-            {artifacts.map((artifact) => (
-              <ArtifactCard
-                key={artifact.id}
-                artifact={artifact}
-                onHandoff={handleHandoffClick}
-                isHandingOff={isHandingOff && handoffArtifact?.id === artifact.id}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+                return (
+                  <Message key={message.id} from={message.role}>
+                    <MessageContent>
+                      {hasReasoning && (
+                        <Reasoning isStreaming={isStreaming}>
+                          <ReasoningTrigger />
+                          <ReasoningContent>{reasoningText}</ReasoningContent>
+                        </Reasoning>
+                      )}
+                      <MessageResponse>{message.content}</MessageResponse>
+                    </MessageContent>
+                  </Message>
+                );
+              })}
+
+              {/* Inline artifacts */}
+              {artifacts.map((artifact) => (
+                <ArtifactCard
+                  key={artifact.id}
+                  artifact={artifact}
+                  onHandoff={handleHandoffClick}
+                  isHandingOff={isHandingOff && handoffArtifact?.id === artifact.id}
+                />
+              ))}
+            </div>
+          )}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
 
       {/* Input Area */}
       <div className="border-t bg-background p-4">
-        <div className="max-w-3xl mx-auto">
-          <Textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
+        <PromptInput
+          className="max-w-3xl mx-auto"
+          onSubmit={handleSubmit}
+        >
+          <PromptInputTextarea
             placeholder="What would you like to design?"
             disabled={isStreaming}
-            className="min-h-[80px] resize-none"
           />
-          <div className="flex justify-end mt-2">
-            <Button
-              onClick={handleSubmit}
-              disabled={!inputValue.trim() || isStreaming}
-            >
-              {isStreaming ? "Thinking..." : "Send"}
-            </Button>
-          </div>
-        </div>
+          <PromptInputFooter>
+            <div />
+            <PromptInputSubmit
+              disabled={!textInput.value.trim() || isStreaming}
+              status={getStatus()}
+            />
+          </PromptInputFooter>
+        </PromptInput>
       </div>
 
       {/* Handoff Dialog */}
@@ -218,5 +242,13 @@ export default function SpecBuilderPage() {
         isLoading={isHandingOff}
       />
     </div>
+  );
+}
+
+export default function SpecBuilderPage() {
+  return (
+    <PromptInputProvider>
+      <SpecBuilderPageContent />
+    </PromptInputProvider>
   );
 }

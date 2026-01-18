@@ -80,7 +80,7 @@ describe("useBrainstormStore", () => {
 
       useBrainstormStore.getState().updateMessageContent("m1", "Hello world");
 
-      expect(useBrainstormStore.getState().messages[0].content).toBe(
+      expect(useBrainstormStore.getState().messages[0]!.content).toBe(
         "Hello world"
       );
     });
@@ -99,7 +99,7 @@ describe("useBrainstormStore", () => {
 
       useBrainstormStore.getState().appendMessageContent("m1", " world");
 
-      expect(useBrainstormStore.getState().messages[0].content).toBe(
+      expect(useBrainstormStore.getState().messages[0]!.content).toBe(
         "Hello world"
       );
     });

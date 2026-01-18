@@ -231,13 +231,29 @@ def create_app() -> FastAPI:
 
     # Set up driver dependency for brainstorm routes
     def get_brainstorm_driver() -> DriverInterface:
-        """Get driver for brainstorming using active profile from settings."""
+        """Get driver for brainstorming using active profile from settings.
+
+        Loads raw YAML to extract just the driver type, avoiding full Profile
+        validation. Brainstorming doesn't need working_dir or validator_model
+        which are required for implementation workflows.
+        """
+        import yaml
+
+        settings_path = Path("settings.amelia.yaml")
+        env_path = os.environ.get("AMELIA_SETTINGS")
+        if env_path:
+            settings_path = Path(env_path)
+
         try:
-            settings = load_settings()
-            profile = settings.profiles[settings.active_profile]
-            return factory_get_driver(profile.driver)
-        except FileNotFoundError:
-            # Settings file not found - use CLI driver as default
+            with settings_path.open() as f:
+                data = yaml.safe_load(f)
+            active_profile = data.get("active_profile", "")
+            profiles = data.get("profiles", {})
+            profile_data = profiles.get(active_profile, {})
+            driver_type = profile_data.get("driver", "cli:claude")
+            return factory_get_driver(driver_type)
+        except (FileNotFoundError, KeyError, TypeError):
+            # Settings file not found or malformed - use CLI driver as default
             return factory_get_driver("cli:claude")
 
     application.dependency_overrides[get_driver] = get_brainstorm_driver

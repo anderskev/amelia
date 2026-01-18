@@ -133,7 +133,7 @@ describe("useBrainstormSession", () => {
       expect(brainstormApi.sendMessage).toHaveBeenCalledWith("s1", "Hello");
       // User message should be optimistically added
       expect(useBrainstormStore.getState().messages).toHaveLength(1);
-      expect(useBrainstormStore.getState().messages[0].role).toBe("user");
+      expect(useBrainstormStore.getState().messages[0]!.role).toBe("user");
     });
 
     it("throws if no active session", async () => {

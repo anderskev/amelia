@@ -548,7 +548,18 @@ export type WebSocketMessage =
   | { type: 'ping' }
   | { type: 'event'; payload: WorkflowEvent }
   | { type: 'backfill_complete'; count: number }
-  | { type: 'backfill_expired'; message: string };
+  | { type: 'backfill_expired'; message: string }
+  // Brainstorm streaming events
+  | { type: 'brainstorm_text'; data: { session_id: string; message_id: string; text: string } }
+  | { type: 'brainstorm_reasoning'; data: { session_id: string; message_id: string; text: string } }
+  | { type: 'brainstorm_message_complete'; data: { session_id: string; message_id: string } }
+  | {
+      type: 'brainstorm_artifact_created';
+      data: {
+        session_id: string;
+        artifact: import('./api').BrainstormArtifact;
+      };
+    };
 
 /**
  * Messages sent from the dashboard client to the server over WebSocket.

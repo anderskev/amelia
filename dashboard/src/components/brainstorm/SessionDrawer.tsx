@@ -61,16 +61,28 @@ export function SessionDrawer({
 
   return (
     <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-      <SheetContent side="left" className="w-80 p-0">
+      <SheetContent side="right" className="w-80 p-0">
         <SheetHeader className="px-4 py-4 border-b">
           <SheetTitle>Sessions</SheetTitle>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 h-[calc(100vh-8rem)]">
+        <div className="p-2 border-b">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={onNewSession}
+            aria-label="New Session"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Session
+          </Button>
+        </div>
+
+        <ScrollArea className="flex-1 h-[calc(100vh-12rem)]">
           <div className="p-2">
             {!hasAnySessions ? (
               <p className="text-center text-muted-foreground py-8">
-                No sessions yet. Start a new conversation below.
+                No sessions yet. Click "New Session" above to start.
               </p>
             ) : (
               statusOrder.map((status) => {
@@ -99,18 +111,6 @@ export function SessionDrawer({
             )}
           </div>
         </ScrollArea>
-
-        <div className="border-t p-4">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={onNewSession}
-            aria-label="New Session"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            New Session
-          </Button>
-        </div>
       </SheetContent>
     </Sheet>
   );
