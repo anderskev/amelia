@@ -3,13 +3,11 @@ import * as HoverCardPrimitive from "@radix-ui/react-hover-card"
 
 import { cn } from "@/lib/utils"
 
-const HoverCard = React.forwardRef<
-  React.ElementRef<typeof HoverCardPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof HoverCardPrimitive.Root>
->(({ ...props }, ref) => (
-  <HoverCardPrimitive.Root ref={ref} data-slot="hover-card" {...props} />
-))
-HoverCard.displayName = HoverCardPrimitive.Root.displayName
+function HoverCard({
+  ...props
+}: React.ComponentProps<typeof HoverCardPrimitive.Root>) {
+  return <HoverCardPrimitive.Root data-slot="hover-card" {...props} />
+}
 
 const HoverCardTrigger = React.forwardRef<
   React.ElementRef<typeof HoverCardPrimitive.Trigger>,
