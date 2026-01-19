@@ -764,7 +764,7 @@ class WorkflowRepository:
         total_workflows = success_row[0] if success_row and success_row[0] else 0
         successful_workflows = success_row[1] if success_row and success_row[1] else 0
         success_rate = (
-            (successful_workflows / total_workflows * 100.0)
+            (successful_workflows / total_workflows)
             if total_workflows > 0
             else 0.0
         )
@@ -951,9 +951,8 @@ class WorkflowRepository:
                     (
                         success_lookup.get(row[0], {}).get("successful", 0)
                         / success_lookup.get(row[0], {}).get("total", 1)
-                    )
-                    * 100,
-                    2,
+                    ),
+                    4,
                 )
                 if success_lookup.get(row[0], {}).get("total", 0) > 0
                 else 0.0,

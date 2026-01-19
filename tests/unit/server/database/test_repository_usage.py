@@ -442,8 +442,8 @@ class TestUsageSummaryWithSuccessMetrics:
             end_date=date(2026, 1, 21),
         )
 
-        # 3 completed out of 4 total = 75%
-        assert summary["success_rate"] == pytest.approx(75.0, rel=1e-6)
+        # 3 completed out of 4 total = 0.75 (ratio)
+        assert summary["success_rate"] == pytest.approx(0.75, rel=1e-6)
 
     async def test_get_usage_summary_zero_workflows(
         self, db_with_schema: Database
@@ -642,12 +642,12 @@ class TestUsageByModelWithTrendAndSuccess:
             end_date=date(2026, 1, 21),
         )
 
-        # Sonnet: used by wf1 (completed), wf2 (completed), wf4 (failed) = 2/3 = 66.67%
+        # Sonnet: used by wf1 (completed), wf2 (completed), wf4 (failed) = 2/3 = 0.6667 (ratio)
         sonnet = next(m for m in by_model if m["model"] == "claude-sonnet-4-20250514")
         assert sonnet["successful_workflows"] == 2
-        assert sonnet["success_rate"] == pytest.approx(66.67, rel=0.01)
+        assert sonnet["success_rate"] == pytest.approx(0.6667, rel=0.01)
 
-        # Opus: used by wf2 (completed), wf3 (completed) = 2/2 = 100%
+        # Opus: used by wf2 (completed), wf3 (completed) = 2/2 = 1.0 (ratio)
         opus = next(m for m in by_model if m["model"] == "claude-opus-4-20250514")
         assert opus["successful_workflows"] == 2
-        assert opus["success_rate"] == pytest.approx(100.0, rel=0.01)
+        assert opus["success_rate"] == pytest.approx(1.0, rel=0.01)
