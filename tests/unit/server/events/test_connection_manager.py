@@ -15,22 +15,24 @@ from amelia.server.models.events import (
 )
 
 
+@pytest.fixture
+def manager():
+    """Create ConnectionManager instance."""
+    return ConnectionManager()
+
+
+@pytest.fixture
+def mock_websocket():
+    """Create mock WebSocket."""
+    ws = AsyncMock()
+    ws.accept = AsyncMock()
+    ws.send_json = AsyncMock()
+    ws.close = AsyncMock()
+    return ws
+
+
 class TestConnectionManager:
     """Tests for ConnectionManager."""
-
-    @pytest.fixture
-    def manager(self):
-        """Create ConnectionManager instance."""
-        return ConnectionManager()
-
-    @pytest.fixture
-    def mock_websocket(self):
-        """Create mock WebSocket."""
-        ws = AsyncMock()
-        ws.accept = AsyncMock()
-        ws.send_json = AsyncMock()
-        ws.close = AsyncMock()
-        return ws
 
     async def test_disconnect_removes_connection(self, manager, mock_websocket) -> None:
         """disconnect() removes connection from tracking."""
@@ -137,21 +139,20 @@ class TestConnectionManagerTraceEvents:
     """Tests for trace event broadcasting."""
 
     @pytest.mark.asyncio
-    async def test_broadcast_sends_trace_events_to_all_clients(self) -> None:
+    async def test_broadcast_sends_trace_events_to_all_clients(
+        self, manager, mock_websocket
+    ) -> None:
         """broadcast() sends trace events to all connected clients (no filtering)."""
-        manager = ConnectionManager()
-        mock_ws1 = AsyncMock()
-        mock_ws1.accept = AsyncMock()
-        mock_ws1.send_json = AsyncMock()
+        # Create a second mock websocket for this test
         mock_ws2 = AsyncMock()
         mock_ws2.accept = AsyncMock()
         mock_ws2.send_json = AsyncMock()
 
-        await manager.connect(mock_ws1)
+        await manager.connect(mock_websocket)
         await manager.connect(mock_ws2)
 
         # Subscribe to different workflows - normally only matching events go through
-        await manager.subscribe(mock_ws1, "wf-1")
+        await manager.subscribe(mock_websocket, "wf-1")
         await manager.subscribe(mock_ws2, "wf-2")
 
         trace_event = WorkflowEvent(
@@ -168,25 +169,12 @@ class TestConnectionManagerTraceEvents:
         await manager.broadcast(trace_event)
 
         # Both clients receive trace events (no workflow filtering)
-        assert mock_ws1.send_json.called
+        assert mock_websocket.send_json.called
         assert mock_ws2.send_json.called
 
 
 class TestBroadcastDomainRouting:
     """Tests for domain-based broadcast routing."""
-
-    @pytest.fixture
-    def manager(self):
-        """Create ConnectionManager instance."""
-        return ConnectionManager()
-
-    @pytest.fixture
-    def mock_websocket(self):
-        """Create mock WebSocket."""
-        ws = AsyncMock()
-        ws.accept = AsyncMock()
-        ws.send_json = AsyncMock()
-        return ws
 
     @pytest.mark.asyncio
     async def test_broadcast_workflow_event_uses_event_wrapper(

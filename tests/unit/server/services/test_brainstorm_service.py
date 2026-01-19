@@ -43,6 +43,23 @@ class TestBrainstormService:
         """Create service instance."""
         return BrainstormService(mock_repository, mock_event_bus)
 
+    @pytest.fixture
+    def mock_cleanup(self) -> MagicMock:
+        """Create mock cleanup callback."""
+        return MagicMock(return_value=True)
+
+    @pytest.fixture
+    def service_with_cleanup(
+        self,
+        mock_repository: MagicMock,
+        mock_event_bus: MagicMock,
+        mock_cleanup: MagicMock,
+    ) -> BrainstormService:
+        """Create service with cleanup callback."""
+        return BrainstormService(
+            mock_repository, mock_event_bus, driver_cleanup=mock_cleanup
+        )
+
 
 class TestCreateSession(TestBrainstormService):
     """Test session creation."""
@@ -508,23 +525,6 @@ class TestHandoff(TestBrainstormService):
 class TestDeleteSessionCleanup(TestBrainstormService):
     """Test driver cleanup on session deletion."""
 
-    @pytest.fixture
-    def mock_cleanup(self) -> MagicMock:
-        """Create mock cleanup callback."""
-        return MagicMock(return_value=True)
-
-    @pytest.fixture
-    def service_with_cleanup(
-        self,
-        mock_repository: MagicMock,
-        mock_event_bus: MagicMock,
-        mock_cleanup: MagicMock,
-    ) -> BrainstormService:
-        """Create service with cleanup callback."""
-        return BrainstormService(
-            mock_repository, mock_event_bus, driver_cleanup=mock_cleanup
-        )
-
     async def test_delete_session_calls_cleanup(
         self,
         service_with_cleanup: BrainstormService,
@@ -569,12 +569,17 @@ class TestDeleteSessionCleanup(TestBrainstormService):
 
         mock_cleanup.assert_not_called()
 
-    async def test_delete_session_works_without_cleanup_callback(
+    async def test_delete_session_continues_if_cleanup_fails(
         self,
-        service: BrainstormService,
+        service_with_cleanup: BrainstormService,
         mock_repository: MagicMock,
+        mock_cleanup: MagicMock,
     ) -> None:
-        """Should work normally when no cleanup callback provided."""
+        """Should still delete session even if cleanup callback fails."""
+        # Setup: make cleanup raise an exception
+        mock_cleanup.side_effect = Exception("cleanup failed")
+
+        # Create a session with driver_session_id
         now = datetime.now(UTC)
         mock_session = BrainstormingSession(
             id="sess-1",
@@ -586,30 +591,17 @@ class TestDeleteSessionCleanup(TestBrainstormService):
         )
         mock_repository.get_session.return_value = mock_session
 
-        await service.delete_session("sess-1")
+        # Should not raise, should still delete the session
+        await service_with_cleanup.delete_session("sess-1")
 
+        # Verify cleanup was attempted
+        mock_cleanup.assert_called_once_with("work", "driver-sess-123")
+        # Verify session was still deleted despite cleanup failure
         mock_repository.delete_session.assert_called_once_with("sess-1")
 
 
 class TestUpdateSessionStatusCleanup(TestBrainstormService):
     """Test driver cleanup on terminal status."""
-
-    @pytest.fixture
-    def mock_cleanup(self) -> MagicMock:
-        """Create mock cleanup callback."""
-        return MagicMock(return_value=True)
-
-    @pytest.fixture
-    def service_with_cleanup(
-        self,
-        mock_repository: MagicMock,
-        mock_event_bus: MagicMock,
-        mock_cleanup: MagicMock,
-    ) -> BrainstormService:
-        """Create service with cleanup callback."""
-        return BrainstormService(
-            mock_repository, mock_event_bus, driver_cleanup=mock_cleanup
-        )
 
     @pytest.mark.parametrize("terminal_status", ["completed", "failed"])
     async def test_cleanup_called_on_terminal_status(

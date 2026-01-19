@@ -75,18 +75,6 @@ class TestDriverFactoryProviderPassing:
 class TestDriverCleanupSession:
     """Test cleanup_session protocol method."""
 
-    def test_claude_cli_driver_has_cleanup_session(self) -> None:
-        """ClaudeCliDriver should implement cleanup_session."""
-        driver = ClaudeCliDriver()
-        assert hasattr(driver, "cleanup_session")
-        assert callable(driver.cleanup_session)
-
-    def test_api_driver_has_cleanup_session(self) -> None:
-        """ApiDriver should implement cleanup_session."""
-        driver = ApiDriver(cwd="/tmp")
-        assert hasattr(driver, "cleanup_session")
-        assert callable(driver.cleanup_session)
-
     def test_claude_cli_driver_cleanup_returns_false(self) -> None:
         """ClaudeCliDriver cleanup_session should return False (no state to clean)."""
         driver = ClaudeCliDriver()
@@ -98,13 +86,17 @@ class TestDriverCleanupSession:
         # Directly add a session to the class-level cache
         test_session_id = "test-cleanup-session-123"
         from langgraph.checkpoint.memory import MemorySaver
-        ApiDriver._sessions[test_session_id] = MemorySaver()
 
-        driver = ApiDriver(cwd="/tmp")
-        result = driver.cleanup_session(test_session_id)
+        try:
+            ApiDriver._sessions[test_session_id] = MemorySaver()
 
-        assert result is True
-        assert test_session_id not in ApiDriver._sessions
+            driver = ApiDriver(cwd="/tmp")
+            result = driver.cleanup_session(test_session_id)
+
+            assert result is True
+            assert test_session_id not in ApiDriver._sessions
+        finally:
+            ApiDriver._sessions.pop(test_session_id, None)
 
     def test_api_driver_cleanup_returns_false_for_unknown(self) -> None:
         """ApiDriver cleanup_session should return False for unknown session."""
@@ -119,13 +111,17 @@ class TestCleanupDriverSession:
     def test_cleanup_api_driver_session(self) -> None:
         """Should clean up ApiDriver session via factory function."""
         from langgraph.checkpoint.memory import MemorySaver
+
         test_session_id = "factory-cleanup-test-123"
-        ApiDriver._sessions[test_session_id] = MemorySaver()
+        try:
+            ApiDriver._sessions[test_session_id] = MemorySaver()
 
-        result = cleanup_driver_session("api:openrouter", test_session_id)
+            result = cleanup_driver_session("api:openrouter", test_session_id)
 
-        assert result is True
-        assert test_session_id not in ApiDriver._sessions
+            assert result is True
+            assert test_session_id not in ApiDriver._sessions
+        finally:
+            ApiDriver._sessions.pop(test_session_id, None)
 
     def test_cleanup_cli_driver_session_returns_false(self) -> None:
         """Should return False for CLI driver (no state)."""
