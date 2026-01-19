@@ -49,6 +49,7 @@
     "react-hook-form": "^7.70.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.0.2",
+    "recharts": "2.15.4",
     "remark-breaks": "^4.0.0",
     "shiki": "^3.20.0",
     "sonner": "^1.7.1",
