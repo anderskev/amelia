@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, type FormEvent } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
 import { Menu, Lightbulb, Bot, Cpu } from "lucide-react";
 import { api } from "@/api/client";
@@ -62,7 +63,16 @@ function SpecBuilderPageContent() {
     isStreaming,
     setDrawerOpen,
     sessionUsage,
-  } = useBrainstormStore();
+  } = useBrainstormStore(useShallow((state) => ({
+    activeSessionId: state.activeSessionId,
+    activeProfile: state.activeProfile,
+    sessions: state.sessions,
+    messages: state.messages,
+    artifacts: state.artifacts,
+    isStreaming: state.isStreaming,
+    setDrawerOpen: state.setDrawerOpen,
+    sessionUsage: state.sessionUsage,
+  })));
 
   const {
     loadSessions,
@@ -83,16 +93,25 @@ function SpecBuilderPageContent() {
 
   // Load sessions and config on mount
   useEffect(() => {
+    let mounted = true;
     loadSessions();
 
     // Fetch active_profile from config for session creation and display
     api.getConfig().then((config) => {
-      activeProfileRef.current = config.active_profile;
-      setConfigProfileInfo(config.active_profile_info);
+      if (mounted) {
+        activeProfileRef.current = config.active_profile;
+        setConfigProfileInfo(config.active_profile_info);
+      }
     }).catch((error) => {
       // Fall back to empty string on error - backend will use its default
-      console.warn('Failed to load config, using defaults:', error);
+      if (mounted) {
+        console.warn('Failed to load config, using defaults:', error);
+      }
     });
+
+    return () => {
+      mounted = false;
+    };
   }, [loadSessions]);
 
   const handleSubmit = useCallback(
@@ -206,11 +225,7 @@ function SpecBuilderPageContent() {
       <Conversation className="flex-1 overflow-hidden">
         <ConversationContent className="px-4 py-6">
           {messages.length === 0 ? (
-            <ConversationEmptyState
-              icon={<Lightbulb className="h-12 w-12" />}
-              title="Start a brainstorming session"
-              description="Type a message below to begin exploring ideas and producing design documents."
-            >
+            <ConversationEmptyState>
               <>
                 <div className="text-muted-foreground">
                   <Lightbulb className="h-12 w-12" />

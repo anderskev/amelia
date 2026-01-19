@@ -30,7 +30,7 @@ describe("SessionInfoBar", () => {
     expect(screen.getByText("5")).toBeInTheDocument();
 
     // Should not render cost
-    expect(screen.queryByText(/\$.*total/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$\d+\.\d{2}/)).not.toBeInTheDocument();
   });
 
   it("renders cost when usage summary is provided", () => {
@@ -44,7 +44,7 @@ describe("SessionInfoBar", () => {
     );
 
     // Should render the total cost
-    expect(screen.getByText("$0.42 total")).toBeInTheDocument();
+    expect(screen.getByText("$0.42")).toBeInTheDocument();
   });
 
   it("does not render cost section when total_cost_usd is 0", () => {
@@ -63,7 +63,7 @@ describe("SessionInfoBar", () => {
     );
 
     // Should not render cost when it's 0
-    expect(screen.queryByText(/\$.*total/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$\d+\.\d{2}/)).not.toBeInTheDocument();
   });
 
   it("renders model and driver info", () => {
@@ -177,6 +177,6 @@ describe("SessionInfoBar", () => {
     );
 
     // Should display as $0.10, not $0.1
-    expect(screen.getByText("$0.10 total")).toBeInTheDocument();
+    expect(screen.getByText("$0.10")).toBeInTheDocument();
   });
 });

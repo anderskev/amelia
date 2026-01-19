@@ -79,8 +79,8 @@ export function SessionInfoBar({
         <span>{messageCount}</span>
       </div>
 
-      {/* Cost Display */}
-      {usageSummary && (
+      {/* Cost Display - only show when cost > 0 */}
+      {usageSummary && usageSummary.total_cost_usd > 0 && (
         <>
           <Separator orientation="vertical" className="h-3" />
           <span className="text-emerald-500/70 font-medium">

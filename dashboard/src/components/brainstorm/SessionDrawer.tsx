@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { useBrainstormStore } from "@/store/brainstormStore";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -54,7 +55,12 @@ export function SessionDrawer({
   onNewSession,
 }: SessionDrawerProps) {
   const { sessions, activeSessionId, drawerOpen, setDrawerOpen } =
-    useBrainstormStore();
+    useBrainstormStore(useShallow((state) => ({
+      sessions: state.sessions,
+      activeSessionId: state.activeSessionId,
+      drawerOpen: state.drawerOpen,
+      setDrawerOpen: state.setDrawerOpen,
+    })));
 
   const groupedSessions = groupByStatus(sessions);
   const hasAnySessions = sessions.length > 0;
