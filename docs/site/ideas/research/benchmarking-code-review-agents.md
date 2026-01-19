@@ -5,17 +5,17 @@ description: A comprehensive framework of datasets, methodologies, and metrics f
 
 # Benchmarking Automated Code Review Agents
 
-LLM-powered agents are transforming CI/CD pipelines. Unlike SonarQube or ESLint, which parse ASTs and apply rigid rules, these AI reviewers reason probabilistically about code semantics. They identify logic errors, security vulnerabilities across files, architectural inconsistencies, and maintainability issues—not just syntax.
+LLM-powered agents are transforming CI/CD pipelines. Unlike SonarQube or ESLint, which parse ASTs and apply rigid rules, these AI reviewers reason probabilistically about code semantics. They identify logic errors, security vulnerabilities across files, architectural inconsistencies, and maintainability issues, not just syntax.
 
-This shift demands new evaluation criteria. Traditional metrics like [BLEU](https://aclanthology.org/P02-1040/) and [ROUGE](https://aclanthology.org/W04-1013/), borrowed from machine translation, measure how closely generated text matches a reference—they cannot judge whether a review comment actually helps. An AI reviewer might phrase feedback differently than a human would, yet catch a race condition the human missed entirely.
+This shift demands new evaluation criteria. Traditional metrics like [BLEU](https://aclanthology.org/P02-1040/) and [ROUGE](https://aclanthology.org/W04-1013/), borrowed from machine translation, measure how closely generated text matches a reference. They cannot judge whether a review comment actually helps. An AI reviewer might phrase feedback differently than a human would, yet catch a race condition the human missed entirely.
 
 ::: info Key Findings
 This report synthesizes **200+ papers**, repositories, and industry reports to establish a rigorous ground-truth framework for measuring precision, recall, and severity calibration.
 :::
 
-Our analysis reveals a critical dichotomy: the tension between **synthetic, isolated evaluations** (high reproducibility, low realism) and **"in-the-wild" production monitoring** (high realism, noisy ground truth). The report concludes with a gap analysis identifying specific deficiencies—primarily missing "soft skill" evaluation and multi-turn conversational assessment.
+Our analysis reveals a critical dichotomy: the tension between **synthetic, isolated evaluations** (high reproducibility, low realism) and **"in-the-wild" production monitoring** (high realism, noisy ground truth). The report concludes with a gap analysis identifying specific deficiencies: primarily missing "soft skill" evaluation and multi-turn conversational assessment.
 
-Code review benchmarking matters beyond technical accuracy. As AI accelerates code generation, verification becomes the organizational bottleneck—developer toil shifts from writing to reading. For the broader implications of this shift on team structures and planning economics, see [AI's Impact on Software Organizations](./ai-impact-organizations.md).
+Code review benchmarking matters beyond technical accuracy. As AI accelerates code generation, verification becomes the organizational bottleneck, and developer toil shifts from writing to reading. For the broader implications of this shift on team structures and planning economics, see [AI's Impact on Software Organizations](./ai-impact-organizations.md).
 
 ## 1. The Code Review Evaluation Landscape
 
