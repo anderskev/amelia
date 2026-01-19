@@ -103,7 +103,7 @@ On startup:
 | `amelia/server/database/prompt_repository.py` | Update `?` → `$1` parameter syntax |
 | `tests/conftest.py` | PostgreSQL test fixtures |
 | `docker-compose.yml` | Add PostgreSQL service |
-| `.github/workflows/*.yml` | Add PostgreSQL service container |
+| `.github/workflows/*.yml` | Add GitHub Actions PostgreSQL service container |
 
 ## Testing
 

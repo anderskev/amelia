@@ -176,7 +176,7 @@ A recurring theme<sup id="cite-2a"><a href="#ref-2">[2]</a></sup> is using power
 - **LLM Evaluation:** LLM calibrated against human scores, then evaluates full dataset
 - **Multi-dimensional Criteria:** Readability, Relevance, Actionability, Contextual Adequacy, Brevity
 
-LLM-as-a-Judge extends to other knowledge work domains. The G-Eval framework uses probability-weighted scoring and chain-of-thought reasoning to evaluate subjective tasks like strategy documents. See [Agentic Workflows for Knowledge Work](./knowledge-agents.md#_4-1-evaluation-frameworks) for this parallel methodology.
+LLM-as-a-Judge extends to other knowledge work domains. The G-Eval framework uses probability-weighted scoring and chain-of-thought reasoning to evaluate subjective tasks like strategy documents. See [Agentic Workflows for Knowledge Work](./knowledge-agents.md#3-1-evaluation-frameworks) for this parallel methodology.
 
 ### 3.2 The Primacy of Context
 
@@ -188,7 +188,7 @@ AI reviewers fail from missing information, not weak reasoning. Providing textua
 
 **Implication:** Valid benchmarks must provide the "Why" (Issue Ticket) and "Where" (Surrounding Code), not just the "What" (Diff).
 
-This context primacy parallels patterns in general-purpose agents. Manus AI treats the file system as unlimited memory—offloading state to persistent files rather than filling context windows with irrelevant history. See [Agentic Workflows for Knowledge Work](./knowledge-agents.md#_2-2-1-context-engineering-file-system-as-memory) for this "Context Engineering" approach.
+This context primacy parallels patterns in general-purpose agents. Manus AI treats the file system as unlimited memory—offloading state to persistent files rather than filling context windows with irrelevant history. See [Agentic Workflows for Knowledge Work](./knowledge-agents.md#1-2-1-context-engineering-file-system-as-memory) for this "Context Engineering" approach.
 
 ### 3.3 Severity and Calibration
 
