@@ -2,8 +2,8 @@
 """Populate the database with test data for UI development.
 
 Usage:
-    uv run scripts/populate_test_data.py          # Default: 30 days, 50 workflows
-    uv run scripts/populate_test_data.py --days 7 --workflows 20
+    uv run scripts/populate_test_data.py          # Default: 365 days, 200 workflows
+    uv run scripts/populate_test_data.py --days 30 --workflows 50
     uv run scripts/populate_test_data.py --help
 
 To clean up, simply delete the database:
@@ -46,10 +46,31 @@ class WorkflowData:
 # Realistic issue IDs
 ISSUE_PREFIXES = ["PROJ", "BUG", "FEAT", "TASK", "SPIKE"]
 
-# Models to use (weighted towards sonnet)
+# Multi-provider model selection
+# Includes Anthropic Claude 4.5, OpenAI, Google, DeepSeek, Mistral, Qwen, and MiniMax
 MODELS = [
-    ("claude-sonnet-4-20250514", 0.7),
-    ("claude-opus-4-20250514", 0.3),
+    # Anthropic Claude 4.5 (primary - 40% total)
+    ("claude-sonnet-4-5-20251101", 0.20),  # Primary workhorse
+    ("claude-haiku-4-5-20251101", 0.12),   # Fast/cheap tasks
+    ("claude-opus-4-5-20251101", 0.08),    # Complex reasoning
+    # OpenAI (20% total)
+    ("openai/gpt-4o", 0.12),               # GPT-4o - versatile
+    ("openai/o3-mini", 0.05),              # o3-mini - efficient reasoning
+    ("openai/o1", 0.03),                   # o1 - advanced reasoning
+    # Google Gemini (10% total)
+    ("google/gemini-2.0-flash", 0.06),     # Fast and cheap
+    ("google/gemini-2.0-pro", 0.04),       # Higher capability
+    # DeepSeek (10% total) - Very cost-effective
+    ("deepseek/deepseek-coder-v3", 0.06),  # Coding specialist
+    ("deepseek/deepseek-v3", 0.04),        # General purpose
+    # Mistral (5% total)
+    ("mistral/codestral-latest", 0.05),   # Coding specialist
+    # Qwen (10% total) - Open source
+    ("qwen/qwen-2.5-coder-32b", 0.06),     # Coding specialist
+    ("qwen/qwen-2.5-72b", 0.04),           # General purpose
+    # MiniMax (5% total)
+    ("minimax/minimax-m2", 0.03),          # Compact, efficient
+    ("minimax/minimax-m1", 0.02),          # Long context
 ]
 
 # Agents that produce token usage
@@ -377,9 +398,9 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    uv run scripts/populate_test_data.py                    # Default: 30 days, 50 workflows
-    uv run scripts/populate_test_data.py --days 7           # Last 7 days
-    uv run scripts/populate_test_data.py --workflows 100    # 100 workflows
+    uv run scripts/populate_test_data.py                    # Default: 365 days, 200 workflows
+    uv run scripts/populate_test_data.py --days 30          # Last 30 days
+    uv run scripts/populate_test_data.py --workflows 500    # 500 workflows
     uv run scripts/populate_test_data.py --db /tmp/test.db  # Custom database path
 
 To clean up test data, simply delete the database file.
@@ -388,14 +409,14 @@ To clean up test data, simply delete the database file.
     parser.add_argument(
         "--days",
         type=int,
-        default=30,
-        help="Number of days to spread data over (default: 30)",
+        default=365,
+        help="Number of days to spread data over (default: 365)",
     )
     parser.add_argument(
         "--workflows",
         type=int,
-        default=50,
-        help="Number of workflows to generate (default: 50)",
+        default=200,
+        help="Number of workflows to generate (default: 200)",
     )
     parser.add_argument(
         "--db",
