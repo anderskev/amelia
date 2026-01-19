@@ -20,6 +20,7 @@ class UsageTrendPoint(BaseModel):
     date: str  # ISO date YYYY-MM-DD
     cost_usd: float
     workflows: int
+    by_model: dict[str, float] | None = None  # Per-model cost breakdown
 
 
 class UsageByModel(BaseModel):

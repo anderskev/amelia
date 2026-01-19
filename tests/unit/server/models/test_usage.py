@@ -60,6 +60,29 @@ def test_usage_by_model():
     assert model.tokens == 892_000
 
 
+def test_usage_trend_point_with_by_model():
+    """UsageTrendPoint should include optional by_model breakdown."""
+    point = UsageTrendPoint(
+        date="2026-01-15",
+        cost_usd=10.50,
+        workflows=5,
+        by_model={"claude-sonnet-4": 6.30, "gpt-4o": 4.20},
+    )
+
+    assert point.by_model == {"claude-sonnet-4": 6.30, "gpt-4o": 4.20}
+
+
+def test_usage_trend_point_by_model_defaults_to_none():
+    """UsageTrendPoint.by_model should default to None for backwards compat."""
+    point = UsageTrendPoint(
+        date="2026-01-15",
+        cost_usd=10.50,
+        workflows=5,
+    )
+
+    assert point.by_model is None
+
+
 def test_usage_response_complete():
     """UsageResponse combines all components."""
     response = UsageResponse(
