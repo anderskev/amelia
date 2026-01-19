@@ -43,9 +43,11 @@ const PRESETS = [
 ];
 
 /**
- * Default preset value when none is specified.
+ * Get a filename-safe version of the preset label for exports.
  */
-const DEFAULT_PRESET = '30d';
+function getExportFilename(preset: string | null): string {
+  return getPresetLabel(preset).toLowerCase().replace(/\s+/g, '-');
+}
 
 /**
  * Get the display label for a preset value.
@@ -297,7 +299,7 @@ export default function CostsPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuRadioGroup value={currentPreset ?? DEFAULT_PRESET} onValueChange={handlePresetChange}>
+                  <DropdownMenuRadioGroup value={currentPreset ?? ''} onValueChange={handlePresetChange}>
                     {PRESETS.map((p) => (
                       <DropdownMenuRadioItem key={p.value} value={p.value}>
                         {p.label}
@@ -387,7 +389,7 @@ export default function CostsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuRadioGroup value={currentPreset ?? DEFAULT_PRESET} onValueChange={handlePresetChange}>
+                <DropdownMenuRadioGroup value={currentPreset ?? ''} onValueChange={handlePresetChange}>
                   {PRESETS.map((p) => (
                     <DropdownMenuRadioItem key={p.value} value={p.value}>
                       {p.label}
@@ -438,7 +440,7 @@ export default function CostsPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => exportCSV(usage.by_model, currentPreset ?? DEFAULT_PRESET)}
+              onClick={() => exportCSV(usage.by_model, getExportFilename(currentPreset))}
             >
               <Download className="size-4 mr-1" />
               Export CSV
