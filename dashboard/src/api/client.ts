@@ -17,6 +17,7 @@ import type {
   ConfigResponse,
   FileReadResponse,
   PathValidationResponse,
+  UsageResponse,
 } from '../types';
 
 /**
@@ -655,6 +656,46 @@ export const api = {
       signal
     );
     return handleResponse<PathValidationResponse>(response);
+  },
+
+  // ==========================================================================
+  // Usage API
+  // ==========================================================================
+
+  /**
+   * Retrieves usage metrics for a date range.
+   *
+   * @param params - Query parameters (preset or start/end dates).
+   * @returns UsageResponse with summary, trend, and by_model.
+   * @throws {ApiError} When the API request fails.
+   *
+   * @example
+   * ```typescript
+   * // With preset
+   * const usage = await api.getUsage({ preset: '30d' });
+   *
+   * // With date range
+   * const usage = await api.getUsage({ start: '2026-01-01', end: '2026-01-15' });
+   * ```
+   */
+  async getUsage(params: {
+    start?: string;
+    end?: string;
+    preset?: string;
+  }): Promise<UsageResponse> {
+    const searchParams = new URLSearchParams();
+
+    if (params.start && params.end) {
+      searchParams.set('start', params.start);
+      searchParams.set('end', params.end);
+    } else {
+      searchParams.set('preset', params.preset ?? '30d');
+    }
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/usage?${searchParams.toString()}`
+    );
+    return handleResponse<UsageResponse>(response);
   },
 };
 
