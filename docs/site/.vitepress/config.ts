@@ -14,8 +14,9 @@ const sharedSidebar = [
   {
     text: 'Research',
     items: [
-      { text: 'Knowledge Agents', link: '/ideas/research/knowledge-agents' },
-      { text: 'Benchmarking Code Review', link: '/ideas/research/benchmarking-code-review-agents' }
+      { text: 'AI Impact on Organizations', link: '/ideas/research/ai-impact-organizations' },
+      { text: 'Benchmarking Code Review', link: '/ideas/research/benchmarking-code-review-agents' },
+      { text: 'Knowledge Agents', link: '/ideas/research/knowledge-agents' }
     ]
   },
   {

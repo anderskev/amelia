@@ -5,14 +5,6 @@ description: A comprehensive framework of datasets, methodologies, and metrics f
 
 # Benchmarking Automated Code Review Agents
 
-<div class="research-meta">
-
-**Research conducted by:** Existential Birds Volant Deep Research
-**Status:** Complete
-**Related Issue:** [#8 - Create reviewer agent benchmark framework](https://github.com/existential-birds/amelia/issues/8)
-
-</div>
-
 LLM-powered agents are transforming CI/CD pipelines. Unlike SonarQube or ESLint, which parse ASTs and apply rigid rules, these AI reviewers reason probabilistically about code semantics. They identify logic errors, security vulnerabilities across files, architectural inconsistencies, and maintainability issues—not just syntax.
 
 This shift demands new evaluation criteria. Traditional metrics like [BLEU](https://aclanthology.org/P02-1040/) and [ROUGE](https://aclanthology.org/W04-1013/), borrowed from machine translation, measure how closely generated text matches a reference—they cannot judge whether a review comment actually helps. An AI reviewer might phrase feedback differently than a human would, yet catch a race condition the human missed entirely.
@@ -22,6 +14,8 @@ This report synthesizes **200+ papers**, repositories, and industry reports to e
 :::
 
 Our analysis reveals a critical dichotomy: the tension between **synthetic, isolated evaluations** (high reproducibility, low realism) and **"in-the-wild" production monitoring** (high realism, noisy ground truth). The report concludes with a gap analysis identifying specific deficiencies—primarily missing "soft skill" evaluation and multi-turn conversational assessment.
+
+Code review benchmarking matters beyond technical accuracy. As AI accelerates code generation, verification becomes the organizational bottleneck—developer toil shifts from writing to reading. For the broader implications of this shift on team structures and planning economics, see [AI's Impact on Software Organizations](./ai-impact-organizations.md).
 
 ## 1. The Code Review Evaluation Landscape
 
@@ -182,6 +176,8 @@ A recurring theme<sup id="cite-2a"><a href="#ref-2">[2]</a></sup> is using power
 - **LLM Evaluation:** LLM calibrated against human scores, then evaluates full dataset
 - **Multi-dimensional Criteria:** Readability, Relevance, Actionability, Contextual Adequacy, Brevity
 
+LLM-as-a-Judge extends to other knowledge work domains. The G-Eval framework uses probability-weighted scoring and chain-of-thought reasoning to evaluate subjective tasks like strategy documents. See [Agentic Workflows for Knowledge Work](./knowledge-agents.md#_4-1-evaluation-frameworks) for this parallel methodology.
+
 ### 3.2 The Primacy of Context
 
 Research on ContextCRBench<sup id="cite-20b"><a href="#ref-20">[20]</a></sup> and Augment Code<sup id="cite-31a"><a href="#ref-31">[31]</a></sup> reveals a critical insight:
@@ -191,6 +187,8 @@ AI reviewers fail from missing information, not weak reasoning. Providing textua
 :::
 
 **Implication:** Valid benchmarks must provide the "Why" (Issue Ticket) and "Where" (Surrounding Code), not just the "What" (Diff).
+
+This context primacy parallels patterns in general-purpose agents. Manus AI treats the file system as unlimited memory—offloading state to persistent files rather than filling context windows with irrelevant history. See [Agentic Workflows for Knowledge Work](./knowledge-agents.md#_2-2-1-context-engineering-file-system-as-memory) for this "Context Engineering" approach.
 
 ### 3.3 Severity and Calibration
 
