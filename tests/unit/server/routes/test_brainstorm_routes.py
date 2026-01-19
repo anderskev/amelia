@@ -76,8 +76,9 @@ class TestCreateSession(TestBrainstormRoutes):
 
         assert response.status_code == 201
         data = response.json()
-        assert data["id"] == "sess-123"
-        assert data["status"] == "active"
+        assert data["session"]["id"] == "sess-123"
+        assert data["session"]["status"] == "active"
+        assert data["profile"] is None  # No profile info without settings
 
     def test_create_session_with_topic(
         self, client: TestClient, mock_service: MagicMock
@@ -100,7 +101,7 @@ class TestCreateSession(TestBrainstormRoutes):
 
         assert response.status_code == 201
         data = response.json()
-        assert data["topic"] == "Design a cache"
+        assert data["session"]["topic"] == "Design a cache"
 
 
 class TestListSessions(TestBrainstormRoutes):
