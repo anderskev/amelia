@@ -202,7 +202,7 @@ export default function CostsPage() {
             <div className="flex justify-end">
               <Sparkline
                 data={trend}
-                color={modelColorMap[row.original.model]}
+                color={modelColorMap[row.original.model] ?? 'var(--chart-model-1)'}
                 className="w-16 h-5"
               />
             </div>
@@ -455,7 +455,7 @@ export default function CostsPage() {
                   {model.trend && model.trend.length > 0 && (
                     <Sparkline
                       data={model.trend}
-                      color={modelColorMap[model.model]}
+                      color={modelColorMap[model.model] ?? 'var(--chart-model-1)'}
                       className="mt-2 w-full h-6"
                     />
                   )}

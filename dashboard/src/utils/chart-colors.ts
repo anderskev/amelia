@@ -23,5 +23,6 @@ export const MODEL_COLORS = [
  * @returns CSS variable reference for the color
  */
 export function getModelColor(rankIndex: number): string {
-  return MODEL_COLORS[rankIndex % MODEL_COLORS.length];
+  const index = rankIndex % MODEL_COLORS.length;
+  return MODEL_COLORS[index] ?? MODEL_COLORS[0];
 }

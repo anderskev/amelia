@@ -74,8 +74,12 @@ describe('CostsPage', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('24')).toBeInTheDocument(); // workflows
-    expect(screen.getByText(/1200K/i)).toBeInTheDocument(); // tokens
+    // Summary row shows totals - use getAllByText since text appears multiple times
+    // (in summary row and table/cards)
+    expect(screen.getAllByText(/24/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/workflows/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/1200K/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/tokens/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('should render model breakdown table', () => {
@@ -85,10 +89,17 @@ describe('CostsPage', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('claude-sonnet-4')).toBeInTheDocument();
-    expect(screen.getByText('claude-opus-4')).toBeInTheDocument();
-    expect(screen.getByText('$42.17')).toBeInTheDocument();
-    expect(screen.getByText('$85.26')).toBeInTheDocument();
+    // Model names appear in both desktop table and mobile cards
+    const sonnetElements = screen.getAllByText('claude-sonnet-4');
+    const opusElements = screen.getAllByText('claude-opus-4');
+    expect(sonnetElements.length).toBeGreaterThanOrEqual(1);
+    expect(opusElements.length).toBeGreaterThanOrEqual(1);
+
+    // Cost values also appear in both views
+    const cost1Elements = screen.getAllByText('$42.17');
+    const cost2Elements = screen.getAllByText('$85.26');
+    expect(cost1Elements.length).toBeGreaterThanOrEqual(1);
+    expect(cost2Elements.length).toBeGreaterThanOrEqual(1);
   });
 
   it('should render trend chart', () => {
