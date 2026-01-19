@@ -1,55 +1,11 @@
 import { useState, useCallback, useRef } from "react";
-import { cn } from "@/lib/utils";
+import { cn, copyToClipboard } from "@/lib/utils";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CopyButtonProps {
   content: string;
   className?: string;
-}
-
-/**
- * Copies text to clipboard with iOS fallback.
- *
- * iOS Safari has quirks with navigator.clipboard.writeText() in some contexts.
- * This function tries the modern API first, then falls back to execCommand.
- */
-async function copyToClipboard(text: string): Promise<boolean> {
-  // Try modern Clipboard API first
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // Fall through to fallback
-    }
-  }
-
-  // Fallback for iOS and older browsers
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-
-  // Prevent scrolling on iOS
-  textArea.style.position = "fixed";
-  textArea.style.left = "-9999px";
-  textArea.style.top = "0";
-  textArea.style.opacity = "0";
-
-  document.body.appendChild(textArea);
-
-  // iOS specific: need to select with setSelectionRange
-  textArea.focus();
-  textArea.setSelectionRange(0, text.length);
-
-  let success = false;
-  try {
-    success = document.execCommand("copy");
-  } catch {
-    success = false;
-  }
-
-  document.body.removeChild(textArea);
-  return success;
 }
 
 /**

@@ -95,3 +95,59 @@ export function formatModel(model: string): string {
     .join(' ')
     .replace(/(\d)(\d)/g, '$1.$2'); // "35" -> "3.5"
 }
+
+/**
+ * Copies text to clipboard with iOS Safari fallback.
+ *
+ * iOS Safari has quirks with navigator.clipboard.writeText() in some contexts.
+ * This function tries the modern Clipboard API first, then falls back to
+ * execCommand for iOS and older browsers.
+ *
+ * @param text - Text to copy to clipboard
+ * @returns Promise resolving to true if copy succeeded, false otherwise
+ *
+ * @example
+ * ```ts
+ * const success = await copyToClipboard('Hello, world!');
+ * if (success) {
+ *   showToast('Copied!');
+ * }
+ * ```
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  // Try modern Clipboard API first
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to fallback
+    }
+  }
+
+  // Fallback for iOS and older browsers
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+
+  // Prevent scrolling on iOS
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-9999px';
+  textArea.style.top = '0';
+  textArea.style.opacity = '0';
+
+  document.body.appendChild(textArea);
+
+  // iOS specific: need to select with setSelectionRange
+  textArea.focus();
+  textArea.setSelectionRange(0, text.length);
+
+  let success = false;
+  try {
+    success = document.execCommand('copy');
+  } catch {
+    success = false;
+  }
+
+  document.body.removeChild(textArea);
+  return success;
+}

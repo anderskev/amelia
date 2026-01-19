@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { cn } from "@/lib/utils";
+import { useState, useCallback, useRef } from "react";
+import { cn, copyToClipboard } from "@/lib/utils";
 import { Copy, Check, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,14 +66,17 @@ export function MessageMetadata({
   className,
 }: MessageMetadataProps) {
   const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(content);
+    const success = await copyToClipboard(content);
+    if (success) {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard write failed - silently ignore
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000);
     }
   }, [content]);
 
