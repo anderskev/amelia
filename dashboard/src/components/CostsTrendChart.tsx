@@ -21,7 +21,7 @@ interface CostsTrendChartProps {
 const chartConfig = {
   cost_usd: {
     label: 'Cost',
-    color: 'hsl(var(--primary))',
+    color: 'var(--primary)',
   },
 } satisfies ChartConfig;
 
@@ -32,7 +32,7 @@ const chartConfig = {
  * @returns Formatted date (e.g., "Jan 15")
  */
 function formatChartDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-').map(Number);
+  const [year, month, day] = dateStr.split('-').map(Number) as [number, number, number];
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -66,8 +66,8 @@ export function CostsTrendChart({ data, className }: CostsTrendChartProps) {
         <AreaChart data={data} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
           <defs>
             <linearGradient id="fillCost" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <XAxis
@@ -103,7 +103,7 @@ export function CostsTrendChart({ data, className }: CostsTrendChartProps) {
             dataKey="cost_usd"
             type="monotone"
             fill="url(#fillCost)"
-            stroke="hsl(var(--primary))"
+            stroke="var(--primary)"
             strokeWidth={2}
           />
         </AreaChart>
