@@ -1,11 +1,13 @@
 import { cn, formatDriver, formatModel } from "@/lib/utils";
 import { Bot, Cpu, MessageSquare, Circle } from "lucide-react";
-import type { ProfileInfo, SessionStatus } from "@/types/api";
+import type { ProfileInfo, SessionStatus, SessionUsageSummary } from "@/types/api";
+import { Separator } from "@/components/ui/separator";
 
 interface SessionInfoBarProps {
   profile: ProfileInfo | null;
   status: SessionStatus;
   messageCount: number;
+  usageSummary?: SessionUsageSummary;
   className?: string;
 }
 
@@ -26,6 +28,7 @@ export function SessionInfoBar({
   profile,
   status,
   messageCount,
+  usageSummary,
   className,
 }: SessionInfoBarProps) {
   const statusInfo = statusConfig[status];
@@ -75,6 +78,16 @@ export function SessionInfoBar({
         <MessageSquare className="h-3 w-3" />
         <span>{messageCount}</span>
       </div>
+
+      {/* Cost Display */}
+      {usageSummary && (
+        <>
+          <Separator orientation="vertical" className="h-3" />
+          <span className="text-emerald-500/70 font-medium">
+            ${usageSummary.total_cost_usd.toFixed(2)}
+          </span>
+        </>
+      )}
     </div>
   );
 }

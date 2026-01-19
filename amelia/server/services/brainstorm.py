@@ -21,6 +21,7 @@ from amelia.server.models.brainstorm import (
     Artifact,
     BrainstormingSession,
     Message,
+    MessageUsage,
     SessionStatus,
 )
 from amelia.server.models.events import EventDomain, EventType, WorkflowEvent
@@ -130,13 +131,14 @@ class BrainstormService:
     async def get_session_with_history(
         self, session_id: str
     ) -> dict[str, Any] | None:
-        """Get session with messages and artifacts.
+        """Get session with messages, artifacts, and usage summary.
 
         Args:
             session_id: Session to retrieve.
 
         Returns:
-            Dict with session, messages, and artifacts, or None if not found.
+            Dict with session (including usage_summary), messages, and artifacts,
+            or None if not found.
         """
         session = await self._repository.get_session(session_id)
         if session is None:
@@ -144,6 +146,10 @@ class BrainstormService:
 
         messages = await self._repository.get_messages(session_id)
         artifacts = await self._repository.get_artifacts(session_id)
+
+        # Fetch and attach usage summary to session
+        usage_summary = await self._repository.get_session_usage(session_id)
+        session.usage_summary = usage_summary
 
         return {
             "session": session,
@@ -336,6 +342,16 @@ class BrainstormService:
                 session.updated_at = datetime.now(UTC)
                 await self._repository.update_session(session)
 
+            # Extract token usage from driver
+            message_usage: MessageUsage | None = None
+            driver_usage = driver.get_usage()
+            if driver_usage:
+                message_usage = MessageUsage(
+                    input_tokens=driver_usage.input_tokens or 0,
+                    output_tokens=driver_usage.output_tokens or 0,
+                    cost_usd=driver_usage.cost_usd or 0.0,
+                )
+
             # Save assistant message
             assistant_sequence = user_sequence + 1
             assistant_content = "\n".join(assistant_content_parts)
@@ -345,9 +361,23 @@ class BrainstormService:
                 sequence=assistant_sequence,
                 role="assistant",
                 content=assistant_content,
+                usage=message_usage,
                 created_at=datetime.now(UTC),
             )
             await self._repository.save_message(assistant_message)
+
+        # Build message complete event data with optional usage
+        complete_data: dict[str, Any] = {
+            "session_id": session_id,
+            "message_id": assistant_message.id,
+        }
+        if message_usage:
+            complete_data["usage"] = message_usage.model_dump()
+
+        # Fetch and include session usage summary
+        session_usage = await self._repository.get_session_usage(session_id)
+        if session_usage:
+            complete_data["session_usage"] = session_usage.model_dump()
 
         # Emit message complete event
         complete_event = WorkflowEvent(
@@ -358,10 +388,7 @@ class BrainstormService:
             agent="brainstormer",
             event_type=EventType.BRAINSTORM_MESSAGE_COMPLETE,
             message="Message complete",
-            data={
-                "session_id": session_id,
-                "message_id": assistant_message.id,
-            },
+            data=complete_data,
             domain=EventDomain.BRAINSTORM,
         )
         self._event_bus.emit(complete_event)

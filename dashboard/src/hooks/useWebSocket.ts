@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useWorkflowStore } from '../store/workflowStore';
 import { useBrainstormStore } from '../store/brainstormStore';
 import type { WebSocketMessage, WorkflowEvent, BrainstormMessage } from '../types';
-import type { BrainstormArtifact, ToolCall } from '../types/api';
+import type { BrainstormArtifact, ToolCall, MessageUsage, SessionUsageSummary } from '../types/api';
 
 /**
  * Derive WebSocket URL from window.location.
@@ -71,11 +71,14 @@ export function handleBrainstormMessage(msg: BrainstormMessage): void {
 
     case 'message_complete': {
       const error = msg.data.error as string | undefined;
+      const usage = msg.data.usage as MessageUsage | undefined;
+      const sessionUsage = msg.data.session_usage as SessionUsageSummary | undefined;
       if (msg.message_id) {
         state.updateMessage(msg.message_id, (m) => ({
           ...m,
           status: error ? 'error' : undefined,
           errorMessage: error,
+          usage,
           // Mark all running tool calls as completed since the SDK doesn't
           // stream explicit tool results - it handles execution internally
           toolCalls: m.toolCalls?.map((tc) =>
@@ -84,6 +87,10 @@ export function handleBrainstormMessage(msg: BrainstormMessage): void {
               : tc
           ),
         }));
+      }
+      // Update session usage totals
+      if (sessionUsage) {
+        state.setSessionUsage(sessionUsage);
       }
       state.setStreaming(false, null);
       break;

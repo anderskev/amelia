@@ -1,4 +1,5 @@
 """Database connection management with SQLite."""
+import contextlib
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -428,9 +429,24 @@ class Database:
                 content TEXT NOT NULL,
                 parts_json TEXT,
                 created_at TIMESTAMP NOT NULL,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                cost_usd REAL,
                 UNIQUE(session_id, sequence)
             )
         """)
+
+        # Migration: Add token tracking columns to existing brainstorm_messages tables
+        # These ALTER TABLE statements are idempotent (ignore if column exists)
+        for column, col_type in [
+            ("input_tokens", "INTEGER"),
+            ("output_tokens", "INTEGER"),
+            ("cost_usd", "REAL"),
+        ]:
+            with contextlib.suppress(Exception):
+                await self.execute(
+                    f"ALTER TABLE brainstorm_messages ADD COLUMN {column} {col_type}"
+                )
 
         await self.execute("""
             CREATE INDEX IF NOT EXISTS idx_brainstorm_messages_session

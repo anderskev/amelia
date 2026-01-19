@@ -94,6 +94,21 @@ export interface ActionResult {
 // Brainstorming Types
 // ============================================================================
 
+/** Token usage for a single message. */
+export interface MessageUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
+/** Aggregated token usage for an entire session. */
+export interface SessionUsageSummary {
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost_usd: number;
+  message_count: number;
+}
+
 /** Status of a brainstorming session. */
 export type SessionStatus = "active" | "ready_for_handoff" | "completed" | "failed";
 
@@ -106,6 +121,7 @@ export interface BrainstormingSession {
   topic: string | null;
   created_at: string;
   updated_at: string;
+  usage_summary?: SessionUsageSummary;
 }
 
 /** A part of a brainstorm message (text, reasoning, tool call, or tool result). */
@@ -152,6 +168,8 @@ export interface BrainstormMessage {
   errorMessage?: string;
   /** Tool calls made during this message (for UI display). */
   toolCalls?: ToolCall[];
+  /** Token usage for this message. */
+  usage?: MessageUsage;
 }
 
 /** An artifact generated during a brainstorming session. */

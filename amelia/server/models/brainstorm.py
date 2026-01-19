@@ -13,6 +13,36 @@ from pydantic import BaseModel
 SessionStatus = Literal["active", "ready_for_handoff", "completed", "failed"]
 
 
+class MessageUsage(BaseModel):
+    """Token usage for a single brainstorm message.
+
+    Attributes:
+        input_tokens: Number of input tokens consumed.
+        output_tokens: Number of output tokens generated.
+        cost_usd: Calculated cost in USD.
+    """
+
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+
+
+class SessionUsageSummary(BaseModel):
+    """Aggregated token usage for a brainstorm session.
+
+    Attributes:
+        total_input_tokens: Sum of input tokens across all messages.
+        total_output_tokens: Sum of output tokens across all messages.
+        total_cost_usd: Sum of costs across all messages.
+        message_count: Number of messages with usage data.
+    """
+
+    total_input_tokens: int
+    total_output_tokens: int
+    total_cost_usd: float
+    message_count: int
+
+
 class BrainstormingSession(BaseModel):
     """Tracks a brainstorming chat session.
 
@@ -24,6 +54,7 @@ class BrainstormingSession(BaseModel):
         topic: Optional initial topic for the session.
         created_at: When the session was created.
         updated_at: When the session was last updated.
+        usage_summary: Aggregated token usage for the session.
     """
 
     id: str
@@ -33,6 +64,7 @@ class BrainstormingSession(BaseModel):
     topic: str | None = None
     created_at: datetime
     updated_at: datetime
+    usage_summary: SessionUsageSummary | None = None
 
 
 class MessagePart(BaseModel):
@@ -67,6 +99,7 @@ class Message(BaseModel):
         role: Who sent the message (user or assistant).
         content: Text content of the message.
         parts: Optional structured parts (tool calls, reasoning, etc.).
+        usage: Optional token usage for this message (assistant messages only).
         created_at: When the message was created.
     """
 
@@ -76,6 +109,7 @@ class Message(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     parts: list[MessagePart] | None = None
+    usage: MessageUsage | None = None
     created_at: datetime
 
 

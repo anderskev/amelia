@@ -4,6 +4,7 @@ import type {
   BrainstormMessage,
   BrainstormArtifact,
   ProfileInfo,
+  SessionUsageSummary,
 } from "@/types/api";
 
 interface BrainstormState {
@@ -11,6 +12,7 @@ interface BrainstormState {
   sessions: BrainstormingSession[];
   activeSessionId: string | null;
   activeProfile: ProfileInfo | null;
+  sessionUsage: SessionUsageSummary | null;
 
   // Current conversation
   messages: BrainstormMessage[];
@@ -31,6 +33,7 @@ interface BrainstormState {
   removeSession: (sessionId: string) => void;
   setActiveSessionId: (sessionId: string | null) => void;
   setActiveProfile: (profile: ProfileInfo | null) => void;
+  setSessionUsage: (usage: SessionUsageSummary | null) => void;
 
   // Message actions
   setMessages: (messages: BrainstormMessage[]) => void;
@@ -58,6 +61,7 @@ export const useBrainstormStore = create<BrainstormState>()((set) => ({
   sessions: [],
   activeSessionId: null,
   activeProfile: null,
+  sessionUsage: null,
   messages: [],
   artifacts: [],
   isStreaming: false,
@@ -87,6 +91,8 @@ export const useBrainstormStore = create<BrainstormState>()((set) => ({
   setActiveSessionId: (sessionId) => set({ activeSessionId: sessionId }),
 
   setActiveProfile: (profile) => set({ activeProfile: profile }),
+
+  setSessionUsage: (usage) => set({ sessionUsage: usage }),
 
   // Message actions
   setMessages: (messages) => set({ messages }),

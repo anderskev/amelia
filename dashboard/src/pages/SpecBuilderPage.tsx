@@ -61,6 +61,7 @@ function SpecBuilderPageContent() {
     artifacts,
     isStreaming,
     setDrawerOpen,
+    sessionUsage,
   } = useBrainstormStore();
 
   const {
@@ -197,6 +198,7 @@ function SpecBuilderPageContent() {
           profile={activeProfile}
           status={sessions.find((s) => s.id === activeSessionId)?.status ?? "active"}
           messageCount={messages.length}
+          usageSummary={sessionUsage ?? undefined}
         />
       )}
 
@@ -294,6 +296,7 @@ function SpecBuilderPageContent() {
                           <MessageMetadata
                             timestamp={message.created_at}
                             content={message.content}
+                            usage={message.usage}
                           />
                         )}
                       </MessageContent>

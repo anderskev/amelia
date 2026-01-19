@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { cn, copyToClipboard } from "@/lib/utils";
 import { Copy, Check, Clock } from "lucide-react";
+import type { MessageUsage } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -12,7 +13,18 @@ import {
 interface MessageMetadataProps {
   timestamp: string;
   content: string;
+  usage?: MessageUsage;
   className?: string;
+}
+
+/**
+ * Formats a token count to a human-readable string (e.g., 12400 -> "12.4K").
+ */
+function formatTokens(count: number): string {
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}K`;
+  }
+  return count.toString();
 }
 
 /**
@@ -63,6 +75,7 @@ function formatFullTimestamp(isoString: string): string {
 export function MessageMetadata({
   timestamp,
   content,
+  usage,
   className,
 }: MessageMetadataProps) {
   const [copied, setCopied] = useState(false);
@@ -102,6 +115,15 @@ export function MessageMetadata({
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
+
+      {/* Token usage and cost */}
+      {usage && (
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground/50">◈</span>
+          <span>{formatTokens(usage.input_tokens + usage.output_tokens)} tok</span>
+          <span className="text-emerald-500/70">${usage.cost_usd.toFixed(2)}</span>
+        </div>
+      )}
 
       {/* Spacer */}
       <div className="flex-1" />

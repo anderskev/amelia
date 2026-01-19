@@ -26,6 +26,7 @@ class TestBrainstormService:
         repo.get_max_sequence = AsyncMock(return_value=0)
         repo.save_artifact = AsyncMock()
         repo.get_artifacts = AsyncMock(return_value=[])
+        repo.get_session_usage = AsyncMock(return_value=None)
         return repo
 
     @pytest.fixture

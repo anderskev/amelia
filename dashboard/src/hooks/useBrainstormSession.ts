@@ -20,6 +20,7 @@ export function useBrainstormSession() {
     clearMessages,
     setStreaming,
     setDrawerOpen,
+    setSessionUsage,
   } = useBrainstormStore();
 
   const loadSessions = useCallback(
@@ -37,9 +38,10 @@ export function useBrainstormSession() {
       setMessages(data.messages);
       setArtifacts(data.artifacts);
       setActiveProfile(data.profile ?? null);
+      setSessionUsage(data.session.usage_summary ?? null);
       setDrawerOpen(false);
     },
-    [setActiveSessionId, setMessages, setArtifacts, setActiveProfile, setDrawerOpen]
+    [setActiveSessionId, setMessages, setArtifacts, setActiveProfile, setSessionUsage, setDrawerOpen]
   );
 
   const createSession = useCallback(
@@ -50,6 +52,13 @@ export function useBrainstormSession() {
       setActiveSessionId(session.id);
       setActiveProfile(profile ?? null);
       clearMessages();
+      // Initialize usage to zeros for new sessions
+      setSessionUsage({
+        total_input_tokens: 0,
+        total_output_tokens: 0,
+        total_cost_usd: 0,
+        message_count: 0,
+      });
 
       // Add optimistic user message
       const userMessage = {
@@ -81,7 +90,7 @@ export function useBrainstormSession() {
       addMessage(assistantMessage);
       setStreaming(true, response.message_id);
     },
-    [addSession, setActiveSessionId, setActiveProfile, clearMessages, addMessage, setStreaming]
+    [addSession, setActiveSessionId, setActiveProfile, clearMessages, setSessionUsage, addMessage, setStreaming]
   );
 
   const sendMessage = useCallback(
@@ -154,8 +163,9 @@ export function useBrainstormSession() {
     setActiveSessionId(null);
     setActiveProfile(null);
     clearMessages();
+    setSessionUsage(null);
     setDrawerOpen(false);
-  }, [setActiveSessionId, setActiveProfile, clearMessages, setDrawerOpen]);
+  }, [setActiveSessionId, setActiveProfile, clearMessages, setSessionUsage, setDrawerOpen]);
 
   return {
     activeSessionId,
