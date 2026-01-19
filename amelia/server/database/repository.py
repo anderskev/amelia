@@ -1,7 +1,7 @@
 """Repository for workflow persistence operations."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import aiosqlite
 
@@ -691,3 +691,127 @@ class WorkflowRepository:
             num_turns=row["num_turns"],
             timestamp=datetime.fromisoformat(row["timestamp"]),
         )
+
+    # =========================================================================
+    # Usage Aggregation
+    # =========================================================================
+
+    async def get_usage_summary(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> dict:
+        """Get aggregated usage summary for a date range.
+
+        Args:
+            start_date: Start of date range (inclusive).
+            end_date: End of date range (inclusive).
+
+        Returns:
+            Dict with total_cost_usd, total_workflows, total_tokens, total_duration_ms.
+        """
+        # Format dates for SQL comparison
+        start_str = start_date.isoformat()
+        end_str = end_date.isoformat()
+
+        row = await self._db.fetch_one(
+            """
+            SELECT
+                COALESCE(SUM(t.cost_usd), 0) as total_cost_usd,
+                COUNT(DISTINCT t.workflow_id) as total_workflows,
+                COALESCE(SUM(t.input_tokens + t.output_tokens), 0) as total_tokens,
+                COALESCE(SUM(t.duration_ms), 0) as total_duration_ms
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            """,
+            (start_str, end_str),
+        )
+
+        return {
+            "total_cost_usd": row[0] if row else 0.0,
+            "total_workflows": row[1] if row else 0,
+            "total_tokens": row[2] if row else 0,
+            "total_duration_ms": row[3] if row else 0,
+        }
+
+    async def get_usage_trend(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> list[dict]:
+        """Get daily usage trend for a date range.
+
+        Args:
+            start_date: Start of date range (inclusive).
+            end_date: End of date range (inclusive).
+
+        Returns:
+            List of dicts with date, cost_usd, workflows.
+        """
+        start_str = start_date.isoformat()
+        end_str = end_date.isoformat()
+
+        rows = await self._db.fetch_all(
+            """
+            SELECT
+                DATE(t.timestamp) as date,
+                SUM(t.cost_usd) as cost_usd,
+                COUNT(DISTINCT t.workflow_id) as workflows
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            GROUP BY DATE(t.timestamp)
+            ORDER BY date
+            """,
+            (start_str, end_str),
+        )
+
+        return [
+            {
+                "date": row[0],
+                "cost_usd": row[1],
+                "workflows": row[2],
+            }
+            for row in rows
+        ]
+
+    async def get_usage_by_model(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> list[dict]:
+        """Get usage breakdown by model for a date range.
+
+        Args:
+            start_date: Start of date range (inclusive).
+            end_date: End of date range (inclusive).
+
+        Returns:
+            List of dicts with model, workflows, tokens, cost_usd.
+        """
+        start_str = start_date.isoformat()
+        end_str = end_date.isoformat()
+
+        rows = await self._db.fetch_all(
+            """
+            SELECT
+                t.model,
+                COUNT(DISTINCT t.workflow_id) as workflows,
+                SUM(t.input_tokens + t.output_tokens) as tokens,
+                SUM(t.cost_usd) as cost_usd
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            GROUP BY t.model
+            ORDER BY cost_usd DESC
+            """,
+            (start_str, end_str),
+        )
+
+        return [
+            {
+                "model": row[0],
+                "workflows": row[1],
+                "tokens": row[2],
+                "cost_usd": row[3],
+            }
+            for row in rows
+        ]
