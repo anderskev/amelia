@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, copyToClipboard } from "@/lib/utils";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import {
   type ComponentProps,
@@ -141,14 +141,13 @@ export const CodeBlockCopyButton = ({
   const [isCopied, setIsCopied] = useState(false);
   const { code } = useContext(CodeBlockContext);
 
-  const copyToClipboard = async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-      onError?.(new Error("Clipboard API not available"));
-      return;
-    }
-
+  const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      const ok = await copyToClipboard(code);
+      if (!ok) {
+        onError?.(new Error("Clipboard copy failed"));
+        return;
+      }
       setIsCopied(true);
       onCopy?.();
       setTimeout(() => setIsCopied(false), timeout);
@@ -162,7 +161,7 @@ export const CodeBlockCopyButton = ({
   return (
     <Button
       className={cn("shrink-0", className)}
-      onClick={copyToClipboard}
+      onClick={handleCopy}
       size="icon"
       variant="ghost"
       {...props}
