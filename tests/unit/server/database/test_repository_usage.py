@@ -223,3 +223,239 @@ class TestUsageTrend:
         jan17 = next(p for p in trend if p["date"] == "2026-01-17")
         assert jan17["cost_usd"] == pytest.approx(0.08, rel=1e-6)
         assert jan17["workflows"] == 1
+
+
+class TestUsageSummaryWithSuccessMetrics:
+    """Tests for get_usage_summary with success metrics and period comparison."""
+
+    @pytest.fixture
+    async def db_with_workflows_and_usage(
+        self, db_with_schema: Database
+    ) -> Database:
+        """Create database with workflows of various statuses and token usage.
+
+        Creates test data with:
+        - Previous period (Jan 8-14, 2026): 2 workflows, $0.10 total
+        - Current period (Jan 15-21, 2026): 4 workflows (3 completed, 1 failed)
+
+        Returns:
+            Database with workflow and token usage records.
+        """
+        repo = WorkflowRepository(db_with_schema)
+
+        # Previous period workflows (Jan 8-14)
+        wf_prev1 = ServerExecutionState(
+            id="wf-prev-1",
+            issue_id="ISSUE-P1",
+            worktree_path="/tmp/test-prev-1",
+            workflow_status="completed",
+            started_at=datetime(2026, 1, 10, 10, 0, 0, tzinfo=UTC),
+            completed_at=datetime(2026, 1, 10, 12, 0, 0, tzinfo=UTC),
+        )
+        wf_prev2 = ServerExecutionState(
+            id="wf-prev-2",
+            issue_id="ISSUE-P2",
+            worktree_path="/tmp/test-prev-2",
+            workflow_status="completed",
+            started_at=datetime(2026, 1, 12, 10, 0, 0, tzinfo=UTC),
+            completed_at=datetime(2026, 1, 12, 12, 0, 0, tzinfo=UTC),
+        )
+        await repo.create(wf_prev1)
+        await repo.create(wf_prev2)
+
+        # Previous period token usage
+        await repo.save_token_usage(
+            TokenUsage(
+                workflow_id="wf-prev-1",
+                agent="architect",
+                model="claude-sonnet-4-20250514",
+                input_tokens=1000,
+                output_tokens=500,
+                cost_usd=0.04,
+                duration_ms=5000,
+                num_turns=3,
+                timestamp=datetime(2026, 1, 10, 10, 0, 0, tzinfo=UTC),
+            )
+        )
+        await repo.save_token_usage(
+            TokenUsage(
+                workflow_id="wf-prev-2",
+                agent="architect",
+                model="claude-sonnet-4-20250514",
+                input_tokens=1200,
+                output_tokens=600,
+                cost_usd=0.06,
+                duration_ms=6000,
+                num_turns=4,
+                timestamp=datetime(2026, 1, 12, 10, 0, 0, tzinfo=UTC),
+            )
+        )
+
+        # Current period workflows (Jan 15-21): 3 completed, 1 failed
+        wf_curr1 = ServerExecutionState(
+            id="wf-curr-1",
+            issue_id="ISSUE-C1",
+            worktree_path="/tmp/test-curr-1",
+            workflow_status="completed",
+            started_at=datetime(2026, 1, 15, 10, 0, 0, tzinfo=UTC),
+            completed_at=datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC),
+        )
+        wf_curr2 = ServerExecutionState(
+            id="wf-curr-2",
+            issue_id="ISSUE-C2",
+            worktree_path="/tmp/test-curr-2",
+            workflow_status="completed",
+            started_at=datetime(2026, 1, 16, 10, 0, 0, tzinfo=UTC),
+            completed_at=datetime(2026, 1, 16, 12, 0, 0, tzinfo=UTC),
+        )
+        wf_curr3 = ServerExecutionState(
+            id="wf-curr-3",
+            issue_id="ISSUE-C3",
+            worktree_path="/tmp/test-curr-3",
+            workflow_status="completed",
+            started_at=datetime(2026, 1, 17, 10, 0, 0, tzinfo=UTC),
+            completed_at=datetime(2026, 1, 17, 12, 0, 0, tzinfo=UTC),
+        )
+        wf_curr4 = ServerExecutionState(
+            id="wf-curr-4",
+            issue_id="ISSUE-C4",
+            worktree_path="/tmp/test-curr-4",
+            workflow_status="failed",
+            started_at=datetime(2026, 1, 18, 10, 0, 0, tzinfo=UTC),
+            completed_at=datetime(2026, 1, 18, 11, 0, 0, tzinfo=UTC),
+            failure_reason="Test failure",
+        )
+        await repo.create(wf_curr1)
+        await repo.create(wf_curr2)
+        await repo.create(wf_curr3)
+        await repo.create(wf_curr4)
+
+        # Current period token usage (one per workflow)
+        await repo.save_token_usage(
+            TokenUsage(
+                workflow_id="wf-curr-1",
+                agent="architect",
+                model="claude-sonnet-4-20250514",
+                input_tokens=1000,
+                output_tokens=500,
+                cost_usd=0.03,
+                duration_ms=5000,
+                num_turns=3,
+                timestamp=datetime(2026, 1, 15, 10, 0, 0, tzinfo=UTC),
+            )
+        )
+        await repo.save_token_usage(
+            TokenUsage(
+                workflow_id="wf-curr-2",
+                agent="architect",
+                model="claude-sonnet-4-20250514",
+                input_tokens=1100,
+                output_tokens=550,
+                cost_usd=0.035,
+                duration_ms=5500,
+                num_turns=3,
+                timestamp=datetime(2026, 1, 16, 10, 0, 0, tzinfo=UTC),
+            )
+        )
+        await repo.save_token_usage(
+            TokenUsage(
+                workflow_id="wf-curr-3",
+                agent="architect",
+                model="claude-sonnet-4-20250514",
+                input_tokens=1200,
+                output_tokens=600,
+                cost_usd=0.04,
+                duration_ms=6000,
+                num_turns=4,
+                timestamp=datetime(2026, 1, 17, 10, 0, 0, tzinfo=UTC),
+            )
+        )
+        await repo.save_token_usage(
+            TokenUsage(
+                workflow_id="wf-curr-4",
+                agent="architect",
+                model="claude-sonnet-4-20250514",
+                input_tokens=500,
+                output_tokens=250,
+                cost_usd=0.015,
+                duration_ms=2500,
+                num_turns=2,
+                timestamp=datetime(2026, 1, 18, 10, 0, 0, tzinfo=UTC),
+            )
+        )
+
+        return db_with_schema
+
+    async def test_get_usage_summary_includes_success_metrics(
+        self, db_with_workflows_and_usage: Database
+    ) -> None:
+        """get_usage_summary should include success rate and previous period cost."""
+        repo = WorkflowRepository(db_with_workflows_and_usage)
+
+        summary = await repo.get_usage_summary(
+            start_date=date(2026, 1, 15),
+            end_date=date(2026, 1, 21),
+        )
+
+        assert "previous_period_cost_usd" in summary
+        assert "successful_workflows" in summary
+        assert "success_rate" in summary
+        assert isinstance(summary["success_rate"], (int, float))
+
+    async def test_get_usage_summary_previous_period_cost(
+        self, db_with_workflows_and_usage: Database
+    ) -> None:
+        """previous_period_cost_usd should be cost from same-length period before."""
+        repo = WorkflowRepository(db_with_workflows_and_usage)
+
+        # Jan 15-21 is 7 days, so previous period is Jan 8-14
+        summary = await repo.get_usage_summary(
+            start_date=date(2026, 1, 15),
+            end_date=date(2026, 1, 21),
+        )
+
+        # Previous period cost: $0.04 + $0.06 = $0.10
+        assert summary["previous_period_cost_usd"] == pytest.approx(0.10, rel=1e-6)
+
+    async def test_get_usage_summary_successful_workflows(
+        self, db_with_workflows_and_usage: Database
+    ) -> None:
+        """successful_workflows should count only completed workflows."""
+        repo = WorkflowRepository(db_with_workflows_and_usage)
+
+        summary = await repo.get_usage_summary(
+            start_date=date(2026, 1, 15),
+            end_date=date(2026, 1, 21),
+        )
+
+        # 3 completed, 1 failed in current period
+        assert summary["successful_workflows"] == 3
+
+    async def test_get_usage_summary_success_rate(
+        self, db_with_workflows_and_usage: Database
+    ) -> None:
+        """success_rate should be percentage of completed workflows."""
+        repo = WorkflowRepository(db_with_workflows_and_usage)
+
+        summary = await repo.get_usage_summary(
+            start_date=date(2026, 1, 15),
+            end_date=date(2026, 1, 21),
+        )
+
+        # 3 completed out of 4 total = 75%
+        assert summary["success_rate"] == pytest.approx(75.0, rel=1e-6)
+
+    async def test_get_usage_summary_zero_workflows(
+        self, db_with_schema: Database
+    ) -> None:
+        """success_rate should be 0 when no workflows exist."""
+        repo = WorkflowRepository(db_with_schema)
+
+        summary = await repo.get_usage_summary(
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 2, 7),
+        )
+
+        assert summary["successful_workflows"] == 0
+        assert summary["success_rate"] == 0.0
+        assert summary["previous_period_cost_usd"] == 0.0
