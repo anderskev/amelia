@@ -5,10 +5,12 @@ between the repository, event bus, and Claude driver.
 """
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
+
+from loguru import logger
 
 from amelia.drivers.base import (
     AgenticMessage,
@@ -52,16 +54,21 @@ class BrainstormService:
         self,
         repository: BrainstormRepository,
         event_bus: EventBus,
+        driver_cleanup: Callable[[str, str], bool] | None = None,
     ) -> None:
         """Initialize service.
 
         Args:
             repository: Database repository.
             event_bus: Event bus for broadcasting.
+            driver_cleanup: Optional callback to clean up driver sessions.
+                Called with (profile_id, driver_session_id) when sessions
+                are deleted or reach terminal status.
         """
         self._repository = repository
         self._event_bus = event_bus
         self._session_locks: dict[str, asyncio.Lock] = {}
+        self._driver_cleanup = driver_cleanup
 
     def _get_session_lock(self, session_id: str) -> asyncio.Lock:
         """Get or create a lock for a session.
@@ -183,6 +190,25 @@ class BrainstormService:
         Args:
             session_id: Session to delete.
         """
+        # Fetch session first to get driver_session_id for cleanup
+        session = await self._repository.get_session(session_id)
+
+        # Clean up driver session if callback provided and session has driver_session_id
+        if (
+            self._driver_cleanup
+            and session
+            and session.driver_session_id
+        ):
+            try:
+                self._driver_cleanup(session.profile_id, session.driver_session_id)
+            except Exception as e:
+                logger.warning(
+                    "Failed to clean up driver session",
+                    session_id=session_id,
+                    driver_session_id=session.driver_session_id,
+                    error=str(e),
+                )
+
         await self._repository.delete_session(session_id)
         # Clean up session lock to prevent memory leak
         self._session_locks.pop(session_id, None)
@@ -209,6 +235,10 @@ class BrainstormService:
         session.status = status
         session.updated_at = datetime.now(UTC)
         await self._repository.update_session(session)
+
+        # Clean up session lock when session reaches terminal status
+        if status in ("completed", "failed"):
+            self._session_locks.pop(session_id, None)
 
         return session
 

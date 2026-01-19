@@ -1,5 +1,6 @@
 """Tests for BrainstormService."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -503,3 +504,89 @@ class TestHandoff(TestBrainstormService):
                 session_id="nonexistent",
                 artifact_path="docs/plans/design.md",
             )
+
+
+class TestDeleteSessionCleanup(TestBrainstormService):
+    """Test driver cleanup on session deletion."""
+
+    @pytest.fixture
+    def mock_cleanup(self) -> MagicMock:
+        """Create mock cleanup callback."""
+        return MagicMock(return_value=True)
+
+    @pytest.fixture
+    def service_with_cleanup(
+        self,
+        mock_repository: MagicMock,
+        mock_event_bus: MagicMock,
+        mock_cleanup: MagicMock,
+    ) -> BrainstormService:
+        """Create service with cleanup callback."""
+        return BrainstormService(
+            mock_repository, mock_event_bus, driver_cleanup=mock_cleanup
+        )
+
+    async def test_delete_session_calls_cleanup(
+        self,
+        service_with_cleanup: BrainstormService,
+        mock_repository: MagicMock,
+        mock_cleanup: MagicMock,
+    ) -> None:
+        """Should call driver cleanup when deleting session with driver_session_id."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            driver_session_id="driver-sess-123",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+
+        await service_with_cleanup.delete_session("sess-1")
+
+        mock_cleanup.assert_called_once_with("work", "driver-sess-123")
+
+    async def test_delete_session_skips_cleanup_without_driver_session(
+        self,
+        service_with_cleanup: BrainstormService,
+        mock_repository: MagicMock,
+        mock_cleanup: MagicMock,
+    ) -> None:
+        """Should not call cleanup when session has no driver_session_id."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            driver_session_id=None,
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+
+        await service_with_cleanup.delete_session("sess-1")
+
+        mock_cleanup.assert_not_called()
+
+    async def test_delete_session_works_without_cleanup_callback(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+    ) -> None:
+        """Should work normally when no cleanup callback provided."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            driver_session_id="driver-sess-123",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+
+        await service.delete_session("sess-1")
+
+        mock_repository.delete_session.assert_called_once_with("sess-1")
