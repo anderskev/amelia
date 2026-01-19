@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, formatDriver, formatModel } from "@/lib/utils";
 import { Bot, Cpu, MessageSquare, Circle } from "lucide-react";
 import type { ProfileInfo, SessionStatus } from "@/types/api";
 
@@ -7,35 +7,6 @@ interface SessionInfoBarProps {
   status: SessionStatus;
   messageCount: number;
   className?: string;
-}
-
-/**
- * Formats driver string for display.
- * "api:openrouter" -> "API"
- * "cli:claude" -> "CLI"
- */
-function formatDriver(driver: string): string {
-  if (driver.startsWith("api:")) return "API";
-  if (driver.startsWith("cli:")) return "CLI";
-  return driver.toUpperCase();
-}
-
-/**
- * Formats model name for display.
- * "sonnet" -> "Sonnet"
- * "claude-3-5-sonnet" -> "Claude 3.5 Sonnet"
- */
-function formatModel(model: string): string {
-  // Handle simple names like "sonnet", "opus", "haiku"
-  if (/^(sonnet|opus|haiku)$/i.test(model)) {
-    return model.charAt(0).toUpperCase() + model.slice(1).toLowerCase();
-  }
-  // Handle longer model names - capitalize and clean up
-  return model
-    .split(/[-_]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
-    .replace(/(\d)(\d)/g, "$1.$2"); // "35" -> "3.5"
 }
 
 const statusConfig: Record<SessionStatus, { label: string; color: string }> = {

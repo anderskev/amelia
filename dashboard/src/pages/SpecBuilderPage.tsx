@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom";
 import { Menu, Lightbulb, Bot, Cpu } from "lucide-react";
 import { api } from "@/api/client";
+import { formatDriver, formatModel } from "@/lib/utils";
 import {
   Conversation,
   ConversationContent,
@@ -48,35 +49,6 @@ import {
 } from "@/components/brainstorm";
 import type { BrainstormArtifact } from "@/types/api";
 import type { ConfigProfileInfo } from "@/types";
-
-/**
- * Formats driver string for display.
- * "api:openrouter" -> "API"
- * "cli:claude" -> "CLI"
- */
-function formatDriver(driver: string): string {
-  if (driver.startsWith("api:")) return "API";
-  if (driver.startsWith("cli:")) return "CLI";
-  return driver.toUpperCase();
-}
-
-/**
- * Formats model name for display.
- * "sonnet" -> "Sonnet"
- * "claude-3-5-sonnet" -> "Claude 3.5 Sonnet"
- */
-function formatModel(model: string): string {
-  // Handle simple names like "sonnet", "opus", "haiku"
-  if (/^(sonnet|opus|haiku)$/i.test(model)) {
-    return model.charAt(0).toUpperCase() + model.slice(1).toLowerCase();
-  }
-  // Handle longer model names - capitalize and clean up
-  return model
-    .split(/[-_]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
-    .replace(/(\d)(\d)/g, "$1.$2"); // "35" -> "3.5"
-}
 
 function SpecBuilderPageContent() {
   const navigate = useNavigate();
