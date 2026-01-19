@@ -1,6 +1,5 @@
 """Tests for BrainstormService."""
 
-from collections.abc import Callable
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
