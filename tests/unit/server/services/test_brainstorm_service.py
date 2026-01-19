@@ -590,3 +590,70 @@ class TestDeleteSessionCleanup(TestBrainstormService):
         await service.delete_session("sess-1")
 
         mock_repository.delete_session.assert_called_once_with("sess-1")
+
+
+class TestUpdateSessionStatusCleanup(TestBrainstormService):
+    """Test driver cleanup on terminal status."""
+
+    @pytest.fixture
+    def mock_cleanup(self) -> MagicMock:
+        """Create mock cleanup callback."""
+        return MagicMock(return_value=True)
+
+    @pytest.fixture
+    def service_with_cleanup(
+        self,
+        mock_repository: MagicMock,
+        mock_event_bus: MagicMock,
+        mock_cleanup: MagicMock,
+    ) -> BrainstormService:
+        """Create service with cleanup callback."""
+        return BrainstormService(
+            mock_repository, mock_event_bus, driver_cleanup=mock_cleanup
+        )
+
+    @pytest.mark.parametrize("terminal_status", ["completed", "failed"])
+    async def test_cleanup_called_on_terminal_status(
+        self,
+        service_with_cleanup: BrainstormService,
+        mock_repository: MagicMock,
+        mock_cleanup: MagicMock,
+        terminal_status: str,
+    ) -> None:
+        """Should call driver cleanup when status becomes terminal."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            driver_session_id="driver-sess-123",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+
+        await service_with_cleanup.update_session_status("sess-1", terminal_status)
+
+        mock_cleanup.assert_called_once_with("work", "driver-sess-123")
+
+    async def test_cleanup_not_called_on_active_status(
+        self,
+        service_with_cleanup: BrainstormService,
+        mock_repository: MagicMock,
+        mock_cleanup: MagicMock,
+    ) -> None:
+        """Should not call cleanup when status is not terminal."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            driver_session_id="driver-sess-123",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+
+        await service_with_cleanup.update_session_status("sess-1", "active")
+
+        mock_cleanup.assert_not_called()

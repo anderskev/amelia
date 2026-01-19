@@ -236,9 +236,21 @@ class BrainstormService:
         session.updated_at = datetime.now(UTC)
         await self._repository.update_session(session)
 
-        # Clean up session lock when session reaches terminal status
+        # Clean up when session reaches terminal status
         if status in ("completed", "failed"):
             self._session_locks.pop(session_id, None)
+
+            # Clean up driver session
+            if self._driver_cleanup and session.driver_session_id:
+                try:
+                    self._driver_cleanup(session.profile_id, session.driver_session_id)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to clean up driver session",
+                        session_id=session_id,
+                        driver_session_id=session.driver_session_id,
+                        error=str(e),
+                    )
 
         return session
 
