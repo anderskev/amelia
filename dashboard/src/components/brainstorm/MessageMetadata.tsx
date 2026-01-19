@@ -104,32 +104,23 @@ export function MessageMetadata({
       <div className="flex-1" />
 
       {/* Copy Button */}
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-6 w-6 text-muted-foreground/50",
-                "hover:text-muted-foreground hover:bg-muted/50",
-                "transition-colors"
-              )}
-              onClick={handleCopy}
-              aria-label={copied ? "Copied" : "Copy message"}
-            >
-              {copied ? (
-                <Check className="h-3 w-3 text-emerald-500" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">
-            {copied ? "Copied!" : "Copy message"}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "h-6 w-6 text-muted-foreground/50",
+          "hover:text-muted-foreground hover:bg-muted/50",
+          "transition-colors"
+        )}
+        onClick={handleCopy}
+        aria-label={copied ? "Copied" : "Copy message"}
+      >
+        {copied ? (
+          <Check className="h-3 w-3 text-emerald-500" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
     </div>
   );
 }

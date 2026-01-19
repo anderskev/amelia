@@ -46,6 +46,7 @@ import {
   MessageMetadata,
   ArtifactCard,
   HandoffDialog,
+  CopyButton,
 } from "@/components/brainstorm";
 import type { BrainstormArtifact } from "@/types/api";
 import type { ConfigProfileInfo } from "@/types";
@@ -252,41 +253,51 @@ function SpecBuilderPageContent() {
 
                 return (
                   <Message key={message.id} from={message.role}>
-                    <MessageContent from={message.role} className={message.role === "assistant" ? "w-full" : undefined}>
-                      {hasReasoning && (
-                        <Reasoning isStreaming={isStreaming}>
-                          <ReasoningTrigger />
-                          <ReasoningContent>{reasoningText}</ReasoningContent>
-                        </Reasoning>
-                      )}
-                      {message.toolCalls?.map((toolCall) => (
-                        <Tool key={toolCall.tool_call_id}>
-                          <ToolHeader
-                            title={toolCall.tool_name}
-                            type="tool-invocation"
-                            state={toolCall.state}
-                          />
-                          <ToolContent>
-                            <ToolInput input={toolCall.input} />
-                            <ToolOutput
-                              output={toolCall.output}
-                              errorText={toolCall.errorText}
+                    {message.role === "user" && (
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        <CopyButton content={message.content} />
+                        <MessageContent from={message.role}>
+                          <MessageResponse>{message.content}</MessageResponse>
+                        </MessageContent>
+                      </div>
+                    )}
+                    {message.role !== "user" && (
+                      <MessageContent from={message.role} className="w-full">
+                        {hasReasoning && (
+                          <Reasoning isStreaming={isStreaming}>
+                            <ReasoningTrigger />
+                            <ReasoningContent>{reasoningText}</ReasoningContent>
+                          </Reasoning>
+                        )}
+                        {message.toolCalls?.map((toolCall) => (
+                          <Tool key={toolCall.tool_call_id}>
+                            <ToolHeader
+                              title={toolCall.tool_name}
+                              type="tool-invocation"
+                              state={toolCall.state}
                             />
-                          </ToolContent>
-                        </Tool>
-                      ))}
-                      {isStreamingEmpty ? (
-                        <Shimmer className="text-muted-foreground">Thinking...</Shimmer>
-                      ) : (
-                        <MessageResponse>{message.content}</MessageResponse>
-                      )}
-                      {isComplete && (
-                        <MessageMetadata
-                          timestamp={message.created_at}
-                          content={message.content}
-                        />
-                      )}
-                    </MessageContent>
+                            <ToolContent>
+                              <ToolInput input={toolCall.input} />
+                              <ToolOutput
+                                output={toolCall.output}
+                                errorText={toolCall.errorText}
+                              />
+                            </ToolContent>
+                          </Tool>
+                        ))}
+                        {isStreamingEmpty ? (
+                          <Shimmer className="text-muted-foreground">Thinking...</Shimmer>
+                        ) : (
+                          <MessageResponse>{message.content}</MessageResponse>
+                        )}
+                        {isComplete && (
+                          <MessageMetadata
+                            timestamp={message.created_at}
+                            content={message.content}
+                          />
+                        )}
+                      </MessageContent>
+                    )}
                   </Message>
                 );
               })}

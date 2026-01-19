@@ -4,6 +4,7 @@
  ---break---
  */
 @custom-variant dark (&:is(.dark *));
+@custom-variant touch (@media (hover: none));
 
 /*
  * ============================================================================
