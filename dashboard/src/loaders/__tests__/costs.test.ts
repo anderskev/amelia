@@ -42,7 +42,7 @@ describe('costsLoader', () => {
   it('should use date range from URL params', async () => {
     const request = new Request('http://localhost/costs?start=2026-01-01&end=2026-01-15');
 
-    const result = await costsLoader({ request, params: {} } as any);
+    await costsLoader({ request, params: {} } as any);
 
     expect(api.getUsage).toHaveBeenCalledWith({
       start: '2026-01-01',

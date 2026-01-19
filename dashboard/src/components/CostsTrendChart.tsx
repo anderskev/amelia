@@ -84,7 +84,7 @@ export function CostsTrendChart({ data, className }: CostsTrendChartProps) {
             cursor={false}
             content={
               <ChartTooltipContent
-                formatter={(value, name) => (
+                formatter={(value, _name) => (
                   <div className="flex flex-col gap-1">
                     <span className="font-medium">{formatCost(Number(value))}</span>
                   </div>

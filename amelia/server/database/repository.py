@@ -2,6 +2,7 @@
 
 import json
 from datetime import UTC, date, datetime
+from typing import Any
 
 import aiosqlite
 
@@ -700,7 +701,7 @@ class WorkflowRepository:
         self,
         start_date: date,
         end_date: date,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get aggregated usage summary for a date range.
 
         Args:
@@ -738,7 +739,7 @@ class WorkflowRepository:
         self,
         start_date: date,
         end_date: date,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get daily usage trend for a date range.
 
         Args:
@@ -778,7 +779,7 @@ class WorkflowRepository:
         self,
         start_date: date,
         end_date: date,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get usage breakdown by model for a date range.
 
         Args:
