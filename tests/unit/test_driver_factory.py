@@ -70,3 +70,19 @@ class TestDriverFactoryProviderPassing:
         driver = DriverFactory.get_driver("api")
         assert isinstance(driver, ApiDriver)
         assert driver.provider == "openrouter"
+
+
+class TestDriverCleanupSession:
+    """Test cleanup_session protocol method."""
+
+    def test_claude_cli_driver_has_cleanup_session(self) -> None:
+        """ClaudeCliDriver should implement cleanup_session."""
+        driver = ClaudeCliDriver()
+        assert hasattr(driver, "cleanup_session")
+        assert callable(driver.cleanup_session)
+
+    def test_api_driver_has_cleanup_session(self) -> None:
+        """ApiDriver should implement cleanup_session."""
+        driver = ApiDriver(cwd="/tmp")
+        assert hasattr(driver, "cleanup_session")
+        assert callable(driver.cleanup_session)
