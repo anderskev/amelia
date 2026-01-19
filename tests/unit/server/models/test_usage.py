@@ -1,13 +1,11 @@
 """Tests for usage response models."""
 
-import pytest
-from pydantic import ValidationError
 
 from amelia.server.models.usage import (
-    UsageSummary,
-    UsageTrendPoint,
     UsageByModel,
     UsageResponse,
+    UsageSummary,
+    UsageTrendPoint,
 )
 
 

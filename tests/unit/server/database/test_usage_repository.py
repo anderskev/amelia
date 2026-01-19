@@ -1,6 +1,7 @@
 """Tests for usage repository methods."""
 
-from datetime import date, datetime, UTC
+from datetime import date
+
 import pytest
 
 from amelia.server.database import WorkflowRepository
