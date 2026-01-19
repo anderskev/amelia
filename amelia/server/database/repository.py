@@ -747,11 +747,12 @@ class WorkflowRepository:
             end_date: End of date range (inclusive).
 
         Returns:
-            List of dicts with date, cost_usd, workflows.
+            List of dicts with date, cost_usd, workflows, by_model.
         """
         start_str = start_date.isoformat()
         end_str = end_date.isoformat()
 
+        # Get daily totals
         rows = await self._db.fetch_all(
             """
             SELECT
@@ -766,11 +767,37 @@ class WorkflowRepository:
             (start_str, end_str),
         )
 
+        # Get per-model breakdown by day
+        model_rows = await self._db.fetch_all(
+            """
+            SELECT
+                DATE(t.timestamp) as date,
+                t.model,
+                SUM(t.cost_usd) as cost_usd
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            GROUP BY DATE(t.timestamp), t.model
+            ORDER BY date, cost_usd DESC
+            """,
+            (start_str, end_str),
+        )
+
+        # Build lookup: date -> {model: cost}
+        by_model_lookup: dict[str, dict[str, float]] = {}
+        for model_row in model_rows:
+            row_date = model_row[0]
+            model = model_row[1]
+            cost = model_row[2]
+            if row_date not in by_model_lookup:
+                by_model_lookup[row_date] = {}
+            by_model_lookup[row_date][model] = cost
+
         return [
             {
                 "date": row[0],
                 "cost_usd": row[1],
                 "workflows": row[2],
+                "by_model": by_model_lookup.get(row[0], {}),
             }
             for row in rows
         ]
