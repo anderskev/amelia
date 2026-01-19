@@ -35,7 +35,7 @@ export function SessionListItem({
   });
 
   return (
-    <div className="group flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-accent/50">
+    <div className="group flex items-center gap-2 rounded-lg p-2">
       <Button
         variant="ghost"
         className={cn(
