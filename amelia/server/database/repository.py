@@ -1,7 +1,8 @@
 """Repository for workflow persistence operations."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 import aiosqlite
 
@@ -691,3 +692,272 @@ class WorkflowRepository:
             num_turns=row["num_turns"],
             timestamp=datetime.fromisoformat(row["timestamp"]),
         )
+
+    # =========================================================================
+    # Usage Aggregation
+    # =========================================================================
+
+    async def get_usage_summary(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> dict[str, Any]:
+        """Get aggregated usage summary for a date range.
+
+        Args:
+            start_date: Start of date range (inclusive).
+            end_date: End of date range (inclusive).
+
+        Returns:
+            Dict with total_cost_usd, total_workflows, total_tokens, total_duration_ms,
+            previous_period_cost_usd, successful_workflows, success_rate.
+        """
+        # Format dates for SQL comparison
+        start_str = start_date.isoformat()
+        end_str = end_date.isoformat()
+
+        # Calculate previous period (same duration, immediately before)
+        period_days = (end_date - start_date).days + 1
+        prev_end_date = start_date - timedelta(days=1)
+        prev_start_date = prev_end_date - timedelta(days=period_days - 1)
+        prev_start_str = prev_start_date.isoformat()
+        prev_end_str = prev_end_date.isoformat()
+
+        # Current period token usage metrics
+        row = await self._db.fetch_one(
+            """
+            SELECT
+                COALESCE(SUM(t.cost_usd), 0) as total_cost_usd,
+                COUNT(DISTINCT t.workflow_id) as total_workflows,
+                COALESCE(SUM(t.input_tokens + t.output_tokens), 0) as total_tokens,
+                COALESCE(SUM(t.duration_ms), 0) as total_duration_ms
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            """,
+            (start_str, end_str),
+        )
+
+        # Previous period cost
+        prev_row = await self._db.fetch_one(
+            """
+            SELECT COALESCE(SUM(t.cost_usd), 0) as prev_cost_usd
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            """,
+            (prev_start_str, prev_end_str),
+        )
+
+        # Store token_usage-derived total_workflows for consistent response
+        total_workflows_from_usage = row[1] if row else 0
+
+        # Success metrics from workflows table
+        # Count successful workflows that have completed_at in the date range
+        success_row = await self._db.fetch_one(
+            """
+            SELECT
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as successful_workflows
+            FROM workflows
+            WHERE DATE(completed_at) >= ? AND DATE(completed_at) <= ?
+              AND status IN ('completed', 'failed', 'cancelled')
+            """,
+            (start_str, end_str),
+        )
+
+        successful_workflows = success_row[0] if success_row and success_row[0] else 0
+        # Use token_usage-derived total_workflows as denominator for consistency
+        success_rate = (
+            (successful_workflows / total_workflows_from_usage)
+            if total_workflows_from_usage > 0
+            else 0.0
+        )
+
+        return {
+            "total_cost_usd": row[0] if row else 0.0,
+            "total_workflows": total_workflows_from_usage,
+            "total_tokens": row[2] if row else 0,
+            "total_duration_ms": row[3] if row else 0,
+            "previous_period_cost_usd": prev_row[0] if prev_row else 0.0,
+            "successful_workflows": successful_workflows,
+            "success_rate": success_rate,
+        }
+
+    async def get_usage_trend(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> list[dict[str, Any]]:
+        """Get daily usage trend for a date range.
+
+        Args:
+            start_date: Start of date range (inclusive).
+            end_date: End of date range (inclusive).
+
+        Returns:
+            List of dicts with date, cost_usd, workflows, by_model.
+        """
+        start_str = start_date.isoformat()
+        end_str = end_date.isoformat()
+
+        # Get daily totals
+        rows = await self._db.fetch_all(
+            """
+            SELECT
+                DATE(t.timestamp) as date,
+                SUM(t.cost_usd) as cost_usd,
+                COUNT(DISTINCT t.workflow_id) as workflows
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            GROUP BY DATE(t.timestamp)
+            ORDER BY date
+            """,
+            (start_str, end_str),
+        )
+
+        # Get per-model breakdown by day
+        model_rows = await self._db.fetch_all(
+            """
+            SELECT
+                DATE(t.timestamp) as date,
+                t.model,
+                SUM(t.cost_usd) as cost_usd
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            GROUP BY DATE(t.timestamp), t.model
+            ORDER BY date, cost_usd DESC
+            """,
+            (start_str, end_str),
+        )
+
+        # Build lookup: date -> {model: cost}
+        by_model_lookup: dict[str, dict[str, float]] = {}
+        for model_row in model_rows:
+            row_date = model_row[0]
+            model = model_row[1]
+            cost = model_row[2]
+            if row_date not in by_model_lookup:
+                by_model_lookup[row_date] = {}
+            by_model_lookup[row_date][model] = cost
+
+        return [
+            {
+                "date": row[0],
+                "cost_usd": row[1],
+                "workflows": row[2],
+                "by_model": by_model_lookup.get(row[0], {}),
+            }
+            for row in rows
+        ]
+
+    async def get_usage_by_model(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> list[dict[str, Any]]:
+        """Get usage breakdown by model for a date range.
+
+        Args:
+            start_date: Start of date range (inclusive).
+            end_date: End of date range (inclusive).
+
+        Returns:
+            List of dicts with model, workflows, tokens, cost_usd, trend,
+            successful_workflows, success_rate.
+        """
+        start_str = start_date.isoformat()
+        end_str = end_date.isoformat()
+
+        # Get aggregated stats per model
+        rows = await self._db.fetch_all(
+            """
+            SELECT
+                t.model,
+                COUNT(DISTINCT t.workflow_id) as workflows,
+                SUM(t.input_tokens + t.output_tokens) as tokens,
+                SUM(t.cost_usd) as cost_usd
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            GROUP BY t.model
+            ORDER BY cost_usd DESC
+            """,
+            (start_str, end_str),
+        )
+
+        # Get daily trend per model for sparklines
+        trend_rows = await self._db.fetch_all(
+            """
+            SELECT
+                t.model,
+                DATE(t.timestamp) as date,
+                SUM(t.cost_usd) as cost_usd
+            FROM token_usage t
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            GROUP BY t.model, DATE(t.timestamp)
+            ORDER BY t.model, date
+            """,
+            (start_str, end_str),
+        )
+
+        # Build trend lookup: model -> {date: cost}
+        trend_lookup: dict[str, dict[str, float]] = {}
+        for trend_row in trend_rows:
+            model = trend_row[0]
+            row_date = trend_row[1]
+            cost = trend_row[2]
+            if model not in trend_lookup:
+                trend_lookup[model] = {}
+            trend_lookup[model][row_date] = cost
+
+        # Generate full date range for consistent trend arrays
+        num_days = (end_date - start_date).days + 1
+        date_range = [
+            (start_date + timedelta(days=i)).isoformat() for i in range(num_days)
+        ]
+
+        # Get success metrics per model (join with workflows)
+        success_rows = await self._db.fetch_all(
+            """
+            SELECT
+                t.model,
+                COUNT(DISTINCT t.workflow_id) as total_workflows,
+                COUNT(DISTINCT CASE WHEN w.status = 'completed' THEN t.workflow_id END)
+                    as successful_workflows
+            FROM token_usage t
+            JOIN workflows w ON t.workflow_id = w.id
+            WHERE DATE(t.timestamp) >= ? AND DATE(t.timestamp) <= ?
+            GROUP BY t.model
+            """,
+            (start_str, end_str),
+        )
+
+        # Build success lookup: model -> {total, successful}
+        success_lookup: dict[str, dict[str, int]] = {}
+        for success_row in success_rows:
+            model = success_row[0]
+            total = success_row[1]
+            successful = success_row[2]
+            success_lookup[model] = {"total": total, "successful": successful}
+
+        return [
+            {
+                "model": row[0],
+                "workflows": row[1],
+                "tokens": row[2],
+                "cost_usd": row[3],
+                "trend": [
+                    trend_lookup.get(row[0], {}).get(d, 0.0) for d in date_range
+                ],
+                "successful_workflows": success_lookup.get(row[0], {}).get(
+                    "successful", 0
+                ),
+                "success_rate": round(
+                    (
+                        success_lookup.get(row[0], {}).get("successful", 0)
+                        / success_lookup.get(row[0], {}).get("total", 1)
+                    ),
+                    4,
+                )
+                if success_lookup.get(row[0], {}).get("total", 0) > 0
+                else 0.0,
+            }
+            for row in rows
+        ]
