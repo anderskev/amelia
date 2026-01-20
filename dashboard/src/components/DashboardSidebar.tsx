@@ -252,7 +252,6 @@ export function DashboardSidebar() {
                 to="/specs"
                 icon={BookOpen}
                 label="Spec Builder"
-                comingSoon
               />
               <SidebarNavLink
                 to="/roundtable"

@@ -13,9 +13,11 @@ from claude_agent_sdk.types import (
     Message,
     ResultMessage,
     StreamEvent as SDKStreamEvent,
+    SystemPromptPreset,
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
+    UserMessage,
 )
 from loguru import logger
 from pydantic import BaseModel, ValidationError
@@ -141,6 +143,18 @@ def _log_sdk_message(message: Message | SDKStreamEvent) -> None:
                     subtype="error" if block.is_error else "success",
                 )
 
+    elif isinstance(message, UserMessage):
+        # SDK delivers ToolResultBlock inside UserMessage
+        if isinstance(message.content, list):
+            for block in message.content:
+                if isinstance(block, ToolResultBlock):
+                    content = block.content if isinstance(block.content, str) else str(block.content)
+                    log_claude_result(
+                        result_type="result",
+                        result_text=content,
+                        subtype="error" if block.is_error else "success",
+                    )
+
     elif isinstance(message, ResultMessage):
         log_claude_result(
             result_type="result",
@@ -219,11 +233,21 @@ class ClaudeCliDriver:
                 "schema": schema.model_json_schema(),
             }
 
+        # When resuming a session, don't override the system prompt.
+        # The SDK passes `--system-prompt ""` when system_prompt is None, which
+        # replaces the original context. Using a preset without `append` tells
+        # the SDK to not pass any --system-prompt flag, preserving the original
+        # session's system prompt and conversation context.
+        effective_system_prompt: str | SystemPromptPreset | None = system_prompt
+        if session_id is not None:
+            # Resuming: use preset without append to skip --system-prompt flag
+            effective_system_prompt = SystemPromptPreset(type="preset", preset="claude_code")
+
         return ClaudeAgentOptions(
             model=self.model,
             cwd=cwd,
             permission_mode=permission_mode,
-            system_prompt=system_prompt,
+            system_prompt=effective_system_prompt,
             resume=session_id,
             output_format=output_format,
         )
@@ -422,10 +446,30 @@ class ClaudeCliDriver:
                                 yield AgenticMessage(
                                     type=AgenticMessageType.TOOL_RESULT,
                                     tool_name=result_tool_name,
+                                    tool_call_id=block.tool_use_id,
                                     tool_output=content,
                                     is_error=block.is_error or False,
                                     model=self.model,
                                 )
+
+                    elif isinstance(message, UserMessage):
+                        # SDK delivers ToolResultBlock inside UserMessage
+                        if isinstance(message.content, list):
+                            for block in message.content:
+                                if isinstance(block, ToolResultBlock):
+                                    content = block.content if isinstance(block.content, str) else str(block.content)
+                                    # Normalize tool name to standard format
+                                    result_tool_name = None
+                                    if last_tool_name:
+                                        result_tool_name = normalize_tool_name(last_tool_name)
+                                    yield AgenticMessage(
+                                        type=AgenticMessageType.TOOL_RESULT,
+                                        tool_name=result_tool_name,
+                                        tool_call_id=block.tool_use_id,
+                                        tool_output=content,
+                                        is_error=block.is_error or False,
+                                        model=self.model,
+                                    )
 
                     elif isinstance(message, ResultMessage):
                         # Store ResultMessage for token usage extraction
@@ -471,3 +515,17 @@ class ClaudeCliDriver:
             num_turns=getattr(self.last_result_message, "num_turns", None),
             model=usage_data.get("model") or self.model,
         )
+
+    def cleanup_session(self, session_id: str) -> bool:
+        """Clean up session state.
+
+        ClaudeCliDriver delegates session management to the SDK,
+        so no explicit cleanup is needed.
+
+        Args:
+            session_id: The driver session ID (unused).
+
+        Returns:
+            False - no local state to clean up.
+        """
+        return False

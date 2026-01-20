@@ -4,18 +4,24 @@ Provides endpoints for session lifecycle management and chat functionality.
 """
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 from uuid import uuid4
 
+import yaml
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from loguru import logger
 from pydantic import BaseModel
 
+from amelia.server.dependencies import get_orchestrator
 from amelia.server.models.brainstorm import (
     Artifact,
     BrainstormingSession,
     Message,
     SessionStatus,
 )
+from amelia.server.orchestrator.service import OrchestratorService
+from amelia.server.routes.config import ProfileInfo
 from amelia.server.services.brainstorm import BrainstormService
 
 
@@ -60,6 +66,72 @@ def get_cwd() -> str:
     return os.getcwd()
 
 
+def get_profile_info(profile_id: str) -> "ProfileInfo | None":
+    """Load profile info from settings for display.
+
+    Args:
+        profile_id: Profile ID to look up.
+
+    Returns:
+        ProfileInfo if found, None otherwise.
+    """
+    settings_path = Path("settings.amelia.yaml")
+    env_path = os.environ.get("AMELIA_SETTINGS")
+    if env_path:
+        settings_path = Path(env_path)
+
+    if not settings_path.exists():
+        return None
+
+    try:
+        with settings_path.open() as f:
+            data = yaml.safe_load(f)
+        data = data or {}
+        profiles = data.get("profiles", {})
+        profile_data = profiles.get(profile_id, {})
+        if not profile_data:
+            return None
+        return ProfileInfo(
+            name=profile_id,
+            driver=profile_data.get("driver", "unknown"),
+            model=profile_data.get("model", "unknown"),
+        )
+    except (FileNotFoundError, PermissionError, yaml.YAMLError, KeyError, TypeError) as e:
+        logger.debug("Failed to load profile info", profile_id=profile_id, error=str(e))
+        return None
+
+
+def get_driver_type(profile_id: str, settings_path: Path | None = None) -> str | None:
+    """Get driver type for a profile.
+
+    Args:
+        profile_id: Profile ID to look up.
+        settings_path: Optional explicit path to settings file.
+
+    Returns:
+        Driver type string (e.g., "api:openrouter") or None if not found.
+    """
+    if settings_path is None:
+        settings_path = Path("settings.amelia.yaml")
+        env_path = os.environ.get("AMELIA_SETTINGS")
+        if env_path:
+            settings_path = Path(env_path)
+
+    if not settings_path.exists():
+        return None
+
+    try:
+        with settings_path.open() as f:
+            data = yaml.safe_load(f)
+        data = data or {}
+        profiles = data.get("profiles", {})
+        profile_data = profiles.get(profile_id, {})
+        return profile_data.get("driver") if profile_data else None
+    except (FileNotFoundError, PermissionError, yaml.YAMLError, TypeError) as e:
+        logger.debug("Failed to get driver type", profile_id=profile_id, error=str(e))
+        return None
+
+
 # Request/Response Models
 class CreateSessionRequest(BaseModel):
     """Request to create a new brainstorming session."""
@@ -74,6 +146,14 @@ class SessionWithHistoryResponse(BaseModel):
     session: BrainstormingSession
     messages: list[Message]
     artifacts: list[Artifact]
+    profile: ProfileInfo | None = None
+
+
+class CreateSessionResponse(BaseModel):
+    """Response from creating a new session."""
+
+    session: BrainstormingSession
+    profile: ProfileInfo | None = None
 
 
 class SendMessageRequest(BaseModel):
@@ -107,12 +187,12 @@ class HandoffResponse(BaseModel):
 @router.post(
     "/sessions",
     status_code=status.HTTP_201_CREATED,
-    response_model=BrainstormingSession,
+    response_model=CreateSessionResponse,
 )
 async def create_session(
     request: CreateSessionRequest,
     service: BrainstormService = Depends(get_brainstorm_service),
-) -> BrainstormingSession:
+) -> CreateSessionResponse:
     """Create a new brainstorming session.
 
     Args:
@@ -120,12 +200,86 @@ async def create_session(
         service: Brainstorm service dependency.
 
     Returns:
-        Created session.
+        Created session with profile info.
     """
-    return await service.create_session(
+    session = await service.create_session(
         profile_id=request.profile_id,
         topic=request.topic,
     )
+    profile_info = get_profile_info(request.profile_id)
+    return CreateSessionResponse(session=session, profile=profile_info)
+
+
+class PrimeSessionResponse(BaseModel):
+    """Response for session priming."""
+
+    message_id: str
+
+
+@router.post(
+    "/sessions/{session_id}/prime",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=PrimeSessionResponse,
+)
+async def prime_session(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    service: BrainstormService = Depends(get_brainstorm_service),
+    driver: "DriverInterface" = Depends(get_driver),
+    cwd: str = Depends(get_cwd),
+) -> PrimeSessionResponse:
+    """Prime a brainstorming session with skill instructions.
+
+    Sends the brainstorming skill as the first message and gets the model's
+    greeting response. Should be called immediately after creating a session.
+
+    Triggers async processing - returns immediately with message_id.
+    Updates streamed via WebSocket.
+
+    Args:
+        session_id: Session to prime.
+        background_tasks: FastAPI background tasks for async processing.
+        service: Brainstorm service dependency.
+        driver: LLM driver dependency.
+        cwd: Current working directory.
+
+    Returns:
+        Response with message_id for tracking.
+
+    Raises:
+        HTTPException: 404 if session not found.
+    """
+    # Validate session exists before returning 202
+    session = await service.get_session(session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session not found: {session_id}",
+        )
+
+    # Generate message ID upfront for tracking
+    message_id = str(uuid4())
+
+    async def _process_priming() -> None:
+        """Background task to prime the session."""
+        try:
+            async for _ in service.prime_session(
+                session_id=session_id,
+                driver=driver,
+                cwd=cwd,
+                assistant_message_id=message_id,
+            ):
+                pass
+        except Exception as e:
+            logger.error(
+                "Failed to prime session",
+                session_id=session_id,
+                error=str(e),
+            )
+
+    background_tasks.add_task(_process_priming)
+
+    return PrimeSessionResponse(message_id=message_id)
 
 
 @router.get("/sessions", response_model=list[BrainstormingSession])
@@ -163,7 +317,7 @@ async def get_session(
         service: Brainstorm service dependency.
 
     Returns:
-        Session with history.
+        Session with history including profile info.
 
     Raises:
         HTTPException: 404 if session not found.
@@ -174,7 +328,17 @@ async def get_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session not found: {session_id}",
         )
-    return SessionWithHistoryResponse(**result)
+
+    # Load profile info for display
+    session = result["session"]
+    profile_info = get_profile_info(session.profile_id)
+
+    return SessionWithHistoryResponse(
+        session=session,
+        messages=result["messages"],
+        artifacts=result["artifacts"],
+        profile=profile_info,
+    )
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -260,6 +424,8 @@ async def handoff_to_implementation(
     session_id: str,
     request: HandoffRequest,
     service: BrainstormService = Depends(get_brainstorm_service),
+    orchestrator: OrchestratorService = Depends(get_orchestrator),
+    cwd: str = Depends(get_cwd),
 ) -> HandoffResponse:
     """Hand off brainstorming session to implementation pipeline.
 
@@ -282,6 +448,8 @@ async def handoff_to_implementation(
             artifact_path=request.artifact_path,
             issue_title=request.issue_title,
             issue_description=request.issue_description,
+            orchestrator=orchestrator,
+            worktree_path=cwd,
         )
         return HandoffResponse(**result)
     except ValueError as e:

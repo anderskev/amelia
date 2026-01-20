@@ -192,3 +192,18 @@ class DriverInterface(Protocol):
     def get_usage(self) -> DriverUsage | None:
         """Return accumulated usage from last execution, or None if unavailable."""
         ...
+
+    def cleanup_session(self, session_id: str) -> bool:
+        """Clean up driver-specific session state.
+
+        Called when a session is deleted or reaches terminal status.
+        Drivers that maintain session state (e.g., checkpointers) should
+        release resources here.
+
+        Args:
+            session_id: The driver session ID to clean up.
+
+        Returns:
+            True if session was found and cleaned up, False otherwise.
+        """
+        ...

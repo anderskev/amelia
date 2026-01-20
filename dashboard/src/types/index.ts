@@ -526,29 +526,40 @@ export interface BatchStartResponse {
 // ============================================================================
 
 /**
+ * Event types for brainstorm streaming messages.
+ */
+export type BrainstormEventType =
+  | 'text'
+  | 'reasoning'
+  | 'tool_call'
+  | 'tool_result'
+  | 'message_complete'
+  | 'artifact_created'
+  | 'session_created'
+  | 'session_completed';
+
+/**
+ * Brainstorm streaming message from the server.
+ * Uses a flat format (no nested payload) for direct handling.
+ */
+export interface BrainstormMessage {
+  type: 'brainstorm';
+  event_type: BrainstormEventType;
+  session_id: string;
+  message_id?: string;
+  data: Record<string, unknown>;
+  timestamp: string;
+}
+
+/**
  * Messages sent from the server to the dashboard client over WebSocket.
- * The dashboard receives these messages to update the UI in real-time.
- *
- * @example
- * ```typescript
- * // Ping message (keepalive)
- * const ping: WebSocketMessage = { type: 'ping' };
- *
- * // Event message
- * const event: WebSocketMessage = {
- *   type: 'event',
- *   payload: { id: 'evt1', workflow_id: 'wf1', ... }
- * };
- *
- * // Backfill complete
- * const backfill: WebSocketMessage = { type: 'backfill_complete', count: 10 };
- * ```
  */
 export type WebSocketMessage =
   | { type: 'ping' }
   | { type: 'event'; payload: WorkflowEvent }
   | { type: 'backfill_complete'; count: number }
-  | { type: 'backfill_expired'; message: string };
+  | { type: 'backfill_expired'; message: string }
+  | BrainstormMessage;
 
 /**
  * Messages sent from the dashboard client to the server over WebSocket.
@@ -694,6 +705,21 @@ export interface DefaultContent {
 // ============================================================================
 
 /**
+ * Profile information for display in UI.
+ * Contains driver and model configuration.
+ */
+export interface ConfigProfileInfo {
+  /** Profile name. */
+  name: string;
+
+  /** Driver type (e.g., 'api:openrouter', 'cli:claude'). */
+  driver: string;
+
+  /** Model name. */
+  model: string;
+}
+
+/**
  * Response from GET /api/config endpoint.
  * Provides server configuration for dashboard.
  */
@@ -703,6 +729,12 @@ export interface ConfigResponse {
 
   /** Maximum concurrent workflows. */
   max_concurrent: number;
+
+  /** Active profile name from settings.amelia.yaml. */
+  active_profile: string;
+
+  /** Full profile info for the active profile. */
+  active_profile_info: ConfigProfileInfo | null;
 }
 
 // ============================================================================

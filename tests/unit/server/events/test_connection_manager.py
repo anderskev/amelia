@@ -7,25 +7,32 @@ import pytest
 from fastapi import WebSocketDisconnect
 
 from amelia.server.events.connection_manager import ConnectionManager
-from amelia.server.models.events import EventLevel, EventType, WorkflowEvent
+from amelia.server.models.events import (
+    EventDomain,
+    EventLevel,
+    EventType,
+    WorkflowEvent,
+)
+
+
+@pytest.fixture
+def manager():
+    """Create ConnectionManager instance."""
+    return ConnectionManager()
+
+
+@pytest.fixture
+def mock_websocket():
+    """Create mock WebSocket."""
+    ws = AsyncMock()
+    ws.accept = AsyncMock()
+    ws.send_json = AsyncMock()
+    ws.close = AsyncMock()
+    return ws
 
 
 class TestConnectionManager:
     """Tests for ConnectionManager."""
-
-    @pytest.fixture
-    def manager(self):
-        """Create ConnectionManager instance."""
-        return ConnectionManager()
-
-    @pytest.fixture
-    def mock_websocket(self):
-        """Create mock WebSocket."""
-        ws = AsyncMock()
-        ws.accept = AsyncMock()
-        ws.send_json = AsyncMock()
-        ws.close = AsyncMock()
-        return ws
 
     async def test_disconnect_removes_connection(self, manager, mock_websocket) -> None:
         """disconnect() removes connection from tracking."""
@@ -132,21 +139,20 @@ class TestConnectionManagerTraceEvents:
     """Tests for trace event broadcasting."""
 
     @pytest.mark.asyncio
-    async def test_broadcast_sends_trace_events_to_all_clients(self) -> None:
+    async def test_broadcast_sends_trace_events_to_all_clients(
+        self, manager, mock_websocket
+    ) -> None:
         """broadcast() sends trace events to all connected clients (no filtering)."""
-        manager = ConnectionManager()
-        mock_ws1 = AsyncMock()
-        mock_ws1.accept = AsyncMock()
-        mock_ws1.send_json = AsyncMock()
+        # Create a second mock websocket for this test
         mock_ws2 = AsyncMock()
         mock_ws2.accept = AsyncMock()
         mock_ws2.send_json = AsyncMock()
 
-        await manager.connect(mock_ws1)
+        await manager.connect(mock_websocket)
         await manager.connect(mock_ws2)
 
         # Subscribe to different workflows - normally only matching events go through
-        await manager.subscribe(mock_ws1, "wf-1")
+        await manager.subscribe(mock_websocket, "wf-1")
         await manager.subscribe(mock_ws2, "wf-2")
 
         trace_event = WorkflowEvent(
@@ -163,5 +169,67 @@ class TestConnectionManagerTraceEvents:
         await manager.broadcast(trace_event)
 
         # Both clients receive trace events (no workflow filtering)
-        assert mock_ws1.send_json.called
+        assert mock_websocket.send_json.called
         assert mock_ws2.send_json.called
+
+
+class TestBroadcastDomainRouting:
+    """Tests for domain-based broadcast routing."""
+
+    @pytest.mark.asyncio
+    async def test_broadcast_workflow_event_uses_event_wrapper(
+        self, manager, mock_websocket
+    ):
+        """Workflow domain events are sent as {type: 'event', payload: ...}."""
+        await manager.connect(mock_websocket)
+        await manager.subscribe_all(mock_websocket)
+
+        event = WorkflowEvent(
+            id="evt-1",
+            workflow_id="wf-1",
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent="system",
+            event_type=EventType.WORKFLOW_STARTED,
+            message="Started",
+            domain=EventDomain.WORKFLOW,
+        )
+
+        await manager.broadcast(event)
+
+        mock_websocket.send_json.assert_called_once()
+        payload = mock_websocket.send_json.call_args[0][0]
+        assert payload["type"] == "event"
+        assert "payload" in payload
+        assert payload["payload"]["id"] == "evt-1"
+
+    @pytest.mark.asyncio
+    async def test_broadcast_brainstorm_event_uses_brainstorm_wrapper(
+        self, manager, mock_websocket
+    ):
+        """Brainstorm domain events are sent as {type: 'brainstorm', ...}."""
+        await manager.connect(mock_websocket)
+        await manager.subscribe_all(mock_websocket)
+
+        event = WorkflowEvent(
+            id="evt-2",
+            workflow_id="session-1",
+            sequence=0,
+            timestamp=datetime.now(UTC),
+            agent="brainstormer",
+            event_type=EventType.BRAINSTORM_TEXT,
+            message="Streaming",
+            domain=EventDomain.BRAINSTORM,
+            data={"session_id": "session-1", "message_id": "msg-1", "text": "Hello"},
+        )
+
+        await manager.broadcast(event)
+
+        mock_websocket.send_json.assert_called_once()
+        payload = mock_websocket.send_json.call_args[0][0]
+        assert payload["type"] == "brainstorm"
+        assert payload["event_type"] == "text"  # brainstorm_ prefix stripped
+        assert payload["session_id"] == "session-1"
+        assert payload["message_id"] == "msg-1"
+        assert payload["data"]["text"] == "Hello"
+        assert "timestamp" in payload

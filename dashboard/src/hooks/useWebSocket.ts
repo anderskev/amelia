@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useWorkflowStore } from '../store/workflowStore';
-import type { WebSocketMessage, WorkflowEvent } from '../types';
+import { useBrainstormStore } from '../store/brainstormStore';
+import type { WebSocketMessage, WorkflowEvent, BrainstormMessage } from '../types';
+import type { BrainstormArtifact, ToolCall, MessageUsage, SessionUsageSummary } from '../types/api';
 
 /**
  * Derive WebSocket URL from window.location.
@@ -35,6 +37,117 @@ const MAX_RECONNECT_DELAY = 30000; // 30 seconds
  * Initial delay for the first reconnection attempt in milliseconds (1 second).
  */
 const INITIAL_RECONNECT_DELAY = 1000; // 1 second
+
+/**
+ * Handle incoming brainstorm streaming events.
+ * Routes events to the brainstormStore based on event_type.
+ *
+ * @param msg - The brainstorm message from the WebSocket
+ */
+export function handleBrainstormMessage(msg: BrainstormMessage): void {
+  const state = useBrainstormStore.getState();
+
+  // Ignore events for different sessions
+  if (msg.session_id !== state.activeSessionId) return;
+
+  switch (msg.event_type) {
+    case 'text':
+      if (msg.message_id) {
+        state.updateMessage(msg.message_id, (m) => ({
+          ...m,
+          content: m.content + ((msg.data.text as string) ?? ''),
+        }));
+      }
+      break;
+
+    case 'reasoning':
+      if (msg.message_id) {
+        state.updateMessage(msg.message_id, (m) => ({
+          ...m,
+          reasoning: (m.reasoning ?? '') + ((msg.data.text as string) ?? ''),
+        }));
+      }
+      break;
+
+    case 'message_complete': {
+      const error = msg.data.error as string | undefined;
+      const usage = msg.data.usage as MessageUsage | undefined;
+      const sessionUsage = msg.data.session_usage as SessionUsageSummary | undefined;
+      if (msg.message_id) {
+        state.updateMessage(msg.message_id, (m) => ({
+          ...m,
+          status: error ? 'error' : undefined,
+          errorMessage: error,
+          usage,
+          // Mark all running tool calls as completed since the SDK doesn't
+          // stream explicit tool results - it handles execution internally
+          toolCalls: m.toolCalls?.map((tc) =>
+            tc.state === 'input-available'
+              ? { ...tc, state: 'output-available' as const }
+              : tc
+          ),
+        }));
+      }
+      // Update session usage totals
+      if (sessionUsage) {
+        state.setSessionUsage(sessionUsage);
+      }
+      state.setStreaming(false, null);
+      break;
+    }
+
+    case 'artifact_created': {
+      const artifact = msg.data.artifact as BrainstormArtifact | undefined;
+      if (artifact) {
+        state.addArtifact(artifact);
+        state.updateSession(msg.session_id, { status: 'ready_for_handoff' });
+      }
+      break;
+    }
+
+    case 'tool_call': {
+      if (msg.message_id) {
+        const toolCall: ToolCall = {
+          tool_call_id: msg.data.tool_call_id as string,
+          tool_name: msg.data.tool_name as string,
+          input: msg.data.input,
+          state: 'input-available',
+        };
+        state.updateMessage(msg.message_id, (m) => ({
+          ...m,
+          toolCalls: [...(m.toolCalls ?? []), toolCall],
+        }));
+      }
+      break;
+    }
+
+    case 'tool_result': {
+      if (msg.message_id) {
+        const toolCallId = msg.data.tool_call_id as string;
+        const output = msg.data.output;
+        const errorText = msg.data.error as string | undefined;
+        state.updateMessage(msg.message_id, (m) => ({
+          ...m,
+          toolCalls: m.toolCalls?.map((tc) =>
+            tc.tool_call_id === toolCallId
+              ? {
+                  ...tc,
+                  output,
+                  errorText,
+                  state: errorText ? 'output-error' : 'output-available',
+                }
+              : tc
+          ),
+        }));
+      }
+      break;
+    }
+
+    // session_created, session_completed can be handled later as needed
+    default:
+      break;
+  }
+}
 
 /**
  * WebSocket hook for real-time workflow events.
@@ -181,6 +294,10 @@ export function useWebSocket() {
           case 'backfill_expired':
             console.warn('Backfill expired:', message.message);
             setLastEventId(null);
+            break;
+
+          case 'brainstorm':
+            handleBrainstormMessage(message);
             break;
 
           default:

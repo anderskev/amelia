@@ -4,7 +4,8 @@ import os
 import subprocess
 import time
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, ClassVar
+from uuid import uuid4
 
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
@@ -12,6 +13,7 @@ from deepagents.backends.protocol import (
     ExecuteResponse,
     SandboxBackendProtocol,
 )
+from langchain.agents.middleware.types import AgentMiddleware
 from langchain.agents.structured_output import ToolStrategy
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
@@ -165,6 +167,10 @@ class ApiDriver(DriverInterface):
 
     DEFAULT_MODEL = "minimax/minimax-m2"
 
+    # Class-level session storage for conversation continuity
+    # Maps session_id -> MemorySaver checkpointer
+    _sessions: ClassVar[dict[str, MemorySaver]] = {}
+
     def __init__(
         self,
         model: str | None = None,
@@ -305,9 +311,16 @@ class ApiDriver(DriverInterface):
         Args:
             prompt: The prompt to execute.
             cwd: Working directory for tool execution.
-            session_id: Unused (API driver has no session support).
-            instructions: Optional system prompt for the agent.
+            session_id: Optional session ID for conversation continuity. If
+                provided, reuses the checkpointer from a previous call to
+                maintain conversation history. If None, creates a new session.
+            instructions: Optional system prompt for the agent. Only used on
+                the first message of a session; ignored on subsequent calls
+                to preserve conversation context.
             schema: Unused (structured output not supported in agentic mode).
+            tools: Optional list of tools to provide to the agent. If None,
+                uses default tools (ls, read_file, write_file, edit_file,
+                glob, grep, execute, write_todos).
             required_tool: If set, agent will be prompted to continue if this
                 tool wasn't called. Use "write_file" to ensure file creation.
             max_continuations: Maximum continuation attempts if required_tool
@@ -325,6 +338,8 @@ class ApiDriver(DriverInterface):
             raise ValueError("Prompt cannot be empty")
 
         # Extract optional parameters from kwargs
+        tools: list[Any] | None = kwargs.get("tools")
+        middleware: list[AgentMiddleware] | None = kwargs.get("middleware")
         required_tool: str | None = kwargs.get("required_tool")
         required_file_path: str | None = kwargs.get("required_file_path")
         max_continuations: int = kwargs.get("max_continuations", 10)
@@ -344,15 +359,39 @@ class ApiDriver(DriverInterface):
             # absolute paths from filesystem root (e.g., /docs/plans/...)
             backend = LocalSandbox(root_dir=cwd, virtual_mode=True)
 
-            # Use in-memory checkpointer to enable continuation
-            checkpointer = MemorySaver()
-            thread_id = f"exec-{id(self)}-{time.perf_counter()}"
+            # Session management for conversation continuity
+            # - If session_id is provided, reuse the existing checkpointer
+            # - If session_id is None, create a new session with fresh checkpointer
+            is_new_session = session_id is None
+            current_session_id = session_id or str(uuid4())
+
+            if current_session_id in ApiDriver._sessions:
+                checkpointer = ApiDriver._sessions[current_session_id]
+                logger.debug(
+                    "Resuming existing session",
+                    session_id=current_session_id,
+                )
+            else:
+                checkpointer = MemorySaver()
+                ApiDriver._sessions[current_session_id] = checkpointer
+                logger.debug(
+                    "Created new session",
+                    session_id=current_session_id,
+                )
+
+            # Use session_id as thread_id for checkpointing
+            thread_id = current_session_id
+
+            # Only use system prompt on new sessions to preserve conversation context
+            effective_system_prompt = instructions or "" if is_new_session else ""
 
             agent = create_deep_agent(
                 model=chat_model,
-                system_prompt=instructions or "",
+                system_prompt=effective_system_prompt,
                 backend=backend,
                 checkpointer=checkpointer,
+                tools=tools,
+                middleware=middleware or (),
             )
 
             logger.debug(
@@ -360,6 +399,8 @@ class ApiDriver(DriverInterface):
                 model=self.model,
                 cwd=cwd,
                 prompt_length=len(prompt),
+                session_id=current_session_id,
+                is_new_session=is_new_session,
             )
 
             last_message: AIMessage | None = None
@@ -621,7 +662,7 @@ class ApiDriver(DriverInterface):
                 yield AgenticMessage(
                     type=AgenticMessageType.RESULT,
                     content=final_content,
-                    session_id=None,  # API driver has no session support
+                    session_id=current_session_id,
                     model=self.model,
                 )
             else:
@@ -629,7 +670,7 @@ class ApiDriver(DriverInterface):
                 yield AgenticMessage(
                     type=AgenticMessageType.RESULT,
                     content="Agent produced no output",
-                    session_id=None,
+                    session_id=current_session_id,
                     is_error=True,
                     model=self.model,
                 )
@@ -646,3 +687,17 @@ class ApiDriver(DriverInterface):
             DriverUsage with accumulated totals, or None if no execution occurred.
         """
         return self._usage
+
+    def cleanup_session(self, session_id: str) -> bool:
+        """Clean up session state from the class-level cache.
+
+        Delegates to the classmethod to remove the MemorySaver
+        checkpointer for the given session.
+
+        Args:
+            session_id: The driver session ID to clean up.
+
+        Returns:
+            True if session was found and removed, False otherwise.
+        """
+        return ApiDriver._sessions.pop(session_id, None) is not None

@@ -15,7 +15,9 @@ from amelia.server.models.brainstorm import (
     BrainstormingSession,
     Message,
     MessagePart,
+    MessageUsage,
     SessionStatus,
+    SessionUsageSummary,
 )
 
 
@@ -197,11 +199,17 @@ class BrainstormRepository:
         if message.parts:
             parts_json = json.dumps([p.model_dump() for p in message.parts])
 
+        # Extract usage fields if present
+        input_tokens = message.usage.input_tokens if message.usage else None
+        output_tokens = message.usage.output_tokens if message.usage else None
+        cost_usd = message.usage.cost_usd if message.usage else None
+
         await self._db.execute(
             """
             INSERT INTO brainstorm_messages (
-                id, session_id, sequence, role, content, parts_json, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                id, session_id, sequence, role, content, parts_json, created_at,
+                input_tokens, output_tokens, cost_usd, is_system
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 message.id,
@@ -211,31 +219,51 @@ class BrainstormRepository:
                 message.content,
                 parts_json,
                 message.created_at.isoformat(),
+                input_tokens,
+                output_tokens,
+                cost_usd,
+                1 if message.is_system else 0,
             ),
         )
 
     async def get_messages(
-        self, session_id: str, limit: int = 100
+        self, session_id: str, limit: int = 100, include_system: bool = True
     ) -> list[Message]:
         """Get messages for a session.
 
         Args:
             session_id: Session to get messages for.
             limit: Maximum messages to return.
+            include_system: Whether to include system/priming messages.
+                When False, filters out messages where is_system = 1.
 
         Returns:
             List of messages in sequence order.
         """
-        rows = await self._db.fetch_all(
-            """
-            SELECT id, session_id, sequence, role, content, parts_json, created_at
-            FROM brainstorm_messages
-            WHERE session_id = ?
-            ORDER BY sequence ASC
-            LIMIT ?
-            """,
-            (session_id, limit),
-        )
+        if include_system:
+            rows = await self._db.fetch_all(
+                """
+                SELECT id, session_id, sequence, role, content, parts_json, created_at,
+                       input_tokens, output_tokens, cost_usd, is_system
+                FROM brainstorm_messages
+                WHERE session_id = ?
+                ORDER BY sequence ASC
+                LIMIT ?
+                """,
+                (session_id, limit),
+            )
+        else:
+            rows = await self._db.fetch_all(
+                """
+                SELECT id, session_id, sequence, role, content, parts_json, created_at,
+                       input_tokens, output_tokens, cost_usd, is_system
+                FROM brainstorm_messages
+                WHERE session_id = ? AND is_system = 0
+                ORDER BY sequence ASC
+                LIMIT ?
+                """,
+                (session_id, limit),
+            )
         return [self._row_to_message(row) for row in rows]
 
     async def get_max_sequence(self, session_id: str) -> int:
@@ -267,6 +295,15 @@ class BrainstormRepository:
             parts_data = json.loads(row["parts_json"])
             parts = [MessagePart(**p) for p in parts_data]
 
+        # Load usage if present
+        usage = None
+        if row["input_tokens"] is not None:
+            usage = MessageUsage(
+                input_tokens=row["input_tokens"],
+                output_tokens=row["output_tokens"] or 0,
+                cost_usd=row["cost_usd"] or 0.0,
+            )
+
         return Message(
             id=row["id"],
             session_id=row["session_id"],
@@ -274,6 +311,8 @@ class BrainstormRepository:
             role=row["role"],
             content=row["content"],
             parts=parts,
+            usage=usage,
+            is_system=bool(row["is_system"]),
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 
@@ -339,4 +378,40 @@ class BrainstormRepository:
             path=row["path"],
             title=row["title"],
             created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    # =========================================================================
+    # Usage Aggregation
+    # =========================================================================
+
+    async def get_session_usage(self, session_id: str) -> SessionUsageSummary | None:
+        """Aggregate token usage for all messages in a brainstorm session.
+
+        Args:
+            session_id: Session to aggregate usage for.
+
+        Returns:
+            SessionUsageSummary with totals, or None if no messages have usage data.
+        """
+        row = await self._db.fetch_one(
+            """
+            SELECT
+                COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+                COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+                COALESCE(SUM(cost_usd), 0.0) as total_cost_usd,
+                COUNT(*) as message_count
+            FROM brainstorm_messages
+            WHERE session_id = ? AND input_tokens IS NOT NULL
+            """,
+            (session_id,),
+        )
+
+        if row is None or row["message_count"] == 0:
+            return None
+
+        return SessionUsageSummary(
+            total_input_tokens=row["total_input_tokens"],
+            total_output_tokens=row["total_output_tokens"],
+            total_cost_usd=row["total_cost_usd"],
+            message_count=row["message_count"],
         )

@@ -4,7 +4,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from amelia.server.models.events import EventLevel, EventType, WorkflowEvent, get_event_level
+from amelia.server.models.events import (
+    EventLevel,
+    EventType,
+    WorkflowEvent,
+    get_event_level,
+)
 
 
 class TestEventLevel:

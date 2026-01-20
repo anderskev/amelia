@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import WebSocket, WebSocketDisconnect
 from loguru import logger
 
-from amelia.server.models.events import EventLevel, WorkflowEvent
+from amelia.server.models.events import EventDomain, EventLevel, WorkflowEvent
 
 
 if TYPE_CHECKING:
@@ -167,10 +167,26 @@ class ConnectionManager:
         if not targets:
             return
 
-        payload = {
-            "type": "event",
-            "payload": event.model_dump(mode="json"),
-        }
+        if event.domain == EventDomain.BRAINSTORM:
+            # Brainstorm events use flat format for direct frontend handling
+            event_type_str = event.event_type.value
+            if event_type_str.startswith("brainstorm_"):
+                event_type_str = event_type_str[len("brainstorm_"):]
+
+            payload = {
+                "type": "brainstorm",
+                "event_type": event_type_str,
+                "session_id": event.workflow_id,  # Brainstorm events use workflow_id as session_id
+                "message_id": event.data.get("message_id") if event.data else None,
+                "data": event.data or {},
+                "timestamp": event.timestamp.isoformat(),
+            }
+        else:
+            # Workflow events use wrapped format
+            payload = {
+                "type": "event",
+                "payload": event.model_dump(mode="json"),
+            }
 
         results = await asyncio.gather(
             *(self._send_to_client(ws, payload) for ws in targets)

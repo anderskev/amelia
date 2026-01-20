@@ -89,3 +89,119 @@ export interface ActionResult {
   /** Error message if the action failed, otherwise undefined. */
   error?: string;
 }
+
+// ============================================================================
+// Brainstorming Types
+// ============================================================================
+
+/** Token usage for a single message. */
+export interface MessageUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
+/** Aggregated token usage for an entire session. */
+export interface SessionUsageSummary {
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost_usd: number;
+  message_count: number;
+}
+
+/** Status of a brainstorming session. */
+export type SessionStatus = "active" | "ready_for_handoff" | "completed" | "failed";
+
+/** A brainstorming session for exploring ideas before workflow execution. */
+export interface BrainstormingSession {
+  id: string;
+  profile_id: string;
+  driver_session_id: string | null;
+  status: SessionStatus;
+  topic: string | null;
+  created_at: string;
+  updated_at: string;
+  usage_summary?: SessionUsageSummary;
+}
+
+/** A part of a brainstorm message (text, reasoning, tool call, or tool result). */
+export interface MessagePart {
+  type: "text" | "reasoning" | "tool-call" | "tool-result";
+  text?: string;
+  tool_name?: string;
+  tool_call_id?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+}
+
+/** State of a tool call for UI display. Matches ToolUIPart["state"] from Vercel AI SDK. */
+export type ToolCallState = "input-available" | "output-available" | "output-error";
+
+/** A tool call with its input and result for display in the chat UI. */
+export interface ToolCall {
+  /** Unique identifier for this tool call from the backend. */
+  tool_call_id: string;
+  /** Name of the tool being called. */
+  tool_name: string;
+  /** Input parameters passed to the tool. */
+  input: unknown;
+  /** Output result from the tool (populated when complete). */
+  output?: unknown;
+  /** Error text if the tool call failed. */
+  errorText?: string;
+  /** Current state of the tool call. */
+  state: ToolCallState;
+}
+
+/** A message in a brainstorming session. */
+export interface BrainstormMessage {
+  id: string;
+  session_id: string;
+  sequence: number;
+  role: "user" | "assistant";
+  /** Whether this is a system-generated message (e.g., session welcome, handoff summary). */
+  is_system?: boolean;
+  content: string;
+  reasoning?: string;
+  parts: MessagePart[] | null;
+  created_at: string;
+  /** Streaming status: undefined = complete, 'streaming' = in progress, 'error' = failed */
+  status?: "streaming" | "error";
+  /** Human-readable error message when status is 'error' */
+  errorMessage?: string;
+  /** Tool calls made during this message (for UI display). */
+  toolCalls?: ToolCall[];
+  /** Token usage for this message. */
+  usage?: MessageUsage;
+}
+
+/** An artifact generated during a brainstorming session. */
+export interface BrainstormArtifact {
+  id: string;
+  session_id: string;
+  type: string;
+  path: string;
+  title: string | null;
+  created_at: string;
+}
+
+/** Profile information for display in UI. */
+export interface ProfileInfo {
+  name: string;
+  driver: string;
+  model: string;
+}
+
+/** Response from creating a new brainstorming session. */
+export interface CreateSessionResponse {
+  session: BrainstormingSession;
+  profile?: ProfileInfo;
+}
+
+/** A complete brainstorming session with its message history and artifacts. */
+export interface SessionWithHistory {
+  session: BrainstormingSession;
+  messages: BrainstormMessage[];
+  artifacts: BrainstormArtifact[];
+  profile?: ProfileInfo;
+}

@@ -47,3 +47,107 @@ export function formatTime(isoString: string | null | undefined): string {
   }
   return date.toISOString().slice(11, 19); // HH:MM:SS
 }
+
+/**
+ * Formats driver string for display.
+ *
+ * Extracts the driver type (API or CLI) from the full driver string.
+ *
+ * @param driver - Driver string (e.g., "api:openrouter", "cli:claude")
+ * @returns Formatted driver type (e.g., "API", "CLI")
+ *
+ * @example
+ * ```ts
+ * formatDriver('api:openrouter') // => 'API'
+ * formatDriver('cli:claude') // => 'CLI'
+ * ```
+ */
+export function formatDriver(driver: string): string {
+  if (driver.startsWith('api:')) return 'API';
+  if (driver.startsWith('cli:')) return 'CLI';
+  return driver.toUpperCase();
+}
+
+/**
+ * Formats model name for display.
+ *
+ * Capitalizes simple model names and formats longer model identifiers
+ * with proper spacing and version numbers.
+ *
+ * @param model - Model identifier (e.g., "sonnet", "claude-3-5-sonnet")
+ * @returns Formatted model name (e.g., "Sonnet", "Claude 3.5 Sonnet")
+ *
+ * @example
+ * ```ts
+ * formatModel('sonnet') // => 'Sonnet'
+ * formatModel('claude-3-5-sonnet') // => 'Claude 3.5 Sonnet'
+ * ```
+ */
+export function formatModel(model: string): string {
+  // Handle simple names like "sonnet", "opus", "haiku"
+  if (/^(sonnet|opus|haiku)$/i.test(model)) {
+    return model.charAt(0).toUpperCase() + model.slice(1).toLowerCase();
+  }
+  // Handle longer model names - capitalize and clean up
+  return model
+    .split(/[-_]/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+    .replace(/(\d)(\d)/g, '$1.$2'); // "35" -> "3.5"
+}
+
+/**
+ * Copies text to clipboard with iOS Safari fallback.
+ *
+ * iOS Safari has quirks with navigator.clipboard.writeText() in some contexts.
+ * This function tries the modern Clipboard API first, then falls back to
+ * execCommand for iOS and older browsers.
+ *
+ * @param text - Text to copy to clipboard
+ * @returns Promise resolving to true if copy succeeded, false otherwise
+ *
+ * @example
+ * ```ts
+ * const success = await copyToClipboard('Hello, world!');
+ * if (success) {
+ *   showToast('Copied!');
+ * }
+ * ```
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  // Try modern Clipboard API first
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to fallback
+    }
+  }
+
+  // Fallback for iOS and older browsers
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+
+  // Prevent scrolling on iOS
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-9999px';
+  textArea.style.top = '0';
+  textArea.style.opacity = '0';
+
+  document.body.appendChild(textArea);
+
+  // iOS specific: need to select with setSelectionRange
+  textArea.focus();
+  textArea.setSelectionRange(0, text.length);
+
+  let success = false;
+  try {
+    success = document.execCommand('copy');
+  } catch {
+    success = false;
+  }
+
+  document.body.removeChild(textArea);
+  return success;
+}
