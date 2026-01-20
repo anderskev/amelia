@@ -7,7 +7,6 @@ import type { SessionStatus } from "@/types/api";
 export function useBrainstormSession() {
   const {
     activeSessionId,
-    messages,
     setSessions,
     addSession,
     removeSession,
@@ -106,11 +105,13 @@ export function useBrainstormSession() {
         throw new Error("No active session");
       }
 
+      // Get current message count from store to avoid stale closure
+      const currentLength = useBrainstormStore.getState().messages.length;
       const optimisticId = nanoid();
       const userMessage = {
         id: optimisticId,
         session_id: activeSessionId,
-        sequence: messages.length + 1,
+        sequence: currentLength + 1,
         role: "user" as const,
         content,
         parts: null,
@@ -122,11 +123,13 @@ export function useBrainstormSession() {
         setStreaming(true, null);
         const response = await brainstormApi.sendMessage(activeSessionId, content);
 
+        // Get updated count after user message was added
+        const newLength = useBrainstormStore.getState().messages.length;
         // Create assistant placeholder with streaming status
         const assistantMessage = {
           id: response.message_id,
           session_id: activeSessionId,
-          sequence: messages.length + 2,
+          sequence: newLength + 1,
           role: "assistant" as const,
           content: "",
           parts: null,
@@ -142,7 +145,7 @@ export function useBrainstormSession() {
         throw error;
       }
     },
-    [activeSessionId, messages.length, addMessage, removeMessage, setStreaming]
+    [activeSessionId, addMessage, removeMessage, setStreaming]
   );
 
   const deleteSession = useCallback(
