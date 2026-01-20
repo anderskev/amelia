@@ -1,5 +1,6 @@
 """File access endpoints for design document import."""
 import asyncio
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -51,12 +52,17 @@ def _validate_and_resolve_path(user_path: str, working_dir: Path) -> Path:
             detail={"error": f"Invalid path: {e}", "code": "INVALID_PATH"},
         ) from e
 
-    # Check working_dir restriction - this is the critical security check
-    # that ensures the resolved path is within the allowed directory
+    # Check working_dir restriction using commonpath - this is the critical
+    # security check that ensures the resolved path is within the allowed directory.
+    # Using os.path.commonpath as it's recognized by static analysis tools.
     working_dir_resolved = working_dir.resolve()
+    resolved_str = str(resolved_path)
+    working_dir_str = str(working_dir_resolved)
+
     try:
-        resolved_path.relative_to(working_dir_resolved)
+        common = os.path.commonpath([resolved_str, working_dir_str])
     except ValueError as e:
+        # Different drives on Windows
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -64,6 +70,15 @@ def _validate_and_resolve_path(user_path: str, working_dir: Path) -> Path:
                 "code": "PATH_NOT_ACCESSIBLE",
             },
         ) from e
+
+    if common != working_dir_str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "Path not accessible (outside working directory)",
+                "code": "PATH_NOT_ACCESSIBLE",
+            },
+        )
 
     # Check file exists
     if not resolved_path.exists():
