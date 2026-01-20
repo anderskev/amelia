@@ -278,12 +278,13 @@ def create_app() -> FastAPI:
         try:
             with settings_path.open() as f:
                 data = yaml.safe_load(f)
+            data = data or {}
             active_profile = data.get("active_profile", "")
             profiles = data.get("profiles", {})
             profile_data = profiles.get(active_profile, {})
             driver_type = profile_data.get("driver", "cli:claude")
             return factory_get_driver(driver_type)
-        except (FileNotFoundError, KeyError, TypeError):
+        except (FileNotFoundError, KeyError, TypeError, yaml.YAMLError, PermissionError, AttributeError):
             # Settings file not found or malformed - use CLI driver as default
             return factory_get_driver("cli:claude")
 
@@ -306,6 +307,7 @@ def create_app() -> FastAPI:
         try:
             with settings_path.open() as f:
                 data = yaml.safe_load(f)
+            data = data or {}
             active_profile = data.get("active_profile", "")
             profiles = data.get("profiles", {})
             profile_data = profiles.get(active_profile, {})
@@ -313,7 +315,7 @@ def create_app() -> FastAPI:
             if working_dir:
                 return str(working_dir)
             return os.getcwd()
-        except (FileNotFoundError, KeyError, TypeError):
+        except (FileNotFoundError, KeyError, TypeError, yaml.YAMLError, PermissionError, AttributeError):
             # Settings file not found or malformed - use cwd as default
             return os.getcwd()
 

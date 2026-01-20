@@ -245,7 +245,7 @@ function SpecBuilderPageContent() {
                 <div className="space-y-1">
                   <h3 className="font-medium text-sm">Start a brainstorming session</h3>
                   <p className="text-muted-foreground text-sm">
-                    Type a message below to begin exploring ideas and producing design documents.
+                    Select a session from the sidebar or start a new one to begin exploring ideas and producing design documents.
                   </p>
                 </div>
                 {/* Profile Info Badge */}

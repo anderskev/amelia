@@ -86,6 +86,7 @@ def get_profile_info(profile_id: str) -> "ProfileInfo | None":
     try:
         with settings_path.open() as f:
             data = yaml.safe_load(f)
+        data = data or {}
         profiles = data.get("profiles", {})
         profile_data = profiles.get(profile_id, {})
         if not profile_data:
@@ -95,7 +96,7 @@ def get_profile_info(profile_id: str) -> "ProfileInfo | None":
             driver=profile_data.get("driver", "unknown"),
             model=profile_data.get("model", "unknown"),
         )
-    except (FileNotFoundError, PermissionError, yaml.YAMLError, KeyError) as e:
+    except (FileNotFoundError, PermissionError, yaml.YAMLError, KeyError, TypeError) as e:
         logger.debug("Failed to load profile info", profile_id=profile_id, error=str(e))
         return None
 
@@ -122,10 +123,11 @@ def get_driver_type(profile_id: str, settings_path: Path | None = None) -> str |
     try:
         with settings_path.open() as f:
             data = yaml.safe_load(f)
+        data = data or {}
         profiles = data.get("profiles", {})
         profile_data = profiles.get(profile_id, {})
         return profile_data.get("driver") if profile_data else None
-    except (FileNotFoundError, PermissionError, yaml.YAMLError) as e:
+    except (FileNotFoundError, PermissionError, yaml.YAMLError, TypeError) as e:
         logger.debug("Failed to get driver type", profile_id=profile_id, error=str(e))
         return None
 
