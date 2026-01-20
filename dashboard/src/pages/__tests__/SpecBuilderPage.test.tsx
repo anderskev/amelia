@@ -60,7 +60,13 @@ describe("SpecBuilderPage", () => {
     });
   });
 
-  it("shows input area", () => {
+  it("shows input area when there is an active session", () => {
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [{ id: "s1", profile_id: "test", driver_session_id: null, status: "active" as const, topic: "Test", created_at: "2026-01-18T00:00:00Z", updated_at: "2026-01-18T00:00:00Z" }],
+      messages: [],
+    });
+
     renderPage();
 
     expect(
@@ -68,13 +74,13 @@ describe("SpecBuilderPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("creates session on first message", async () => {
+  it("creates session when Start Brainstorming is clicked", async () => {
     const mockSession = {
       id: "s1",
       profile_id: "test",
       driver_session_id: null,
       status: "active" as const,
-      topic: "Test",
+      topic: null,
       created_at: "2026-01-18T00:00:00Z",
       updated_at: "2026-01-18T00:00:00Z",
     };
@@ -87,18 +93,20 @@ describe("SpecBuilderPage", () => {
       session: mockSession,
       profile: mockProfile,
     });
-    vi.mocked(brainstormApi.sendMessage).mockResolvedValue({ message_id: "m1" });
+    vi.mocked(brainstormApi.primeSession).mockResolvedValue({ message_id: "m1" });
 
     renderPage();
 
-    const input = screen.getByPlaceholderText(/what would you like to design/i);
-    await userEvent.type(input, "Design a caching layer{enter}");
+    // Wait for the button to be present (handles any async rendering)
+    const startButton = await screen.findByRole("button", { name: /start brainstorming/i });
+    await userEvent.click(startButton);
 
     await waitFor(() => {
-      expect(brainstormApi.createSession).toHaveBeenCalledWith(
-        "test",
-        "Design a caching layer"
-      );
+      expect(brainstormApi.createSession).toHaveBeenCalledWith("test");
+    });
+
+    await waitFor(() => {
+      expect(brainstormApi.primeSession).toHaveBeenCalledWith("s1");
     });
   });
 
