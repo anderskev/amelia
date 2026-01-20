@@ -260,13 +260,20 @@ async def prime_session(
 
     async def _process_priming() -> None:
         """Background task to prime the session."""
-        async for _ in service.prime_session(
-            session_id=session_id,
-            driver=driver,
-            cwd=cwd,
-            assistant_message_id=message_id,
-        ):
-            pass
+        try:
+            async for _ in service.prime_session(
+                session_id=session_id,
+                driver=driver,
+                cwd=cwd,
+                assistant_message_id=message_id,
+            ):
+                pass
+        except Exception as e:
+            logger.error(
+                "Failed to prime session",
+                session_id=session_id,
+                error=str(e),
+            )
 
     background_tasks.add_task(_process_priming)
 

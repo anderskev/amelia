@@ -126,10 +126,11 @@ export interface BrainstormingSession {
 
 /** A part of a brainstorm message (text, reasoning, tool call, or tool result). */
 export interface MessagePart {
-  type: "text" | "reasoning" | "tool_call" | "tool_result";
+  type: "text" | "reasoning" | "tool-call" | "tool-result";
   text?: string;
   tool_name?: string;
   tool_call_id?: string;
+  args?: Record<string, unknown>;
   result?: unknown;
 }
 

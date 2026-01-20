@@ -89,25 +89,30 @@ function SpecBuilderPageContent() {
   // Load sessions and config on mount
   useEffect(() => {
     let mounted = true;
-    loadSessions();
 
-    // Fetch active_profile from config for session creation and display
-    api.getConfig().then((config) => {
-      if (mounted) {
-        activeProfileRef.current = config.active_profile;
-        setConfigProfileInfo(config.active_profile_info);
+    const init = async () => {
+      await loadSessions();
+      if (!mounted) return;
+
+      try {
+        const config = await api.getConfig();
+        if (mounted) {
+          activeProfileRef.current = config.active_profile;
+          setConfigProfileInfo(config.active_profile_info);
+        }
+      } catch (error) {
+        if (mounted) {
+          console.warn('Failed to load config, using defaults:', error);
+        }
       }
-    }).catch((error) => {
-      // Fall back to empty string on error - backend will use its default
-      if (mounted) {
-        console.warn('Failed to load config, using defaults:', error);
-      }
-    });
+    };
+
+    init();
 
     return () => {
       mounted = false;
     };
-  }, [loadSessions]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage, _event: FormEvent<HTMLFormElement>) => {
@@ -163,6 +168,9 @@ function SpecBuilderPageContent() {
         setHandoffArtifact(null);
         // Navigate to the new workflow
         navigate(`/workflows/${result.workflow_id}`);
+      } catch (error) {
+        console.error('Handoff failed:', error);
+        // Keep artifact so user can retry - don't clear or navigate
       } finally {
         setIsHandingOff(false);
       }

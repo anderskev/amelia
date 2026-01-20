@@ -170,6 +170,7 @@ class TestGetFile:
         app.dependency_overrides[get_config] = lambda: mock_config
 
         client = TestClient(app)
-        response = client.get("/api/files/etc/passwd")
+        # Double slash makes the path absolute: /api/files/ + /etc/passwd
+        response = client.get("/api/files//etc/passwd")
 
         assert response.status_code == 400
