@@ -714,6 +714,40 @@ class TestHandoff(TestBrainstormService):
         assert result["workflow_id"] == "wf-real-123"
         mock_orchestrator.queue_workflow.assert_called_once()
 
+    async def test_handoff_raises_for_non_noop_tracker(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+    ) -> None:
+        """Should raise NotImplementedError for non-noop tracker."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1", profile_id="work", status="ready_for_handoff",
+            created_at=now, updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+        mock_repository.get_artifacts.return_value = [
+            Artifact(
+                id="art-1", session_id="sess-1", type="design",
+                path="docs/plans/design.md", created_at=now,
+            )
+        ]
+
+        mock_orchestrator = MagicMock()
+        # Simulate ValueError from orchestrator when tracker is not noop
+        mock_orchestrator.queue_workflow = AsyncMock(
+            side_effect=ValueError("task_title can only be used with noop tracker")
+        )
+
+        with pytest.raises(ValueError, match="noop tracker"):
+            await service.handoff_to_implementation(
+                session_id="sess-1",
+                artifact_path="docs/plans/design.md",
+                issue_title="Implement feature X",
+                orchestrator=mock_orchestrator,
+                worktree_path="/path/to/worktree",
+            )
+
 
 class TestDeleteSessionCleanup(TestBrainstormService):
     """Test driver cleanup on session deletion."""
