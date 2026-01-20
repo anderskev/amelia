@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from amelia.server.orchestrator.service import OrchestratorService
 from uuid import uuid4
 
+from amelia.server.models.requests import CreateWorkflowRequest
+
 from deepagents.backends.protocol import BackendProtocol, WriteResult
 from deepagents.middleware.filesystem import (  # type: ignore[import-untyped]
     TOOL_GENERATORS,
@@ -951,6 +953,7 @@ class BrainstormService:
 
         Raises:
             ValueError: If session or artifact not found.
+            NotImplementedError: If tracker is not noop.
         """
         session = await self._repository.get_session(session_id)
         if session is None:
@@ -962,9 +965,23 @@ class BrainstormService:
         if artifact is None:
             raise ValueError(f"Artifact not found: {artifact_path}")
 
-        # Generate a workflow ID for the implementation
-        # In the full implementation, this would create an actual workflow
-        workflow_id = str(uuid4())
+        # Generate workflow ID - either from orchestrator or fallback
+        if orchestrator is not None and worktree_path is not None:
+            # Create issue ID from session ID (safe characters only)
+            issue_id = f"brainstorm-{session_id}"
+
+            # Queue workflow with orchestrator
+            request = CreateWorkflowRequest(
+                issue_id=issue_id,
+                worktree_path=worktree_path,
+                task_title=issue_title or f"Implement design from {artifact_path}",
+                task_description=issue_description,
+                start=False,  # Queue only, don't start
+            )
+            workflow_id = await orchestrator.queue_workflow(request)
+        else:
+            # Fallback for backwards compatibility (e.g., tests without orchestrator)
+            workflow_id = str(uuid4())
 
         # Update session status to completed
         session.status = "completed"
