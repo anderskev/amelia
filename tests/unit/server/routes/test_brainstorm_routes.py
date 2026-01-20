@@ -248,48 +248,108 @@ class TestSendMessage(TestBrainstormRoutes):
         assert response.status_code == 404
 
 
-class TestHandoff(TestBrainstormRoutes):
+class TestHandoff:
     """Test POST /api/brainstorm/sessions/{id}/handoff."""
 
-    def test_handoff_success(
-        self, client: TestClient, mock_service: MagicMock
-    ) -> None:
-        """Should return workflow_id on successful handoff."""
-        mock_service.handoff_to_implementation = AsyncMock(
-            return_value={"workflow_id": "impl-123", "status": "created"}
+    @pytest.fixture
+    def mock_service(self) -> MagicMock:
+        """Create mock BrainstormService."""
+        service = MagicMock()
+        service.handoff_to_implementation = AsyncMock()
+        return service
+
+    @pytest.fixture
+    def mock_orchestrator(self) -> MagicMock:
+        """Create mock orchestrator."""
+        return MagicMock()
+
+    @pytest.fixture
+    def app(
+        self, mock_service: MagicMock, mock_orchestrator: MagicMock
+    ) -> FastAPI:
+        """Create test app with mocked dependencies."""
+        from amelia.server.dependencies import get_orchestrator
+        from amelia.server.routes.brainstorm import (
+            get_brainstorm_service,
+            get_cwd,
         )
 
+        application = FastAPI()
+        application.include_router(router, prefix="/api/brainstorm")
+        application.dependency_overrides[get_brainstorm_service] = lambda: mock_service
+        application.dependency_overrides[get_orchestrator] = lambda: mock_orchestrator
+        application.dependency_overrides[get_cwd] = lambda: "/test/worktree"
+        return application
+
+    @pytest.fixture
+    def client(self, app: FastAPI) -> TestClient:
+        """Create test client."""
+        return TestClient(app)
+
+    def test_handoff_returns_workflow_id(
+        self, client: TestClient, mock_service: MagicMock
+    ) -> None:
+        """Should return workflow_id from service."""
+        mock_service.handoff_to_implementation.return_value = {
+            "workflow_id": "wf-123",
+            "status": "created",
+        }
+
         response = client.post(
-            "/api/brainstorm/sessions/sess-123/handoff",
-            json={"artifact_path": "docs/plans/design.md"},
+            "/api/brainstorm/sessions/sess-1/handoff",
+            json={"artifact_path": "docs/design.md", "issue_title": "Feature X"},
         )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["workflow_id"] == "impl-123"
-        assert data["status"] == "created"
+        assert response.json()["workflow_id"] == "wf-123"
 
-    def test_handoff_session_not_found(
-        self, client: TestClient, mock_service: MagicMock
+    def test_handoff_passes_orchestrator_to_service(
+        self,
+        client: TestClient,
+        mock_service: MagicMock,
+        mock_orchestrator: MagicMock,
     ) -> None:
-        """Should return 404 if session not found."""
-        mock_service.handoff_to_implementation = AsyncMock(
-            side_effect=ValueError("Session not found: nonexistent")
+        """Should pass orchestrator and cwd to service."""
+        mock_service.handoff_to_implementation.return_value = {
+            "workflow_id": "wf-123",
+            "status": "created",
+        }
+
+        client.post(
+            "/api/brainstorm/sessions/sess-1/handoff",
+            json={"artifact_path": "docs/design.md"},
+        )
+
+        call_kwargs = mock_service.handoff_to_implementation.call_args.kwargs
+        assert call_kwargs["orchestrator"] is mock_orchestrator
+        assert call_kwargs["worktree_path"] == "/test/worktree"
+
+    def test_handoff_returns_404_for_missing_session(
+        self,
+        client: TestClient,
+        mock_service: MagicMock,
+    ) -> None:
+        """Should return 404 when session not found."""
+        mock_service.handoff_to_implementation.side_effect = ValueError(
+            "Session not found: sess-999"
         )
 
         response = client.post(
-            "/api/brainstorm/sessions/nonexistent/handoff",
-            json={"artifact_path": "docs/plans/design.md"},
+            "/api/brainstorm/sessions/sess-999/handoff",
+            json={"artifact_path": "docs/design.md"},
         )
 
         assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
 
-    def test_handoff_artifact_not_found(
-        self, client: TestClient, mock_service: MagicMock
+    def test_handoff_returns_404_for_missing_artifact(
+        self,
+        client: TestClient,
+        mock_service: MagicMock,
     ) -> None:
         """Should return 404 if artifact not found."""
-        mock_service.handoff_to_implementation = AsyncMock(
-            side_effect=ValueError("Artifact not found: missing.md")
+        mock_service.handoff_to_implementation.side_effect = ValueError(
+            "Artifact not found: missing.md"
         )
 
         response = client.post(
