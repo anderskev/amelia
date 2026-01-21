@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, type FormEvent } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Menu, Lightbulb, Bot, Cpu } from "lucide-react";
 import { api } from "@/api/client";
 import { formatDriver, formatModel } from "@/lib/utils";
@@ -169,7 +170,8 @@ function SpecBuilderPageContent() {
         // Navigate to the new workflow
         navigate(`/workflows/${result.workflow_id}`);
       } catch (error) {
-        console.error('Handoff failed:', error);
+        const message = error instanceof Error ? error.message : "Unknown error";
+        toast.error(`Handoff failed: ${message}`);
         // Keep artifact so user can retry - don't clear or navigate
       } finally {
         setIsHandingOff(false);
@@ -187,7 +189,7 @@ function SpecBuilderPageContent() {
     try {
       await startPrimedSession(activeProfileRef.current);
     } catch {
-      // TODO: Show error toast
+      toast.error("Failed to start session");
     }
   }, [isStreaming, startPrimedSession]);
 

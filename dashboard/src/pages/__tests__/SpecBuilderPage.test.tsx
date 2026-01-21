@@ -2,11 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { toast } from "sonner";
 import SpecBuilderPage from "../SpecBuilderPage";
 import { useBrainstormStore } from "@/store/brainstormStore";
 import { brainstormApi } from "@/api/brainstorm";
 
 vi.mock("@/api/brainstorm");
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}));
 vi.mock("@/api/client", () => ({
   api: {
     getConfig: vi.fn().mockResolvedValue({ working_dir: "", max_concurrent: 5, active_profile: "test" }),
@@ -177,5 +183,83 @@ describe("SpecBuilderPage", () => {
     // Should have the expandable Reasoning component
     const collapsible = document.querySelector('[data-slot="collapsible"]');
     expect(collapsible).toBeInTheDocument();
+  });
+
+  it("shows error toast when session creation fails", async () => {
+    vi.mocked(brainstormApi.createSession).mockRejectedValue(new Error("Network error"));
+
+    renderPage();
+
+    const startButton = await screen.findByRole("button", { name: /start brainstorming/i });
+    await userEvent.click(startButton);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Failed to start session");
+    });
+  });
+
+  it("shows error toast when handoff fails", async () => {
+    const mockArtifact = {
+      id: "a1",
+      session_id: "s1",
+      path: "/path/to/design.md",
+      artifact_type: "design" as const,
+      title: "Design Doc",
+      created_at: "2026-01-18T00:00:00Z",
+    };
+
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [
+        {
+          id: "s1",
+          profile_id: "test",
+          driver_session_id: null,
+          status: "active" as const,
+          topic: "Test",
+          created_at: "2026-01-18T00:00:00Z",
+          updated_at: "2026-01-18T00:00:00Z",
+        },
+      ],
+      messages: [
+        {
+          id: "m1",
+          session_id: "s1",
+          sequence: 1,
+          role: "assistant" as const,
+          content: "Response",
+          parts: null,
+          created_at: "2026-01-18T00:00:00Z",
+        },
+      ],
+      artifacts: [mockArtifact],
+    });
+
+    vi.mocked(brainstormApi.handoff).mockRejectedValue(
+      new Error("Handoff failed")
+    );
+
+    renderPage();
+
+    // Click the handoff button on the artifact card
+    const handoffButton = await screen.findByRole("button", {
+      name: /hand off to implementation/i,
+    });
+    await userEvent.click(handoffButton);
+
+    // Fill in the dialog and confirm
+    const titleInput = await screen.findByLabelText(/issue title/i);
+    await userEvent.clear(titleInput);
+    await userEvent.type(titleInput, "Implement design");
+    const confirmButton = screen.getByRole("button", {
+      name: /create workflow/i,
+    });
+    await userEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("Handoff failed")
+      );
+    });
   });
 });
