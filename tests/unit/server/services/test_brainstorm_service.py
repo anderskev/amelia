@@ -1,11 +1,18 @@
 """Tests for BrainstormService."""
 
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from amelia.server.models.brainstorm import Artifact, BrainstormingSession, Message
+from amelia.drivers.base import AgenticMessage
+from amelia.server.models.brainstorm import (
+    Artifact,
+    BrainstormingSession,
+    Message,
+    SessionStatus,
+)
 from amelia.server.models.events import EventDomain
 from amelia.server.services.brainstorm import BrainstormService
 
@@ -187,8 +194,10 @@ class TestSendMessage(TestBrainstormService):
         driver = MagicMock()
 
         # execute_agentic returns an async iterator
-        async def mock_execute_agentic(*args, **kwargs):
-            from amelia.drivers.base import AgenticMessage, AgenticMessageType
+        async def mock_execute_agentic(
+            *args: object, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
 
             yield AgenticMessage(
                 type=AgenticMessageType.THINKING,
@@ -330,8 +339,10 @@ class TestArtifactDetection(TestBrainstormService):
         """Create mock driver that writes a file using 'path' key."""
         driver = MagicMock()
 
-        async def mock_execute_agentic(*args, **kwargs):
-            from amelia.drivers.base import AgenticMessage, AgenticMessageType
+        async def mock_execute_agentic(
+            *args: object, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
 
             yield AgenticMessage(
                 type=AgenticMessageType.TOOL_CALL,
@@ -363,8 +374,10 @@ class TestArtifactDetection(TestBrainstormService):
         """
         driver = MagicMock()
 
-        async def mock_execute_agentic(*args, **kwargs):
-            from amelia.drivers.base import AgenticMessage, AgenticMessageType
+        async def mock_execute_agentic(
+            *args: object, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
 
             # CLI driver normalizes "Write" -> "write_file"
             # CLI driver passes block.input directly: {"file_path": "...", "content": "..."}
@@ -510,8 +523,10 @@ class TestArtifactDetection(TestBrainstormService):
         """
         driver = MagicMock()
 
-        async def mock_execute_agentic(*args, **kwargs):
-            from amelia.drivers.base import AgenticMessage, AgenticMessageType
+        async def mock_execute_agentic(
+            *args: object, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
 
             # Unique tool call ID (realistic format)
             tool_call_id = "toolu_01XYZ789abc"
@@ -882,7 +897,7 @@ class TestUpdateSessionStatusCleanup(TestBrainstormService):
         service_with_cleanup: BrainstormService,
         mock_repository: MagicMock,
         mock_cleanup: MagicMock,
-        terminal_status: str,
+        terminal_status: SessionStatus,
     ) -> None:
         """Should call driver cleanup when status becomes terminal."""
         now = datetime.now(UTC)

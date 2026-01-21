@@ -10,7 +10,7 @@ from amelia.server.orchestrator.service import OrchestratorService
 
 
 @pytest.fixture
-def mock_settings():
+def mock_settings() -> MagicMock:
     """Create minimal mock settings."""
     settings = MagicMock()
     settings.active_profile = "test"
@@ -36,14 +36,20 @@ class TestHandoffDesignFlow:
         # Create orchestrator with mocked dependencies
         orchestrator = OrchestratorService.__new__(OrchestratorService)
         orchestrator._event_bus = MagicMock()
-        orchestrator._workflows = {}
-        orchestrator._load_settings_for_worktree = MagicMock(return_value=mock_settings)
+        orchestrator._repository = MagicMock()
 
-        # Patch get_git_head to avoid actual git operations
-        with patch(
-            "amelia.server.orchestrator.service.get_git_head",
-            new_callable=AsyncMock,
-            return_value="abc123",
+        # Patch methods to avoid dependencies
+        with (
+            patch.object(
+                orchestrator,
+                "_load_settings_for_worktree",
+                return_value=mock_settings,
+            ),
+            patch(
+                "amelia.server.orchestrator.service.get_git_head",
+                new_callable=AsyncMock,
+                return_value="abc123",
+            ),
         ):
             _, _, state = await orchestrator._prepare_workflow_state(
                 workflow_id="wf-123",
@@ -64,13 +70,19 @@ class TestHandoffDesignFlow:
         """Design is None when no artifact_path provided (backward compatible)."""
         orchestrator = OrchestratorService.__new__(OrchestratorService)
         orchestrator._event_bus = MagicMock()
-        orchestrator._workflows = {}
-        orchestrator._load_settings_for_worktree = MagicMock(return_value=mock_settings)
+        orchestrator._repository = MagicMock()
 
-        with patch(
-            "amelia.server.orchestrator.service.get_git_head",
-            new_callable=AsyncMock,
-            return_value="abc123",
+        with (
+            patch.object(
+                orchestrator,
+                "_load_settings_for_worktree",
+                return_value=mock_settings,
+            ),
+            patch(
+                "amelia.server.orchestrator.service.get_git_head",
+                new_callable=AsyncMock,
+                return_value="abc123",
+            ),
         ):
             _, _, state = await orchestrator._prepare_workflow_state(
                 workflow_id="wf-123",
@@ -88,10 +100,14 @@ class TestHandoffDesignFlow:
         """Raises FileNotFoundError when artifact file doesn't exist."""
         orchestrator = OrchestratorService.__new__(OrchestratorService)
         orchestrator._event_bus = MagicMock()
-        orchestrator._workflows = {}
-        orchestrator._load_settings_for_worktree = MagicMock(return_value=mock_settings)
+        orchestrator._repository = MagicMock()
 
         with (
+            patch.object(
+                orchestrator,
+                "_load_settings_for_worktree",
+                return_value=mock_settings,
+            ),
             patch(
                 "amelia.server.orchestrator.service.get_git_head",
                 new_callable=AsyncMock,
@@ -99,13 +115,13 @@ class TestHandoffDesignFlow:
             ),
             pytest.raises(FileNotFoundError),
         ):
-                await orchestrator._prepare_workflow_state(
-                    workflow_id="wf-123",
-                    worktree_path=str(tmp_path),
-                    issue_id="issue-1",
-                    task_title="Implement design",
-                    artifact_path="/nonexistent/design.md",
-                )
+            await orchestrator._prepare_workflow_state(
+                workflow_id="wf-123",
+                worktree_path=str(tmp_path),
+                issue_id="issue-1",
+                task_title="Implement design",
+                artifact_path="/nonexistent/design.md",
+            )
 
     async def test_queue_workflow_passes_artifact_path(
         self, tmp_path: Path, mock_settings: MagicMock
@@ -120,13 +136,8 @@ class TestHandoffDesignFlow:
 
         orchestrator = OrchestratorService.__new__(OrchestratorService)
         orchestrator._event_bus = MagicMock()
-        orchestrator._workflows = {}
-        orchestrator._checkpointer = None
         orchestrator._repository = MagicMock()
         orchestrator._repository.create = AsyncMock()
-        orchestrator._load_settings_for_worktree = MagicMock(return_value=mock_settings)
-        # Mock _emit to avoid complex event system dependencies
-        orchestrator._emit = AsyncMock()
 
         request = CreateWorkflowRequest(
             issue_id="issue-1",
@@ -136,10 +147,18 @@ class TestHandoffDesignFlow:
             start=False,
         )
 
-        with patch(
-            "amelia.server.orchestrator.service.get_git_head",
-            new_callable=AsyncMock,
-            return_value="abc123",
+        with (
+            patch.object(
+                orchestrator,
+                "_load_settings_for_worktree",
+                return_value=mock_settings,
+            ),
+            patch.object(orchestrator, "_emit", new_callable=AsyncMock),
+            patch(
+                "amelia.server.orchestrator.service.get_git_head",
+                new_callable=AsyncMock,
+                return_value="abc123",
+            ),
         ):
             await orchestrator.queue_workflow(request)
 

@@ -30,7 +30,7 @@ class TestCreateWorkflowRequest:
             "a" * 100,  # Max length
         ],
     )
-    def test_issue_id_valid_patterns(self, issue_id):
+    def test_issue_id_valid_patterns(self, issue_id: str) -> None:
         """Test issue_id accepts valid patterns."""
         # Should not raise - validates alphanumeric, dashes, underscores
         CreateWorkflowRequest(issue_id=issue_id, worktree_path="/absolute/path")
@@ -52,7 +52,7 @@ class TestCreateWorkflowRequest:
             "issue#anchor",
         ],
     )
-    def test_issue_id_rejects_dangerous_characters(self, dangerous_id):
+    def test_issue_id_rejects_dangerous_characters(self, dangerous_id: str) -> None:
         """Test issue_id rejects path traversal and injection characters."""
         with pytest.raises(ValidationError):
             CreateWorkflowRequest(
@@ -69,7 +69,7 @@ class TestCreateWorkflowRequest:
             "~/home/path",
         ],
     )
-    def test_worktree_path_must_be_absolute(self, relative_path):
+    def test_worktree_path_must_be_absolute(self, relative_path: str) -> None:
         """Test worktree_path rejects relative paths."""
         with pytest.raises(ValidationError, match="worktree_path.*must be absolute"):
             CreateWorkflowRequest(
@@ -77,7 +77,7 @@ class TestCreateWorkflowRequest:
                 worktree_path=relative_path,
             )
 
-    def test_worktree_path_resolves_canonical_form(self):
+    def test_worktree_path_resolves_canonical_form(self) -> None:
         """Test worktree_path is resolved to canonical form."""
         req = CreateWorkflowRequest(
             issue_id="PROJ-123",
@@ -86,7 +86,7 @@ class TestCreateWorkflowRequest:
         assert ".." not in req.worktree_path
         assert req.worktree_path == "/path/canonical"
 
-    def test_worktree_path_rejects_null_bytes(self):
+    def test_worktree_path_rejects_null_bytes(self) -> None:
         """Test worktree_path rejects null bytes."""
         with pytest.raises(ValidationError):
             CreateWorkflowRequest(
@@ -98,7 +98,7 @@ class TestCreateWorkflowRequest:
         "profile",
         ["work", "personal", "my-profile", "profile_123"],
     )
-    def test_profile_valid_patterns(self, profile):
+    def test_profile_valid_patterns(self, profile: str) -> None:
         """Test profile accepts valid patterns."""
         # Should not raise
         CreateWorkflowRequest(
@@ -111,7 +111,7 @@ class TestCreateWorkflowRequest:
         "invalid_profile",
         ["UPPERCASE", "has spaces", "has/slash", "has@symbol", ""],
     )
-    def test_profile_rejects_invalid_patterns(self, invalid_profile):
+    def test_profile_rejects_invalid_patterns(self, invalid_profile: str) -> None:
         """Test profile rejects invalid patterns."""
         with pytest.raises(ValidationError):
             CreateWorkflowRequest(
@@ -124,7 +124,7 @@ class TestCreateWorkflowRequest:
         "driver",
         ["sdk:claude", "api:openrouter", "cli:claude", "custom:my-driver"],
     )
-    def test_driver_valid_patterns(self, driver):
+    def test_driver_valid_patterns(self, driver: str) -> None:
         """Test driver accepts valid type:name patterns."""
         # Should not raise
         CreateWorkflowRequest(
@@ -137,7 +137,7 @@ class TestCreateWorkflowRequest:
         "invalid_driver",
         ["no-colon", ":missing-type", "missing-name:", "too:many:colons", ""],
     )
-    def test_driver_rejects_invalid_patterns(self, invalid_driver):
+    def test_driver_rejects_invalid_patterns(self, invalid_driver: str) -> None:
         """Test driver rejects patterns without type:name format."""
         with pytest.raises(ValidationError):
             CreateWorkflowRequest(
@@ -146,7 +146,7 @@ class TestCreateWorkflowRequest:
                 driver=invalid_driver,
             )
 
-    def test_task_description_without_title_rejected(self):
+    def test_task_description_without_title_rejected(self) -> None:
         """task_description without task_title is rejected."""
         with pytest.raises(ValidationError):
             CreateWorkflowRequest(
@@ -155,7 +155,7 @@ class TestCreateWorkflowRequest:
                 task_description="Some description without title",
             )
 
-    def test_task_fields_valid(self):
+    def test_task_fields_valid(self) -> None:
         """task_title and task_description are accepted together."""
         req = CreateWorkflowRequest(
             issue_id="TASK-1",
@@ -166,7 +166,7 @@ class TestCreateWorkflowRequest:
         assert req.task_title == "Add logout button"
         assert req.task_description == "Add to navbar with confirmation"
 
-    def test_task_title_only_valid(self):
+    def test_task_title_only_valid(self) -> None:
         """task_title alone is valid (description defaults to None)."""
         req = CreateWorkflowRequest(
             issue_id="TASK-1",
@@ -180,7 +180,7 @@ class TestCreateWorkflowRequest:
 class TestRejectRequest:
     """Tests for RejectRequest schema."""
 
-    def test_valid_request(self):
+    def test_valid_request(self) -> None:
         """Test valid reject request construction."""
         # Smoke test - should not raise
         RejectRequest(feedback="Please fix the typo in line 42")
