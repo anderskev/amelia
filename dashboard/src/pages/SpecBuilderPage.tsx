@@ -320,6 +320,12 @@ function SpecBuilderPageContent() {
                         ) : (
                           <MessageResponse>{message.content}</MessageResponse>
                         )}
+                        {message.status === "error" && (
+                          <div className="text-red-500 text-sm mt-2 flex items-center gap-1">
+                            <span>⚠</span>
+                            <span>{message.errorMessage || "Message failed"}</span>
+                          </div>
+                        )}
                         {isComplete && (
                           <MessageMetadata
                             timestamp={message.created_at}

@@ -262,4 +262,30 @@ describe("SpecBuilderPage", () => {
       );
     });
   });
+
+  it("shows error indicator when message has error status", async () => {
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [{ id: "s1", profile_id: "test", driver_session_id: null, status: "active" as const, topic: "Test", created_at: "2026-01-18T00:00:00Z", updated_at: "2026-01-18T00:00:00Z" }],
+      messages: [
+        {
+          id: "m1",
+          session_id: "s1",
+          sequence: 1,
+          role: "assistant" as const,
+          content: "Partial response",
+          parts: null,
+          created_at: "2026-01-18T00:00:00Z",
+          status: "error" as const,
+          errorMessage: "Connection lost. Please retry.",
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText(/connection lost/i)).toBeInTheDocument();
+    });
+  });
 });
