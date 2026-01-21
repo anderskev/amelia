@@ -40,9 +40,10 @@ export function truncateWorkflowId(id: string, maxPrefixLength = 20): string {
     const uuidFirstSegment = match[2]!; // First 8 chars of UUID
     const uuidLastSegment = match[6]!; // Last 12 chars of UUID
 
-    // Truncate prefix if needed
-    const displayPrefix = prefix.length > maxPrefixLength
-      ? prefix.slice(0, maxPrefixLength - 1) + '…'
+    // Truncate prefix if needed (guard against invalid maxPrefixLength)
+    const safePrefixLength = Math.max(1, maxPrefixLength);
+    const displayPrefix = prefix.length > safePrefixLength
+      ? prefix.slice(0, safePrefixLength - 1) + '…'
       : prefix;
 
     // Last 3 chars of the full UUID

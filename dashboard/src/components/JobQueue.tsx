@@ -93,9 +93,12 @@ export function JobQueue({
       </div>
 
       <div
+        aria-hidden={collapsible && isCollapsed}
         className={cn(
           'transition-all duration-200 overflow-hidden',
-          collapsible && isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[2000px] opacity-100'
+          collapsible && isCollapsed
+            ? 'max-h-0 opacity-0 invisible pointer-events-none'
+            : 'max-h-[2000px] opacity-100 visible'
         )}
       >
         {workflows.length === 0 ? (
