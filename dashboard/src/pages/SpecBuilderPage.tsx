@@ -245,7 +245,7 @@ function SpecBuilderPageContent() {
         aria-atomic="false"
         aria-busy={isStreaming}
       >
-        <ConversationContent className="px-4 py-6">
+        <ConversationContent className="px-2 sm:px-4 py-4 sm:py-6">
           {messages.length === 0 ? (
             <ConversationEmptyState>
               <>
@@ -364,7 +364,7 @@ function SpecBuilderPageContent() {
 
       {/* Input Area - only shown when there's an active session */}
       {activeSessionId && (
-        <div className="border-t bg-background p-4">
+        <div className="border-t bg-background p-2 sm:p-4">
           <PromptInput
             className="max-w-3xl mx-auto"
             onSubmit={handleSubmit}
