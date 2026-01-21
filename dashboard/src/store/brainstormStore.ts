@@ -54,6 +54,9 @@ interface BrainstormState {
   // UI actions
   setStreaming: (streaming: boolean, messageId: string | null) => void;
   setDrawerOpen: (open: boolean) => void;
+
+  // WebSocket actions
+  handleWebSocketDisconnect: () => void;
 }
 
 export const useBrainstormStore = create<BrainstormState>()((set) => ({
@@ -139,4 +142,25 @@ export const useBrainstormStore = create<BrainstormState>()((set) => ({
     set({ isStreaming: streaming, streamingMessageId: messageId }),
 
   setDrawerOpen: (open) => set({ drawerOpen: open }),
+
+  // WebSocket actions
+  handleWebSocketDisconnect: () =>
+    set((state) => {
+      if (!state.streamingMessageId) {
+        return state;
+      }
+      return {
+        messages: state.messages.map((m) =>
+          m.id === state.streamingMessageId
+            ? {
+                ...m,
+                status: "error" as const,
+                errorMessage: "Connection lost. Please retry.",
+              }
+            : m
+        ),
+        isStreaming: false,
+        streamingMessageId: null,
+      };
+    }),
 }));
