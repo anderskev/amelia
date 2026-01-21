@@ -67,7 +67,7 @@ export function SessionDrawer({
 
   return (
     <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-      <SheetContent side="right" className="w-80 p-0 overflow-hidden" aria-label="Brainstorming sessions">
+      <SheetContent side="right" className="w-full sm:w-80 p-0 overflow-hidden" aria-label="Brainstorming sessions">
         <SheetHeader className="px-4 py-4 border-b">
           <SheetTitle>Sessions</SheetTitle>
         </SheetHeader>

@@ -315,4 +315,24 @@ describe("SpecBuilderPage", () => {
     const logRegion = await screen.findByRole("log");
     expect(logRegion).toHaveAttribute("aria-busy", "true");
   });
+
+  it("returns focus to input after submit", async () => {
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [{ id: "s1", profile_id: "test", driver_session_id: null, status: "active" as const, topic: "Test", created_at: "2026-01-18T00:00:00Z", updated_at: "2026-01-18T00:00:00Z" }],
+      messages: [],
+    });
+
+    vi.mocked(brainstormApi.sendMessage).mockResolvedValue({ message_id: "m1" });
+
+    renderPage();
+
+    const textarea = screen.getByPlaceholderText(/what would you like to design/i);
+    await userEvent.type(textarea, "Test message");
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(textarea);
+    });
+  });
 });
