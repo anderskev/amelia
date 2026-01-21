@@ -304,6 +304,72 @@ describe("useBrainstormSession", () => {
     });
   });
 
+  describe("handleWebSocketDisconnect", () => {
+    it("marks streaming message as error on WebSocket disconnect", () => {
+      // Setup: message is streaming
+      useBrainstormStore.setState({
+        messages: [
+          {
+            id: "m1",
+            session_id: "s1",
+            sequence: 1,
+            role: "assistant" as const,
+            content: "Partial response...",
+            parts: null,
+            created_at: "2026-01-18T00:00:00Z",
+            status: "streaming" as const,
+          },
+        ],
+        isStreaming: true,
+        streamingMessageId: "m1",
+      });
+
+      // Simulate disconnect by calling the handler
+      const { handleWebSocketDisconnect } = useBrainstormStore.getState();
+      act(() => {
+        handleWebSocketDisconnect();
+      });
+
+      // Verify message status changed to error
+      const state = useBrainstormStore.getState();
+      const message = state.messages.find((m) => m.id === "m1");
+      expect(message?.status).toBe("error");
+      expect(message?.errorMessage).toBe("Connection lost. Please retry.");
+      expect(state.isStreaming).toBe(false);
+    });
+
+    it("does nothing if no streaming message", () => {
+      // Setup: no streaming message
+      useBrainstormStore.setState({
+        messages: [
+          {
+            id: "m1",
+            session_id: "s1",
+            sequence: 1,
+            role: "assistant" as const,
+            content: "Complete response",
+            parts: null,
+            created_at: "2026-01-18T00:00:00Z",
+          },
+        ],
+        isStreaming: false,
+        streamingMessageId: null,
+      });
+
+      // Calling disconnect should not throw
+      const { handleWebSocketDisconnect } = useBrainstormStore.getState();
+      act(() => {
+        handleWebSocketDisconnect();
+      });
+
+      // Message should be unchanged
+      const state = useBrainstormStore.getState();
+      const message = state.messages.find((m) => m.id === "m1");
+      expect(message?.status).toBeUndefined();
+      expect(message?.errorMessage).toBeUndefined();
+    });
+  });
+
   describe("deleteSession", () => {
     it("deletes session and clears if active", async () => {
       useBrainstormStore.setState({

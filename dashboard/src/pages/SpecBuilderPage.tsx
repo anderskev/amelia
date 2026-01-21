@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, type FormEvent } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Menu, Lightbulb, Bot, Cpu } from "lucide-react";
 import { api } from "@/api/client";
 import { formatDriver, formatModel } from "@/lib/utils";
@@ -85,6 +86,7 @@ function SpecBuilderPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [configProfileInfo, setConfigProfileInfo] = useState<ConfigProfileInfo | null>(null);
   const activeProfileRef = useRef<string>("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Load sessions and config on mount
   useEffect(() => {
@@ -129,10 +131,12 @@ function SpecBuilderPageContent() {
           await createSession(activeProfileRef.current, content);
         }
         textInput.clear();
+        // Return focus to input after submit
+        textareaRef.current?.focus();
       } catch {
         // Restore input on error
         textInput.setInput(content);
-        // TODO: Show error toast
+        toast.error("Failed to send message");
       } finally {
         setIsSubmitting(false);
       }
@@ -169,7 +173,8 @@ function SpecBuilderPageContent() {
         // Navigate to the new workflow
         navigate(`/workflows/${result.workflow_id}`);
       } catch (error) {
-        console.error('Handoff failed:', error);
+        const message = error instanceof Error ? error.message : "Unknown error";
+        toast.error(`Handoff failed: ${message}`);
         // Keep artifact so user can retry - don't clear or navigate
       } finally {
         setIsHandingOff(false);
@@ -187,7 +192,7 @@ function SpecBuilderPageContent() {
     try {
       await startPrimedSession(activeProfileRef.current);
     } catch {
-      // TODO: Show error toast
+      toast.error("Failed to start session");
     }
   }, [isStreaming, startPrimedSession]);
 
@@ -234,8 +239,13 @@ function SpecBuilderPageContent() {
       )}
 
       {/* Conversation Area */}
-      <Conversation className="flex-1 overflow-hidden">
-        <ConversationContent className="px-4 py-6">
+      <Conversation
+        className="flex-1 overflow-hidden"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-busy={isStreaming}
+      >
+        <ConversationContent className="px-2 sm:px-4 py-4 sm:py-6">
           {messages.length === 0 ? (
             <ConversationEmptyState>
               <>
@@ -318,6 +328,12 @@ function SpecBuilderPageContent() {
                         ) : (
                           <MessageResponse>{message.content}</MessageResponse>
                         )}
+                        {message.status === "error" && (
+                          <div className="text-red-500 text-sm mt-2 flex items-center gap-1">
+                            <span>⚠</span>
+                            <span>{message.errorMessage || "Message failed"}</span>
+                          </div>
+                        )}
                         {isComplete && (
                           <MessageMetadata
                             timestamp={message.created_at}
@@ -348,12 +364,13 @@ function SpecBuilderPageContent() {
 
       {/* Input Area - only shown when there's an active session */}
       {activeSessionId && (
-        <div className="border-t bg-background p-4">
+        <div className="border-t bg-background p-2 sm:p-4">
           <PromptInput
             className="max-w-3xl mx-auto"
             onSubmit={handleSubmit}
           >
             <PromptInputTextarea
+              ref={textareaRef}
               placeholder="What would you like to design?"
               disabled={isStreaming}
             />

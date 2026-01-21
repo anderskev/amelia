@@ -2,11 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { toast } from "sonner";
 import SpecBuilderPage from "../SpecBuilderPage";
 import { useBrainstormStore } from "@/store/brainstormStore";
 import { brainstormApi } from "@/api/brainstorm";
 
 vi.mock("@/api/brainstorm");
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}));
 vi.mock("@/api/client", () => ({
   api: {
     getConfig: vi.fn().mockResolvedValue({ working_dir: "", max_concurrent: 5, active_profile: "test" }),
@@ -60,7 +66,13 @@ describe("SpecBuilderPage", () => {
     });
   });
 
-  it("shows input area", () => {
+  it("shows input area when there is an active session", () => {
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [{ id: "s1", profile_id: "test", driver_session_id: null, status: "active" as const, topic: "Test", created_at: "2026-01-18T00:00:00Z", updated_at: "2026-01-18T00:00:00Z" }],
+      messages: [],
+    });
+
     renderPage();
 
     expect(
@@ -68,13 +80,13 @@ describe("SpecBuilderPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("creates session on first message", async () => {
+  it("creates session when Start Brainstorming is clicked", async () => {
     const mockSession = {
       id: "s1",
       profile_id: "test",
       driver_session_id: null,
       status: "active" as const,
-      topic: "Test",
+      topic: null,
       created_at: "2026-01-18T00:00:00Z",
       updated_at: "2026-01-18T00:00:00Z",
     };
@@ -87,18 +99,20 @@ describe("SpecBuilderPage", () => {
       session: mockSession,
       profile: mockProfile,
     });
-    vi.mocked(brainstormApi.sendMessage).mockResolvedValue({ message_id: "m1" });
+    vi.mocked(brainstormApi.primeSession).mockResolvedValue({ message_id: "m1" });
 
     renderPage();
 
-    const input = screen.getByPlaceholderText(/what would you like to design/i);
-    await userEvent.type(input, "Design a caching layer{enter}");
+    // Wait for the button to be present (handles any async rendering)
+    const startButton = await screen.findByRole("button", { name: /start brainstorming/i });
+    await userEvent.click(startButton);
 
     await waitFor(() => {
-      expect(brainstormApi.createSession).toHaveBeenCalledWith(
-        "test",
-        "Design a caching layer"
-      );
+      expect(brainstormApi.createSession).toHaveBeenCalledWith("test");
+    });
+
+    await waitFor(() => {
+      expect(brainstormApi.primeSession).toHaveBeenCalledWith("s1");
     });
   });
 
@@ -169,5 +183,163 @@ describe("SpecBuilderPage", () => {
     // Should have the expandable Reasoning component
     const collapsible = document.querySelector('[data-slot="collapsible"]');
     expect(collapsible).toBeInTheDocument();
+  });
+
+  it("shows error toast when session creation fails", async () => {
+    vi.mocked(brainstormApi.createSession).mockRejectedValue(new Error("Network error"));
+
+    renderPage();
+
+    const startButton = await screen.findByRole("button", { name: /start brainstorming/i });
+    await userEvent.click(startButton);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Failed to start session");
+    });
+  });
+
+  it("shows error toast when handoff fails", async () => {
+    const mockArtifact = {
+      id: "a1",
+      session_id: "s1",
+      type: "design",
+      path: "/path/to/design.md",
+      title: "Design Doc",
+      created_at: "2026-01-18T00:00:00Z",
+    };
+
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [
+        {
+          id: "s1",
+          profile_id: "test",
+          driver_session_id: null,
+          status: "active" as const,
+          topic: "Test",
+          created_at: "2026-01-18T00:00:00Z",
+          updated_at: "2026-01-18T00:00:00Z",
+        },
+      ],
+      messages: [
+        {
+          id: "m1",
+          session_id: "s1",
+          sequence: 1,
+          role: "assistant" as const,
+          content: "Response",
+          parts: null,
+          created_at: "2026-01-18T00:00:00Z",
+        },
+      ],
+      artifacts: [mockArtifact],
+    });
+
+    vi.mocked(brainstormApi.handoff).mockRejectedValue(
+      new Error("Handoff failed")
+    );
+
+    renderPage();
+
+    // Click the handoff button on the artifact card
+    const handoffButton = await screen.findByRole("button", {
+      name: /hand off to implementation/i,
+    });
+    await userEvent.click(handoffButton);
+
+    // Fill in the dialog and confirm
+    const titleInput = await screen.findByLabelText(/issue title/i);
+    await userEvent.clear(titleInput);
+    await userEvent.type(titleInput, "Implement design");
+    const confirmButton = screen.getByRole("button", {
+      name: /create workflow/i,
+    });
+    await userEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("Handoff failed")
+      );
+    });
+  });
+
+  it("shows error indicator when message has error status", async () => {
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [{ id: "s1", profile_id: "test", driver_session_id: null, status: "active" as const, topic: "Test", created_at: "2026-01-18T00:00:00Z", updated_at: "2026-01-18T00:00:00Z" }],
+      messages: [
+        {
+          id: "m1",
+          session_id: "s1",
+          sequence: 1,
+          role: "assistant" as const,
+          content: "Partial response",
+          parts: null,
+          created_at: "2026-01-18T00:00:00Z",
+          status: "error" as const,
+          errorMessage: "Connection lost. Please retry.",
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText(/connection lost/i)).toBeInTheDocument();
+    });
+  });
+
+  it("has aria-live region for screen reader announcements", async () => {
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [{ id: "s1", profile_id: "test", driver_session_id: null, status: "active" as const, topic: "Test", created_at: "2026-01-18T00:00:00Z", updated_at: "2026-01-18T00:00:00Z" }],
+      messages: [{ id: "m1", session_id: "s1", sequence: 1, role: "user" as const, content: "Hello", parts: null, created_at: "2026-01-18T00:00:00Z" }],
+    });
+
+    renderPage();
+
+    const logRegion = await screen.findByRole("log");
+    expect(logRegion).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("sets aria-busy during streaming", async () => {
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [{ id: "s1", profile_id: "test", driver_session_id: null, status: "active" as const, topic: "Test", created_at: "2026-01-18T00:00:00Z", updated_at: "2026-01-18T00:00:00Z" }],
+      messages: [{ id: "m1", session_id: "s1", sequence: 1, role: "assistant" as const, content: "", parts: null, created_at: "2026-01-18T00:00:00Z", status: "streaming" as const }],
+      isStreaming: true,
+    });
+
+    renderPage();
+
+    const logRegion = await screen.findByRole("log");
+    expect(logRegion).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("returns focus to input after submit", async () => {
+    useBrainstormStore.setState({
+      activeSessionId: "s1",
+      sessions: [{ id: "s1", profile_id: "test", driver_session_id: null, status: "active" as const, topic: "Test", created_at: "2026-01-18T00:00:00Z", updated_at: "2026-01-18T00:00:00Z" }],
+      messages: [],
+    });
+
+    vi.mocked(brainstormApi.sendMessage).mockResolvedValue({ message_id: "m1" });
+
+    renderPage();
+
+    const textarea = screen.getByPlaceholderText(/what would you like to design/i);
+    await userEvent.type(textarea, "Test message");
+    await userEvent.keyboard("{Enter}");
+
+    // Verify message was sent
+    await waitFor(() => {
+      expect(brainstormApi.sendMessage).toHaveBeenCalledWith("s1", "Test message");
+    });
+
+    // Verify input was cleared and focus is maintained
+    await waitFor(() => {
+      expect(textarea).toHaveValue("");
+      expect(document.activeElement).toBe(textarea);
+    });
   });
 });

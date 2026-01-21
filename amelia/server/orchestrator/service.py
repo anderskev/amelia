@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from amelia.core.constants import ToolName
 from amelia.core.types import (
+    Design,
     Issue,
     Profile,
     Settings,
@@ -283,6 +284,7 @@ class OrchestratorService:
         profile_name: str | None = None,
         task_title: str | None = None,
         task_description: str | None = None,
+        artifact_path: str | None = None,
     ) -> tuple[str, Profile, ImplementationState]:
         """Prepare common state needed to create or start a workflow.
 
@@ -297,13 +299,16 @@ class OrchestratorService:
             profile_name: Optional profile name (defaults to active profile).
             task_title: Optional task title for noop tracker.
             task_description: Optional task description (defaults to task_title).
+            artifact_path: Optional path to design artifact file from brainstorming.
+                Must be a worktree-relative path (e.g., docs/plans/design.md).
 
         Returns:
             Tuple of (resolved_path, profile, execution_state).
 
         Raises:
-            ValueError: If settings are invalid, profile not found, or task_title
-                used with non-noop tracker.
+            ValueError: If settings are invalid, profile not found, task_title
+                used with non-noop tracker, or artifact_path escapes worktree.
+            FileNotFoundError: If artifact_path is provided but the file doesn't exist.
         """
         # Load settings from worktree (required - no fallback)
         try:
@@ -348,6 +353,31 @@ class OrchestratorService:
         # Get current HEAD to track changes
         base_commit = await get_git_head(worktree_path)
 
+        # Load design from artifact path if provided
+        design = None
+        if artifact_path:
+            # Resolve worktree path to canonical form for validation
+            worktree_resolved = Path(worktree_path).resolve()
+
+            # Always treat artifact_path as worktree-relative, stripping any
+            # leading slashes to prevent absolute path injection
+            relative_artifact = artifact_path.lstrip("/")
+            full_artifact_path = (worktree_resolved / relative_artifact).resolve()
+
+            # Validate the resolved path stays within the worktree
+            # (prevents traversal via .. sequences or symlinks)
+            try:
+                full_artifact_path.relative_to(worktree_resolved)
+            except ValueError:
+                raise ValueError(
+                    f"artifact_path '{artifact_path}' resolves outside worktree directory"
+                ) from None
+
+            if not full_artifact_path.exists():
+                raise FileNotFoundError(f"Artifact file not found: {full_artifact_path}")
+
+            design = Design.from_file(full_artifact_path)
+
         # Create ImplementationState with all required fields
         execution_state = ImplementationState(
             workflow_id=workflow_id,
@@ -356,6 +386,7 @@ class OrchestratorService:
             status="pending",
             issue=issue,
             base_commit=base_commit,
+            design=design,
         )
 
         return worktree_path, profile, execution_state
@@ -634,6 +665,7 @@ class OrchestratorService:
             profile_name=request.profile,
             task_title=request.task_title,
             task_description=request.task_description,
+            artifact_path=request.artifact_path,
         )
 
         # Create ServerExecutionState in pending status (not started)

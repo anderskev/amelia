@@ -85,4 +85,17 @@ describe("SessionDrawer", () => {
 
     expect(screen.getByText(/no sessions yet/i)).toBeInTheDocument();
   });
+
+  it("has aria-label for screen readers", () => {
+    render(
+      <SessionDrawer
+        onSelectSession={vi.fn()}
+        onDeleteSession={vi.fn()}
+        onNewSession={vi.fn()}
+      />
+    );
+
+    const drawer = screen.getByRole("dialog");
+    expect(drawer).toHaveAttribute("aria-label", "Brainstorming sessions");
+  });
 });

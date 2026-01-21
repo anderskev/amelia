@@ -977,6 +977,7 @@ class BrainstormService:
                 task_title=issue_title or f"Implement design from {artifact_path}",
                 task_description=issue_description,
                 start=False,  # Queue only, don't start
+                artifact_path=artifact_path,
             )
             workflow_id = await orchestrator.queue_workflow(request)
         else:
