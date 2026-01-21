@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from amelia.core.constants import ToolName
 from amelia.core.types import (
+    Design,
     Issue,
     Profile,
     Settings,
@@ -283,6 +284,7 @@ class OrchestratorService:
         profile_name: str | None = None,
         task_title: str | None = None,
         task_description: str | None = None,
+        artifact_path: str | None = None,
     ) -> tuple[str, Profile, ImplementationState]:
         """Prepare common state needed to create or start a workflow.
 
@@ -297,6 +299,7 @@ class OrchestratorService:
             profile_name: Optional profile name (defaults to active profile).
             task_title: Optional task title for noop tracker.
             task_description: Optional task description (defaults to task_title).
+            artifact_path: Optional path to design artifact file from brainstorming.
 
         Returns:
             Tuple of (resolved_path, profile, execution_state).
@@ -304,6 +307,7 @@ class OrchestratorService:
         Raises:
             ValueError: If settings are invalid, profile not found, or task_title
                 used with non-noop tracker.
+            FileNotFoundError: If artifact_path is provided but the file doesn't exist.
         """
         # Load settings from worktree (required - no fallback)
         try:
@@ -348,6 +352,11 @@ class OrchestratorService:
         # Get current HEAD to track changes
         base_commit = await get_git_head(worktree_path)
 
+        # Load design from artifact path if provided
+        design = None
+        if artifact_path:
+            design = Design.from_file(artifact_path)
+
         # Create ImplementationState with all required fields
         execution_state = ImplementationState(
             workflow_id=workflow_id,
@@ -356,6 +365,7 @@ class OrchestratorService:
             status="pending",
             issue=issue,
             base_commit=base_commit,
+            design=design,
         )
 
         return worktree_path, profile, execution_state
