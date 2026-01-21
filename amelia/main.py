@@ -3,6 +3,7 @@ import os
 
 import typer
 
+from amelia.cli.config import config_app
 from amelia.client.api import (
     AmeliaClient,
     InvalidRequestError,
@@ -26,6 +27,7 @@ from amelia.tools.shell_executor import run_shell_command
 
 
 app = typer.Typer(help="Amelia Agentic Orchestrator CLI")
+app.add_typer(config_app, name="config")
 app.add_typer(server_app, name="server")
 app.add_typer(dev_app, name="dev")
 app.command(name="start", help="Start a workflow for an issue.")(start_command)
