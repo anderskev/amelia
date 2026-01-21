@@ -300,6 +300,7 @@ class OrchestratorService:
             task_title: Optional task title for noop tracker.
             task_description: Optional task description (defaults to task_title).
             artifact_path: Optional path to design artifact file from brainstorming.
+                Can be an absolute path or a worktree-relative path (e.g., /docs/plans/design.md).
 
         Returns:
             Tuple of (resolved_path, profile, execution_state).
@@ -355,7 +356,16 @@ class OrchestratorService:
         # Load design from artifact path if provided
         design = None
         if artifact_path:
-            design = Design.from_file(artifact_path)
+            # Resolve artifact path: could be absolute or worktree-relative
+            artifact_path_obj = Path(artifact_path)
+            if artifact_path_obj.is_absolute() and artifact_path_obj.exists():
+                # Truly absolute path that exists - use as-is
+                full_artifact_path = artifact_path_obj
+            else:
+                # Worktree-relative path (e.g., /docs/plans/design.md)
+                # Strip leading slash and join with worktree_path
+                full_artifact_path = Path(worktree_path) / artifact_path.lstrip("/")
+            design = Design.from_file(full_artifact_path)
 
         # Create ImplementationState with all required fields
         execution_state = ImplementationState(

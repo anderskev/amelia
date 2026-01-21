@@ -123,6 +123,50 @@ class TestHandoffDesignFlow:
                 artifact_path="/nonexistent/design.md",
             )
 
+    async def test_prepare_workflow_state_resolves_worktree_relative_artifact_path(
+        self, tmp_path: Path, mock_settings: MagicMock
+    ) -> None:
+        """Artifact path with leading slash is resolved relative to worktree.
+
+        This tests the real-world scenario where brainstorming creates files
+        with paths like /docs/plans/design.md (relative to worktree, not filesystem root).
+        """
+        # Create nested design artifact file in worktree
+        design_dir = tmp_path / "docs" / "plans"
+        design_dir.mkdir(parents=True)
+        design_file = design_dir / "design.md"
+        design_file.write_text("# Design from brainstorm")
+
+        orchestrator = OrchestratorService.__new__(OrchestratorService)
+        orchestrator._event_bus = MagicMock()
+        orchestrator._repository = MagicMock()
+
+        with (
+            patch.object(
+                orchestrator,
+                "_load_settings_for_worktree",
+                return_value=mock_settings,
+            ),
+            patch(
+                "amelia.server.orchestrator.service.get_git_head",
+                new_callable=AsyncMock,
+                return_value="abc123",
+            ),
+        ):
+            # Pass artifact_path with leading slash (worktree-relative)
+            _, _, state = await orchestrator._prepare_workflow_state(
+                workflow_id="wf-123",
+                worktree_path=str(tmp_path),
+                issue_id="issue-1",
+                task_title="Implement design",
+                artifact_path="/docs/plans/design.md",  # Leading slash, worktree-relative
+            )
+
+        # Verify design was loaded correctly
+        assert state.design is not None
+        assert state.design.content == "# Design from brainstorm"
+        assert state.design.source == "file"
+
     async def test_queue_workflow_passes_artifact_path(
         self, tmp_path: Path, mock_settings: MagicMock
     ) -> None:
