@@ -748,6 +748,52 @@ class TestHandoff(TestBrainstormService):
                 worktree_path="/path/to/worktree",
             )
 
+    async def test_handoff_passes_artifact_path_to_workflow_request(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+    ) -> None:
+        """Should pass artifact_path when creating workflow request."""
+        # Setup session and artifact
+        session = BrainstormingSession(
+            id="session-123",
+            profile_id="work",
+            driver_session_id=None,
+            status="active",
+            topic="Test design",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        artifact = Artifact(
+            id="artifact-1",
+            session_id="session-123",
+            path="/path/to/design.md",
+            type="design",
+            title="Design Doc",
+            created_at=datetime.now(UTC),
+        )
+        mock_repository.get_session.return_value = session
+        mock_repository.get_artifacts.return_value = [artifact]
+
+        # Create mock orchestrator that captures the request
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.queue_workflow = AsyncMock(return_value="workflow-456")
+
+        # Execute handoff
+        result = await service.handoff_to_implementation(
+            session_id="session-123",
+            artifact_path="/path/to/design.md",
+            issue_title="Implement design",
+            orchestrator=mock_orchestrator,
+            worktree_path="/path/to/repo",
+        )
+
+        # Verify workflow was created with artifact_path
+        mock_orchestrator.queue_workflow.assert_called_once()
+        request = mock_orchestrator.queue_workflow.call_args[0][0]
+        assert request.artifact_path == "/path/to/design.md"
+        assert result["workflow_id"] == "workflow-456"
+
 
 class TestDeleteSessionCleanup(TestBrainstormService):
     """Test driver cleanup on session deletion."""
