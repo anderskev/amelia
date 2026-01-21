@@ -142,23 +142,23 @@ export const AgentNode = memo(function AgentNode({ data }: NodeProps<AgentNodeTy
     <div
       data-status={status}
       className={cn(
-        'w-[180px] rounded-lg border p-3 transition-all',
+        'w-[140px] lg:w-[180px] rounded-lg border p-2 lg:p-3 transition-all',
         getStatusClasses(status, agentType)
       )}
     >
       <Handle type="target" position={Position.Left} className="!bg-border" />
 
-      <div className="flex items-center gap-2">
-        <Icon className={cn('h-4 w-4', getIconClasses(status, agentType))} />
-        <span className="font-medium">{getNodeDisplayName(agentType)}</span>
+      <div className="flex items-center gap-1.5 lg:gap-2">
+        <Icon className={cn('h-3.5 w-3.5 lg:h-4 lg:w-4', getIconClasses(status, agentType))} />
+        <span className="text-sm lg:text-base font-medium">{getNodeDisplayName(agentType)}</span>
         {iterations.length > 1 && (
-          <Badge variant="secondary" className="ml-auto text-xs">
+          <Badge variant="secondary" className="ml-auto text-[10px] lg:text-xs">
             {iterations.length} runs
           </Badge>
         )}
       </div>
 
-      <p className="mt-2 text-sm text-muted-foreground">
+      <p className="mt-1.5 lg:mt-2 text-xs lg:text-sm text-muted-foreground">
         {status === 'active' && 'In progress...'}
         {status === 'completed' && 'Completed'}
         {status === 'pending' && 'Pending'}
