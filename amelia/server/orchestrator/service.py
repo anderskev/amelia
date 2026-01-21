@@ -644,6 +644,7 @@ class OrchestratorService:
             profile_name=request.profile,
             task_title=request.task_title,
             task_description=request.task_description,
+            artifact_path=request.artifact_path,
         )
 
         # Create ServerExecutionState in pending status (not started)

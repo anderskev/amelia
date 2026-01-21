@@ -104,3 +104,46 @@ class TestHandoffDesignFlow:
                     task_title="Implement design",
                     artifact_path="/nonexistent/design.md",
                 )
+
+    async def test_queue_workflow_passes_artifact_path(
+        self, tmp_path: Path, mock_settings: MagicMock
+    ) -> None:
+        """queue_workflow passes artifact_path through to _prepare_workflow_state."""
+        # Create design file
+        design_file = tmp_path / "design.md"
+        design_file.write_text("# Design Content")
+
+        # Create .git directory to pass validation
+        (tmp_path / ".git").mkdir()
+
+        orchestrator = OrchestratorService.__new__(OrchestratorService)
+        orchestrator._event_bus = MagicMock()
+        orchestrator._workflows = {}
+        orchestrator._checkpointer = None
+        orchestrator._repository = MagicMock()
+        orchestrator._repository.create = AsyncMock()
+        orchestrator._load_settings_for_worktree = MagicMock(return_value=mock_settings)
+        # Mock _emit to avoid complex event system dependencies
+        orchestrator._emit = AsyncMock()
+
+        request = CreateWorkflowRequest(
+            issue_id="issue-1",
+            worktree_path=str(tmp_path),
+            task_title="Implement design",
+            artifact_path=str(design_file),
+            start=False,
+        )
+
+        with patch(
+            "amelia.server.orchestrator.service.get_git_head",
+            new_callable=AsyncMock,
+            return_value="abc123",
+        ):
+            workflow_id = await orchestrator.queue_workflow(request)
+
+        # Verify workflow was created with design loaded
+        # Check the call to _repository.create to get the state
+        assert orchestrator._repository.create.called
+        state = orchestrator._repository.create.call_args[0][0]
+        assert state.execution_state.design is not None
+        assert state.execution_state.design.content == "# Design Content"
