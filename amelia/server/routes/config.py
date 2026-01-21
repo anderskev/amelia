@@ -1,5 +1,5 @@
 """Configuration endpoint for dashboard."""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from amelia.server.database import ProfileRepository, SettingsRepository

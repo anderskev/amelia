@@ -13,7 +13,6 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
-from pydantic import ValidationError
 
 from amelia.core.constants import ToolName
 from amelia.core.types import (

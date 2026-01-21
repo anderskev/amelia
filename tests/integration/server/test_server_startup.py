@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from amelia.server.database import Database, SettingsRepository
 
 

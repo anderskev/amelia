@@ -1,10 +1,9 @@
 """Tests for orchestrator profile loading from database."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from amelia.server.orchestrator.service import OrchestratorService
 from amelia.server.database import ProfileRecord
+from amelia.server.orchestrator.service import OrchestratorService
 
 
 class TestOrchestratorProfileLoading:

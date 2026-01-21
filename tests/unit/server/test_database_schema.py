@@ -1,7 +1,9 @@
 """Tests for database schema including server_settings and profiles tables."""
-import pytest
-from pathlib import Path
+import sqlite3
 import tempfile
+from pathlib import Path
+
+import pytest
 
 from amelia.server.database.connection import Database
 
@@ -34,8 +36,8 @@ class TestServerSettingsSchema:
             """INSERT INTO server_settings (id, log_retention_days) VALUES (1, 30)"""
         )
 
-        # Second insert with id=2 should fail
-        with pytest.raises(Exception):
+        # Second insert with id=2 should fail due to CHECK constraint
+        with pytest.raises(sqlite3.IntegrityError):
             await db.execute(
                 """INSERT INTO server_settings (id, log_retention_days) VALUES (2, 60)"""
             )

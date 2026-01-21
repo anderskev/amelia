@@ -1,7 +1,6 @@
 """Tests for brainstorming API routes."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from amelia.server.database import ProfileRecord, ProfileRepository
 from amelia.server.models.brainstorm import BrainstormingSession
-from amelia.server.routes.brainstorm import get_driver_type, get_profile_info, router
+from amelia.server.routes.brainstorm import get_driver_type, router
 
 
 class TestBrainstormRoutes:
@@ -45,12 +44,12 @@ class TestBrainstormRoutes:
         app.include_router(router, prefix="/api/brainstorm")
 
         # Override dependencies
+        from amelia.server.dependencies import get_profile_repository
         from amelia.server.routes.brainstorm import (
             get_brainstorm_service,
             get_cwd,
             get_driver,
         )
-        from amelia.server.dependencies import get_profile_repository
         app.dependency_overrides[get_brainstorm_service] = lambda: mock_service
         app.dependency_overrides[get_driver] = lambda: mock_driver
         app.dependency_overrides[get_cwd] = lambda: "/test/cwd"

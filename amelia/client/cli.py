@@ -3,6 +3,7 @@ import asyncio
 from pathlib import Path
 from typing import Annotated
 
+import httpx
 import typer
 from loguru import logger
 from rich.console import Console
@@ -407,8 +408,6 @@ async def _get_profile_from_server(profile_name: str | None) -> Profile:
     Raises:
         ValueError: If profile not found or server unreachable.
     """
-    import httpx
-
     base_url = "http://127.0.0.1:8420"
     timeout = httpx.Timeout(10.0, connect=5.0)
 

@@ -8,13 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.runnables.config import RunnableConfig
-from pydantic import ValidationError
 
-from amelia.server.database import ProfileRecord
 from amelia.pipelines.implementation.state import (
     ImplementationState,
     rebuild_implementation_state,
 )
+from amelia.server.database import ProfileRecord
 from amelia.server.database.repository import WorkflowRepository
 from amelia.server.models.state import rebuild_server_execution_state
 

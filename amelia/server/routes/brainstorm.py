@@ -3,6 +3,8 @@
 Provides endpoints for session lifecycle management and chat functionality.
 """
 
+import asyncio
+import concurrent.futures
 import os
 from typing import TYPE_CHECKING, Annotated
 from uuid import uuid4
@@ -107,8 +109,6 @@ def get_driver_type(profile_id: str) -> str | None:
     Returns:
         Driver type string (e.g., "api:openrouter") or None if not found.
     """
-    import asyncio
-
     async def _get_driver_type() -> str | None:
         try:
             profile_repo = get_profile_repository()
@@ -123,8 +123,6 @@ def get_driver_type(profile_id: str) -> str | None:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             # We're already in an async context - use nest_asyncio or create task
-            import concurrent.futures
-
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(asyncio.run, _get_driver_type())
                 return future.result(timeout=5.0)
