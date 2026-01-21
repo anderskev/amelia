@@ -9,6 +9,16 @@ import { Plus, Search } from 'lucide-react';
 import { ProfileCard } from '@/components/settings/ProfileCard';
 import { ProfileEditModal } from '@/components/settings/ProfileEditModal';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { deleteProfile, activateProfile } from '@/api/settings';
 import type { Profile } from '@/api/settings';
 import * as toast from '@/components/Toast';
@@ -27,6 +37,7 @@ export default function SettingsProfilesPage() {
   const [driverFilter, setDriverFilter] = useState<DriverFilter>('all');
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deletingProfile, setDeletingProfile] = useState<Profile | null>(null);
 
   // Filter profiles
   const filteredProfiles = profiles.filter((p) => {
@@ -54,14 +65,20 @@ export default function SettingsProfilesPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (profile: Profile) => {
-    if (!confirm(`Delete profile "${profile.id}"?`)) return;
+  const handleDeleteRequest = (profile: Profile) => {
+    setDeletingProfile(profile);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingProfile) return;
     try {
-      await deleteProfile(profile.id);
+      await deleteProfile(deletingProfile.id);
       toast.success('Profile deleted');
       revalidate();
     } catch {
       toast.error('Failed to delete profile');
+    } finally {
+      setDeletingProfile(null);
     }
   };
 
@@ -121,7 +138,7 @@ export default function SettingsProfilesPage() {
               key={profile.id}
               profile={profile}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={handleDeleteRequest}
               onActivate={handleActivate}
             />
           ))}
@@ -134,6 +151,21 @@ export default function SettingsProfilesPage() {
         profile={editingProfile}
         onSaved={revalidate}
       />
+
+      <AlertDialog open={deletingProfile !== null} onOpenChange={(open) => !open && setDeletingProfile(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Profile</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete profile "{deletingProfile?.id}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

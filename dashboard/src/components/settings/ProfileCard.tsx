@@ -46,6 +46,7 @@ export function ProfileCard({ profile, onEdit, onDelete, onActivate }: ProfileCa
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            aria-label={`Edit profile ${profile.id}`}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(profile);
@@ -57,6 +58,7 @@ export function ProfileCard({ profile, onEdit, onDelete, onActivate }: ProfileCa
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            aria-label={`Delete profile ${profile.id}`}
             onClick={(e) => {
               e.stopPropagation();
               onDelete(profile);

@@ -214,7 +214,6 @@ describe('SettingsProfilesPage actions', () => {
   it('calls deleteProfile when trash button is clicked and confirmed', async () => {
     const user = userEvent.setup();
     vi.mocked(settingsApi.deleteProfile).mockResolvedValue();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(
       <MemoryRouter>
@@ -230,6 +229,10 @@ describe('SettingsProfilesPage actions', () => {
     const trashButton = devCard.querySelector('button[class*="hover:text-destructive"]');
     if (!trashButton) throw new Error('Test setup error: trash button not found');
     await user.click(trashButton);
+
+    // Wait for the AlertDialog to appear and click the Delete button
+    const deleteButton = await screen.findByRole('button', { name: 'Delete' });
+    await user.click(deleteButton);
 
     await waitFor(() => {
       expect(settingsApi.deleteProfile).toHaveBeenCalledWith('dev');
@@ -239,7 +242,6 @@ describe('SettingsProfilesPage actions', () => {
 
   it('does not delete when confirm is cancelled', async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     render(
       <MemoryRouter>
@@ -255,6 +257,10 @@ describe('SettingsProfilesPage actions', () => {
     const trashButton = devCard.querySelector('button[class*="hover:text-destructive"]');
     if (!trashButton) throw new Error('Test setup error: trash button not found');
     await user.click(trashButton);
+
+    // Wait for the AlertDialog to appear and click the Cancel button
+    const cancelButton = await screen.findByRole('button', { name: 'Cancel' });
+    await user.click(cancelButton);
 
     expect(settingsApi.deleteProfile).not.toHaveBeenCalled();
   });
@@ -282,7 +288,6 @@ describe('SettingsProfilesPage actions', () => {
   it('shows error toast when delete fails', async () => {
     const user = userEvent.setup();
     vi.mocked(settingsApi.deleteProfile).mockRejectedValue(new Error('API error'));
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(
       <MemoryRouter>
@@ -298,6 +303,10 @@ describe('SettingsProfilesPage actions', () => {
     const trashButton = devCard.querySelector('button[class*="hover:text-destructive"]');
     if (!trashButton) throw new Error('Test setup error: trash button not found');
     await user.click(trashButton);
+
+    // Wait for the AlertDialog to appear and click the Delete button
+    const deleteButton = await screen.findByRole('button', { name: 'Delete' });
+    await user.click(deleteButton);
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Failed to delete profile');
