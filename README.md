@@ -249,10 +249,4 @@ For full documentation, visit **[existential-birds.github.io/amelia](https://exi
 
 ## License
 
-Amelia Core is licensed under the [Elastic License 2.0](LICENSE).
-
-### Commercial Licensing
-
-A commercial license is required only for restricted uses: reselling, repackaging, hosting as a service, or embedding Amelia in paid products. Internal use at your company does not require a commercial license.
-
-See [LICENSING.md](docs/legal/LICENSING.md) for details and examples.
+Amelia is licensed under the [Apache License 2.0](LICENSE), a permissive open-source license that allows free use, modification, and distribution.
