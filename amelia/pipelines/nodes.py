@@ -131,8 +131,8 @@ async def call_developer_node(
     config = config or {}
     repository = config.get("configurable", {}).get("repository")
 
-    driver = DriverFactory.get_driver(profile.driver, model=profile.model)
-    developer = Developer(driver)
+    agent_config = profile.get_agent_config("developer")
+    developer = Developer(agent_config)
 
     final_state = state
     async for new_state, event in developer.run(state, profile):
@@ -141,7 +141,7 @@ async def call_developer_node(
         if event_bus:
             event_bus.emit(event)
 
-    await _save_token_usage(driver, workflow_id, "developer", repository)
+    await _save_token_usage(developer.driver, workflow_id, "developer", repository)
 
     logger.info(
         "Agent action completed",
