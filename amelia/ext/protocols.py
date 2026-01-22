@@ -10,11 +10,12 @@ Note: These interfaces must have zero dependencies on any enterprise package.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 # Type alias for JSON-compatible values used in metadata fields.
@@ -43,8 +44,7 @@ class WorkflowEventType(Enum):
     APPROVAL_DENIED = "approval_denied"
 
 
-@dataclass(frozen=True)
-class WorkflowEvent:
+class WorkflowEvent(BaseModel):
     """Immutable record of a workflow lifecycle event.
 
     Attributes:
@@ -55,35 +55,26 @@ class WorkflowEvent:
         metadata: Additional event-specific data (immutable mapping).
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     event_type: WorkflowEventType
     workflow_id: str
     timestamp: datetime
     stage: str | None = None
-    _metadata: Mapping[str, JsonValue] | None = field(default=None, repr=False)
+    metadata: Mapping[str, JsonValue] | None = None
 
-    def __init__(
-        self,
-        event_type: WorkflowEventType,
-        workflow_id: str,
-        timestamp: datetime,
-        stage: str | None = None,
-        metadata: dict[str, JsonValue] | None = None,
-    ) -> None:
-        """Initialize with optional metadata converted to immutable mapping."""
-        object.__setattr__(self, "event_type", event_type)
-        object.__setattr__(self, "workflow_id", workflow_id)
-        object.__setattr__(self, "timestamp", timestamp)
-        object.__setattr__(self, "stage", stage)
-        object.__setattr__(
-            self,
-            "_metadata",
-            MappingProxyType(metadata) if metadata is not None else None,
-        )
-
-    @property
-    def metadata(self) -> Mapping[str, JsonValue] | None:
-        """Get immutable metadata mapping."""
-        return self._metadata
+    @model_validator(mode="before")
+    @classmethod
+    def convert_metadata_to_immutable(
+        cls, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Convert metadata dict to immutable MappingProxyType."""
+        if isinstance(data, dict) and "metadata" in data:
+            m = data["metadata"]
+            if m is not None and not isinstance(m, MappingProxyType):
+                data = dict(data)  # Make a copy to avoid mutating input
+                data["metadata"] = MappingProxyType(m)
+        return data
 
 
 @runtime_checkable

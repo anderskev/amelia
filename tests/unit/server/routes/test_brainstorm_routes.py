@@ -1,15 +1,15 @@
 """Tests for brainstorming API routes."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from amelia.server.database import ProfileRepository
 from amelia.server.models.brainstorm import BrainstormingSession
-from amelia.server.routes.brainstorm import get_driver_type, router
+from amelia.server.routes.brainstorm import router
 
 
 class TestBrainstormRoutes:
@@ -31,12 +31,20 @@ class TestBrainstormRoutes:
         return MagicMock()
 
     @pytest.fixture
-    def app(self, mock_service: MagicMock, mock_driver: MagicMock) -> FastAPI:
+    def mock_profile_repo(self) -> MagicMock:
+        """Create mock ProfileRepository."""
+        repo = MagicMock(spec=ProfileRepository)
+        repo.get_profile = AsyncMock(return_value=None)
+        return repo
+
+    @pytest.fixture
+    def app(self, mock_service: MagicMock, mock_driver: MagicMock, mock_profile_repo: MagicMock) -> FastAPI:
         """Create test app with mocked dependencies."""
         app = FastAPI()
         app.include_router(router, prefix="/api/brainstorm")
 
         # Override dependencies
+        from amelia.server.dependencies import get_profile_repository
         from amelia.server.routes.brainstorm import (
             get_brainstorm_service,
             get_cwd,
@@ -45,6 +53,7 @@ class TestBrainstormRoutes:
         app.dependency_overrides[get_brainstorm_service] = lambda: mock_service
         app.dependency_overrides[get_driver] = lambda: mock_driver
         app.dependency_overrides[get_cwd] = lambda: "/test/cwd"
+        app.dependency_overrides[get_profile_repository] = lambda: mock_profile_repo
 
         return app
 
@@ -358,35 +367,3 @@ class TestHandoff:
         )
 
         assert response.status_code == 404
-
-
-class TestGetDriverType:
-    """Test get_driver_type helper function."""
-
-    def test_returns_driver_from_profile(self, tmp_path: Path) -> None:
-        """Should return driver type from settings profile."""
-        settings_file = tmp_path / "settings.amelia.yaml"
-        settings_file.write_text("""
-profiles:
-  work:
-    driver: api:openrouter
-    model: claude-sonnet
-""")
-        result = get_driver_type("work", settings_path=settings_file)
-        assert result == "api:openrouter"
-
-    def test_returns_none_for_missing_profile(self, tmp_path: Path) -> None:
-        """Should return None if profile doesn't exist."""
-        settings_file = tmp_path / "settings.amelia.yaml"
-        settings_file.write_text("""
-profiles:
-  other:
-    driver: cli:claude
-""")
-        result = get_driver_type("nonexistent", settings_path=settings_file)
-        assert result is None
-
-    def test_returns_none_for_missing_settings(self, tmp_path: Path) -> None:
-        """Should return None if settings file doesn't exist."""
-        result = get_driver_type("work", settings_path=tmp_path / "missing.yaml")
-        assert result is None

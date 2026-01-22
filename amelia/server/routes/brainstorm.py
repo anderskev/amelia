@@ -4,16 +4,15 @@ Provides endpoints for session lifecycle management and chat functionality.
 """
 
 import os
-from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 from uuid import uuid4
 
-import yaml
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from loguru import logger
 from pydantic import BaseModel
 
-from amelia.server.dependencies import get_orchestrator
+from amelia.server.database import ProfileRepository
+from amelia.server.dependencies import get_orchestrator, get_profile_repository
 from amelia.server.models.brainstorm import (
     Artifact,
     BrainstormingSession,
@@ -66,69 +65,33 @@ def get_cwd() -> str:
     return os.getcwd()
 
 
-def get_profile_info(profile_id: str) -> "ProfileInfo | None":
-    """Load profile info from settings for display.
+async def get_profile_info(
+    profile_id: str,
+    profile_repo: ProfileRepository | None = None,
+) -> "ProfileInfo | None":
+    """Load profile info from database for display.
 
     Args:
         profile_id: Profile ID to look up.
+        profile_repo: Optional profile repository. If not provided, creates one.
 
     Returns:
         ProfileInfo if found, None otherwise.
     """
-    settings_path = Path("settings.amelia.yaml")
-    env_path = os.environ.get("AMELIA_SETTINGS")
-    if env_path:
-        settings_path = Path(env_path)
-
-    if not settings_path.exists():
-        return None
+    if profile_repo is None:
+        profile_repo = get_profile_repository()
 
     try:
-        with settings_path.open() as f:
-            data = yaml.safe_load(f)
-        data = data or {}
-        profiles = data.get("profiles", {})
-        profile_data = profiles.get(profile_id, {})
-        if not profile_data:
+        profile = await profile_repo.get_profile(profile_id)
+        if profile is None:
             return None
         return ProfileInfo(
-            name=profile_id,
-            driver=profile_data.get("driver", "unknown"),
-            model=profile_data.get("model", "unknown"),
+            name=profile.id,
+            driver=profile.driver,
+            model=profile.model,
         )
-    except (FileNotFoundError, PermissionError, yaml.YAMLError, KeyError, TypeError) as e:
+    except Exception as e:
         logger.debug("Failed to load profile info", profile_id=profile_id, error=str(e))
-        return None
-
-
-def get_driver_type(profile_id: str, settings_path: Path | None = None) -> str | None:
-    """Get driver type for a profile.
-
-    Args:
-        profile_id: Profile ID to look up.
-        settings_path: Optional explicit path to settings file.
-
-    Returns:
-        Driver type string (e.g., "api:openrouter") or None if not found.
-    """
-    if settings_path is None:
-        settings_path = Path("settings.amelia.yaml")
-        env_path = os.environ.get("AMELIA_SETTINGS")
-        if env_path:
-            settings_path = Path(env_path)
-
-    if not settings_path.exists():
-        return None
-
-    try:
-        with settings_path.open() as f:
-            data = yaml.safe_load(f)
-        data = data or {}
-        profiles = data.get("profiles", {})
-        profile_data = profiles.get(profile_id, {})
-        return profile_data.get("driver") if profile_data else None
-    except (FileNotFoundError, PermissionError, yaml.YAMLError, TypeError) as e:
-        logger.debug("Failed to get driver type", profile_id=profile_id, error=str(e))
         return None
 
 
@@ -192,12 +155,14 @@ class HandoffResponse(BaseModel):
 async def create_session(
     request: CreateSessionRequest,
     service: BrainstormService = Depends(get_brainstorm_service),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
 ) -> CreateSessionResponse:
     """Create a new brainstorming session.
 
     Args:
         request: Session creation request.
         service: Brainstorm service dependency.
+        profile_repo: Profile repository dependency.
 
     Returns:
         Created session with profile info.
@@ -206,7 +171,7 @@ async def create_session(
         profile_id=request.profile_id,
         topic=request.topic,
     )
-    profile_info = get_profile_info(request.profile_id)
+    profile_info = await get_profile_info(request.profile_id, profile_repo)
     return CreateSessionResponse(session=session, profile=profile_info)
 
 
@@ -309,12 +274,14 @@ async def list_sessions(
 async def get_session(
     session_id: str,
     service: BrainstormService = Depends(get_brainstorm_service),
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
 ) -> SessionWithHistoryResponse:
     """Get session with messages and artifacts.
 
     Args:
         session_id: Session to retrieve.
         service: Brainstorm service dependency.
+        profile_repo: Profile repository dependency.
 
     Returns:
         Session with history including profile info.
@@ -331,7 +298,7 @@ async def get_session(
 
     # Load profile info for display
     session = result["session"]
-    profile_info = get_profile_info(session.profile_id)
+    profile_info = await get_profile_info(session.profile_id, profile_repo)
 
     return SessionWithHistoryResponse(
         session=session,

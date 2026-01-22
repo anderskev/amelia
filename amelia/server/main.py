@@ -46,7 +46,6 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from loguru import logger
 
 from amelia import __version__
 from amelia.drivers.base import DriverInterface
@@ -57,7 +56,7 @@ from amelia.drivers.factory import (
 from amelia.logging import configure_logging, log_server_startup
 from amelia.pipelines.implementation.state import rebuild_implementation_state
 from amelia.server.config import ServerConfig
-from amelia.server.database import WorkflowRepository
+from amelia.server.database import ProfileRepository, SettingsRepository, WorkflowRepository
 from amelia.server.database.brainstorm_repository import BrainstormRepository
 from amelia.server.database.connection import Database
 from amelia.server.database.prompt_repository import PromptRepository
@@ -65,6 +64,7 @@ from amelia.server.dependencies import (
     clear_config,
     clear_database,
     clear_orchestrator,
+    get_profile_repository,
     set_config,
     set_database,
     set_orchestrator,
@@ -88,10 +88,10 @@ from amelia.server.routes.brainstorm import (
     get_brainstorm_service,
     get_cwd,
     get_driver,
-    get_driver_type,
     router as brainstorm_router,
 )
 from amelia.server.routes.prompts import get_prompt_repository, router as prompts_router
+from amelia.server.routes.settings import router as settings_router
 from amelia.server.routes.websocket import connection_manager
 from amelia.server.routes.workflows import configure_exception_handlers
 from amelia.server.services.brainstorm import BrainstormService
@@ -101,18 +101,10 @@ def create_driver_cleanup_callback() -> Callable[[str, str], bool]:
     """Create callback for cleaning up driver sessions.
 
     Returns:
-        Callback that takes (profile_id, driver_session_id) and returns bool.
+        Callback that takes (driver_type, driver_session_id) and returns bool.
     """
 
-    def cleanup(profile_id: str, driver_session_id: str) -> bool:
-        driver_type = get_driver_type(profile_id)
-        if driver_type is None:
-            logger.warning(
-                "Cannot clean up driver session: profile not found",
-                profile_id=profile_id,
-                driver_session_id=driver_session_id,
-            )
-            return False
+    def cleanup(driver_type: str, driver_session_id: str) -> bool:
         return cleanup_driver_session(driver_type, driver_session_id)
 
     return cleanup
@@ -145,11 +137,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await database.ensure_schema()
     await database.initialize_prompts()
 
+    # Initialize settings with defaults
+    settings_repo = SettingsRepository(database)
+    await settings_repo.ensure_defaults()
+
+    # Get server settings for orchestrator configuration
+    server_settings = await settings_repo.get_server_settings()
+
     # Set the database in dependencies module for DI
     set_database(database)
 
-    # Create repository for orchestrator
+    # Create repositories
     repository = WorkflowRepository(database)
+    profile_repo = ProfileRepository(database)
 
     # Create event bus
     event_bus = EventBus()
@@ -161,8 +161,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     orchestrator = OrchestratorService(
         event_bus=event_bus,
         repository=repository,
-        max_concurrent=config.max_concurrent,
-        checkpoint_path=str(config.checkpoint_path),
+        profile_repo=profile_repo,
+        max_concurrent=server_settings.max_concurrent,
+        checkpoint_path=server_settings.checkpoint_path,
     )
     set_orchestrator(orchestrator)
 
@@ -172,14 +173,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         repository=brainstorm_repo,
         event_bus=event_bus,
         driver_cleanup=create_driver_cleanup_callback(),
+        profile_repo=profile_repo,
     )
     app.state.brainstorm_service = brainstorm_service
 
     # Create lifecycle components
     log_retention = LogRetentionService(
         db=database,
-        config=config,
-        checkpoint_path=config.checkpoint_path,
+        config=server_settings,
+        checkpoint_path=Path(server_settings.checkpoint_path),
     )
     lifecycle = ServerLifecycle(
         orchestrator=orchestrator,
@@ -245,6 +247,7 @@ def create_app() -> FastAPI:
     application.include_router(brainstorm_router, prefix="/api/brainstorm")
     application.include_router(websocket_router)  # No prefix - route is /ws/events
     application.include_router(prompts_router)  # Already has /api/prompts prefix
+    application.include_router(settings_router)  # Already has /api prefix
 
     # Set up prompt repository dependency
     def get_prompt_repo() -> PromptRepository:
@@ -261,63 +264,33 @@ def create_app() -> FastAPI:
     application.dependency_overrides[get_brainstorm_service] = get_brainstorm_svc
 
     # Set up driver dependency for brainstorm routes
-    def get_brainstorm_driver() -> DriverInterface:
-        """Get driver for brainstorming using active profile from settings.
+    async def get_brainstorm_driver() -> DriverInterface:
+        """Get driver for brainstorming using active profile from database.
 
-        Loads raw YAML to extract just the driver type, avoiding full Profile
-        validation. Brainstorming doesn't need working_dir or validator_model
-        which are required for implementation workflows.
+        Fetches the active profile from the ProfileRepository and returns
+        the configured driver. Falls back to CLI driver if no active profile.
         """
-        import yaml
-
-        settings_path = Path("settings.amelia.yaml")
-        env_path = os.environ.get("AMELIA_SETTINGS")
-        if env_path:
-            settings_path = Path(env_path)
-
-        try:
-            with settings_path.open() as f:
-                data = yaml.safe_load(f)
-            data = data or {}
-            active_profile = data.get("active_profile", "")
-            profiles = data.get("profiles", {})
-            profile_data = profiles.get(active_profile, {})
-            driver_type = profile_data.get("driver", "cli:claude")
-            return factory_get_driver(driver_type)
-        except (FileNotFoundError, KeyError, TypeError, yaml.YAMLError, PermissionError, AttributeError):
-            # Settings file not found or malformed - use CLI driver as default
+        profile_repo = get_profile_repository()
+        active_profile = await profile_repo.get_active_profile()
+        if active_profile is None:
+            # No active profile - use CLI driver as default
             return factory_get_driver("cli:claude")
+        return factory_get_driver(active_profile.driver)
 
     application.dependency_overrides[get_driver] = get_brainstorm_driver
 
     # Set up cwd dependency for brainstorm routes
-    def get_brainstorm_cwd() -> str:
-        """Get working directory from active profile in settings.
+    async def get_brainstorm_cwd() -> str:
+        """Get working directory from active profile in database.
 
-        Loads raw YAML to extract working_dir from the active profile.
-        Falls back to os.getcwd() if settings file not found or working_dir not set.
+        Fetches the active profile and returns its working_dir.
+        Falls back to os.getcwd() if no active profile or working_dir not set.
         """
-        import yaml
-
-        settings_path = Path("settings.amelia.yaml")
-        env_path = os.environ.get("AMELIA_SETTINGS")
-        if env_path:
-            settings_path = Path(env_path)
-
-        try:
-            with settings_path.open() as f:
-                data = yaml.safe_load(f)
-            data = data or {}
-            active_profile = data.get("active_profile", "")
-            profiles = data.get("profiles", {})
-            profile_data = profiles.get(active_profile, {})
-            working_dir = profile_data.get("working_dir")
-            if working_dir:
-                return str(working_dir)
+        profile_repo = get_profile_repository()
+        active_profile = await profile_repo.get_active_profile()
+        if active_profile is None or not active_profile.working_dir:
             return os.getcwd()
-        except (FileNotFoundError, KeyError, TypeError, yaml.YAMLError, PermissionError, AttributeError):
-            # Settings file not found or malformed - use cwd as default
-            return os.getcwd()
+        return active_profile.working_dir
 
     application.dependency_overrides[get_cwd] = get_brainstorm_cwd
 

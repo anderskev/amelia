@@ -8,7 +8,6 @@ This module defines the foundational abstractions for the pipeline system:
 """
 
 import operator
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol, TypeVar
 
@@ -20,8 +19,7 @@ if TYPE_CHECKING:
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
 
-@dataclass(frozen=True)
-class PipelineMetadata:
+class PipelineMetadata(BaseModel):
     """Immutable metadata describing a pipeline.
 
     Attributes:
@@ -30,13 +28,14 @@ class PipelineMetadata:
         description: Brief description of the pipeline's purpose.
     """
 
+    model_config = ConfigDict(frozen=True)
+
     name: str
     display_name: str
     description: str
 
 
-@dataclass(frozen=True)
-class HistoryEntry:
+class HistoryEntry(BaseModel):
     """Structured history entry for agent actions.
 
     Attributes:
@@ -44,6 +43,8 @@ class HistoryEntry:
         agent: Which agent performed the action (e.g., "architect", "developer").
         message: Description of the action.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     timestamp: datetime
     agent: str

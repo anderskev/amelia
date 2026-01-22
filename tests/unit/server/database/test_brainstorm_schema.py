@@ -25,6 +25,7 @@ class TestBrainstormSessionsTable:
             "id",
             "profile_id",
             "driver_session_id",
+            "driver_type",
             "status",
             "topic",
             "created_at",

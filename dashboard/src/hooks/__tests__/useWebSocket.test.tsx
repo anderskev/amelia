@@ -414,14 +414,7 @@ describe('handleBrainstormMessage', () => {
   });
 
   it('handles artifact_created event', () => {
-    const artifact = {
-      id: 'artifact-1',
-      session_id: 'session-1',
-      type: 'spec',
-      path: '/path/to/spec.md',
-      title: 'Feature Spec',
-      created_at: new Date().toISOString(),
-    };
+    const createdAt = new Date().toISOString();
 
     // Add a session so updateSession has something to update
     useBrainstormStore.setState({
@@ -443,13 +436,27 @@ describe('handleBrainstormMessage', () => {
       type: 'brainstorm',
       event_type: 'artifact_created',
       session_id: 'session-1',
-      data: { artifact },
+      data: {
+        id: 'artifact-1',
+        session_id: 'session-1',
+        type: 'spec',
+        path: '/path/to/spec.md',
+        title: 'Feature Spec',
+        created_at: createdAt,
+      },
       timestamp: new Date().toISOString(),
     });
 
     const state = useBrainstormStore.getState();
     expect(state.artifacts).toHaveLength(1);
-    expect(state.artifacts[0]).toEqual(artifact);
+    expect(state.artifacts[0]).toEqual({
+      id: 'artifact-1',
+      session_id: 'session-1',
+      type: 'spec',
+      path: '/path/to/spec.md',
+      title: 'Feature Spec',
+      created_at: createdAt,
+    });
     expect(state.sessions[0]!.status).toBe('ready_for_handoff');
   });
 });
