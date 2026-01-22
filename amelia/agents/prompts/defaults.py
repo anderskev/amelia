@@ -6,11 +6,10 @@ These serve as:
 - Fallback when database is unavailable
 - Source for "Reset to default" action
 """
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict
 
 
-@dataclass(frozen=True)
-class PromptDefault:
+class PromptDefault(BaseModel):
     """Immutable prompt default definition.
 
     Attributes:
@@ -20,6 +19,8 @@ class PromptDefault:
         content: The actual prompt text.
 
     """
+
+    model_config = ConfigDict(frozen=True)
 
     agent: str
     name: str

@@ -1,5 +1,4 @@
 """Database connection management with SQLite."""
-import contextlib
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -403,6 +402,7 @@ class Database:
                 id TEXT PRIMARY KEY,
                 profile_id TEXT NOT NULL,
                 driver_session_id TEXT,
+                driver_type TEXT,
                 status TEXT NOT NULL DEFAULT 'active',
                 topic TEXT,
                 created_at TIMESTAMP NOT NULL,
@@ -419,6 +419,17 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_brainstorm_sessions_status
             ON brainstorm_sessions(status)
         """)
+
+        # Migration: Add driver_type column to existing brainstorm_sessions tables
+        try:
+            await self.execute(
+                "ALTER TABLE brainstorm_sessions ADD COLUMN driver_type TEXT"
+            )
+        except Exception as e:
+            # SQLite "duplicate column" error - safe to ignore for idempotent migrations
+            if "duplicate column" not in str(e).lower():
+                raise
+            logger.debug("Column already exists, skipping", column="driver_type", error=str(e))
 
         await self.execute("""
             CREATE TABLE IF NOT EXISTS brainstorm_messages (
@@ -445,7 +456,7 @@ class Database:
             ("cost_usd", "REAL", None),
             ("is_system", "INTEGER NOT NULL", "0"),
         ]:
-            with contextlib.suppress(Exception):
+            try:
                 if default is not None:
                     await self.execute(
                         f"ALTER TABLE brainstorm_messages ADD COLUMN {column} {col_type} DEFAULT {default}"
@@ -454,6 +465,11 @@ class Database:
                     await self.execute(
                         f"ALTER TABLE brainstorm_messages ADD COLUMN {column} {col_type}"
                     )
+            except Exception as e:
+                # SQLite "duplicate column" error - safe to ignore for idempotent migrations
+                if "duplicate column" not in str(e).lower():
+                    raise
+                logger.debug("Column already exists, skipping", column=column, error=str(e))
 
         # Data migration: Mark existing priming messages as system messages
         # Priming messages are sequence 1, user role, and start with the skill header
@@ -486,6 +502,67 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_brainstorm_artifacts_session
             ON brainstorm_artifacts(session_id)
         """)
+
+        # Server settings singleton table
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS server_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                log_retention_days INTEGER NOT NULL DEFAULT 30,
+                log_retention_max_events INTEGER NOT NULL DEFAULT 100000,
+                trace_retention_days INTEGER NOT NULL DEFAULT 7,
+                checkpoint_retention_days INTEGER NOT NULL DEFAULT 0,
+                checkpoint_path TEXT NOT NULL DEFAULT '~/.amelia/checkpoints.db',
+                websocket_idle_timeout_seconds REAL NOT NULL DEFAULT 300.0,
+                workflow_start_timeout_seconds REAL NOT NULL DEFAULT 60.0,
+                max_concurrent INTEGER NOT NULL DEFAULT 5,
+                stream_tool_results INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Profiles table
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS profiles (
+                id TEXT PRIMARY KEY,
+                driver TEXT NOT NULL,
+                model TEXT NOT NULL,
+                validator_model TEXT NOT NULL,
+                tracker TEXT NOT NULL DEFAULT 'noop',
+                working_dir TEXT NOT NULL,
+                plan_output_dir TEXT NOT NULL DEFAULT 'docs/plans',
+                plan_path_pattern TEXT NOT NULL DEFAULT 'docs/plans/{date}-{issue_key}.md',
+                max_review_iterations INTEGER NOT NULL DEFAULT 3,
+                max_task_review_iterations INTEGER NOT NULL DEFAULT 5,
+                auto_approve_reviews INTEGER NOT NULL DEFAULT 0,
+                is_active INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Triggers to ensure only one active profile (both INSERT and UPDATE)
+        await self.execute("""
+            CREATE TRIGGER IF NOT EXISTS ensure_single_active_profile
+            AFTER UPDATE OF is_active ON profiles
+            WHEN NEW.is_active = 1
+            BEGIN
+                UPDATE profiles SET is_active = 0 WHERE id != NEW.id;
+            END
+        """)
+        await self.execute("""
+            CREATE TRIGGER IF NOT EXISTS ensure_single_active_profile_insert
+            AFTER INSERT ON profiles
+            WHEN NEW.is_active = 1
+            BEGIN
+                UPDATE profiles SET is_active = 0 WHERE id != NEW.id;
+            END
+        """)
+
+        # Index for active profile lookup
+        await self.execute(
+            "CREATE INDEX IF NOT EXISTS idx_profiles_active ON profiles(is_active)"
+        )
 
     async def initialize_prompts(self) -> None:
         """Seed prompts table from defaults. Idempotent.

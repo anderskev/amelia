@@ -1,6 +1,7 @@
 # tests/unit/agents/prompts/test_defaults.py
 """Tests for hardcoded prompt defaults."""
 import pytest
+from pydantic import ValidationError
 
 from amelia.agents.prompts.defaults import PROMPT_DEFAULTS
 
@@ -8,7 +9,7 @@ from amelia.agents.prompts.defaults import PROMPT_DEFAULTS
 def test_prompt_default_is_frozen() -> None:
     """PromptDefault should be immutable."""
     default = PROMPT_DEFAULTS["architect.system"]
-    with pytest.raises(AttributeError):
+    with pytest.raises(ValidationError, match="Instance is frozen"):
         default.agent = "modified"  # type: ignore[misc]
 
 

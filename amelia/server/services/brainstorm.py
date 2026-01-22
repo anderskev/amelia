@@ -34,6 +34,7 @@ from amelia.drivers.base import (
     DriverInterface,
 )
 from amelia.server.database.brainstorm_repository import BrainstormRepository
+from amelia.server.database.profile_repository import ProfileRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.models.brainstorm import (
     Artifact,
@@ -299,6 +300,7 @@ class BrainstormService:
         repository: BrainstormRepository,
         event_bus: EventBus,
         driver_cleanup: Callable[[str, str], bool] | None = None,
+        profile_repo: ProfileRepository | None = None,
     ) -> None:
         """Initialize service.
 
@@ -306,13 +308,16 @@ class BrainstormService:
             repository: Database repository.
             event_bus: Event bus for broadcasting.
             driver_cleanup: Optional callback to clean up driver sessions.
-                Called with (profile_id, driver_session_id) when sessions
+                Called with (driver_type, driver_session_id) when sessions
                 are deleted or reach terminal status.
+            profile_repo: Repository for profile lookup. Used to populate
+                driver_type when creating sessions.
         """
         self._repository = repository
         self._event_bus = event_bus
         self._session_locks: dict[str, asyncio.Lock] = {}
         self._driver_cleanup = driver_cleanup
+        self._profile_repo = profile_repo
 
     def _get_session_lock(self, session_id: str) -> asyncio.Lock:
         """Get or create a lock for a session.
@@ -341,10 +346,18 @@ class BrainstormService:
         Returns:
             Created session.
         """
+        # Look up driver type from profile if repository is available
+        driver_type: str | None = None
+        if self._profile_repo is not None:
+            profile = await self._profile_repo.get_profile(profile_id)
+            if profile is not None:
+                driver_type = profile.driver
+
         now = datetime.now(UTC)
         session = BrainstormingSession(
             id=str(uuid4()),
             profile_id=profile_id,
+            driver_type=driver_type,
             status="active",
             topic=topic,
             created_at=now,
@@ -477,14 +490,15 @@ class BrainstormService:
         # Fetch session first to get driver_session_id for cleanup
         session = await self._repository.get_session(session_id)
 
-        # Clean up driver session if callback provided and session has driver_session_id
+        # Clean up driver session if callback provided and session has driver info
         if (
             self._driver_cleanup
             and session
+            and session.driver_type
             and session.driver_session_id
         ):
             try:
-                self._driver_cleanup(session.profile_id, session.driver_session_id)
+                self._driver_cleanup(session.driver_type, session.driver_session_id)
             except Exception as e:
                 logger.warning(
                     "Failed to clean up driver session",
@@ -525,9 +539,9 @@ class BrainstormService:
             self._session_locks.pop(session_id, None)
 
             # Clean up driver session
-            if self._driver_cleanup and session.driver_session_id:
+            if self._driver_cleanup and session.driver_type and session.driver_session_id:
                 try:
-                    self._driver_cleanup(session.profile_id, session.driver_session_id)
+                    self._driver_cleanup(session.driver_type, session.driver_session_id)
                 except Exception as e:
                     logger.warning(
                         "Failed to clean up driver session",
@@ -858,11 +872,11 @@ class BrainstormService:
     async def _create_artifact_from_path(
         self, session_id: str, path: str
     ) -> WorkflowEvent:
-        """Create and save an artifact from a file path.
+        """Create an artifact record from a file path.
 
         Args:
-            session_id: Session that produced the artifact.
-            path: File path of the artifact.
+            session_id: Session ID for the artifact.
+            path: File path that was written.
 
         Returns:
             WorkflowEvent for artifact creation.
@@ -879,7 +893,7 @@ class BrainstormService:
         )
         await self._repository.save_artifact(artifact)
 
-        # Emit artifact created event
+        # Emit artifact created event with flat fields matching BrainstormArtifact type
         event = WorkflowEvent(
             id=str(uuid4()),
             workflow_id=session_id,
@@ -888,7 +902,14 @@ class BrainstormService:
             agent="brainstormer",
             event_type=EventType.BRAINSTORM_ARTIFACT_CREATED,
             message=f"Created artifact: {path}",
-            data={"artifact": artifact.model_dump(mode="json")},
+            data={
+                "id": artifact.id,
+                "session_id": session_id,
+                "type": artifact.type,
+                "path": artifact.path,
+                "title": artifact.title,
+                "created_at": artifact.created_at.isoformat(),
+            },
             domain=EventDomain.BRAINSTORM,
         )
         self._event_bus.emit(event)
