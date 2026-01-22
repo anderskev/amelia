@@ -2,16 +2,17 @@
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
 import websockets
+from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 
 
-@dataclass(frozen=True)
-class EventFormat:
+class EventFormat(BaseModel):
     """Format configuration for displaying an event type."""
+
+    model_config = ConfigDict(frozen=True)
 
     style: str
     """Rich markup style for the message (e.g., 'blue', 'bold green')."""

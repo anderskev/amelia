@@ -13,7 +13,7 @@ from amelia.pipelines.base import (
 
 
 class TestPipelineMetadata:
-    """Tests for PipelineMetadata dataclass."""
+    """Tests for PipelineMetadata Pydantic model."""
 
     def test_metadata_is_frozen(self) -> None:
         """PipelineMetadata should be immutable."""
@@ -22,8 +22,8 @@ class TestPipelineMetadata:
             display_name="Test",
             description="A test pipeline",
         )
-        with pytest.raises(AttributeError):
-            meta.name = "changed"  # type: ignore[misc]
+        with pytest.raises(ValidationError):
+            meta.name = "changed"
 
     def test_metadata_fields(self) -> None:
         """PipelineMetadata should have required fields."""
@@ -38,7 +38,7 @@ class TestPipelineMetadata:
 
 
 class TestHistoryEntry:
-    """Tests for HistoryEntry dataclass."""
+    """Tests for HistoryEntry Pydantic model."""
 
     def test_history_entry_is_frozen(self) -> None:
         """HistoryEntry should be immutable."""
@@ -47,8 +47,8 @@ class TestHistoryEntry:
             agent="architect",
             message="Started planning",
         )
-        with pytest.raises(AttributeError):
-            entry.agent = "developer"  # type: ignore[misc]
+        with pytest.raises(ValidationError):
+            entry.agent = "developer"
 
     def test_history_entry_fields(self) -> None:
         """HistoryEntry should store timestamp, agent, and message."""

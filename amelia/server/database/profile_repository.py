@@ -1,15 +1,14 @@
 """Repository for profile management."""
 
-from dataclasses import dataclass, field
 from datetime import datetime
 
 import aiosqlite
+from pydantic import BaseModel
 
 from amelia.server.database.connection import Database
 
 
-@dataclass
-class ProfileRecord:
+class ProfileRecord(BaseModel):
     """Profile data record for database operations.
 
     This is a database-level representation. Use amelia.core.types.Profile
@@ -28,8 +27,8 @@ class ProfileRecord:
     max_task_review_iterations: int = 5
     auto_approve_reviews: bool = False
     is_active: bool = False
-    created_at: datetime | None = field(default=None)
-    updated_at: datetime | None = field(default=None)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class ProfileRepository:

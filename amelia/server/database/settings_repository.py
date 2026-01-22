@@ -1,13 +1,13 @@
 """Repository for server settings management."""
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+
+from pydantic import BaseModel
 
 from amelia.server.database.connection import Database
 
 
-@dataclass
-class ServerSettings:
+class ServerSettings(BaseModel):
     """Server settings data class."""
 
     log_retention_days: int
