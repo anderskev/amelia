@@ -31,6 +31,12 @@ Start ad-hoc tasks directly from the sidebar without navigating away from your c
 
 ![Quick Shot](docs/design/quick_shot_feature.png)
 
+### Spec Builder
+
+Brainstorm and refine feature specifications through an interactive chat interface before implementation.
+
+![Spec Builder](docs/design/spec-builder-chat.png)
+
 ### Plan View
 
 Review and approve generated implementation plans before execution.
@@ -67,11 +73,11 @@ Compare model performance and track token usage across runs.
 
 ![Metrics](docs/design/hugo_opus_vs_gemini.jpeg)
 
-### Long-Running Workflows
+### Costs and Trajectory Analysis
 
-Handle complex tasks with hundreds of tool calls across multiple agent runs.
+Track token usage, costs, and workflow trajectories across all your agent runs.
 
-![Long Running Agent](docs/design/long_running_agent.png)
+![Costs Overview](docs/design/costs_view.png)
 
 ## Prerequisites
 
