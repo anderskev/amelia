@@ -8,20 +8,13 @@ from amelia.server.database import (
     ProfileRepository,
     SettingsRepository,
 )
-from amelia.server.dependencies import get_database
+from amelia.server.dependencies import (
+    get_profile_repository,
+    get_settings_repository,
+)
 
 
 router = APIRouter(prefix="/api", tags=["settings"])
-
-
-def get_settings_repository() -> SettingsRepository:
-    """Get settings repository dependency."""
-    return SettingsRepository(get_database())
-
-
-def get_profile_repository() -> ProfileRepository:
-    """Get profile repository dependency."""
-    return ProfileRepository(get_database())
 
 
 # Response models

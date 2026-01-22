@@ -1,5 +1,4 @@
 """Database connection management with SQLite."""
-import contextlib
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -445,7 +444,7 @@ class Database:
             ("cost_usd", "REAL", None),
             ("is_system", "INTEGER NOT NULL", "0"),
         ]:
-            with contextlib.suppress(Exception):
+            try:
                 if default is not None:
                     await self.execute(
                         f"ALTER TABLE brainstorm_messages ADD COLUMN {column} {col_type} DEFAULT {default}"
@@ -454,6 +453,11 @@ class Database:
                     await self.execute(
                         f"ALTER TABLE brainstorm_messages ADD COLUMN {column} {col_type}"
                     )
+            except Exception as e:
+                # SQLite "duplicate column" error - safe to ignore for idempotent migrations
+                if "duplicate column" not in str(e).lower():
+                    raise
+                logger.debug("Column already exists, skipping", column=column, error=str(e))
 
         # Data migration: Mark existing priming messages as system messages
         # Priming messages are sequence 1, user role, and start with the skill header
