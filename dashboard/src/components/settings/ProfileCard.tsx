@@ -25,11 +25,25 @@ export function ProfileCard({ profile, onEdit, onDelete, onActivate }: ProfileCa
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === 'Enter' || e.key === ' ') && !profile.is_active) {
+      if (e.key === ' ') {
+        e.preventDefault(); // Prevent page scroll on Space
+      }
+      onActivate(profile);
+    }
+  };
+
   return (
     <Card
       data-testid="profile-card"
       onClick={handleCardClick}
-      className={`cursor-pointer transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-primary/5 ${
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="button"
+      aria-pressed={profile.is_active}
+      aria-label={`${profile.is_active ? 'Active profile' : 'Activate profile'} ${profile.id}`}
+      className={`cursor-pointer transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
         profile.is_active ? 'border-primary shadow-md shadow-primary/10' : ''
       }`}
     >
