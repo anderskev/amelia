@@ -872,11 +872,11 @@ class BrainstormService:
     async def _create_artifact_from_path(
         self, session_id: str, path: str
     ) -> WorkflowEvent:
-        """Create and save an artifact from a file path.
+        """Create an artifact record from a file path.
 
         Args:
-            session_id: Session that produced the artifact.
-            path: File path of the artifact.
+            session_id: Session ID for the artifact.
+            path: File path that was written.
 
         Returns:
             WorkflowEvent for artifact creation.
@@ -893,7 +893,7 @@ class BrainstormService:
         )
         await self._repository.save_artifact(artifact)
 
-        # Emit artifact created event
+        # Emit artifact created event with flat fields matching BrainstormArtifact type
         event = WorkflowEvent(
             id=str(uuid4()),
             workflow_id=session_id,
@@ -902,7 +902,14 @@ class BrainstormService:
             agent="brainstormer",
             event_type=EventType.BRAINSTORM_ARTIFACT_CREATED,
             message=f"Created artifact: {path}",
-            data={"artifact": artifact.model_dump(mode="json")},
+            data={
+                "id": artifact.id,
+                "session_id": session_id,
+                "type": artifact.type,
+                "path": artifact.path,
+                "title": artifact.title,
+                "created_at": artifact.created_at.isoformat(),
+            },
             domain=EventDomain.BRAINSTORM,
         )
         self._event_bus.emit(event)

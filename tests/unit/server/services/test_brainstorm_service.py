@@ -475,7 +475,7 @@ class TestArtifactDetection(TestBrainstormService):
         assert len(artifact_events) == 1
         event = artifact_events[0]
         assert event.domain == EventDomain.BRAINSTORM
-        assert event.data["artifact"]["path"] == "docs/plans/2026-01-18-cache-design.md"
+        assert event.data["path"] == "docs/plans/2026-01-18-cache-design.md"
 
     async def test_detects_artifact_from_cli_driver_write(
         self,

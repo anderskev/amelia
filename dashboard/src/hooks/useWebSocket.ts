@@ -97,11 +97,16 @@ export function handleBrainstormMessage(msg: BrainstormMessage): void {
     }
 
     case 'artifact_created': {
-      const artifact = msg.data.artifact as BrainstormArtifact | undefined;
-      if (artifact) {
-        state.addArtifact(artifact);
-        state.updateSession(msg.session_id, { status: 'ready_for_handoff' });
-      }
+      const artifact: BrainstormArtifact = {
+        id: msg.data.id as string,
+        session_id: msg.data.session_id as string,
+        type: msg.data.type as string,
+        path: msg.data.path as string,
+        title: (msg.data.title as string | null) ?? null,
+        created_at: msg.data.created_at as string,
+      };
+      state.addArtifact(artifact);
+      state.updateSession(msg.session_id, { status: 'ready_for_handoff' });
       break;
     }
 

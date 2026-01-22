@@ -13,7 +13,6 @@ Only mocked:
 - Driver (execute_agentic as async generator)
 """
 
-import asyncio
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -28,10 +27,12 @@ from fastapi.testclient import TestClient
 from amelia.drivers.base import AgenticMessage, AgenticMessageType, DriverInterface
 from amelia.server.database.brainstorm_repository import BrainstormRepository
 from amelia.server.database.connection import Database
+from amelia.server.database.profile_repository import ProfileRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.events.connection_manager import ConnectionManager
 from amelia.server.main import create_app
 from amelia.server.models.events import EventDomain, EventType, WorkflowEvent
+from amelia.server.dependencies import get_profile_repository
 from amelia.server.routes.brainstorm import (
     get_brainstorm_service,
     get_cwd,
@@ -60,6 +61,12 @@ async def test_db(temp_db_path: Path) -> AsyncGenerator[Database, None]:
 def test_brainstorm_repository(test_db: Database) -> BrainstormRepository:
     """Create repository backed by test database."""
     return BrainstormRepository(test_db)
+
+
+@pytest.fixture
+def test_profile_repository(test_db: Database) -> ProfileRepository:
+    """Create profile repository backed by test database."""
+    return ProfileRepository(test_db)
 
 
 @pytest.fixture
@@ -128,6 +135,7 @@ def mock_driver() -> MagicMock:
 @pytest.fixture
 def test_client(
     test_brainstorm_service: BrainstormService,
+    test_profile_repository: ProfileRepository,
     mock_driver: MagicMock,
     tmp_path: Path,
 ) -> TestClient:
@@ -140,6 +148,7 @@ def test_client(
 
     app.router.lifespan_context = noop_lifespan
     app.dependency_overrides[get_brainstorm_service] = lambda: test_brainstorm_service
+    app.dependency_overrides[get_profile_repository] = lambda: test_profile_repository
     app.dependency_overrides[get_driver] = lambda: mock_driver
     app.dependency_overrides[get_cwd] = lambda: str(tmp_path)
 
@@ -325,6 +334,7 @@ class TestBrainstormArtifactEvents:
     def test_client_with_write_file(
         self,
         test_brainstorm_service: BrainstormService,
+        test_profile_repository: ProfileRepository,
         mock_driver_with_write_file: MagicMock,
         tmp_path: Path,
     ) -> TestClient:
@@ -338,6 +348,9 @@ class TestBrainstormArtifactEvents:
         app.router.lifespan_context = noop_lifespan
         app.dependency_overrides[get_brainstorm_service] = (
             lambda: test_brainstorm_service
+        )
+        app.dependency_overrides[get_profile_repository] = (
+            lambda: test_profile_repository
         )
         app.dependency_overrides[get_driver] = lambda: mock_driver_with_write_file
         app.dependency_overrides[get_cwd] = lambda: str(tmp_path)
@@ -365,7 +378,7 @@ class TestBrainstormArtifactEvents:
         assert event.workflow_id == session_id
         assert event.data is not None
         assert event.data["path"] == "docs/design.md"
-        assert "artifact_id" in event.data
+        assert "id" in event.data
 
 
 @pytest.mark.integration
@@ -376,6 +389,7 @@ class TestBrainstormWebSocketBroadcast:
     def websocket_app(
         self,
         test_brainstorm_service: BrainstormService,
+        test_profile_repository: ProfileRepository,
         test_event_bus: EventBus,
         mock_driver: MagicMock,
         tmp_path: Path,
@@ -395,6 +409,9 @@ class TestBrainstormWebSocketBroadcast:
         app.dependency_overrides[get_brainstorm_service] = (
             lambda: test_brainstorm_service
         )
+        app.dependency_overrides[get_profile_repository] = (
+            lambda: test_profile_repository
+        )
         app.dependency_overrides[get_driver] = lambda: mock_driver
         app.dependency_overrides[get_cwd] = lambda: str(tmp_path)
 
@@ -409,7 +426,7 @@ class TestBrainstormWebSocketBroadcast:
         # Restore
         ws_module.connection_manager = original_cm
 
-    def test_event_bus_connection_manager_wiring(
+    async def test_event_bus_connection_manager_wiring(
         self,
         websocket_app: TestClient,
         test_event_bus: EventBus,
@@ -431,9 +448,7 @@ class TestBrainstormWebSocketBroadcast:
         create_session_and_send_message(websocket_app, message="Hello")
 
         # Wait for any pending broadcasts to complete
-        asyncio.get_event_loop().run_until_complete(
-            test_event_bus.wait_for_broadcasts()
-        )
+        await test_event_bus.wait_for_broadcasts()
 
         # If we get here without errors, the wiring is correct
         # Actual event delivery is verified by the event emission tests
