@@ -28,11 +28,11 @@ from amelia.drivers.base import AgenticMessage, AgenticMessageType, DriverInterf
 from amelia.server.database.brainstorm_repository import BrainstormRepository
 from amelia.server.database.connection import Database
 from amelia.server.database.profile_repository import ProfileRepository
+from amelia.server.dependencies import get_profile_repository
 from amelia.server.events.bus import EventBus
 from amelia.server.events.connection_manager import ConnectionManager
 from amelia.server.main import create_app
 from amelia.server.models.events import EventDomain, EventType, WorkflowEvent
-from amelia.server.dependencies import get_profile_repository
 from amelia.server.routes.brainstorm import (
     get_brainstorm_service,
     get_cwd,

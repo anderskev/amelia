@@ -27,6 +27,7 @@ export function ProfileCard({ profile, onEdit, onDelete, onActivate }: ProfileCa
 
   return (
     <Card
+      data-testid="profile-card"
       onClick={handleCardClick}
       className={`cursor-pointer transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-primary/5 ${
         profile.is_active ? 'border-primary shadow-md shadow-primary/10' : ''
