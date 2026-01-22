@@ -31,6 +31,12 @@ Start ad-hoc tasks directly from the sidebar without navigating away from your c
 
 ![Quick Shot](docs/design/quick_shot_feature.png)
 
+### Spec Builder
+
+Brainstorm and refine feature specifications through an interactive chat interface before implementation.
+
+![Spec Builder](docs/design/spec-builder-chat.png)
+
 ### Plan View
 
 Review and approve generated implementation plans before execution.
@@ -67,11 +73,11 @@ Compare model performance and track token usage across runs.
 
 ![Metrics](docs/design/hugo_opus_vs_gemini.jpeg)
 
-### Long-Running Workflows
+### Costs and Trajectory Analysis
 
-Handle complex tasks with hundreds of tool calls across multiple agent runs.
+Track token usage, costs, and workflow trajectories across all your agent runs.
 
-![Long Running Agent](docs/design/long_running_agent.png)
+![Costs Overview](docs/design/costs_view.png)
 
 ## Prerequisites
 
@@ -243,10 +249,4 @@ For full documentation, visit **[existential-birds.github.io/amelia](https://exi
 
 ## License
 
-Amelia Core is licensed under the [Elastic License 2.0](LICENSE).
-
-### Commercial Licensing
-
-A commercial license is required only for restricted uses: reselling, repackaging, hosting as a service, or embedding Amelia in paid products. Internal use at your company does not require a commercial license.
-
-See [LICENSING.md](docs/legal/LICENSING.md) for details and examples.
+Amelia is licensed under the [Apache License 2.0](LICENSE), a permissive open-source license that allows free use, modification, and distribution.
