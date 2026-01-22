@@ -1,6 +1,6 @@
 {
   "name": "@amelia/design-system-docs",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Amelia Design System documentation site built with VitePress by hey-amelia bot",
   "private": true,
   "type": "module",
@@ -21,7 +21,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "license": "Elastic-2.0",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/existential-birds/amelia.git",
