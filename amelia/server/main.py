@@ -46,7 +46,6 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from loguru import logger
 
 from amelia import __version__
 from amelia.drivers.base import DriverInterface
@@ -89,7 +88,6 @@ from amelia.server.routes.brainstorm import (
     get_brainstorm_service,
     get_cwd,
     get_driver,
-    get_driver_type,
     router as brainstorm_router,
 )
 from amelia.server.routes.prompts import get_prompt_repository, router as prompts_router
@@ -103,18 +101,10 @@ def create_driver_cleanup_callback() -> Callable[[str, str], bool]:
     """Create callback for cleaning up driver sessions.
 
     Returns:
-        Callback that takes (profile_id, driver_session_id) and returns bool.
+        Callback that takes (driver_type, driver_session_id) and returns bool.
     """
 
-    def cleanup(profile_id: str, driver_session_id: str) -> bool:
-        driver_type = get_driver_type(profile_id)
-        if driver_type is None:
-            logger.warning(
-                "Cannot clean up driver session: profile not found",
-                profile_id=profile_id,
-                driver_session_id=driver_session_id,
-            )
-            return False
+    def cleanup(driver_type: str, driver_session_id: str) -> bool:
         return cleanup_driver_session(driver_type, driver_session_id)
 
     return cleanup
@@ -183,6 +173,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         repository=brainstorm_repo,
         event_bus=event_bus,
         driver_cleanup=create_driver_cleanup_callback(),
+        profile_repo=profile_repo,
     )
     app.state.brainstorm_service = brainstorm_service
 

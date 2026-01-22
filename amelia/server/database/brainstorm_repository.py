@@ -52,14 +52,15 @@ class BrainstormRepository:
         await self._db.execute(
             """
             INSERT INTO brainstorm_sessions (
-                id, profile_id, driver_session_id, status, topic,
+                id, profile_id, driver_session_id, driver_type, status, topic,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 session.id,
                 session.profile_id,
                 session.driver_session_id,
+                session.driver_type,
                 session.status,
                 session.topic,
                 session.created_at.isoformat(),
@@ -78,7 +79,7 @@ class BrainstormRepository:
         """
         row = await self._db.fetch_one(
             """
-            SELECT id, profile_id, driver_session_id, status, topic,
+            SELECT id, profile_id, driver_session_id, driver_type, status, topic,
                    created_at, updated_at
             FROM brainstorm_sessions WHERE id = ?
             """,
@@ -98,6 +99,7 @@ class BrainstormRepository:
             """
             UPDATE brainstorm_sessions SET
                 driver_session_id = ?,
+                driver_type = ?,
                 status = ?,
                 topic = ?,
                 updated_at = ?
@@ -105,6 +107,7 @@ class BrainstormRepository:
             """,
             (
                 session.driver_session_id,
+                session.driver_type,
                 session.status,
                 session.topic,
                 session.updated_at.isoformat(),
@@ -155,7 +158,7 @@ class BrainstormRepository:
 
         rows = await self._db.fetch_all(
             f"""
-            SELECT id, profile_id, driver_session_id, status, topic,
+            SELECT id, profile_id, driver_session_id, driver_type, status, topic,
                    created_at, updated_at
             FROM brainstorm_sessions
             WHERE {where_clause}
@@ -179,6 +182,7 @@ class BrainstormRepository:
             id=row["id"],
             profile_id=row["profile_id"],
             driver_session_id=row["driver_session_id"],
+            driver_type=row["driver_type"],
             status=row["status"],
             topic=row["topic"],
             created_at=datetime.fromisoformat(row["created_at"]),

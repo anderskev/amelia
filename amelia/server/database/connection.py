@@ -402,6 +402,7 @@ class Database:
                 id TEXT PRIMARY KEY,
                 profile_id TEXT NOT NULL,
                 driver_session_id TEXT,
+                driver_type TEXT,
                 status TEXT NOT NULL DEFAULT 'active',
                 topic TEXT,
                 created_at TIMESTAMP NOT NULL,
@@ -418,6 +419,17 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_brainstorm_sessions_status
             ON brainstorm_sessions(status)
         """)
+
+        # Migration: Add driver_type column to existing brainstorm_sessions tables
+        try:
+            await self.execute(
+                "ALTER TABLE brainstorm_sessions ADD COLUMN driver_type TEXT"
+            )
+        except Exception as e:
+            # SQLite "duplicate column" error - safe to ignore for idempotent migrations
+            if "duplicate column" not in str(e).lower():
+                raise
+            logger.debug("Column already exists, skipping", column="driver_type", error=str(e))
 
         await self.execute("""
             CREATE TABLE IF NOT EXISTS brainstorm_messages (

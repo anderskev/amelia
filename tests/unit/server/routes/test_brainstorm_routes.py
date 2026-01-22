@@ -1,15 +1,15 @@
 """Tests for brainstorming API routes."""
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from amelia.server.database import ProfileRecord, ProfileRepository
+from amelia.server.database import ProfileRepository
 from amelia.server.models.brainstorm import BrainstormingSession
-from amelia.server.routes.brainstorm import get_driver_type, router
+from amelia.server.routes.brainstorm import router
 
 
 class TestBrainstormRoutes:
@@ -367,51 +367,3 @@ class TestHandoff:
         )
 
         assert response.status_code == 404
-
-
-class TestGetDriverType:
-    """Test get_driver_type helper function."""
-
-    def test_returns_driver_from_profile(self) -> None:
-        """Should return driver type from database profile."""
-        mock_profile = ProfileRecord(
-            id="work",
-            driver="api:openrouter",
-            model="claude-sonnet",
-            validator_model="claude-sonnet",
-            tracker="noop",
-            working_dir="/test",
-        )
-        mock_repo = MagicMock(spec=ProfileRepository)
-        mock_repo.get_profile = AsyncMock(return_value=mock_profile)
-
-        with patch(
-            "amelia.server.routes.brainstorm.get_profile_repository",
-            return_value=mock_repo,
-        ):
-            result = get_driver_type("work")
-            assert result == "api:openrouter"
-
-    def test_returns_none_for_missing_profile(self) -> None:
-        """Should return None if profile doesn't exist."""
-        mock_repo = MagicMock(spec=ProfileRepository)
-        mock_repo.get_profile = AsyncMock(return_value=None)
-
-        with patch(
-            "amelia.server.routes.brainstorm.get_profile_repository",
-            return_value=mock_repo,
-        ):
-            result = get_driver_type("nonexistent")
-            assert result is None
-
-    def test_returns_none_for_missing_settings(self) -> None:
-        """Should return None if repository fails."""
-        mock_repo = MagicMock(spec=ProfileRepository)
-        mock_repo.get_profile = AsyncMock(side_effect=Exception("DB error"))
-
-        with patch(
-            "amelia.server.routes.brainstorm.get_profile_repository",
-            return_value=mock_repo,
-        ):
-            result = get_driver_type("work")
-            assert result is None

@@ -824,6 +824,7 @@ class TestDeleteSessionCleanup(TestBrainstormService):
         mock_session = BrainstormingSession(
             id="sess-1",
             profile_id="work",
+            driver_type="cli:claude",
             driver_session_id="driver-sess-123",
             status="active",
             created_at=now,
@@ -833,7 +834,7 @@ class TestDeleteSessionCleanup(TestBrainstormService):
 
         await service_with_cleanup.delete_session("sess-1")
 
-        mock_cleanup.assert_called_once_with("work", "driver-sess-123")
+        mock_cleanup.assert_called_once_with("cli:claude", "driver-sess-123")
 
     async def test_delete_session_skips_cleanup_without_driver_session(
         self,
@@ -867,11 +868,12 @@ class TestDeleteSessionCleanup(TestBrainstormService):
         # Setup: make cleanup raise an exception
         mock_cleanup.side_effect = Exception("cleanup failed")
 
-        # Create a session with driver_session_id
+        # Create a session with driver_type and driver_session_id
         now = datetime.now(UTC)
         mock_session = BrainstormingSession(
             id="sess-1",
             profile_id="work",
+            driver_type="cli:claude",
             driver_session_id="driver-sess-123",
             status="active",
             created_at=now,
@@ -883,7 +885,7 @@ class TestDeleteSessionCleanup(TestBrainstormService):
         await service_with_cleanup.delete_session("sess-1")
 
         # Verify cleanup was attempted
-        mock_cleanup.assert_called_once_with("work", "driver-sess-123")
+        mock_cleanup.assert_called_once_with("cli:claude", "driver-sess-123")
         # Verify session was still deleted despite cleanup failure
         mock_repository.delete_session.assert_called_once_with("sess-1")
 
@@ -904,6 +906,7 @@ class TestUpdateSessionStatusCleanup(TestBrainstormService):
         mock_session = BrainstormingSession(
             id="sess-1",
             profile_id="work",
+            driver_type="cli:claude",
             driver_session_id="driver-sess-123",
             status="active",
             created_at=now,
@@ -913,7 +916,7 @@ class TestUpdateSessionStatusCleanup(TestBrainstormService):
 
         await service_with_cleanup.update_session_status("sess-1", terminal_status)
 
-        mock_cleanup.assert_called_once_with("work", "driver-sess-123")
+        mock_cleanup.assert_called_once_with("cli:claude", "driver-sess-123")
 
     async def test_cleanup_not_called_on_active_status(
         self,

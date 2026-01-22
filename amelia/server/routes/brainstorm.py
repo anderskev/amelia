@@ -3,8 +3,6 @@
 Provides endpoints for session lifecycle management and chat functionality.
 """
 
-import asyncio
-import concurrent.futures
 import os
 from typing import TYPE_CHECKING, Annotated
 from uuid import uuid4
@@ -94,45 +92,6 @@ async def get_profile_info(
         )
     except Exception as e:
         logger.debug("Failed to load profile info", profile_id=profile_id, error=str(e))
-        return None
-
-
-def get_driver_type(profile_id: str) -> str | None:
-    """Get driver type for a profile synchronously.
-
-    Note: This is a synchronous wrapper that runs the async query in a new event loop.
-    Used by the driver cleanup callback which runs in a non-async context.
-
-    Args:
-        profile_id: Profile ID to look up.
-
-    Returns:
-        Driver type string (e.g., "api:openrouter") or None if not found.
-    """
-    async def _get_driver_type() -> str | None:
-        try:
-            profile_repo = get_profile_repository()
-            profile = await profile_repo.get_profile(profile_id)
-            return profile.driver if profile else None
-        except Exception as e:
-            logger.debug("Failed to get driver type", profile_id=profile_id, error=str(e))
-            return None
-
-    try:
-        # Try to get existing event loop
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # We're already in an async context - use nest_asyncio or create task
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, _get_driver_type())
-                return future.result(timeout=5.0)
-        else:
-            return loop.run_until_complete(_get_driver_type())
-    except RuntimeError:
-        # No event loop - create one
-        return asyncio.run(_get_driver_type())
-    except Exception as e:
-        logger.debug("Failed to get driver type (outer)", profile_id=profile_id, error=str(e))
         return None
 
 
