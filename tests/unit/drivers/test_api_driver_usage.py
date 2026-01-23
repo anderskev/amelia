@@ -337,10 +337,14 @@ class TestApiDriverSessionContinuity:
         assert len(captured_checkpointers) == 2
         assert captured_checkpointers[0] is captured_checkpointers[1]
 
-    async def test_system_prompt_only_on_new_session(
+    async def test_system_prompt_always_passed(
         self, mock_deepagents_for_sessions: MagicMock
     ) -> None:
-        """System prompt should only be passed on new sessions, not when resuming."""
+        """System prompt should always be passed, even on resumed sessions.
+
+        LLM APIs are stateless - the system prompt must be included with
+        every request, not just the first message of a session.
+        """
         from amelia.drivers.api.deepagents import ApiDriver
 
         msg = AIMessage(content="Response")
@@ -376,19 +380,19 @@ class TestApiDriverSessionContinuity:
 
         assert first_session_id is not None
 
-        # Second call with same session_id - should NOT pass system prompt
+        # Second call with same session_id - should ALSO pass system prompt
+        # (LLM APIs are stateless, system prompt must be in every request)
         async for _ in driver.execute_agentic(
             "follow-up",
             "/tmp",
             session_id=first_session_id,
-            instructions="This should be ignored",
+            instructions="You are a helpful assistant",
         ):
             pass
 
-        # First call should have received the system prompt
+        # Both calls should receive the system prompt
         assert captured_system_prompts[0] == "You are a helpful assistant"
-        # Second call (resume) should have empty system prompt
-        assert captured_system_prompts[1] == ""
+        assert captured_system_prompts[1] == "You are a helpful assistant"
 
     async def test_different_session_ids_create_separate_checkpointers(
         self, mock_deepagents_for_sessions: MagicMock

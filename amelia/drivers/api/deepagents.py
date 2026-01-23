@@ -382,8 +382,8 @@ class ApiDriver(DriverInterface):
             # Use session_id as thread_id for checkpointing
             thread_id = current_session_id
 
-            # Only use system prompt on new sessions to preserve conversation context
-            effective_system_prompt = instructions or "" if is_new_session else ""
+            # LLM APIs are stateless - always pass system prompt with every request
+            effective_system_prompt = instructions or ""
 
             agent = create_deep_agent(
                 model=chat_model,
