@@ -998,3 +998,324 @@ class TestGetSessionWithHistory(TestBrainstormService):
         # Verify result contains messages
         assert result is not None
         assert len(result["messages"]) == 2
+
+
+class TestGetSessionWithHistoryNoFiltering(TestBrainstormService):
+    """Tests verifying system message filtering is removed."""
+
+    async def test_get_messages_called_without_include_system(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+    ) -> None:
+        """get_messages should be called without include_system parameter.
+
+        System message filtering is no longer needed since priming is removed.
+        The repository's get_messages method now returns all messages.
+        """
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="test-session",
+            profile_id="work",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+        mock_repository.get_artifacts.return_value = []
+        mock_repository.get_messages.return_value = []
+        mock_repository.get_session_usage.return_value = None
+
+        await service.get_session_with_history("test-session")
+
+        # Verify get_messages was called with only the session_id
+        # (no include_system parameter should be passed)
+        mock_repository.get_messages.assert_called_once_with("test-session")
+
+
+class TestSendMessageNewArchitecture:
+    """Tests for send_message with new prompt architecture."""
+
+    @pytest.fixture
+    def mock_repository(self) -> MagicMock:
+        """Create mock repository."""
+        repo = MagicMock()
+        repo.create_session = AsyncMock()
+        repo.get_session = AsyncMock(return_value=None)
+        repo.update_session = AsyncMock()
+        repo.delete_session = AsyncMock()
+        repo.list_sessions = AsyncMock(return_value=[])
+        repo.save_message = AsyncMock()
+        repo.get_messages = AsyncMock(return_value=[])
+        repo.get_max_sequence = AsyncMock(return_value=0)
+        repo.save_artifact = AsyncMock()
+        repo.get_artifacts = AsyncMock(return_value=[])
+        repo.get_session_usage = AsyncMock(return_value=None)
+        return repo
+
+    @pytest.fixture
+    def mock_event_bus(self) -> MagicMock:
+        """Create mock event bus."""
+        bus = MagicMock()
+        bus.emit = MagicMock()
+        return bus
+
+    @pytest.fixture
+    def service(
+        self, mock_repository: MagicMock, mock_event_bus: MagicMock
+    ) -> BrainstormService:
+        """Create service instance."""
+        return BrainstormService(mock_repository, mock_event_bus)
+
+    def test_send_message_has_no_is_system_param(self) -> None:
+        """send_message should not have is_system parameter."""
+        import inspect
+
+        sig = inspect.signature(BrainstormService.send_message)
+        assert "is_system" not in sig.parameters
+
+    async def test_first_message_uses_template(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """First message (max_seq == 0) should prepend 'Help me design:' template."""
+        from amelia.server.services.brainstorm import BRAINSTORMER_USER_PROMPT_TEMPLATE
+
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+        mock_repository.get_max_sequence.return_value = 0  # First message
+
+        # Create a mock driver that captures the prompt
+        captured_prompts: list[str] = []
+
+        async def mock_execute_agentic(
+            prompt: str, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
+
+            captured_prompts.append(prompt)
+            yield AgenticMessage(
+                type=AgenticMessageType.RESULT,
+                content="Response",
+                session_id="sess-driver-1",
+            )
+
+        mock_driver = MagicMock()
+        mock_driver.execute_agentic = mock_execute_agentic
+        mock_driver.get_usage = MagicMock(return_value=None)
+
+        async for _ in service.send_message(
+            session_id="sess-1",
+            content="a caching layer",
+            driver=mock_driver,
+            cwd="/tmp/project",
+        ):
+            pass
+
+        # Verify prompt was formatted with template
+        expected = BRAINSTORMER_USER_PROMPT_TEMPLATE.format(idea="a caching layer")
+        assert len(captured_prompts) == 1
+        assert captured_prompts[0] == expected
+
+    async def test_subsequent_message_uses_content_directly(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """Subsequent messages (max_seq > 0) should use content directly."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+        mock_repository.get_max_sequence.return_value = 2  # Not first message
+
+        # Create a mock driver that captures the prompt
+        captured_prompts: list[str] = []
+
+        async def mock_execute_agentic(
+            prompt: str, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
+
+            captured_prompts.append(prompt)
+            yield AgenticMessage(
+                type=AgenticMessageType.RESULT,
+                content="Response",
+                session_id="sess-driver-1",
+            )
+
+        mock_driver = MagicMock()
+        mock_driver.execute_agentic = mock_execute_agentic
+        mock_driver.get_usage = MagicMock(return_value=None)
+
+        async for _ in service.send_message(
+            session_id="sess-1",
+            content="Yes, use Redis",
+            driver=mock_driver,
+            cwd="/tmp/project",
+        ):
+            pass
+
+        # Verify prompt was NOT formatted with template
+        assert len(captured_prompts) == 1
+        assert captured_prompts[0] == "Yes, use Redis"
+
+    async def test_system_prompt_always_passed(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """BRAINSTORMER_SYSTEM_PROMPT should always be passed as instructions."""
+        from amelia.server.services.brainstorm import BRAINSTORMER_SYSTEM_PROMPT
+
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+        mock_repository.get_max_sequence.return_value = 0
+
+        # Create a mock driver that captures the instructions
+        captured_instructions: list[str | None] = []
+
+        async def mock_execute_agentic(
+            prompt: str, instructions: str | None = None, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
+
+            captured_instructions.append(instructions)
+            yield AgenticMessage(
+                type=AgenticMessageType.RESULT,
+                content="Response",
+                session_id="sess-driver-1",
+            )
+
+        mock_driver = MagicMock()
+        mock_driver.execute_agentic = mock_execute_agentic
+        mock_driver.get_usage = MagicMock(return_value=None)
+
+        async for _ in service.send_message(
+            session_id="sess-1",
+            content="a caching layer",
+            driver=mock_driver,
+            cwd="/tmp/project",
+        ):
+            pass
+
+        # Verify instructions was passed
+        assert len(captured_instructions) == 1
+        assert captured_instructions[0] == BRAINSTORMER_SYSTEM_PROMPT
+
+    async def test_user_message_stored_with_original_content(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """User message in DB should store original content, not formatted prompt."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+        mock_repository.get_max_sequence.return_value = 0  # First message
+
+        async def mock_execute_agentic(
+            prompt: str, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
+
+            yield AgenticMessage(
+                type=AgenticMessageType.RESULT,
+                content="Response",
+                session_id="sess-driver-1",
+            )
+
+        mock_driver = MagicMock()
+        mock_driver.execute_agentic = mock_execute_agentic
+        mock_driver.get_usage = MagicMock(return_value=None)
+
+        async for _ in service.send_message(
+            session_id="sess-1",
+            content="a caching layer",
+            driver=mock_driver,
+            cwd="/tmp/project",
+        ):
+            pass
+
+        # Verify user message stored original content
+        save_calls = mock_repository.save_message.call_args_list
+        user_msg = save_calls[0][0][0]
+        assert user_msg.content == "a caching layer"
+        assert user_msg.role == "user"
+
+    async def test_user_message_has_no_is_system_field(
+        self,
+        service: BrainstormService,
+        mock_repository: MagicMock,
+        mock_event_bus: MagicMock,
+    ) -> None:
+        """User message should not have is_system=True (field removed or False)."""
+        now = datetime.now(UTC)
+        mock_session = BrainstormingSession(
+            id="sess-1",
+            profile_id="work",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        mock_repository.get_session.return_value = mock_session
+        mock_repository.get_max_sequence.return_value = 0
+
+        async def mock_execute_agentic(
+            prompt: str, **kwargs: object
+        ) -> AsyncIterator[AgenticMessage]:
+            from amelia.drivers.base import AgenticMessageType
+
+            yield AgenticMessage(
+                type=AgenticMessageType.RESULT,
+                content="Response",
+                session_id="sess-driver-1",
+            )
+
+        mock_driver = MagicMock()
+        mock_driver.execute_agentic = mock_execute_agentic
+        mock_driver.get_usage = MagicMock(return_value=None)
+
+        async for _ in service.send_message(
+            session_id="sess-1",
+            content="a caching layer",
+            driver=mock_driver,
+            cwd="/tmp/project",
+        ):
+            pass
+
+        # Verify user message does not have is_system=True
+        save_calls = mock_repository.save_message.call_args_list
+        user_msg = save_calls[0][0][0]
+        # Either is_system field is absent or defaults to False
+        assert not getattr(user_msg, "is_system", False)
