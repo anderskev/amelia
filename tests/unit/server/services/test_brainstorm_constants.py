@@ -1,7 +1,5 @@
 """Tests for brainstormer prompt constants."""
 
-import pytest
-
 from amelia.server.services.brainstorm import (
     BRAINSTORMER_FILESYSTEM_PROMPT,
     BRAINSTORMER_SYSTEM_PROMPT,
