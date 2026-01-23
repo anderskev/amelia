@@ -183,19 +183,68 @@ def create_brainstormer_tools(
 
 
 # Custom restricted filesystem prompt for brainstormer
-BRAINSTORMER_FILESYSTEM_PROMPT = """## Filesystem Tools `ls`, `read_file`, `glob`, `grep`, `write_design_doc`
+BRAINSTORMER_FILESYSTEM_PROMPT = """## Filesystem Tools
 
-You have access to a filesystem which you can interact with using these tools.
-All file paths must start with a /.
+You have access to: `ls`, `read_file`, `glob`, `grep`, `write_design_doc`
 
-- ls: list files in a directory (requires absolute path)
-- read_file: read a file from the filesystem
-- glob: find files matching a pattern (e.g., "**/*.py")
-- grep: search for text within files
-- write_design_doc: write markdown design documents (.md files ONLY)
+**IMPORTANT RESTRICTIONS:**
+- You can ONLY write markdown files (.md) using `write_design_doc`
+- You cannot write code files (.py, .ts, .js, etc.)
+- You cannot execute shell commands
+- Your output is a DESIGN DOCUMENT, not an implementation
 
-**IMPORTANT**: You can ONLY write markdown files (.md) using write_design_doc.
-You do NOT have access to: write_file, edit_file, or execute tools."""
+Use the read tools to understand the codebase. Use `write_design_doc` to save your final design."""
+
+
+# System prompt for the brainstormer agent - defines role and behavior
+BRAINSTORMER_SYSTEM_PROMPT = """# Role
+
+You are a design collaborator that helps turn ideas into fully formed designs through natural dialogue.
+
+**CRITICAL: You are a designer, NOT an implementer.**
+- Your job is to produce a design DOCUMENT, not code
+- NEVER write implementation code (Python, TypeScript, etc.)
+- NEVER create source files, only markdown design documents
+- The design document will be handed off to a developer agent for implementation
+- If you catch yourself about to write code, STOP and write prose describing what should be built instead
+
+# Process
+
+**Understanding the idea:**
+- Check out the current project state first (files, docs, recent commits)
+- Ask questions one at a time to refine the idea
+- Prefer multiple choice questions when possible
+- Only one question per message
+- Focus on: purpose, constraints, success criteria
+
+**Exploring approaches:**
+- Propose 2-3 different approaches with trade-offs
+- Lead with your recommendation and explain why
+
+**Presenting the design:**
+- Present in sections of 200-300 words
+- Ask after each section whether it looks right
+- Cover: architecture, components, data flow, error handling, testing
+- Go back and clarify when needed
+
+**Finalizing:**
+- Write the validated design to `docs/plans/YYYY-MM-DD-<topic>-design.md`
+- The document should contain enough detail for a developer to implement
+- Include pseudocode or interface sketches if helpful, but NOT runnable code
+- After writing the document, tell the user it's ready for handoff to implementation
+
+# Principles
+
+- One question at a time
+- Multiple choice preferred
+- YAGNI ruthlessly
+- Always explore 2-3 alternatives before settling
+- Incremental validation - present design in sections
+- **Design documents only - no implementation code**
+"""
+
+# User prompt template for the first message in a session
+BRAINSTORMER_USER_PROMPT_TEMPLATE = "Help me design: {idea}"
 
 
 class BrainstormerFilesystemMiddleware(FilesystemMiddleware):  # type: ignore[misc]
@@ -381,45 +430,6 @@ class BrainstormService:
 
         return session
 
-    async def prime_session(
-        self,
-        session_id: str,
-        driver: DriverInterface,
-        cwd: str,
-        assistant_message_id: str | None = None,
-    ) -> AsyncIterator[WorkflowEvent]:
-        """Prime a new session with the brainstorming skill.
-
-        Sends the brainstorming skill instructions as the first message and
-        yields the model's greeting response. This establishes the brainstorming
-        context before the user sends their first real message.
-
-        Should be called immediately after create_session(). Works with any
-        LLM backend (CLI or API drivers).
-
-        Args:
-            session_id: Session to prime.
-            driver: LLM driver for generating response.
-            cwd: Working directory for driver execution.
-            assistant_message_id: Optional ID for the assistant message.
-                If not provided, a UUID will be generated.
-
-        Yields:
-            WorkflowEvent for each driver message during priming.
-
-        Raises:
-            ValueError: If session not found.
-        """
-        async for event in self.send_message(
-            session_id=session_id,
-            content=BRAINSTORMER_PRIMING_PROMPT,
-            driver=driver,
-            cwd=cwd,
-            assistant_message_id=assistant_message_id,
-            is_system=True,
-        ):
-            yield event
-
     async def get_session(self, session_id: str) -> BrainstormingSession | None:
         """Get a session by ID.
 
@@ -447,8 +457,7 @@ class BrainstormService:
         if session is None:
             return None
 
-        # Exclude system messages (like priming prompts) from session history
-        messages = await self._repository.get_messages(session_id, include_system=False)
+        messages = await self._repository.get_messages(session_id)
         artifacts = await self._repository.get_artifacts(session_id)
 
         # Fetch and attach usage summary to session
