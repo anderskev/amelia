@@ -1,14 +1,14 @@
 """Tests for call_evaluation_node using profile.get_agent_config."""
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from amelia.core.types import AgentConfig, Profile
-from amelia.pipelines.review.nodes import call_evaluation_node
-from amelia.pipelines.implementation.state import ImplementationState
-from amelia.core.types import Issue
+import pytest
+
 from amelia.agents.evaluator import EvaluationResult
+from amelia.core.types import AgentConfig, Issue, Profile
+from amelia.pipelines.implementation.state import ImplementationState
+from amelia.pipelines.review.nodes import call_evaluation_node
 
 
 @pytest.fixture
