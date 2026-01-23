@@ -588,7 +588,6 @@ class BrainstormService:
         driver: DriverInterface,
         cwd: str,
         assistant_message_id: str | None = None,
-        is_system: bool = False,
     ) -> AsyncIterator[WorkflowEvent]:
         """Send a message in a brainstorming session.
 
@@ -598,6 +597,10 @@ class BrainstormService:
         Uses a session-level lock to prevent race conditions when
         computing sequence numbers for concurrent sends.
 
+        For the first message in a session (detected via max_seq == 0),
+        the prompt is wrapped with "Help me design:" template.
+        BRAINSTORMER_SYSTEM_PROMPT is always passed as instructions.
+
         Args:
             session_id: Session to send message in.
             content: User message content.
@@ -605,8 +608,6 @@ class BrainstormService:
             cwd: Working directory for driver execution.
             assistant_message_id: Optional ID for the assistant message.
                 If not provided, a UUID will be generated.
-            is_system: Whether this is a system message (e.g., priming prompt).
-                System messages are excluded from session history by default.
 
         Yields:
             WorkflowEvent for each driver message.
@@ -626,15 +627,23 @@ class BrainstormService:
             max_seq = await self._repository.get_max_sequence(session_id)
             user_sequence = max_seq + 1
 
+            # Detect first message and format prompt accordingly
+            is_first_message = max_seq == 0
+            if is_first_message:
+                formatted_prompt = BRAINSTORMER_USER_PROMPT_TEMPLATE.format(
+                    idea=content
+                )
+            else:
+                formatted_prompt = content
+
             now = datetime.now(UTC)
             user_message = Message(
                 id=str(uuid4()),
                 session_id=session_id,
                 sequence=user_sequence,
                 role="user",
-                content=content,
+                content=content,  # Store original content, not formatted prompt
                 created_at=now,
-                is_system=is_system,
             )
             await self._repository.save_message(user_message)
 
@@ -651,9 +660,10 @@ class BrainstormService:
             brainstormer_middleware = [BrainstormerFilesystemMiddleware()]
 
             async for agentic_msg in driver.execute_agentic(
-                prompt=content,
+                prompt=formatted_prompt,
                 cwd=cwd,
                 session_id=session.driver_session_id,
+                instructions=BRAINSTORMER_SYSTEM_PROMPT,
                 middleware=brainstormer_middleware,
             ):
                 # Convert to event and emit
