@@ -2,14 +2,16 @@
 
 import asyncio
 import contextlib
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.runnables.config import RunnableConfig
 
-from amelia.core.types import AgentConfig, Profile
+from amelia.core.types import AgentConfig, Profile, ReviewResult
 from amelia.pipelines.implementation.state import (
     ImplementationState,
     rebuild_implementation_state,
@@ -31,7 +33,7 @@ from amelia.server.exceptions import (  # noqa: E402
     WorkflowNotFoundError,
 )
 from amelia.server.models import ServerExecutionState  # noqa: E402
-from amelia.server.models.events import EventType  # noqa: E402
+from amelia.server.models.events import EventType, WorkflowEvent  # noqa: E402
 from amelia.server.orchestrator.service import OrchestratorService  # noqa: E402
 
 
@@ -105,6 +107,49 @@ def valid_worktree(tmp_path: Path) -> str:
     worktree.mkdir()
     (worktree / ".git").touch()  # Git worktrees have a .git file
     return str(worktree)
+
+
+@pytest.fixture
+def capture_emit(
+    orchestrator: OrchestratorService,
+) -> tuple[list[tuple[str, EventType, str, dict[str, object]]], Callable[[], None]]:
+    """Capture events emitted by the orchestrator.
+
+    Returns a tuple of (emitted_events list, install function).
+    Call the install function to patch orchestrator._emit.
+
+    Returns:
+        Tuple of (emitted_events, install_fn) where:
+        - emitted_events: List to collect (workflow_id, event_type, message, data) tuples
+        - install_fn: Call this to install the capture function on the orchestrator
+    """
+    emitted_events: list[tuple[str, EventType, str, dict[str, object]]] = []
+
+    async def _capture(
+        workflow_id: str,
+        event_type: EventType,
+        message: str,
+        agent: str = "system",
+        data: dict[str, object] | None = None,
+        correlation_id: str | None = None,
+    ) -> WorkflowEvent:
+        emitted_events.append((workflow_id, event_type, message, data or {}))
+        return WorkflowEvent(
+            id="test",
+            workflow_id=workflow_id,
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent=agent,
+            event_type=event_type,
+            message=message,
+            data=data,
+            correlation_id=correlation_id,
+        )
+
+    def install() -> None:
+        orchestrator._emit = _capture  # type: ignore[method-assign]
+
+    return emitted_events, install
 
 
 # =============================================================================
@@ -398,12 +443,12 @@ def test_get_active_workflows(orchestrator: OrchestratorService) -> None:
 @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
 @patch("amelia.server.orchestrator.service.create_implementation_graph")
 async def test_approve_workflow_success(
-    mock_create_graph,
-    mock_saver_class,
+    mock_create_graph: MagicMock,
+    mock_saver_class: MagicMock,
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
     mock_event_bus: EventBus,
-    langgraph_mock_factory,
+    langgraph_mock_factory: Callable[..., MagicMock],
 ) -> None:
     """Should approve blocked workflow."""
     received_events = []
@@ -446,12 +491,12 @@ async def test_approve_workflow_success(
 @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
 @patch("amelia.server.orchestrator.service.create_implementation_graph")
 async def test_reject_workflow_success(
-    mock_create_graph,
-    mock_saver_class,
+    mock_create_graph: MagicMock,
+    mock_saver_class: MagicMock,
     orchestrator: OrchestratorService,
     mock_repository: AsyncMock,
     mock_event_bus: EventBus,
-    langgraph_mock_factory,
+    langgraph_mock_factory: Callable[..., MagicMock],
 ) -> None:
     """Should reject blocked workflow."""
     received_events = []
@@ -503,8 +548,13 @@ class TestRejectWorkflowGraphState:
     @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
     @patch("amelia.server.orchestrator.service.create_implementation_graph")
     async def test_reject_updates_graph_state(
-        self, mock_create_graph, mock_saver_class, orchestrator, mock_repository, langgraph_mock_factory
-    ):
+        self,
+        mock_create_graph: MagicMock,
+        mock_saver_class: MagicMock,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+        langgraph_mock_factory: Callable[..., MagicMock],
+    ) -> None:
         """reject_workflow updates graph state with human_approved=False."""
         workflow = ServerExecutionState(
             id="wf-123",
@@ -534,8 +584,13 @@ class TestApproveWorkflowResume:
     @patch("amelia.server.orchestrator.service.AsyncSqliteSaver")
     @patch("amelia.server.orchestrator.service.create_implementation_graph")
     async def test_approve_updates_state_and_resumes(
-        self, mock_create_graph, mock_saver_class, orchestrator, mock_repository, langgraph_mock_factory
-    ):
+        self,
+        mock_create_graph: MagicMock,
+        mock_saver_class: MagicMock,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+        langgraph_mock_factory: Callable[..., MagicMock],
+    ) -> None:
         """approve_workflow updates graph state and resumes execution."""
         # Setup blocked workflow
         workflow = ServerExecutionState(
@@ -681,7 +736,8 @@ async def test_emit_concurrent_lock_creation_race(
 
     async def slow_get_max(workflow_id: str) -> int:
         await asyncio.sleep(0.01)  # Create race window
-        return await original_get_max(workflow_id)
+        result = await original_get_max(workflow_id)
+        return cast(int, result)
 
     mock_repository.get_max_event_sequence = slow_get_max
 
@@ -706,19 +762,19 @@ class TestStartWorkflowWithRetry:
         self, orchestrator: OrchestratorService, mock_repository: AsyncMock, valid_worktree: str
     ) -> None:
         """start_workflow creates task with _run_workflow_with_retry."""
-        orchestrator._run_workflow_with_retry = AsyncMock()
+        mock_retry = AsyncMock()
+        with patch.object(orchestrator, "_run_workflow_with_retry", new=mock_retry):
+            workflow_id = await orchestrator.start_workflow(
+                issue_id="TEST-1",
+                worktree_path=valid_worktree,
+            )
 
-        workflow_id = await orchestrator.start_workflow(
-            issue_id="TEST-1",
-            worktree_path=valid_worktree,
-        )
+            # Wait briefly for task to start
+            await asyncio.sleep(0.01)
 
-        # Wait briefly for task to start
-        await asyncio.sleep(0.01)
-
-        # The task should call _run_workflow_with_retry
-        assert workflow_id is not None
-        orchestrator._run_workflow_with_retry.assert_called_once()
+            # The task should call _run_workflow_with_retry
+            assert workflow_id is not None
+            mock_retry.assert_called_once()
 
 
 # =============================================================================
@@ -835,16 +891,28 @@ async def test_completion_event_uses_fresh_current_stage(
     mock_repository.get.return_value = fresh_state
 
     # Capture emitted events
-    emitted_events: list[tuple[str, EventType, str, dict]] = []
+    emitted_events: list[tuple[str, EventType, str, dict[str, object]]] = []
 
     async def capture_emit(
         workflow_id: str,
         event_type: EventType,
         message: str,
         agent: str = "system",
-        data: dict | None = None,
-    ) -> None:
+        data: dict[str, object] | None = None,
+        correlation_id: str | None = None,
+    ) -> WorkflowEvent:
         emitted_events.append((workflow_id, event_type, message, data or {}))
+        return WorkflowEvent(
+            id="test",
+            workflow_id=workflow_id,
+            sequence=1,
+            timestamp=datetime.now(UTC),
+            agent=agent,
+            event_type=event_type,
+            message=message,
+            data=data,
+            correlation_id=correlation_id,
+        )
 
     orchestrator._emit = capture_emit  # type: ignore[method-assign]
 
@@ -970,7 +1038,7 @@ class TestSyncPlanFromCheckpoint:
         self,
         orchestrator: OrchestratorService,
         mock_repository: AsyncMock,
-        mock_profile_factory,
+        mock_profile_factory: Callable[[], Profile],
     ) -> None:
         """_sync_plan_from_checkpoint should update execution_state with goal/plan from checkpoint."""
         # Create mock workflow with execution_state (no goal yet)
@@ -1120,7 +1188,7 @@ class TestRunWorkflowCheckpointResume:
         mock_graph.aget_state.return_value = mock_checkpoint_state
 
         # Setup astream to return empty iterator (workflow completes)
-        async def empty_stream():
+        async def empty_stream() -> AsyncIterator[dict[str, Any]]:
             return
             yield  # Makes this an async generator
 
@@ -1183,7 +1251,7 @@ class TestRunWorkflowCheckpointResume:
         mock_graph.aget_state.return_value = None
 
         # Setup astream to return empty iterator
-        async def empty_stream():
+        async def empty_stream() -> AsyncIterator[dict[str, Any]]:
             return
             yield  # Makes this an async generator
 
@@ -1231,6 +1299,211 @@ class TestRunWorkflowCheckpointResume:
 # Task Title/Description Tests
 # =============================================================================
 
+
+class TestTaskProgressEvents:
+    """Tests for task progress event emission."""
+
+    @pytest.mark.asyncio
+    async def test_emits_task_failed_when_max_iterations_exceeded(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+    ) -> None:
+        """Should emit TASK_FAILED when workflow ends with unapproved task."""
+        # Create execution state: task mode, not approved, at max iterations
+        exec_state = ImplementationState(
+            workflow_id="wf-fail",
+            created_at=datetime.now(UTC),
+            status="running",
+            profile_id="test",
+            total_tasks=3,
+            current_task_index=1,
+            task_review_iteration=5,  # At max
+            last_review=ReviewResult(
+                reviewer_persona="code-reviewer",
+                approved=False,
+                comments=["Fix the bug"],
+                severity="medium",
+            ),
+        )
+        mock_state = ServerExecutionState(
+            id="wf-fail",
+            issue_id="ISSUE-123",
+            worktree_path="/path/to/worktree",
+            workflow_status="in_progress",
+            started_at=datetime.now(UTC),
+            execution_state=exec_state,
+        )
+        mock_repository.get.return_value = mock_state
+
+        # Simulate workflow completion (called by run_workflow on end)
+        await orchestrator._emit_task_failed_if_applicable("wf-fail")
+
+        # Verify TASK_FAILED event emitted
+        mock_repository.save_event.assert_called_once()
+        saved_event = mock_repository.save_event.call_args[0][0]
+        assert saved_event.event_type == EventType.TASK_FAILED
+        assert saved_event.message == "Task 2/3 failed after 5 review iterations"
+        assert saved_event.data["task_index"] == 1
+        assert saved_event.data["total_tasks"] == 3
+        assert saved_event.data["iterations"] == 5
+
+    @pytest.mark.asyncio
+    async def test_no_task_failed_when_approved(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+    ) -> None:
+        """Should NOT emit TASK_FAILED when last task was approved."""
+        exec_state = ImplementationState(
+            workflow_id="wf-ok",
+            created_at=datetime.now(UTC),
+            status="running",
+            profile_id="test",
+            total_tasks=3,
+            current_task_index=2,  # Last task
+            task_review_iteration=1,
+            last_review=ReviewResult(
+                reviewer_persona="code-reviewer",
+                approved=True,
+                comments=[],
+                severity="low",
+            ),
+        )
+        mock_state = ServerExecutionState(
+            id="wf-ok",
+            issue_id="ISSUE-123",
+            worktree_path="/path/to/worktree",
+            workflow_status="in_progress",
+            started_at=datetime.now(UTC),
+            execution_state=exec_state,
+        )
+        mock_repository.get.return_value = mock_state
+
+        await orchestrator._emit_task_failed_if_applicable("wf-ok")
+
+        # No event should be emitted
+        mock_repository.save_event.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_task_failed_when_no_last_review(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+    ) -> None:
+        """Should NOT emit TASK_FAILED when no last_review in state."""
+        exec_state = ImplementationState(
+            workflow_id="wf-no-review",
+            created_at=datetime.now(UTC),
+            status="running",
+            profile_id="test",
+            total_tasks=3,
+            current_task_index=1,
+            task_review_iteration=5,
+            # No last_review (defaults to None)
+        )
+        mock_state = ServerExecutionState(
+            id="wf-no-review",
+            issue_id="ISSUE-123",
+            worktree_path="/path/to/worktree",
+            workflow_status="in_progress",
+            started_at=datetime.now(UTC),
+            execution_state=exec_state,
+        )
+        mock_repository.get.return_value = mock_state
+
+        await orchestrator._emit_task_failed_if_applicable("wf-no-review")
+
+        # No event should be emitted without last_review
+        mock_repository.save_event.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_emits_task_started_when_developer_starts_in_task_mode(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+        capture_emit: tuple[list[tuple[str, EventType, str, dict[str, object]]], Callable[[], None]],
+    ) -> None:
+        """Should emit TASK_STARTED when developer_node starts with total_tasks set."""
+        emitted_events, install = capture_emit
+        install()
+
+        # Simulate developer_node task start event with Pydantic state
+        # (LangGraph passes ImplementationState as input, not a dict)
+        input_state = ImplementationState(
+            workflow_id="wf-123",
+            profile_id="test",
+            created_at=datetime.now(UTC),
+            status="running",
+            total_tasks=3,
+            current_task_index=1,
+            plan_markdown="### Task 1: First\n### Task 2: Second task\n### Task 3: Third",
+        )
+        task_data = {
+            "name": "developer_node",
+            "input": input_state,
+        }
+        await orchestrator._handle_tasks_event("wf-123", task_data)
+
+        # Verify TASK_STARTED event emitted
+        task_events = [e for e in emitted_events if e[1] == EventType.TASK_STARTED]
+        assert len(task_events) == 1
+        _, event_type, message, data = task_events[0]
+        assert message == "Starting Task 2/3: Second task"
+        assert data["task_index"] == 1
+        assert data["total_tasks"] == 3
+        assert data["task_title"] == "Second task"
+
+    @pytest.mark.asyncio
+    async def test_emits_task_completed_when_next_task_node_completes(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+        capture_emit: tuple[list[tuple[str, EventType, str, dict[str, object]]], Callable[[], None]],
+    ) -> None:
+        """Should emit TASK_COMPLETED when next_task_node finishes."""
+        emitted_events, install = capture_emit
+        install()
+
+        # Setup workflow in task-based mode
+        mock_state = ServerExecutionState(
+            id="wf-789",
+            issue_id="ISSUE-123",
+            worktree_path="/path/to/worktree",
+            workflow_status="in_progress",
+            started_at=datetime.now(UTC),
+            execution_state=ImplementationState(
+                workflow_id="wf-789",
+                created_at=datetime.now(UTC),
+                status="running",
+                profile_id="test",
+                total_tasks=5,
+                current_task_index=0,  # Was 0 before next_task_node runs
+            ),
+        )
+        mock_repository.get.return_value = mock_state
+
+        # Simulate next_task_node completion
+        # The output contains the NEW index (incremented from 0 to 1) and total_tasks
+        chunk = {
+            "next_task_node": {
+                "current_task_index": 1,  # New value after node runs
+                "task_review_iteration": 0,
+                "driver_session_id": None,
+                "total_tasks": 5,  # Passed through for TASK_COMPLETED event
+            }
+        }
+
+        await orchestrator._handle_stream_chunk("wf-789", chunk)
+
+        # Verify TASK_COMPLETED event emitted
+        task_events = [e for e in emitted_events if e[1] == EventType.TASK_COMPLETED]
+        assert len(task_events) == 1
+        _, event_type, message, data = task_events[0]
+        # The completed task is the one we just finished (index 0, displayed as 1)
+        assert message == "Completed Task 1/5"
+        assert data["task_index"] == 0
+        assert data["total_tasks"] == 5
 
 class TestStartWorkflowWithTaskFields:
     """Tests for start_workflow with task_title/task_description."""
