@@ -1,17 +1,32 @@
 """Configuration and shared type definitions for the Amelia orchestrator.
 
-Contains type aliases (DriverType, TrackerType) and
+Contains StrEnum types (DriverType, TrackerType, Severity) and
 Pydantic models (RetryConfig, Profile, Settings, Issue) used throughout
 the Amelia agentic coding orchestrator.
 """
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-DriverType = Literal["cli:claude", "api:openrouter", "cli", "api"]
-TrackerType = Literal["jira", "github", "none", "noop"]
+class DriverType(StrEnum):
+    """LLM driver type for agent configuration."""
+
+    CLI_CLAUDE = "cli:claude"
+    API_OPENROUTER = "api:openrouter"
+    CLI = "cli"
+    API = "api"
+
+
+class TrackerType(StrEnum):
+    """Issue tracker type for profile configuration."""
+
+    JIRA = "jira"
+    GITHUB = "github"
+    NONE = "none"
+    NOOP = "noop"
 
 
 class AgentConfig(BaseModel):
@@ -70,7 +85,7 @@ class Profile(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: str
-    tracker: TrackerType = "none"
+    tracker: TrackerType = TrackerType.NONE
     working_dir: str
     plan_output_dir: str = "docs/plans"
     plan_path_pattern: str = "docs/plans/{date}-{issue_key}.md"
@@ -140,7 +155,13 @@ class Design(BaseModel):
         return cls(content=content, source="file")
 
 
-Severity = Literal["low", "medium", "high", "critical"]
+class Severity(StrEnum):
+    """Severity level for review results."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 
 class ReviewResult(BaseModel):

@@ -214,15 +214,17 @@ class TestProfileRoutes:
 
     def test_create_profile_with_all_fields(self, profile_client, mock_profile_repo):
         """POST /api/profiles creates profile with all optional fields."""
+        tracker: TrackerType = "jira"
+        driver: DriverType = "api:openrouter"
         mock_profile_repo.create_profile.return_value = Profile(
             name="full-profile",
-            tracker="jira",
+            tracker=tracker,
             working_dir="/custom/path",
             plan_output_dir="custom/plans",
             plan_path_pattern="custom/{date}.md",
             auto_approve_reviews=True,
             agents={
-                "developer": AgentConfig(driver="api:openrouter", model="gpt-4"),
+                "developer": AgentConfig(driver=driver, model="gpt-4"),
             },
         )
 
@@ -280,12 +282,14 @@ class TestProfileRoutes:
 
     def test_update_profile_with_agents(self, profile_client, mock_profile_repo):
         """PUT /api/profiles/{id} updates agents configuration."""
+        tracker: TrackerType = "noop"
+        driver: DriverType = "api:openrouter"
         mock_profile_repo.update_profile.return_value = Profile(
             name="dev",
-            tracker="noop",
+            tracker=tracker,
             working_dir="/new/path",
             agents={
-                "developer": AgentConfig(driver="api:openrouter", model="gpt-4"),
+                "developer": AgentConfig(driver=driver, model="gpt-4"),
             },
         )
 

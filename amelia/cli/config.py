@@ -78,8 +78,18 @@ async def _get_settings_repository() -> tuple[Database, SettingsRepository]:
     return db, repo
 
 
-VALID_DRIVERS: set[DriverType] = {"cli:claude", "api:openrouter", "cli", "api"}
-VALID_TRACKERS: set[TrackerType] = {"jira", "github", "none", "noop"}
+VALID_DRIVERS: set[DriverType] = {
+    DriverType.CLI_CLAUDE,
+    DriverType.API_OPENROUTER,
+    DriverType.CLI,
+    DriverType.API,
+}
+VALID_TRACKERS: set[TrackerType] = {
+    TrackerType.JIRA,
+    TrackerType.GITHUB,
+    TrackerType.NONE,
+    TrackerType.NOOP,
+}
 
 
 def _validate_driver(value: str) -> DriverType:
@@ -124,20 +134,21 @@ def _build_default_agents(driver: DriverType, model: str) -> dict[str, AgentConf
     """Build default agents dict for a profile.
 
     Args:
-        driver: Driver to use for all agents.
+        driver: Driver to use for all agents (converted to DriverType enum).
         model: Model to use for all agents.
 
     Returns:
         Dict mapping agent names to AgentConfig.
     """
+    driver_type = DriverType(driver)
     return {
-        "architect": AgentConfig(driver=driver, model=model),
-        "developer": AgentConfig(driver=driver, model=model),
-        "reviewer": AgentConfig(driver=driver, model=model),
-        "task_reviewer": AgentConfig(driver=driver, model=model),
-        "evaluator": AgentConfig(driver=driver, model=model),
-        "brainstormer": AgentConfig(driver=driver, model=model),
-        "plan_validator": AgentConfig(driver=driver, model=model),
+        "architect": AgentConfig(driver=driver_type, model=model),
+        "developer": AgentConfig(driver=driver_type, model=model),
+        "reviewer": AgentConfig(driver=driver_type, model=model),
+        "task_reviewer": AgentConfig(driver=driver_type, model=model),
+        "evaluator": AgentConfig(driver=driver_type, model=model),
+        "brainstormer": AgentConfig(driver=driver_type, model=model),
+        "plan_validator": AgentConfig(driver=driver_type, model=model),
     }
 
 
@@ -421,7 +432,7 @@ async def check_and_run_first_time_setup() -> bool:
 
         profile = Profile(
             name=name,
-            tracker="noop",
+            tracker=TrackerType.NOOP,
             working_dir=working_dir,
             agents=agents,
         )

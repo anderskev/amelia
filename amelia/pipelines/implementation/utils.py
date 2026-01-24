@@ -16,7 +16,7 @@ from amelia.core.types import Profile
 from amelia.pipelines.implementation.state import ImplementationState
 
 
-def extract_task_count(plan_markdown: str) -> int | None:
+def extract_task_count(plan_markdown: str) -> int:
     """Extract task count from plan markdown by counting ### Task N: patterns.
 
     Supports both simple numbering (### Task 1:) and hierarchical numbering
@@ -26,11 +26,11 @@ def extract_task_count(plan_markdown: str) -> int | None:
         plan_markdown: The markdown content of the plan.
 
     Returns:
-        Number of tasks found, or None if no task patterns detected.
+        Number of tasks found, defaults to 1 if no task patterns detected.
     """
     pattern = r"^### Task \d+(\.\d+)?:"
     matches = re.findall(pattern, plan_markdown, re.MULTILINE)
-    count = len(matches) if matches else None
+    count = len(matches) if matches else 1
 
     # Debug: Log task extraction details (without plan content)
     logger.debug(
@@ -42,6 +42,29 @@ def extract_task_count(plan_markdown: str) -> int | None:
     )
 
     return count
+
+
+def extract_task_title(plan_markdown: str, task_index: int) -> str | None:
+    """Extract the title of a specific task from plan markdown.
+
+    Supports both simple (### Task 1: Title) and hierarchical
+    (### Task 1.1: Title) numbering formats.
+
+    Args:
+        plan_markdown: The markdown content of the plan.
+        task_index: 0-indexed task number to extract title for.
+
+    Returns:
+        The task title string, or None if task not found or title is empty.
+    """
+    pattern = r"^### Task \d+(?:\.\d+)?: (.+)$"
+    matches: list[str] = re.findall(pattern, plan_markdown, re.MULTILINE)
+
+    if not matches or task_index >= len(matches):
+        return None
+
+    title = matches[task_index].strip()
+    return title if title else None
 
 
 def _looks_like_plan(text: str) -> bool:
