@@ -914,7 +914,7 @@ async def test_completion_event_uses_fresh_current_stage(
             correlation_id=correlation_id,
         )
 
-    orchestrator._emit = capture_emit  # type: ignore[method-assign]
+    orchestrator._emit = capture_emit  # type: ignore[method-assign]  # Test fixture: replace method to capture emit calls
 
     # Call the internal _emit_completion_event logic
     # (Simulating what happens at the end of _run_workflow)

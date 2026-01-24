@@ -45,6 +45,7 @@ from amelia.server.models import ServerExecutionState
 from amelia.server.models.events import EventType, WorkflowEvent
 from amelia.server.models.requests import BatchStartRequest, CreateWorkflowRequest
 from amelia.server.models.responses import BatchStartResponse
+from amelia.server.models.state import WorkflowStatus, WorkflowType
 from amelia.trackers.factory import create_tracker
 
 
@@ -209,7 +210,7 @@ class OrchestratorService:
                 workflow_id=workflow_id,
             )
             await self._repository.set_status(
-                workflow_id, "failed", failure_reason="ProfileRepository not configured"
+                workflow_id, WorkflowStatus.FAILED, failure_reason="ProfileRepository not configured"
             )
             return None
 
@@ -217,7 +218,7 @@ class OrchestratorService:
         if record is None:
             logger.error("Profile not found", workflow_id=workflow_id, profile_id=profile_id)
             await self._repository.set_status(
-                workflow_id, "failed", failure_reason=f"Profile '{profile_id}' not found"
+                workflow_id, WorkflowStatus.FAILED, failure_reason=f"Profile '{profile_id}' not found"
             )
             return None
 
@@ -499,7 +500,7 @@ class OrchestratorService:
                 issue_id=issue_id,
                 worktree_path=resolved_path,
                 execution_state=execution_state,
-                workflow_status="pending",
+                workflow_status=WorkflowStatus.PENDING,
                 started_at=datetime.now(UTC),
             )
             try:
@@ -582,7 +583,7 @@ class OrchestratorService:
             issue_id=request.issue_id,
             worktree_path=resolved_path,
             execution_state=execution_state,
-            workflow_status="pending",
+            workflow_status=WorkflowStatus.PENDING,
             # No started_at - workflow hasn't started
             # No planned_at - not planned yet
         )
@@ -693,9 +694,9 @@ class OrchestratorService:
                 id=workflow_id,
                 issue_id="LOCAL-REVIEW",
                 worktree_path=resolved_path,
-                workflow_type="review",
+                workflow_type=WorkflowType.REVIEW,
                 execution_state=execution_state,
-                workflow_status="pending",
+                workflow_status=WorkflowStatus.PENDING,
                 started_at=datetime.now(UTC),
             )
 
@@ -745,7 +746,7 @@ class OrchestratorService:
             raise WorkflowNotFoundError(workflow_id)
 
         # Check if workflow is in a cancellable state (not terminal)
-        cancellable_states = {"pending", "planning", "in_progress", "blocked"}
+        cancellable_states = {WorkflowStatus.PENDING, WorkflowStatus.PLANNING, WorkflowStatus.IN_PROGRESS, WorkflowStatus.BLOCKED}
         if workflow.workflow_status not in cancellable_states:
             raise InvalidStateError(
                 f"Cannot cancel workflow in '{workflow.workflow_status}' state",
@@ -759,7 +760,7 @@ class OrchestratorService:
             task.cancel()
 
         # Persist the cancelled status to database
-        await self._repository.set_status(workflow_id, "cancelled")
+        await self._repository.set_status(workflow_id, WorkflowStatus.CANCELLED)
 
         # Emit extension hook for cancellation
         await emit_workflow_event(
@@ -845,7 +846,7 @@ class OrchestratorService:
         if state.execution_state is None:
             logger.error("No execution_state in ServerExecutionState", workflow_id=workflow_id)
             await self._repository.set_status(
-                workflow_id, "failed", failure_reason="Missing execution state"
+                workflow_id, WorkflowStatus.FAILED, failure_reason="Missing execution state"
             )
             return
 
@@ -895,7 +896,7 @@ class OrchestratorService:
             )
 
             try:
-                await self._repository.set_status(workflow_id, "in_progress")
+                await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
 
                 was_interrupted = False
                 # Use astream with stream_mode="updates" to detect interrupts
@@ -959,7 +960,7 @@ class OrchestratorService:
                             workflow_id=workflow_id,
                             stage="human_approval_node",
                         )
-                        await self._repository.set_status(workflow_id, "blocked")
+                        await self._repository.set_status(workflow_id, WorkflowStatus.BLOCKED)
                         # Emit PAUSED event for workflow being blocked
                         await emit_workflow_event(
                             ExtWorkflowEventType.PAUSED,
@@ -994,7 +995,7 @@ class OrchestratorService:
                         workflow_id=workflow_id,
                         stage=final_stage,
                     )
-                    await self._repository.set_status(workflow_id, "completed")
+                    await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
 
             except Exception:
                 # Let exceptions propagate to _run_workflow_with_retry for retry logic
@@ -1014,7 +1015,7 @@ class OrchestratorService:
         """
         if state.execution_state is None:
             await self._repository.set_status(
-                workflow_id, "failed", failure_reason="Missing execution state"
+                workflow_id, WorkflowStatus.FAILED, failure_reason="Missing execution state"
             )
             return
 
@@ -1065,7 +1066,7 @@ class OrchestratorService:
                     )
                     await self._repository.set_status(
                         workflow_id,
-                        "failed",
+                        WorkflowStatus.FAILED,
                         failure_reason=f"Failed after {attempt} attempts: {e}",
                     )
                     raise
@@ -1107,7 +1108,7 @@ class OrchestratorService:
                     metadata={"error": str(e), "error_type": "non-transient"},
                 )
                 await self._repository.set_status(
-                    workflow_id, "failed", failure_reason=str(e)
+                    workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
                 )
                 raise
 
@@ -1128,7 +1129,7 @@ class OrchestratorService:
         if state.execution_state is None:
             logger.error("No execution_state in ServerExecutionState", workflow_id=workflow_id)
             await self._repository.set_status(
-                workflow_id, "failed", failure_reason="Missing execution state"
+                workflow_id, WorkflowStatus.FAILED, failure_reason="Missing execution state"
             )
             return
 
@@ -1177,7 +1178,7 @@ class OrchestratorService:
             )
 
             try:
-                await self._repository.set_status(workflow_id, "in_progress")
+                await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
 
                 # Convert Pydantic model to JSON-serializable dict for checkpointing
                 initial_state = state.execution_state.model_dump(mode="json")
@@ -1215,7 +1216,7 @@ class OrchestratorService:
                     "Review workflow completed",
                     data={"final_stage": final_stage},
                 )
-                await self._repository.set_status(workflow_id, "completed")
+                await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
 
             except Exception as e:
                 logger.exception("Review workflow failed", workflow_id=workflow_id)
@@ -1226,7 +1227,7 @@ class OrchestratorService:
                     data={"error": str(e)},
                 )
                 await self._repository.set_status(
-                    workflow_id, "failed", failure_reason=str(e)
+                    workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
                 )
 
     async def _emit(
@@ -1306,7 +1307,7 @@ class OrchestratorService:
         if not workflow:
             raise WorkflowNotFoundError(workflow_id)
 
-        if workflow.workflow_status != "blocked":
+        if workflow.workflow_status != WorkflowStatus.BLOCKED:
             raise InvalidStateError(
                 f"Cannot approve workflow in '{workflow.workflow_status}' state",
                 workflow_id=workflow_id,
@@ -1370,7 +1371,7 @@ class OrchestratorService:
             await graph.aupdate_state(config, {"human_approved": True})
 
             # Update status to in_progress before resuming
-            await self._repository.set_status(workflow_id, "in_progress")
+            await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
 
             # Resume execution from checkpoint
             try:
@@ -1412,7 +1413,7 @@ class OrchestratorService:
                     ExtWorkflowEventType.COMPLETED,
                     workflow_id=workflow_id,
                 )
-                await self._repository.set_status(workflow_id, "completed")
+                await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
 
             except Exception as e:
                 logger.exception("Workflow failed after approval", workflow_id=workflow_id)
@@ -1429,7 +1430,7 @@ class OrchestratorService:
                     metadata={"error": str(e)},
                 )
                 await self._repository.set_status(
-                    workflow_id, "failed", failure_reason=str(e)
+                    workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
                 )
                 raise
 
@@ -1454,7 +1455,7 @@ class OrchestratorService:
             raise WorkflowNotFoundError(workflow_id)
 
         # Validate workflow is in blocked state
-        if workflow.workflow_status != "blocked":
+        if workflow.workflow_status != WorkflowStatus.BLOCKED:
             raise InvalidStateError(
                 f"Cannot reject workflow in '{workflow.workflow_status}' state",
                 workflow_id=workflow_id,
@@ -1464,7 +1465,7 @@ class OrchestratorService:
         async with self._approval_lock:
             # Update workflow status to failed with feedback
             await self._repository.set_status(
-                workflow_id, "failed", failure_reason=feedback
+                workflow_id, WorkflowStatus.FAILED, failure_reason=feedback
             )
             await self._emit(
                 workflow_id,
@@ -2147,7 +2148,7 @@ class OrchestratorService:
                             return
 
                         # Only update if still planning
-                        if fresh.workflow_status != "planning":
+                        if fresh.workflow_status != WorkflowStatus.PLANNING:
                             logger.info(
                                 "Planning finished but workflow status changed",
                                 workflow_id=workflow_id,
@@ -2157,7 +2158,7 @@ class OrchestratorService:
 
                         # Set planned_at and status to blocked
                         fresh.planned_at = datetime.now(UTC)
-                        fresh.workflow_status = "blocked"
+                        fresh.workflow_status = WorkflowStatus.BLOCKED
                         fresh.current_stage = None  # Clear stage, waiting for approval
                         await self._repository.update(fresh)
 
@@ -2194,8 +2195,8 @@ class OrchestratorService:
                 # Mark workflow as failed using fresh state
                 try:
                     fresh = await self._repository.get(workflow_id)
-                    if fresh is not None and fresh.workflow_status == "planning":
-                        fresh.workflow_status = "failed"
+                    if fresh is not None and fresh.workflow_status == WorkflowStatus.PLANNING:
+                        fresh.workflow_status = WorkflowStatus.FAILED
                         fresh.failure_reason = f"Planning failed: {e}"
                         await self._repository.update(fresh)
                 except Exception as update_err:
@@ -2260,7 +2261,7 @@ class OrchestratorService:
             issue_id=request.issue_id,
             worktree_path=resolved_path,
             execution_state=execution_state,
-            workflow_status="planning",
+            workflow_status=WorkflowStatus.PLANNING,
             current_stage="architect",
             # Note: started_at is None - workflow hasn't started yet
         )
@@ -2320,7 +2321,7 @@ class OrchestratorService:
                 raise WorkflowNotFoundError(workflow_id)
 
             # Validate workflow is in pending state
-            if workflow.workflow_status != "pending":
+            if workflow.workflow_status != WorkflowStatus.PENDING:
                 raise InvalidStateError(
                     f"Cannot start workflow in '{workflow.workflow_status}' state",
                     workflow_id=workflow_id,
@@ -2408,7 +2409,7 @@ class OrchestratorService:
             workflow_ids = request.workflow_ids
         else:
             # Get all pending workflows
-            pending_workflows = await self._repository.find_by_status(["pending"])
+            pending_workflows = await self._repository.find_by_status([WorkflowStatus.PENDING])
 
             # Filter by worktree_path if specified
             if request.worktree_path:
