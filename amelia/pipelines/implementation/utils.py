@@ -55,7 +55,7 @@ def extract_task_title(plan_markdown: str, task_index: int) -> str | None:
         task_index: 0-indexed task number to extract title for.
 
     Returns:
-        The task title string, or None if task not found.
+        The task title string, or None if task not found or title is empty.
     """
     pattern = r"^### Task \d+(?:\.\d+)?: (.+)$"
     matches: list[str] = re.findall(pattern, plan_markdown, re.MULTILINE)
@@ -63,7 +63,8 @@ def extract_task_title(plan_markdown: str, task_index: int) -> str | None:
     if not matches or task_index >= len(matches):
         return None
 
-    return matches[task_index]
+    title = matches[task_index].strip()
+    return title if title else None
 
 
 def _looks_like_plan(text: str) -> bool:

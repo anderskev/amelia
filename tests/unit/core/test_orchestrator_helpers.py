@@ -242,3 +242,14 @@ More content
         """Should return None if no task patterns found."""
         plan = "# Plan\n\nNo tasks here"
         assert extract_task_title(plan, 0) is None
+
+    def test_returns_none_for_whitespace_only_title(self) -> None:
+        """Should return None if title is whitespace only."""
+        plan = """# Plan
+### Task 1:
+Content
+### Task 2:
+More content
+"""
+        assert extract_task_title(plan, 0) is None
+        assert extract_task_title(plan, 1) is None
