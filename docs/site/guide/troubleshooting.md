@@ -301,18 +301,13 @@ Plan file not found after architect completed
 **Solutions:**
 
 1. Use a model with strong tool-calling capabilities:
-   ```yaml
-   profiles:
-     dev:
-       driver: api:openrouter
-       model: "anthropic/claude-sonnet-4"  # Reliable tool calling
+   ```bash
+   amelia config profile update dev --model "anthropic/claude-sonnet-4"
    ```
 
 2. Switch to the CLI driver (recommended for reliability):
-   ```yaml
-   profiles:
-     dev:
-       driver: cli:claude  # Uses Claude CLI with native tool support
+   ```bash
+   amelia config profile update dev --driver cli:claude
    ```
 
 **Models known to work well:**
@@ -370,61 +365,53 @@ uv tool install --reinstall git+https://github.com/existential-birds/amelia.git
 Error: Profile 'production' not found in settings.
 ```
 
-**Cause:** Referenced profile doesn't exist in `settings.amelia.yaml`.
+**Cause:** Referenced profile doesn't exist in your configuration.
 
 **Solution:**
 
 1. Check available profiles:
    ```bash
-   cat settings.amelia.yaml
+   amelia config profile list
    ```
 
-2. Add missing profile or use existing one:
-   ```yaml
-   active_profile: dev
-   profiles:
-     dev:
-       name: dev
-       driver: cli:claude
-       tracker: github
+2. Create the missing profile:
+   ```bash
+   amelia config profile create production --driver cli:claude --tracker github
    ```
 
-3. Use explicit profile flag:
+3. Or use an existing profile:
    ```bash
    amelia start ISSUE-123 --profile dev
    ```
 
-### Settings file not found
+### No profiles configured
 
 **Error:**
 ```
-FileNotFoundError: Configuration file not found at settings.amelia.yaml
+Error: No profiles configured. Run 'amelia config profile create' to add one.
 ```
 
-**Cause:** No `settings.amelia.yaml` in current directory and `AMELIA_SETTINGS` not set.
+**Cause:** No profiles have been created yet.
 
 **Solutions:**
 
-1. Create settings file in current directory:
+1. Create a profile with CLI commands:
    ```bash
-   cat > settings.amelia.yaml <<EOF
-   active_profile: dev
-   profiles:
-     dev:
-       name: dev
-       driver: cli:claude
-       tracker: noop
-   EOF
+   # Create a profile with CLI driver (recommended for getting started)
+   amelia config profile create dev --driver cli:claude --tracker noop
+
+   # Or with API driver
+   amelia config profile create dev --driver api:openrouter --model "anthropic/claude-sonnet-4" --tracker github
    ```
 
-2. Use environment variable to point to settings file:
+2. Set the active profile:
    ```bash
-   export AMELIA_SETTINGS=/path/to/settings.amelia.yaml
+   amelia config profile activate dev
    ```
 
-3. Copy from repository example:
+3. Verify configuration:
    ```bash
-   cp settings.amelia.example.yaml settings.amelia.yaml
+   amelia config profile show dev
    ```
 
 ### Invalid API key
@@ -448,10 +435,8 @@ Error: OPENROUTER_API_KEY environment variable not set
    ```
 
 2. Or switch to CLI driver (no API key needed):
-   ```yaml
-   profiles:
-     dev:
-       driver: cli:claude
+   ```bash
+   amelia config profile update dev --driver cli:claude
    ```
 
 ### Tracker authentication failed
@@ -484,10 +469,8 @@ gh auth login
 ```
 
 **For testing without real tracker:**
-```yaml
-profiles:
-  test:
-    tracker: noop
+```bash
+amelia config profile update test --tracker noop
 ```
 
 ### Issue not found
@@ -509,10 +492,8 @@ Error: Issue 'PROJ-999' not found
 2. Check tracker authentication (see above)
 
 3. For testing, use `noop` tracker:
-   ```yaml
-   profiles:
-     test:
-       tracker: noop
+   ```bash
+   amelia config profile update test --tracker noop
    ```
 
    The `noop` tracker creates mock issues automatically for any ID.
@@ -623,8 +604,8 @@ await file_writer.write("/absolute/path/in/project/file.md", content)
 
 **Checklist:**
 1. Dependencies installed: `uv sync`
-2. Settings file created: `settings.amelia.yaml`
-3. Tracker configured (or use `tracker: noop`)
+2. Profile created: `amelia config profile create dev --driver cli:claude --activate`
+3. Tracker configured (or use `--tracker noop`)
 4. Driver credentials set (or use `cli:claude`)
 5. Server started: `amelia dev`
 

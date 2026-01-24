@@ -6,50 +6,65 @@ For installation, see the [Getting Started guide](/guide/).
 
 ## Project Setup
 
-Create `settings.amelia.yaml` in your project root:
+Create a profile using the CLI:
 
-```yaml
-active_profile: dev
-profiles:
-  dev:
-    name: dev
-    driver: api:openrouter
-    model: "minimax/minimax-m2"
-    tracker: github
+```bash
+# Create and activate a profile
+amelia config profile create dev \
+  --driver api:openrouter \
+  --model "minimax/minimax-m2" \
+  --tracker github \
+  --activate
+
+# Or create a CLI-based profile for enterprise compliance
+amelia config profile create work \
+  --driver cli:claude \
+  --tracker jira \
+  --activate
 ```
 
 ## Configuration
 
-Amelia uses profile-based configuration in `settings.amelia.yaml`. See [Configuration Reference](/guide/configuration) for complete details.
+Amelia uses profile-based configuration managed through the CLI. See [Configuration Reference](/guide/configuration) for complete details.
 
-### Profile Parameters
+### Profile Management
 
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `name` | Yes | - | Profile identifier (should match the key) |
-| `driver` | Yes | - | LLM driver: `api:openrouter`, `api`, `cli:claude`, or `cli` |
-| `model` | API only | - | LLM model identifier (required for API drivers) |
-| `tracker` | No | `none` | Issue source: `github`, `jira`, `none`, or `noop` |
-| `plan_output_dir` | No | `docs/plans` | Directory for generated plans |
-| `working_dir` | No | `null` | Working directory for agentic execution |
-| `max_review_iterations` | No | `3` | Maximum review-fix loop iterations |
-| `retry` | No | see below | Retry configuration for transient failures |
+```bash
+# List all profiles
+amelia config profile list
 
-### Retry Configuration
+# Create a new profile
+amelia config profile create <name> \
+  --driver <driver> \
+  --model <model> \
+  --tracker <tracker> \
+  --activate
 
-The `retry` parameter accepts these sub-fields:
+# Show profile details
+amelia config profile show <name>
 
-| Field | Default | Range | Description |
-|-------|---------|-------|-------------|
-| `max_retries` | `3` | 0-10 | Maximum retry attempts |
-| `base_delay` | `1.0` | 0.1-30.0 | Base delay (seconds) for exponential backoff |
-| `max_delay` | `60.0` | 1.0-300.0 | Maximum delay cap (seconds) |
+# Set the active profile
+amelia config profile activate <name>
+
+# Delete a profile
+amelia config profile delete <name>
+```
+
+### Server Configuration
+
+```bash
+# Show server settings
+amelia config server show
+
+# Set server options
+amelia config server set --port 9000 --host 0.0.0.0
+```
 
 ### Driver Options
 
 | Driver | Description | Requirements |
 |--------|-------------|--------------|
-| `api:openrouter` | Direct OpenRouter API calls | `OPENROUTER_API_KEY` env var, `model` field |
+| `api:openrouter` | Direct OpenRouter API calls | `OPENROUTER_API_KEY` env var, `--model` option |
 | `api` | Alias for `api:openrouter` | Same as above |
 | `cli:claude` | Wraps Claude CLI tool | `claude` CLI installed and authenticated |
 | `cli` | Alias for `cli:claude` | Same as above |
@@ -64,35 +79,6 @@ The `retry` parameter accepts these sub-fields:
 | `noop` | Alias for `none` | None |
 
 See [Driver Abstraction](/architecture/concepts#the-driver-abstraction) and [Tracker Abstraction](/architecture/concepts#the-tracker-abstraction) for architectural details.
-
-### Full Configuration Example
-
-```yaml
-active_profile: dev
-
-profiles:
-  dev:
-    name: dev
-    driver: api:openrouter
-    model: "minimax/minimax-m2"
-    tracker: github
-    plan_output_dir: "docs/plans"
-    max_review_iterations: 3
-    retry:
-      max_retries: 3
-      base_delay: 1.0
-      max_delay: 60.0
-
-  work:
-    name: work
-    driver: cli:claude
-    tracker: jira
-    max_review_iterations: 5
-    retry:
-      max_retries: 5
-      base_delay: 2.0
-      max_delay: 120.0
-```
 
 ## CLI Reference
 
@@ -113,7 +99,7 @@ amelia start 123 --profile work
 ```
 
 Options:
-- `--profile, -p` - Profile name from settings.amelia.yaml
+- `--profile, -p` - Profile name (see `amelia config profile list`)
 
 The command auto-detects your git worktree and creates a workflow via the API server.
 
@@ -186,7 +172,7 @@ amelia start ISSUE-123 --queue --plan
 Options:
 - `--queue, -q` - Queue workflow in pending state without starting
 - `--plan` - Run Architect to generate plan while queued (requires `--queue`)
-- `--profile, -p` - Profile name from settings.amelia.yaml
+- `--profile, -p` - Profile name (see `amelia config profile list`)
 
 The workflow will be created in `pending` state. Use `amelia run` to start execution.
 
@@ -284,7 +270,7 @@ amelia plan 123 --profile home
 ```
 
 Options:
-- `--profile, -p` - Profile name from settings.amelia.yaml
+- `--profile, -p` - Profile name (see `amelia config profile list`)
 
 Saves the plan to a markdown file in `docs/plans/` for review before execution.
 
@@ -302,7 +288,7 @@ amelia review --local --profile work
 
 Options:
 - `--local, -l` - Review local uncommitted changes (required)
-- `--profile, -p` - Profile name from settings.amelia.yaml
+- `--profile, -p` - Profile name (see `amelia config profile list`)
 
 Runs the Reviewer agent on your `git diff` output.
 
@@ -796,7 +782,6 @@ done
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENROUTER_API_KEY` | - | OpenRouter API key (required for `api:openrouter` driver) |
-| `AMELIA_SETTINGS` | `./settings.amelia.yaml` | Path to settings file |
 | `AMELIA_PORT` | `8420` | Server port |
 | `AMELIA_HOST` | `127.0.0.1` | Server host |
 
