@@ -133,7 +133,7 @@ amelia config profile show <name>
 
 Example output:
 
-```
+```text
 Agent Configurations
 ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Agent          ┃ Driver         ┃ Model                  ┃
@@ -277,7 +277,7 @@ amelia config profile list
 
 ### "Driver not recognized"
 
-Valid driver values are: `api`, `cli`
+Valid driver values are: `api`, `cli`. You can also specify with provider (e.g., `api:openrouter`, `cli:claude`) but the base value (`api` or `cli`) is what's validated.
 
 ### "Missing model field"
 

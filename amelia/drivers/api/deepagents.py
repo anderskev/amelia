@@ -314,9 +314,8 @@ class ApiDriver(DriverInterface):
             session_id: Optional session ID for conversation continuity. If
                 provided, reuses the checkpointer from a previous call to
                 maintain conversation history. If None, creates a new session.
-            instructions: Optional system prompt for the agent. Only used on
-                the first message of a session; ignored on subsequent calls
-                to preserve conversation context.
+            instructions: Optional system prompt for the agent. Passed with
+                every request to preserve system-level guidance.
             schema: Unused (structured output not supported in agentic mode).
             tools: Optional list of tools to provide to the agent. If None,
                 uses default tools (ls, read_file, write_file, edit_file,

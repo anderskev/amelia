@@ -387,7 +387,7 @@ Error: Profile 'production' not found in settings.
 ### No profiles configured
 
 **Error:**
-```
+```text
 Error: No profiles configured. Run 'amelia config profile create' to add one.
 ```
 

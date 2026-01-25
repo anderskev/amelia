@@ -417,7 +417,7 @@ async def check_and_run_first_time_setup() -> bool:
         )
 
         name = typer.prompt("Profile name", default="dev")
-        driver_input = typer.prompt("Driver (cli:claude, api:openrouter)", default="cli:claude")
+        driver_input = typer.prompt("Driver (cli or api)", default="cli")
         model = typer.prompt("Model", default="opus")
         working_dir = typer.prompt("Working directory", default=str(Path.cwd()))
 
