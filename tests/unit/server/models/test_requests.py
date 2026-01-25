@@ -401,3 +401,38 @@ class TestBatchStartRequest:
         )
         assert request.workflow_ids == ["wf-1", "wf-2"]
         assert request.worktree_path == "/path/to/repo"
+
+
+class TestSetPlanRequest:
+    """Tests for SetPlanRequest model."""
+
+    def test_requires_either_plan_file_or_plan_content(self) -> None:
+        """Must provide either plan_file or plan_content."""
+        from amelia.server.models.requests import SetPlanRequest
+
+        with pytest.raises(ValidationError, match="Either plan_file or plan_content"):
+            SetPlanRequest()
+
+    def test_plan_file_and_plan_content_mutually_exclusive(self) -> None:
+        """Cannot provide both plan_file and plan_content."""
+        from amelia.server.models.requests import SetPlanRequest
+
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            SetPlanRequest(
+                plan_file="plan.md",
+                plan_content="# Plan",
+            )
+
+    def test_force_defaults_to_false(self) -> None:
+        """force should default to False."""
+        from amelia.server.models.requests import SetPlanRequest
+
+        request = SetPlanRequest(plan_file="plan.md")
+        assert request.force is False
+
+    def test_force_can_be_set_true(self) -> None:
+        """force can be explicitly set to True."""
+        from amelia.server.models.requests import SetPlanRequest
+
+        request = SetPlanRequest(plan_content="# Plan", force=True)
+        assert request.force is True

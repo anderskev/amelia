@@ -527,6 +527,50 @@ export interface BatchStartResponse {
   errors: Record<string, string>;
 }
 
+/**
+ * Request payload for setting or replacing the plan for a queued workflow.
+ * Used by POST /api/workflows/:id/plan endpoint.
+ *
+ * @example
+ * ```typescript
+ * // Set plan from file
+ * const request: SetPlanRequest = {
+ *   plan_file: 'docs/plans/feature-plan.md',
+ * };
+ *
+ * // Set plan from inline content
+ * const request: SetPlanRequest = {
+ *   plan_content: '# Plan\n\n### Task 1: Do thing',
+ *   force: true,
+ * };
+ * ```
+ */
+export interface SetPlanRequest {
+  /** Path to external plan file (relative to worktree or absolute). */
+  plan_file?: string;
+
+  /** Inline plan markdown content. */
+  plan_content?: string;
+
+  /** If true, overwrite existing plan. */
+  force?: boolean;
+}
+
+/**
+ * Response payload from setting a workflow's plan.
+ * Returned by POST /api/workflows/:id/plan endpoint.
+ */
+export interface SetPlanResponse {
+  /** Extracted goal from the plan. */
+  goal: string;
+
+  /** List of key files from the plan. */
+  key_files: string[];
+
+  /** Number of tasks in the plan. */
+  total_tasks: number;
+}
+
 // ============================================================================
 // WebSocket Message Types
 // ============================================================================

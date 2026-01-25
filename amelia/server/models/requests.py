@@ -305,3 +305,41 @@ class BatchStartRequest(BaseModel):
     """Filter by worktree path."""
 
 
+class SetPlanRequest(BaseModel):
+    """Request to set or replace the plan for a queued workflow.
+
+    Attributes:
+        plan_file: Path to external plan file (relative to worktree or absolute).
+        plan_content: Inline plan markdown content.
+        force: If True, overwrite existing plan.
+    """
+
+    plan_file: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Path to external plan file (relative to worktree or absolute)",
+        ),
+    ] = None
+
+    plan_content: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Inline plan markdown content",
+        ),
+    ] = None
+
+    force: bool = False
+    """If True, overwrite existing plan."""
+
+    @model_validator(mode="after")
+    def validate_plan_fields(self) -> "SetPlanRequest":
+        """Validate plan_file and plan_content constraints."""
+        if self.plan_file is not None and self.plan_content is not None:
+            raise ValueError("plan_file and plan_content are mutually exclusive")
+        if self.plan_file is None and self.plan_content is None:
+            raise ValueError("Either plan_file or plan_content must be provided")
+        return self
+
+
