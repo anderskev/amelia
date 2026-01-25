@@ -2,9 +2,10 @@
  * @fileoverview Reusable collapsible section for importing external plans.
  */
 import { useState, useCallback, useEffect } from 'react';
-import { ChevronDown, FileText, ClipboardPaste, File } from 'lucide-react';
+import { ChevronDown, FileText, ClipboardPaste, File, Eye, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parsePlanPreview, type PlanPreview } from '@/lib/plan-parser';
+import { api, ApiError } from '@/api/client';
 import {
   Collapsible,
   CollapsibleContent,
@@ -14,7 +15,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 /**
  * Plan data passed to parent component.
@@ -33,6 +34,8 @@ export interface PlanImportSectionProps {
   defaultExpanded?: boolean;
   /** Error message to display. */
   error?: string;
+  /** Worktree path for resolving relative file paths. Enables Preview button in file mode. */
+  worktreePath?: string;
   /** Additional CSS classes. */
   className?: string;
 }
@@ -46,6 +49,7 @@ export function PlanImportSection({
   onPlanChange,
   defaultExpanded = false,
   error,
+  worktreePath,
   className,
 }: PlanImportSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultExpanded);
@@ -54,6 +58,9 @@ export function PlanImportSection({
   const [content, setContent] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [preview, setPreview] = useState<PlanPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [filePreview, setFilePreview] = useState<PlanPreview | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   // Update preview when content changes
   useEffect(() => {
@@ -94,9 +101,47 @@ export function PlanImportSection({
   const handleFilePathChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setFilePath(e.target.value);
+      setFilePreview(null);
+      setFileError(null);
     },
     []
   );
+
+  const handlePreview = useCallback(async () => {
+    if (!filePath.trim() || !worktreePath) return;
+
+    setPreviewLoading(true);
+    setFileError(null);
+    setFilePreview(null);
+
+    try {
+      const absolutePath = filePath.startsWith('/')
+        ? filePath
+        : `${worktreePath.replace(/\/$/, '')}/${filePath}`;
+
+      const response = await api.readFile(absolutePath);
+
+      if (!response.content.trim()) {
+        setFileError('Plan file is empty');
+        return;
+      }
+
+      const parsed = parsePlanPreview(response.content);
+      if (parsed.goal || parsed.taskCount > 0 || parsed.keyFiles.length > 0) {
+        setFilePreview(parsed);
+      } else {
+        setFileError('Could not extract plan information from file');
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setFileError(err.message);
+      } else {
+        setFileError('Failed to read plan file');
+      }
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [filePath, worktreePath]);
 
   const handleContentChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -181,12 +226,32 @@ export function PlanImportSection({
 
         {/* File path input */}
         {mode === 'file' && (
-          <Input
-            type="text"
-            placeholder="Relative path to plan file (e.g., docs/plan.md)"
-            value={filePath}
-            onChange={handleFilePathChange}
-          />
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Relative path to plan file (e.g., docs/plan.md)"
+              value={filePath}
+              onChange={handleFilePathChange}
+              className="flex-1"
+            />
+            {worktreePath && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!filePath.trim() || previewLoading}
+                onClick={handlePreview}
+                aria-label="Preview plan"
+                className="shrink-0"
+              >
+                {previewLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </Button>
+            )}
+          </div>
         )}
 
         {/* Paste content textarea */}
@@ -215,41 +280,44 @@ export function PlanImportSection({
         )}
 
         {/* Error display */}
-        {error && (
+        {(error || fileError) && (
           <Alert variant="destructive">
             <AlertCircle className="w-4 h-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error || fileError}</AlertDescription>
           </Alert>
         )}
 
         {/* Plan preview */}
-        {preview && (
-          <div
-            data-testid="plan-preview"
-            className="border border-border rounded-lg p-3 bg-muted/30 space-y-2"
-          >
-            {preview.goal && (
-              <div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Goal
-                </span>
-                <p className="text-sm mt-0.5 line-clamp-2">{preview.goal}</p>
+        {(() => {
+          const activePreview = mode === 'paste' ? preview : filePreview;
+          return activePreview ? (
+            <div
+              data-testid="plan-preview"
+              className="border border-border rounded-lg p-3 bg-muted/30 space-y-2"
+            >
+              {activePreview.goal && (
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Goal
+                  </span>
+                  <p className="text-sm mt-0.5 line-clamp-2">{activePreview.goal}</p>
+                </div>
+              )}
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                {activePreview.taskCount > 0 && (
+                  <span>{activePreview.taskCount} tasks</span>
+                )}
+                {activePreview.keyFiles.length > 0 && (
+                  <span className="truncate">
+                    {activePreview.keyFiles[0]}
+                    {activePreview.keyFiles.length > 1 &&
+                      ` +${activePreview.keyFiles.length - 1} more`}
+                  </span>
+                )}
               </div>
-            )}
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              {preview.taskCount > 0 && (
-                <span>{preview.taskCount} tasks</span>
-              )}
-              {preview.keyFiles.length > 0 && (
-                <span className="truncate">
-                  {preview.keyFiles[0]}
-                  {preview.keyFiles.length > 1 &&
-                    ` +${preview.keyFiles.length - 1} more`}
-                </span>
-              )}
             </div>
-          </div>
-        )}
+          ) : null;
+        })()}
       </CollapsibleContent>
     </Collapsible>
   );
