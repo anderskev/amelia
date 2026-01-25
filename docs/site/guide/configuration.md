@@ -73,7 +73,7 @@ How Amelia communicates with LLMs.
 
 ### `profiles.<name>.model` (required for API drivers)
 
-The LLM model identifier to use. Required when using `api` or `api` drivers.
+The LLM model identifier to use. Required when using `api` drivers.
 
 ```yaml
 model: "minimax/minimax-m2"
