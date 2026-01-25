@@ -162,7 +162,13 @@ describe('SetPlanModal', () => {
       });
     });
 
-    it('shows success toast and closes modal on success', async () => {
+    it('shows success toast with task count from response', async () => {
+      vi.mocked(api.setPlan).mockResolvedValue({
+        goal: 'Implement authentication',
+        key_files: ['src/auth.ts'],
+        total_tasks: 5,
+      });
+
       const user = userEvent.setup();
       const onOpenChange = vi.fn();
       render(<SetPlanModal {...defaultProps} onOpenChange={onOpenChange} />);
@@ -172,7 +178,9 @@ describe('SetPlanModal', () => {
       await user.click(screen.getByRole('button', { name: /apply/i }));
 
       await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/plan.*applied/i));
+        expect(toast.success).toHaveBeenCalledWith(
+          expect.stringContaining('5 tasks')
+        );
         expect(onOpenChange).toHaveBeenCalledWith(false);
       });
     });
