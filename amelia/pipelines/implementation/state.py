@@ -68,7 +68,6 @@ class ImplementationState(BasePipelineState):
     # Structured review workflow
     evaluation_result: EvaluationResult | None = None
     approved_items: list[int] = Field(default_factory=list)
-    auto_approve: bool = False
     review_pass: int = 0
     max_review_passes: int = 3
 
