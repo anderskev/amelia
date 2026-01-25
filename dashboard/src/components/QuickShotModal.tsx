@@ -13,6 +13,7 @@ import { Zap, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, ApiError } from '@/api/client';
 import { extractTitle, extractTitleFromFilename, generateDesignId, buildDescriptionReference } from '@/lib/design-doc';
+import { PlanImportSection, type PlanData } from './PlanImportSection';
 import {
   Dialog,
   DialogContent,
@@ -143,6 +144,14 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
   const [isImporting, setIsImporting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [serverWorkingDir, setServerWorkingDir] = useState<string>('');
+  const [planData, setPlanData] = useState<PlanData>({});
+
+  // External plan has content - disables Plan & Queue button
+  const hasExternalPlan = !!(planData.plan_file || planData.plan_content);
+
+  const handlePlanChange = useCallback((data: PlanData) => {
+    setPlanData(data);
+  }, []);
 
   const {
     register,
@@ -320,6 +329,8 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
           task_description: data.task_description || undefined,
           start: action === 'start',
           plan_now: action === 'plan_queue',
+          plan_file: planData.plan_file,
+          plan_content: planData.plan_content,
         });
 
         const actionLabel =
@@ -484,6 +495,14 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
             </div>
           ))}
 
+          {/* External Plan Import Section */}
+          <div
+            className="animate-quick-shot-field"
+            style={{ animationDelay: `${(fields.length + 1) * 50}ms` }}
+          >
+            <PlanImportSection onPlanChange={handlePlanChange} />
+          </div>
+
           <DialogFooter className="gap-2 pt-4">
             <Button
               type="button"
@@ -505,9 +524,10 @@ export function QuickShotModal({ open, onOpenChange, defaults }: QuickShotModalP
             <Button
               type="button"
               variant="secondary"
-              disabled={!isValid || isSubmitting}
+              disabled={!isValid || isSubmitting || hasExternalPlan}
               onClick={submitWithAction('plan_queue')}
               className="font-heading uppercase tracking-wide"
+              title={hasExternalPlan ? 'Disabled when external plan is provided' : undefined}
             >
               Plan & Queue
             </Button>

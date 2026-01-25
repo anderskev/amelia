@@ -430,4 +430,104 @@ describe('QuickShotModal', () => {
       });
     });
   });
+
+  describe('External Plan', () => {
+    it('renders External Plan collapsible section', () => {
+      render(<QuickShotModal {...defaultProps} />);
+      expect(screen.getByText(/external plan/i)).toBeInTheDocument();
+    });
+
+    it('External Plan section is collapsed by default', () => {
+      render(<QuickShotModal {...defaultProps} />);
+      // The plan file input should not be visible when collapsed
+      expect(screen.queryByPlaceholderText(/relative path to plan file/i)).not.toBeInTheDocument();
+    });
+
+    it('expands External Plan section when clicked', async () => {
+      const user = userEvent.setup();
+      render(<QuickShotModal {...defaultProps} />);
+
+      await user.click(screen.getByText(/external plan/i));
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/relative path to plan file/i)).toBeInTheDocument();
+      });
+    });
+
+    it('disables Plan & Queue button when external plan is provided', async () => {
+      const user = userEvent.setup();
+      render(<QuickShotModal {...defaultProps} />);
+
+      // Fill required fields
+      await fillRequiredFields();
+
+      // Expand External Plan and add a plan file
+      await user.click(screen.getByText(/external plan/i));
+      const planInput = screen.getByPlaceholderText(/relative path to plan file/i);
+      await user.type(planInput, 'docs/plan.md');
+
+      // Plan & Queue should be disabled since we have an external plan
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /plan.*queue/i })).toBeDisabled();
+      });
+
+      // Queue and Start should still work
+      expect(screen.getByRole('button', { name: /^queue$/i })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: /^start$/i })).not.toBeDisabled();
+    });
+
+    it('passes plan_file to api.createWorkflow when provided', async () => {
+      const user = userEvent.setup();
+      render(<QuickShotModal {...defaultProps} />);
+
+      // Fill required fields
+      await user.type(screen.getByLabelText(/task id/i), 'TASK-001');
+      await user.type(screen.getByLabelText(/worktree path/i), '/Users/me/repo');
+      await user.type(screen.getByLabelText(/task title/i), 'Test title');
+
+      // Expand External Plan and add a plan file
+      await user.click(screen.getByText(/external plan/i));
+      const planInput = screen.getByPlaceholderText(/relative path to plan file/i);
+      await user.type(planInput, 'docs/plan.md');
+
+      // Click Queue
+      await user.click(screen.getByRole('button', { name: /^queue$/i }));
+
+      await waitFor(() => {
+        expect(api.createWorkflow).toHaveBeenCalledWith(
+          expect.objectContaining({
+            plan_file: 'docs/plan.md',
+          })
+        );
+      });
+    });
+
+    it('passes plan_content to api.createWorkflow when pasting content', async () => {
+      const user = userEvent.setup();
+      render(<QuickShotModal {...defaultProps} />);
+
+      // Fill required fields
+      await user.type(screen.getByLabelText(/task id/i), 'TASK-001');
+      await user.type(screen.getByLabelText(/worktree path/i), '/Users/me/repo');
+      await user.type(screen.getByLabelText(/task title/i), 'Test title');
+
+      // Expand External Plan and switch to paste mode
+      await user.click(screen.getByText(/external plan/i));
+      await user.click(screen.getByRole('radio', { name: /paste/i }));
+
+      const textarea = screen.getByPlaceholderText(/paste.*plan.*markdown/i);
+      await user.type(textarea, '# My Plan');
+
+      // Click Start
+      await user.click(screen.getByRole('button', { name: /^start$/i }));
+
+      await waitFor(() => {
+        expect(api.createWorkflow).toHaveBeenCalledWith(
+          expect.objectContaining({
+            plan_content: '# My Plan',
+          })
+        );
+      });
+    });
+  });
 });

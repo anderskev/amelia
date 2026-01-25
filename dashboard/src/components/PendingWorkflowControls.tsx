@@ -15,6 +15,7 @@ import { success, error as toastError } from '@/components/Toast';
 import { formatRelativeTime } from '@/utils/workflow';
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
+import { SetPlanModal } from './SetPlanModal';
 
 /**
  * Props for the PendingWorkflowControls component.
@@ -22,6 +23,7 @@ import { cn } from '@/lib/utils';
  * @property createdAt - Optional ISO timestamp when the workflow was queued
  * @property hasPlan - Whether the workflow has a plan ready
  * @property worktreeHasActiveWorkflow - Whether another workflow is running on the same worktree
+ * @property worktreePath - Path to the worktree for plan file resolution
  * @property className - Optional additional CSS classes
  */
 interface PendingWorkflowControlsProps {
@@ -29,6 +31,7 @@ interface PendingWorkflowControlsProps {
   createdAt?: string | null;
   hasPlan?: boolean;
   worktreeHasActiveWorkflow?: boolean;
+  worktreePath?: string;
   className?: string;
 }
 
@@ -58,13 +61,19 @@ export function PendingWorkflowControls({
   createdAt,
   hasPlan = false,
   worktreeHasActiveWorkflow = false,
+  worktreePath = '',
   className,
 }: PendingWorkflowControlsProps) {
   const revalidator = useRevalidator();
   const [isStarting, setIsStarting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isSetPlanOpen, setIsSetPlanOpen] = useState(false);
   const isPending = isStarting || isCancelling;
   const isStartDisabled = isPending || worktreeHasActiveWorkflow;
+
+  const handleSetPlanSuccess = useCallback(() => {
+    revalidator.revalidate();
+  }, [revalidator]);
 
   const handleStart = useCallback(async () => {
     setIsStarting(true);
@@ -155,6 +164,16 @@ export function PendingWorkflowControls({
         <Button
           type="button"
           variant="outline"
+          onClick={() => setIsSetPlanOpen(true)}
+          disabled={isPending}
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          Set Plan
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
           onClick={handleCancel}
           disabled={isPending}
           className="border-destructive text-destructive hover:bg-destructive hover:text-foreground focus-visible:ring-destructive/50"
@@ -167,6 +186,15 @@ export function PendingWorkflowControls({
           Cancel
         </Button>
       </div>
+
+      <SetPlanModal
+        open={isSetPlanOpen}
+        onOpenChange={setIsSetPlanOpen}
+        workflowId={workflowId}
+        worktreePath={worktreePath}
+        hasPlan={hasPlan}
+        onSuccess={handleSetPlanSuccess}
+      />
     </div>
   );
 }
