@@ -179,6 +179,9 @@ export function PlanImportSection({
     }
   }, []);
 
+  // Derived state: select active preview based on current input mode
+  const activePreview = mode === 'paste' ? preview : filePreview;
+
   return (
     <Collapsible
       open={isOpen}
@@ -288,36 +291,33 @@ export function PlanImportSection({
         )}
 
         {/* Plan preview */}
-        {(() => {
-          const activePreview = mode === 'paste' ? preview : filePreview;
-          return activePreview ? (
-            <div
-              data-testid="plan-preview"
-              className="border border-border rounded-lg p-3 bg-muted/30 space-y-2"
-            >
-              {activePreview.goal && (
-                <div>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Goal
-                  </span>
-                  <p className="text-sm mt-0.5 line-clamp-2">{activePreview.goal}</p>
-                </div>
-              )}
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                {activePreview.taskCount > 0 && (
-                  <span>{activePreview.taskCount} tasks</span>
-                )}
-                {activePreview.keyFiles.length > 0 && (
-                  <span className="truncate">
-                    {activePreview.keyFiles[0]}
-                    {activePreview.keyFiles.length > 1 &&
-                      ` +${activePreview.keyFiles.length - 1} more`}
-                  </span>
-                )}
+        {activePreview && (
+          <div
+            data-testid="plan-preview"
+            className="border border-border rounded-lg p-3 bg-muted/30 space-y-2"
+          >
+            {activePreview.goal && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Goal
+                </span>
+                <p className="text-sm mt-0.5 line-clamp-2">{activePreview.goal}</p>
               </div>
+            )}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              {activePreview.taskCount > 0 && (
+                <span>{activePreview.taskCount} tasks</span>
+              )}
+              {activePreview.keyFiles.length > 0 && (
+                <span className="truncate">
+                  {activePreview.keyFiles[0]}
+                  {activePreview.keyFiles.length > 1 &&
+                    ` +${activePreview.keyFiles.length - 1} more`}
+                </span>
+              )}
             </div>
-          ) : null;
-        })()}
+          </div>
+        )}
       </CollapsibleContent>
     </Collapsible>
   );

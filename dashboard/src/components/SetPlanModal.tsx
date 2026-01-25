@@ -69,7 +69,7 @@ export function SetPlanModal({
         force: forceOverwrite,
       });
 
-      const summary = result.goal
+      const summary = result.total_tasks > 0
         ? `Plan applied: ${result.total_tasks} tasks`
         : 'Plan applied successfully';
       toast.success(summary);

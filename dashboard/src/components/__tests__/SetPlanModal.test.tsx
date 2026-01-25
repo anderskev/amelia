@@ -185,6 +185,25 @@ describe('SetPlanModal', () => {
       });
     });
 
+    it('shows generic success toast when total_tasks is 0', async () => {
+      vi.mocked(api.setPlan).mockResolvedValue({
+        goal: 'Some goal',
+        key_files: [],
+        total_tasks: 0,
+      });
+
+      const user = userEvent.setup();
+      render(<SetPlanModal {...defaultProps} />);
+
+      const input = screen.getByPlaceholderText(/relative path/i);
+      await user.type(input, 'docs/plan.md');
+      await user.click(screen.getByRole('button', { name: /apply/i }));
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Plan applied successfully');
+      });
+    });
+
     it('shows error toast on API error', async () => {
       const user = userEvent.setup();
       vi.mocked(api.setPlan).mockRejectedValueOnce(

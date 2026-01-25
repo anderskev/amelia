@@ -8,18 +8,13 @@ import { PlanImportSection } from '../PlanImportSection';
 import { api, ApiError } from '@/api/client';
 
 // Mock the API client
-vi.mock('@/api/client', () => ({
-  api: { readFile: vi.fn() },
-  ApiError: class ApiError extends Error {
-    code: string;
-    status: number;
-    constructor(message: string, code: string, status: number) {
-      super(message);
-      this.code = code;
-      this.status = status;
-    }
-  },
-}));
+vi.mock('@/api/client', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@/api/client')>();
+  return {
+    ...mod,
+    api: { readFile: vi.fn() },
+  };
+});
 
 describe('PlanImportSection', () => {
   const defaultProps = {
