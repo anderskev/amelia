@@ -14,7 +14,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
-from amelia.core.constants import ToolName
+from amelia.core.constants import ToolName, resolve_plan_path
 from amelia.core.types import (
     Design,
     Issue,
@@ -28,6 +28,7 @@ from amelia.ext.hooks import (
     flush_exporters,
 )
 from amelia.pipelines.implementation import create_implementation_graph
+from amelia.pipelines.implementation.external_plan import import_external_plan
 from amelia.pipelines.implementation.state import ImplementationState
 from amelia.pipelines.implementation.utils import extract_task_title
 from amelia.pipelines.review import create_review_graph
@@ -590,6 +591,34 @@ class OrchestratorService:
             task_description=request.task_description,
             artifact_path=request.artifact_path,
         )
+
+        # Handle external plan if provided
+        if request.plan_file is not None or request.plan_content is not None:
+            # Resolve target plan path
+            plan_rel_path = resolve_plan_path(profile.plan_path_pattern, request.issue_id)
+            working_dir = Path(profile.working_dir) if profile.working_dir else Path(".")
+            target_path = working_dir / plan_rel_path
+
+            # Import and validate external plan
+            plan_result = await import_external_plan(
+                plan_file=request.plan_file,
+                plan_content=request.plan_content,
+                target_path=target_path,
+                profile=profile,
+                workflow_id=workflow_id,
+            )
+
+            # Update execution state with plan data and external flag
+            execution_state = execution_state.model_copy(
+                update={
+                    "external_plan": True,
+                    "goal": plan_result["goal"],
+                    "plan_markdown": plan_result["plan_markdown"],
+                    "plan_path": plan_result["plan_path"],
+                    "key_files": plan_result["key_files"],
+                    "total_tasks": plan_result["total_tasks"],
+                }
+            )
 
         # Create ServerExecutionState in pending status (not started)
         state = ServerExecutionState(
