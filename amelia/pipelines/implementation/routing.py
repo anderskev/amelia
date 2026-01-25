@@ -12,6 +12,21 @@ from amelia.core.types import Profile
 from amelia.pipelines.implementation.state import ImplementationState
 
 
+def route_after_start(state: ImplementationState) -> Literal["architect", "plan_validator"]:
+    """Route to architect or directly to validator based on external plan flag.
+
+    Args:
+        state: Current execution state with external_plan flag.
+
+    Returns:
+        'architect' if plan needs to be generated.
+        'plan_validator' if external plan was provided.
+    """
+    if state.external_plan:
+        return "plan_validator"
+    return "architect"
+
+
 def route_approval(state: ImplementationState) -> Literal["approve", "reject"]:
     """Route based on human approval status.
 
