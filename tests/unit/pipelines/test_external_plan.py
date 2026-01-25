@@ -1,10 +1,11 @@
 """Unit tests for external plan import helper."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
+from amelia.agents.architect import MarkdownPlanOutput
 from amelia.core.types import AgentConfig, Profile
 
 
@@ -49,7 +50,7 @@ Create the auth module.
         with patch(
             "amelia.pipelines.implementation.external_plan.extract_structured"
         ) as mock_extract:
-            mock_extract.return_value = MagicMock(
+            mock_extract.return_value = MarkdownPlanOutput(
                 goal="Add user authentication",
                 plan_markdown=plan_content,
                 key_files=["auth.py"],
@@ -88,7 +89,7 @@ Fix it.
         with patch(
             "amelia.pipelines.implementation.external_plan.extract_structured"
         ) as mock_extract:
-            mock_extract.return_value = MagicMock(
+            mock_extract.return_value = MarkdownPlanOutput(
                 goal="Fix bug",
                 plan_markdown=plan_content,
                 key_files=[],
@@ -166,7 +167,7 @@ Fix it.
         with patch(
             "amelia.pipelines.implementation.external_plan.extract_structured"
         ) as mock_extract:
-            mock_extract.return_value = MagicMock(
+            mock_extract.return_value = MarkdownPlanOutput(
                 goal="Do thing",
                 plan_markdown=plan_content,
                 key_files=[],

@@ -633,6 +633,52 @@ def configure_exception_handlers(app: FastAPI) -> None:
             content=error.model_dump(),
         )
 
+    @app.exception_handler(FileNotFoundError)
+    async def file_not_found_handler(
+        request: Request, exc: FileNotFoundError
+    ) -> JSONResponse:
+        """Handle FileNotFoundError with 404 Not Found.
+
+        Args:
+            request: The incoming request.
+            exc: The exception instance.
+
+        Returns:
+            JSONResponse with 404 status code.
+        """
+        logger.warning("File not found", error=str(exc))
+        error = ErrorResponse(
+            code="FILE_NOT_FOUND",
+            error=str(exc),
+        )
+        return JSONResponse(
+            status_code=404,
+            content=error.model_dump(),
+        )
+
+    @app.exception_handler(ValueError)
+    async def value_error_handler(
+        request: Request, exc: ValueError
+    ) -> JSONResponse:
+        """Handle ValueError with 400 Bad Request.
+
+        Args:
+            request: The incoming request.
+            exc: The exception instance.
+
+        Returns:
+            JSONResponse with 400 status code.
+        """
+        logger.warning("Value error", error=str(exc))
+        error = ErrorResponse(
+            code="INVALID_VALUE",
+            error=str(exc),
+        )
+        return JSONResponse(
+            status_code=400,
+            content=error.model_dump(),
+        )
+
     @app.exception_handler(InvalidWorktreeError)
     async def invalid_worktree_handler(
         request: Request, exc: InvalidWorktreeError

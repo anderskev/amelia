@@ -548,14 +548,8 @@ class TestExternalPlanValidation:
             json={"plan_content": "   \n\n   "},
         )
 
-        # Should fail validation (empty plan)
-        # Note: Currently returns 500 as ValueError is not specifically handled
-        # TODO: Add proper error handling for ValueError in set_workflow_plan
-        assert response.status_code in (
-            status.HTTP_400_BAD_REQUEST,
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        # Should fail validation (empty plan) with 400 Bad Request
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     async def test_set_plan_with_nonexistent_file_returns_error(
         self,
@@ -589,13 +583,8 @@ class TestExternalPlanValidation:
             json={"plan_file": "nonexistent/plan.md"},
         )
 
-        # Should fail because file doesn't exist
-        # Note: Currently returns 500 as FileNotFoundError is not specifically handled
-        # TODO: Add proper error handling for FileNotFoundError in set_workflow_plan
-        assert response.status_code in (
-            status.HTTP_404_NOT_FOUND,
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        # Should fail because file doesn't exist with 404 Not Found
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.integration
