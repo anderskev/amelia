@@ -324,6 +324,79 @@ class TestCreateWorkflowRequestArtifactPath:
         assert request.artifact_path is None
 
 
+class TestCreateWorkflowRequestPlanFields:
+    """Tests for plan_file and plan_content fields."""
+
+    def test_plan_file_is_optional(self) -> None:
+        """plan_file should be optional and default to None."""
+        request = CreateWorkflowRequest(
+            issue_id="TEST-001",
+            worktree_path="/path/to/repo",
+        )
+        assert request.plan_file is None
+
+    def test_plan_content_is_optional(self) -> None:
+        """plan_content should be optional and default to None."""
+        request = CreateWorkflowRequest(
+            issue_id="TEST-001",
+            worktree_path="/path/to/repo",
+        )
+        assert request.plan_content is None
+
+    def test_plan_file_and_plan_content_mutually_exclusive(self) -> None:
+        """Cannot provide both plan_file and plan_content."""
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            CreateWorkflowRequest(
+                issue_id="TEST-001",
+                worktree_path="/path/to/repo",
+                plan_file="plan.md",
+                plan_content="# Plan content",
+            )
+
+    def test_plan_file_accepted_alone(self) -> None:
+        """plan_file can be provided without plan_content (requires start=False)."""
+        request = CreateWorkflowRequest(
+            issue_id="TEST-001",
+            worktree_path="/path/to/repo",
+            plan_file="docs/plan.md",
+            start=False,
+        )
+        assert request.plan_file == "docs/plan.md"
+        assert request.plan_content is None
+
+    def test_plan_content_accepted_alone(self) -> None:
+        """plan_content can be provided without plan_file (requires start=False)."""
+        request = CreateWorkflowRequest(
+            issue_id="TEST-001",
+            worktree_path="/path/to/repo",
+            plan_content="# My Plan\n\n### Task 1: Do thing",
+            start=False,
+        )
+        assert request.plan_content == "# My Plan\n\n### Task 1: Do thing"
+        assert request.plan_file is None
+
+    def test_plan_file_rejected_with_start_true(self) -> None:
+        """plan_file cannot be provided when start=True."""
+        with pytest.raises(ValidationError, match="start=False"):
+            CreateWorkflowRequest(
+                issue_id="TEST-001",
+                worktree_path="/path/to/repo",
+                plan_file="docs/plan.md",
+                start=True,
+            )
+
+    def test_plan_content_rejected_with_plan_now_true(self) -> None:
+        """plan_content cannot be provided when plan_now=True."""
+        with pytest.raises(ValidationError, match="start=False"):
+            CreateWorkflowRequest(
+                issue_id="TEST-001",
+                worktree_path="/path/to/repo",
+                plan_content="# Plan",
+                start=False,
+                plan_now=True,
+            )
+
+
 class TestBatchStartRequest:
     """Tests for BatchStartRequest model."""
 
@@ -351,3 +424,38 @@ class TestBatchStartRequest:
         )
         assert request.workflow_ids == ["wf-1", "wf-2"]
         assert request.worktree_path == "/path/to/repo"
+
+
+class TestSetPlanRequest:
+    """Tests for SetPlanRequest model."""
+
+    def test_requires_either_plan_file_or_plan_content(self) -> None:
+        """Must provide either plan_file or plan_content."""
+        from amelia.server.models.requests import SetPlanRequest
+
+        with pytest.raises(ValidationError, match="Either plan_file or plan_content"):
+            SetPlanRequest()
+
+    def test_plan_file_and_plan_content_mutually_exclusive(self) -> None:
+        """Cannot provide both plan_file and plan_content."""
+        from amelia.server.models.requests import SetPlanRequest
+
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            SetPlanRequest(
+                plan_file="plan.md",
+                plan_content="# Plan",
+            )
+
+    def test_force_defaults_to_false(self) -> None:
+        """force should default to False."""
+        from amelia.server.models.requests import SetPlanRequest
+
+        request = SetPlanRequest(plan_file="plan.md")
+        assert request.force is False
+
+    def test_force_can_be_set_true(self) -> None:
+        """force can be explicitly set to True."""
+        from amelia.server.models.requests import SetPlanRequest
+
+        request = SetPlanRequest(plan_content="# Plan", force=True)
+        assert request.force is True

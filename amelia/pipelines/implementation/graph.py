@@ -7,7 +7,7 @@ Architect -> Developer <-> Reviewer flow.
 from typing import TYPE_CHECKING, Any, Literal
 
 from langchain_core.runnables.config import RunnableConfig
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from amelia.pipelines.implementation.nodes import (
@@ -17,6 +17,7 @@ from amelia.pipelines.implementation.nodes import (
     plan_validator_node,
 )
 from amelia.pipelines.implementation.routing import (
+    route_after_start,
     route_after_task_review,
     route_approval,
 )
@@ -57,7 +58,9 @@ def create_implementation_graph(
     """Creates and compiles the LangGraph state machine for implementation.
 
     The graph flow:
-    START -> architect_node -> plan_validator_node -> human_approval_node
+    START -> [conditional: external_plan?]
+          -> (external_plan=True) plan_validator_node -> human_approval_node
+          -> (external_plan=False) architect_node -> plan_validator_node -> human_approval_node
           -> developer_node -> reviewer_node -> next_task_node -> developer_node
           (loops for each task until all complete or max iterations reached)
 
@@ -80,8 +83,15 @@ def create_implementation_graph(
     workflow.add_node("reviewer_node", call_reviewer_node)
     workflow.add_node("next_task_node", next_task_node)  # Task-based execution
 
-    # Set entry point
-    workflow.set_entry_point("architect_node")
+    # Conditional entry point: route based on external_plan flag
+    workflow.add_conditional_edges(
+        START,
+        route_after_start,
+        {
+            "architect": "architect_node",
+            "plan_validator": "plan_validator_node",
+        }
+    )
 
     # Define edges
     # Architect -> Plan Validator -> Human approval

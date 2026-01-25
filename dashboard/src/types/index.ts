@@ -446,6 +446,12 @@ export interface CreateWorkflowRequest {
 
   /** If not starting, run Architect first to generate a plan. Default: false. */
   plan_now?: boolean;
+
+  /** Path to external plan file (relative to worktree or absolute). */
+  plan_file?: string;
+
+  /** Inline plan markdown content. */
+  plan_content?: string;
 }
 
 /**
@@ -519,6 +525,52 @@ export interface BatchStartResponse {
 
   /** Map of workflow IDs to error messages for workflows that failed to start. */
   errors: Record<string, string>;
+}
+
+/**
+ * Request payload for setting or replacing the plan for a queued workflow.
+ * Used by POST /api/workflows/:id/plan endpoint.
+ *
+ * Note: `plan_file` and `plan_content` are mutually exclusive - provide one or the other, not both.
+ *
+ * @example
+ * ```typescript
+ * // Set plan from file
+ * const request: SetPlanRequest = {
+ *   plan_file: 'docs/plans/feature-plan.md',
+ * };
+ *
+ * // Set plan from inline content
+ * const request: SetPlanRequest = {
+ *   plan_content: '# Plan\n\n### Task 1: Do thing',
+ *   force: true,
+ * };
+ * ```
+ */
+export interface SetPlanRequest {
+  /** Path to external plan file (relative to worktree or absolute). */
+  plan_file?: string;
+
+  /** Inline plan markdown content. */
+  plan_content?: string;
+
+  /** If true, overwrite existing plan. */
+  force?: boolean;
+}
+
+/**
+ * Response payload from setting a workflow's plan.
+ * Returned by POST /api/workflows/:id/plan endpoint.
+ */
+export interface SetPlanResponse {
+  /** Extracted goal from the plan. */
+  goal: string;
+
+  /** List of key files from the plan. */
+  key_files: string[];
+
+  /** Number of tasks in the plan. */
+  total_tasks: number;
 }
 
 // ============================================================================

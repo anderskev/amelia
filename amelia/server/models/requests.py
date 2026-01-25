@@ -130,6 +130,40 @@ class CreateWorkflowRequest(BaseModel):
         ),
     ] = None
 
+    plan_file: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Path to external plan file (relative to worktree or absolute)",
+        ),
+    ] = None
+
+    plan_content: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Inline plan markdown content",
+        ),
+    ] = None
+
+    @model_validator(mode="after")
+    def validate_plan_fields(self) -> "CreateWorkflowRequest":
+        """Validate plan_file and plan_content constraints.
+
+        Ensures:
+        - plan_file and plan_content are mutually exclusive
+        - plan_file/plan_content require start=False and plan_now=False
+        """
+        if self.plan_file is not None and self.plan_content is not None:
+            raise ValueError("plan_file and plan_content are mutually exclusive")
+        if (self.plan_file is not None or self.plan_content is not None) and (
+            self.start or self.plan_now
+        ):
+            raise ValueError(
+                "plan_file/plan_content require start=False and plan_now=False"
+            )
+        return self
+
     @model_validator(mode="after")
     def validate_task_fields(self) -> "CreateWorkflowRequest":
         """Validate task_description requires task_title."""
@@ -280,5 +314,43 @@ class BatchStartRequest(BaseModel):
 
     worktree_path: str | None = None
     """Filter by worktree path."""
+
+
+class SetPlanRequest(BaseModel):
+    """Request to set or replace the plan for a queued workflow.
+
+    Attributes:
+        plan_file: Path to external plan file (relative to worktree or absolute).
+        plan_content: Inline plan markdown content.
+        force: If True, overwrite existing plan.
+    """
+
+    plan_file: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Path to external plan file (relative to worktree or absolute)",
+        ),
+    ] = None
+
+    plan_content: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Inline plan markdown content",
+        ),
+    ] = None
+
+    force: bool = False
+    """If True, overwrite existing plan."""
+
+    @model_validator(mode="after")
+    def validate_plan_fields(self) -> "SetPlanRequest":
+        """Validate plan_file and plan_content constraints."""
+        if self.plan_file is not None and self.plan_content is not None:
+            raise ValueError("plan_file and plan_content are mutually exclusive")
+        if self.plan_file is None and self.plan_content is None:
+            raise ValueError("Either plan_file or plan_content must be provided")
+        return self
 
 
