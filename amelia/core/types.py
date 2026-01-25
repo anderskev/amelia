@@ -176,7 +176,7 @@ class ReviewResult(BaseModel):
         approved: Whether the review approved the changes.
         comments: List of actionable issues to fix. Filtered at creation time
             to exclude positive observations.
-        severity: Severity level of issues found (low, medium, high, critical).
+        severity: Severity level of issues found (none, minor, major, critical).
     """
 
     model_config = ConfigDict(frozen=True)
