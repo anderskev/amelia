@@ -324,6 +324,56 @@ class TestCreateWorkflowRequestArtifactPath:
         assert request.artifact_path is None
 
 
+class TestCreateWorkflowRequestPlanFields:
+    """Tests for plan_file and plan_content fields."""
+
+    def test_plan_file_is_optional(self) -> None:
+        """plan_file should be optional and default to None."""
+        request = CreateWorkflowRequest(
+            issue_id="TEST-001",
+            worktree_path="/path/to/repo",
+        )
+        assert request.plan_file is None
+
+    def test_plan_content_is_optional(self) -> None:
+        """plan_content should be optional and default to None."""
+        request = CreateWorkflowRequest(
+            issue_id="TEST-001",
+            worktree_path="/path/to/repo",
+        )
+        assert request.plan_content is None
+
+    def test_plan_file_and_plan_content_mutually_exclusive(self) -> None:
+        """Cannot provide both plan_file and plan_content."""
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            CreateWorkflowRequest(
+                issue_id="TEST-001",
+                worktree_path="/path/to/repo",
+                plan_file="plan.md",
+                plan_content="# Plan content",
+            )
+
+    def test_plan_file_accepted_alone(self) -> None:
+        """plan_file can be provided without plan_content."""
+        request = CreateWorkflowRequest(
+            issue_id="TEST-001",
+            worktree_path="/path/to/repo",
+            plan_file="docs/plan.md",
+        )
+        assert request.plan_file == "docs/plan.md"
+        assert request.plan_content is None
+
+    def test_plan_content_accepted_alone(self) -> None:
+        """plan_content can be provided without plan_file."""
+        request = CreateWorkflowRequest(
+            issue_id="TEST-001",
+            worktree_path="/path/to/repo",
+            plan_content="# My Plan\n\n### Task 1: Do thing",
+        )
+        assert request.plan_content == "# My Plan\n\n### Task 1: Do thing"
+        assert request.plan_file is None
+
+
 class TestBatchStartRequest:
     """Tests for BatchStartRequest model."""
 

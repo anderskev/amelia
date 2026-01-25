@@ -130,6 +130,29 @@ class CreateWorkflowRequest(BaseModel):
         ),
     ] = None
 
+    plan_file: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Path to external plan file (relative to worktree or absolute)",
+        ),
+    ] = None
+
+    plan_content: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Inline plan markdown content",
+        ),
+    ] = None
+
+    @model_validator(mode="after")
+    def validate_plan_fields(self) -> "CreateWorkflowRequest":
+        """Validate plan_file and plan_content are mutually exclusive."""
+        if self.plan_file is not None and self.plan_content is not None:
+            raise ValueError("plan_file and plan_content are mutually exclusive")
+        return self
+
     @model_validator(mode="after")
     def validate_task_fields(self) -> "CreateWorkflowRequest":
         """Validate task_description requires task_title."""

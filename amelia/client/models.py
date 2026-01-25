@@ -24,6 +24,14 @@ class CreateWorkflowRequest(BaseModel):
     task_description: str | None = Field(default=None, max_length=5000)
     start: bool = True
     plan_now: bool = False
+    plan_file: str | None = Field(
+        default=None,
+        description="Path to external plan file (relative to worktree or absolute)",
+    )
+    plan_content: str | None = Field(
+        default=None,
+        description="Inline plan markdown content",
+    )
 
 
 class CreateReviewWorkflowRequest(BaseModel):

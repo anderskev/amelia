@@ -446,6 +446,12 @@ export interface CreateWorkflowRequest {
 
   /** If not starting, run Architect first to generate a plan. Default: false. */
   plan_now?: boolean;
+
+  /** Path to external plan file (relative to worktree or absolute). */
+  plan_file?: string;
+
+  /** Inline plan markdown content. */
+  plan_content?: string;
 }
 
 /**
