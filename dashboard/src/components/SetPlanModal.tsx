@@ -40,7 +40,7 @@ export function SetPlanModal({
   open,
   onOpenChange,
   workflowId,
-  worktreePath: _worktreePath,
+  worktreePath,
   hasPlan = false,
   onSuccess,
 }: SetPlanModalProps) {
@@ -63,13 +63,16 @@ export function SetPlanModal({
     setError(undefined);
 
     try {
-      await api.setPlan(workflowId, {
+      const result = await api.setPlan(workflowId, {
         plan_file: planData.plan_file,
         plan_content: planData.plan_content,
         force: forceOverwrite,
       });
 
-      toast.success('Plan applied successfully');
+      const summary = result.goal
+        ? `Plan applied: ${result.total_tasks} tasks`
+        : 'Plan applied successfully';
+      toast.success(summary);
       onOpenChange(false);
       onSuccess?.();
     } catch (err) {
@@ -105,6 +108,7 @@ export function SetPlanModal({
             onPlanChange={handlePlanChange}
             defaultExpanded
             error={error}
+            worktreePath={worktreePath}
           />
 
           {hasPlan && (
