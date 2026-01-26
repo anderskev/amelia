@@ -1162,3 +1162,53 @@ class TestToolCallIdMatchingForArtifactDetection:
             f"got keys: {list(tool_calls[0].tool_input.keys())}"
         )
         assert tool_calls[0].tool_input["file_path"] == "/docs/adr/0001-architecture.md"
+
+
+class TestBuildOptionsAllowedTools:
+    """Tests for allowed_tools parameter in _build_options."""
+
+    def test_build_options_without_allowed_tools(self, driver: ClaudeCliDriver) -> None:
+        """When allowed_tools is None, options should not set allowed_tools on SDK options."""
+        options = driver._build_options(cwd="/test")
+        # SDK defaults allowed_tools to []; when we don't pass it, it stays as default
+        assert options.allowed_tools is None or options.allowed_tools == []
+
+    def test_build_options_with_allowed_tools(self, driver: ClaudeCliDriver) -> None:
+        """When allowed_tools is set, canonical names are mapped to CLI SDK names."""
+        options = driver._build_options(
+            cwd="/test",
+            allowed_tools=["read_file", "glob", "grep"],
+        )
+        assert options.allowed_tools == ["Read", "Glob", "Grep"]
+
+    def test_build_options_skips_unknown_canonical_names(self, driver: ClaudeCliDriver) -> None:
+        """Unknown canonical names are skipped (not passed to SDK)."""
+        options = driver._build_options(
+            cwd="/test",
+            allowed_tools=["read_file", "unknown_tool"],
+        )
+        assert options.allowed_tools == ["Read"]
+
+
+class TestExecuteAgenticAllowedTools:
+    """Tests for allowed_tools parameter in execute_agentic."""
+
+    async def test_execute_agentic_passes_allowed_tools(self, driver: ClaudeCliDriver) -> None:
+        """execute_agentic passes allowed_tools through to _build_options."""
+        messages = [MockResultMessage(result="Done")]
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
+            patch.object(driver, "_build_options", wraps=driver._build_options) as mock_build,
+        ):
+            async for _ in driver.execute_agentic(
+                prompt="test",
+                cwd="/test",
+                allowed_tools=["read_file", "glob"],
+            ):
+                pass
+
+            mock_build.assert_called_once()
+            call_kwargs = mock_build.call_args
+            assert call_kwargs.kwargs.get("allowed_tools") == ["read_file", "glob"]
