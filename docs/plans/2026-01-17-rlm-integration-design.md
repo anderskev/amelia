@@ -316,10 +316,12 @@ class BasePipelineState(BaseModel):
 | **Phase 1** | Current Oracle plan (foundation) | — |
 | **Phase 2** | Knowledge Library (#203) | Phase 1 |
 | **Phase 3** | RLM structured tools in Oracle | Phase 2 |
-| **Phase 4** | Agent integration (Architect, Reviewer) | Phase 3 |
+| **Phase 4** | Agent integration (Architect, Reviewer) + driver tool registration | Phase 3 |
 | **Phase 5** | Spec Builder integration (#204) | Phase 3, 4 |
 
 **Key dependency:** Knowledge Library (#203) must be implemented before Phase 3, since Oracle queries it for docs.
+
+**Phase 4 scope:** Register `oracle_consult` as a tool in the driver abstraction so Architect, Reviewer, and Developer agents can invoke Oracle during agentic execution. Add trigger logic for when agents should consult Oracle (unfamiliar frameworks, library usage validation, API design decisions).
 
 ---
 
