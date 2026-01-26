@@ -116,7 +116,8 @@ export function PlanImportSection({
   );
 
   const handlePreview = useCallback(async () => {
-    if (!filePath.trim() || !worktreePath) return;
+    const trimmedPath = filePath.trim();
+    if (!trimmedPath || !worktreePath) return;
 
     const requestId = ++previewRequestId.current;
     setPreviewLoading(true);
@@ -124,9 +125,9 @@ export function PlanImportSection({
     setFilePreview(null);
 
     try {
-      const absolutePath = filePath.startsWith('/')
-        ? filePath
-        : `${worktreePath.replace(/\/$/, '')}/${filePath}`;
+      const absolutePath = trimmedPath.startsWith('/')
+        ? trimmedPath
+        : `${worktreePath.replace(/\/$/, '')}/${trimmedPath}`;
 
       const response = await api.readFile(absolutePath);
       if (requestId !== previewRequestId.current) return;
