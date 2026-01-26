@@ -2665,75 +2665,78 @@ class OrchestratorService:
             WorkflowConflictError: If a planning task is already running.
             ValueError: If profile is not found.
         """
-        workflow = await self._repository.get(workflow_id)
-        if workflow is None:
-            raise WorkflowNotFoundError(workflow_id)
+        async with self._approval_lock:
+            workflow = await self._repository.get(workflow_id)
+            if workflow is None:
+                raise WorkflowNotFoundError(workflow_id)
 
-        if workflow.workflow_status != WorkflowStatus.BLOCKED:
-            raise InvalidStateError(
-                f"Workflow must be in blocked status to replan, but is in {workflow.workflow_status}",
-                workflow_id=workflow_id,
-                current_status=str(workflow.workflow_status),
+            if workflow.workflow_status != WorkflowStatus.BLOCKED:
+                raise InvalidStateError(
+                    f"Workflow must be in blocked status to replan, but is in {workflow.workflow_status}",
+                    workflow_id=workflow_id,
+                    current_status=str(workflow.workflow_status),
+                )
+
+            # Defensive: reject if planning task is already running
+            if workflow_id in self._planning_tasks:
+                raise WorkflowConflictError(
+                    f"Planning task already running for workflow {workflow_id}"
+                )
+
+            if workflow.execution_state is None:
+                raise InvalidStateError(
+                    "Cannot replan workflow without execution state",
+                    workflow_id=workflow_id,
+                    current_status=str(workflow.workflow_status),
+                )
+
+            # Resolve profile without side-effects: replan is a user-initiated
+            # retry action, so a missing profile should raise an error to the
+            # caller without transitioning the workflow to FAILED. This keeps
+            # the workflow in BLOCKED so the user can fix the profile and retry.
+            if self._profile_repo is None:
+                raise ValueError(f"ProfileRepository not configured for workflow {workflow_id}")
+            record = await self._profile_repo.get_profile(
+                workflow.execution_state.profile_id,
+            )
+            if record is None:
+                raise ValueError(
+                    f"Profile '{workflow.execution_state.profile_id}' not found for workflow {workflow_id}"
+                )
+            profile = self._update_profile_working_dir(record, workflow.worktree_path)
+
+            # Delete stale checkpoint (best-effort: the checkpoint will be
+            # regenerated, so a failure here should not block replanning)
+            try:
+                await self._delete_checkpoint(workflow_id)
+            except Exception:
+                logger.warning(
+                    "Failed to delete stale checkpoint, continuing with replan",
+                    workflow_id=workflow_id,
+                    exc_info=True,
+                )
+
+            # Clear plan-related fields from execution_state
+            workflow.execution_state = workflow.execution_state.model_copy(
+                update={
+                    "goal": None,
+                    "plan_markdown": None,
+                    "raw_architect_output": None,
+                    "plan_path": None,
+                    "key_files": [],
+                    "total_tasks": 1,
+                    "tool_calls": [],
+                    "tool_results": [],
+                    "human_approved": None,
+                    "human_feedback": None,
+                }
             )
 
-        # Defensive: reject if planning task is already running
-        if workflow_id in self._planning_tasks:
-            raise WorkflowConflictError(
-                f"Planning task already running for workflow {workflow_id}"
-            )
-
-        if workflow.execution_state is None:
-            raise InvalidStateError(
-                "Cannot replan workflow without execution state",
-                workflow_id=workflow_id,
-                current_status=str(workflow.workflow_status),
-            )
-
-        # Resolve profile without side-effects: replan is a user-initiated
-        # retry action, so a missing profile should raise an error to the
-        # caller without transitioning the workflow to FAILED. This keeps
-        # the workflow in BLOCKED so the user can fix the profile and retry.
-        if self._profile_repo is None:
-            raise ValueError(f"ProfileRepository not configured for workflow {workflow_id}")
-        record = await self._profile_repo.get_profile(
-            workflow.execution_state.profile_id,
-        )
-        if record is None:
-            raise ValueError(
-                f"Profile '{workflow.execution_state.profile_id}' not found for workflow {workflow_id}"
-            )
-        profile = self._update_profile_working_dir(record, workflow.worktree_path)
-
-        # Delete stale checkpoint (best-effort: the checkpoint will be
-        # regenerated, so a failure here should not block replanning)
-        try:
-            await self._delete_checkpoint(workflow_id)
-        except Exception:
-            logger.warning(
-                "Failed to delete stale checkpoint, continuing with replan",
-                workflow_id=workflow_id,
-                exc_info=True,
-            )
-
-        # Clear plan-related fields from execution_state
-        workflow.execution_state = workflow.execution_state.model_copy(
-            update={
-                "goal": None,
-                "plan_markdown": None,
-                "raw_architect_output": None,
-                "plan_path": None,
-                "key_files": [],
-                "total_tasks": 1,
-                "tool_calls": [],
-                "tool_results": [],
-            }
-        )
-
-        # Transition to PLANNING
-        workflow.workflow_status = WorkflowStatus.PLANNING
-        workflow.current_stage = "architect"
-        workflow.planned_at = None
-        await self._repository.update(workflow)
+            # Transition to PLANNING
+            workflow.workflow_status = WorkflowStatus.PLANNING
+            workflow.current_stage = "architect"
+            workflow.planned_at = None
+            await self._repository.update(workflow)
 
         # Emit replanning event
         await self._emit(

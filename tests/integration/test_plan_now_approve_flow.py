@@ -23,24 +23,7 @@ from amelia.server.database.repository import WorkflowRepository
 from amelia.server.events.bus import EventBus
 from amelia.server.models.requests import CreateWorkflowRequest
 from amelia.server.orchestrator.service import OrchestratorService
-
-
-class AsyncIteratorMock:
-    """Mock async iterator for testing async generators."""
-
-    def __init__(self, items: list[Any]) -> None:
-        self.items = items
-        self.index = 0
-
-    def __aiter__(self) -> "AsyncIteratorMock":
-        return self
-
-    async def __anext__(self) -> Any:
-        if self.index >= len(self.items):
-            raise StopAsyncIteration
-        item = self.items[self.index]
-        self.index += 1
-        return item
+from tests.conftest import AsyncIteratorMock
 
 
 def create_planning_graph_mock(

@@ -57,6 +57,7 @@ def mock_profile_repo() -> AsyncMock:
             "reviewer": agent_config,
             "task_reviewer": agent_config,
             "evaluator": agent_config,
+            "plan_validator": agent_config,
         },
     )
     repo.get_profile.return_value = default_profile
