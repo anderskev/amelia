@@ -7,7 +7,7 @@ Tests cover:
 - Error handling and clarification detection
 """
 import contextlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -99,7 +99,7 @@ class MockResultMessage:
         result: str | None = None,
         session_id: str | None = None,
         is_error: bool = False,
-        structured_output: dict[str, Any] | None = None,
+        structured_output: dict[str, Any] | list[Any] | None = None,
         duration_ms: int | None = None,
         num_turns: int | None = None,
         total_cost_usd: float | None = None,
@@ -136,7 +136,7 @@ def driver() -> ClaudeCliDriver:
     return ClaudeCliDriver()
 
 
-def create_mock_query(messages: list[Any]) -> AsyncMock:
+def create_mock_query(messages: list[Any]) -> Callable[..., AsyncIterator[Any]]:
     """Create a mock query function that yields the given messages."""
     async def mock_query(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
         for msg in messages:

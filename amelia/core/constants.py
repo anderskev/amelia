@@ -60,11 +60,19 @@ TOOL_NAME_ALIASES: dict[str, str] = {
     "WebSearch": ToolName.WEB_SEARCH,
 }
 
-# Assumes 1:1 mapping — see test_canonical_to_cli_is_inverse_of_aliases
-CANONICAL_TO_CLI: dict[str, str] = {v: k for k, v in TOOL_NAME_ALIASES.items()}
-if len(CANONICAL_TO_CLI) != len(TOOL_NAME_ALIASES):
-    raise ValueError("Duplicate canonical names in TOOL_NAME_ALIASES")
+# Inverse mapping: canonical → CLI name.  Built iteratively so that duplicate
+# canonical names surface the exact conflicting CLI aliases at import time.
+CANONICAL_TO_CLI: dict[str, str] = {}
+for _cli_name, _canonical in TOOL_NAME_ALIASES.items():
+    if _canonical in CANONICAL_TO_CLI:
+        raise ValueError(
+            f"Duplicate canonical name {_canonical!r}: "
+            f"{CANONICAL_TO_CLI[_canonical]!r} and {_cli_name!r}"
+        )
+    CANONICAL_TO_CLI[_canonical] = _cli_name
 
+# Preset for agents that should only observe (e.g. Reviewer).
+# Not yet consumed — introduce the reference when agent allowed_tools land.
 READONLY_TOOLS: tuple[ToolName, ...] = (
     ToolName.READ_FILE,
     ToolName.GLOB,

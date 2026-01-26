@@ -5,7 +5,7 @@ from datetime import date
 from amelia.core.constants import ToolName, normalize_tool_name
 
 
-def test_resolve_plan_path_substitutes_placeholders():
+def test_resolve_plan_path_substitutes_placeholders() -> None:
     from amelia.core.constants import resolve_plan_path
 
     pattern = "docs/plans/{date}-{issue_key}.md"
@@ -14,7 +14,7 @@ def test_resolve_plan_path_substitutes_placeholders():
     assert result == f"docs/plans/{today}-test-123.md"
 
 
-def test_resolve_plan_path_handles_custom_pattern():
+def test_resolve_plan_path_handles_custom_pattern() -> None:
     from amelia.core.constants import resolve_plan_path
 
     pattern = ".amelia/plans/{issue_key}.md"

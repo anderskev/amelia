@@ -96,7 +96,10 @@ class PRStats:
 
 
 def gh_api(endpoint: str) -> Any:
-    """Call the GitHub API via gh CLI, handling pagination."""
+    """Call the GitHub API via gh CLI for single-object endpoints.
+
+    Not safe for list endpoints — use gh_api_paginated_list instead.
+    """
     result = subprocess.run(
         ["gh", "api", "--paginate", endpoint],
         capture_output=True,
