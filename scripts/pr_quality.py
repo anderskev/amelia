@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+
 REPO = "existential-birds/amelia"
 BOT_LOGIN = "coderabbitai[bot]"
 
@@ -267,7 +268,6 @@ def print_table(stats_list: list[PRStats]) -> None:
         )
 
     # Summary
-    total_comments = sum(s.total_bot_comments for s in stats_list)
     total_inline = sum(s.review_comments for s in stats_list)
     total_diff = sum(s.diff_size for s in stats_list)
     total_up = sum(s.thumbs_up for s in stats_list)
