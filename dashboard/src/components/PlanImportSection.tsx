@@ -111,6 +111,7 @@ export function PlanImportSection({
       setFilePreview(null);
       setFileError(null);
       previewRequestId.current += 1;
+      setPreviewLoading(false);
     },
     []
   );
@@ -297,10 +298,12 @@ export function PlanImportSection({
         )}
 
         {/* Error display */}
-        {(error || fileError) && (
+        {(error || (mode === 'file' && fileError)) && (
           <Alert variant="destructive">
             <AlertCircle className="w-4 h-4" />
-            <AlertDescription>{error || fileError}</AlertDescription>
+            <AlertDescription>
+              {error || (mode === 'file' ? fileError : null)}
+            </AlertDescription>
           </Alert>
         )}
 
