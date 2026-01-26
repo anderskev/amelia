@@ -245,6 +245,8 @@ describe('QuickShotModal', () => {
           task_description: undefined,
           start: true,
           plan_now: false,
+          plan_file: undefined,
+          plan_content: undefined,
         });
       });
     });

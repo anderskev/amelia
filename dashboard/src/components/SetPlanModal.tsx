@@ -77,10 +77,8 @@ export function SetPlanModal({
       onSuccess?.();
     } catch (err) {
       if (err instanceof ApiError) {
-        toast.error(err.message);
         setError(err.message);
       } else {
-        toast.error('Failed to apply plan');
         setError('Failed to apply plan');
       }
     } finally {

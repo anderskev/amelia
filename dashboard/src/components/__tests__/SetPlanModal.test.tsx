@@ -204,7 +204,7 @@ describe('SetPlanModal', () => {
       });
     });
 
-    it('shows error toast on API error', async () => {
+    it('shows inline error on API error', async () => {
       const user = userEvent.setup();
       vi.mocked(api.setPlan).mockRejectedValueOnce(
         new ApiError('Plan file not found', 'PLAN_NOT_FOUND', 404)
@@ -217,7 +217,7 @@ describe('SetPlanModal', () => {
       await user.click(screen.getByRole('button', { name: /apply/i }));
 
       await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith('Plan file not found');
+        expect(screen.getByText('Plan file not found')).toBeInTheDocument();
       });
     });
 

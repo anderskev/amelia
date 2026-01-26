@@ -1,7 +1,7 @@
 /**
  * @fileoverview Reusable collapsible section for importing external plans.
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChevronDown, FileText, ClipboardPaste, File, Eye, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parsePlanPreview, type PlanPreview } from '@/lib/plan-parser';
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 /**
  * Plan data passed to parent component.
@@ -61,6 +62,7 @@ export function PlanImportSection({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [filePreview, setFilePreview] = useState<PlanPreview | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const isInitialMount = useRef(true);
 
   // Update preview when content changes
   useEffect(() => {
@@ -77,8 +79,12 @@ export function PlanImportSection({
     }
   }, [mode, content]);
 
-  // Notify parent of changes
+  // Notify parent of changes (skip initial mount to avoid unnecessary callback)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     if (mode === 'file') {
       onPlanChange({
         plan_file: filePath.trim() || undefined,
@@ -175,7 +181,7 @@ export function PlanImportSection({
       const text = await mdFile.text();
       setContent(text);
     } catch {
-      // Failed to read file - silently ignore
+      toast.error('Failed to read file');
     }
   }, []);
 
