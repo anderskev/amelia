@@ -1340,6 +1340,7 @@ class OrchestratorService:
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
         ) as saver:
+            await saver.setup()
             # Table names are hardcoded above — safe from SQL injection
             for table in ("checkpoints", "writes", "checkpoint_blobs"):
                 await saver.conn.execute(
