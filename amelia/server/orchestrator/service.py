@@ -2746,6 +2746,17 @@ class OrchestratorService:
             workflow.planned_at = None
             await self._repository.update(workflow)
 
+            # Emit replanning event inside the lock, before spawning the task,
+            # to guarantee ordering: STAGE_STARTED always precedes any events
+            # emitted by _run_planning_task (e.g. APPROVAL_REQUIRED).
+            await self._emit(
+                workflow_id,
+                EventType.STAGE_STARTED,
+                "Replanning: regenerating plan with Architect",
+                agent="architect",
+                data={"stage": "architect", "replan": True},
+            )
+
             # Spawn planning task in background (reuses existing _run_planning_task).
             # Note: workflow/execution_state are only used as initial graph input
             # (see _run_planning_task docstring). The cleared execution_state is
@@ -2760,15 +2771,6 @@ class OrchestratorService:
                 self._planning_tasks.pop(workflow_id, None)
 
             task.add_done_callback(cleanup_planning)
-
-        # Emit replanning event
-        await self._emit(
-            workflow_id,
-            EventType.STAGE_STARTED,
-            "Replanning: regenerating plan with Architect",
-            agent="architect",
-            data={"stage": "architect", "replan": True},
-        )
 
         logger.info(
             "Replan started",
