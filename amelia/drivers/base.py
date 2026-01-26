@@ -172,6 +172,7 @@ class DriverInterface(Protocol):
         session_id: str | None = None,
         instructions: str | None = None,
         schema: type[BaseModel] | None = None,
+        allowed_tools: list[str] | None = None,
         **kwargs: Any,
     ) -> AsyncIterator["AgenticMessage"]:
         """Execute prompt with autonomous tool use, yielding messages.
@@ -182,6 +183,9 @@ class DriverInterface(Protocol):
             session_id: Optional session ID for conversation continuity.
             instructions: Optional system instructions.
             schema: Optional schema for structured output.
+            allowed_tools: Optional list of canonical tool names to allow.
+                When None, all tools are available. When set, only listed
+                tools may be used. Use canonical names from ToolName enum.
             **kwargs: Driver-specific options (e.g., required_tool, max_continuations).
 
         Yields:

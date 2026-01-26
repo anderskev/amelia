@@ -6,7 +6,8 @@ Tests cover:
 - SDK message type handling (AssistantMessage, ResultMessage, TextBlock, etc.)
 - Error handling and clarification detection
 """
-from collections.abc import AsyncIterator
+import contextlib
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -98,7 +99,7 @@ class MockResultMessage:
         result: str | None = None,
         session_id: str | None = None,
         is_error: bool = False,
-        structured_output: dict[str, Any] | None = None,
+        structured_output: dict[str, Any] | list[Any] | None = None,
         duration_ms: int | None = None,
         num_turns: int | None = None,
         total_cost_usd: float | None = None,
@@ -112,7 +113,7 @@ class MockResultMessage:
         self.total_cost_usd = total_cost_usd
 
 
-def _patch_sdk_types():
+def _patch_sdk_types() -> contextlib.AbstractContextManager[None]:
     """Create a context manager that patches SDK types for isinstance checks."""
     return patch.multiple(
         "amelia.drivers.cli.claude",
@@ -135,7 +136,7 @@ def driver() -> ClaudeCliDriver:
     return ClaudeCliDriver()
 
 
-def create_mock_query(messages: list[Any]) -> AsyncMock:
+def create_mock_query(messages: list[Any]) -> Callable[..., AsyncIterator[Any]]:
     """Create a mock query function that yields the given messages."""
     async def mock_query(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
         for msg in messages:
@@ -467,26 +468,6 @@ class TestClaudeCliDriverAgentic:
 
             assert len(collected) == 3
 
-    async def test_execute_agentic_tracks_tool_calls(self, driver: ClaudeCliDriver) -> None:
-        """Test that execute_agentic tracks tool calls in history."""
-        tool_block = MockToolUseBlock("Write", {"file_path": "/out.txt", "content": "data"})
-        messages = [
-            MockAssistantMessage([tool_block]),
-            MockResultMessage(result="Done", session_id="sess_tools"),
-        ]
-
-        with (
-            _patch_sdk_types(),
-            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
-        ):
-            driver.clear_tool_history()
-            async for _ in driver.execute_agentic("Write file", "/workspace"):
-                pass
-
-            # Tool should be tracked (mocking makes this tricky, verify the code path)
-            # In real usage, ToolUseBlock isinstance check would pass
-            assert driver.tool_call_history == [] or len(driver.tool_call_history) >= 0
-
     async def test_execute_agentic_bypasses_permissions(self) -> None:
         """Test that execute_agentic always bypasses permissions."""
         driver = ClaudeCliDriver(skip_permissions=False)  # Default is False
@@ -564,7 +545,7 @@ class TestClaudeCliDriverAgentic:
     def test_clear_tool_history(self, driver: ClaudeCliDriver) -> None:
         """Test clearing tool history."""
         # Manually add some history
-        driver.tool_call_history = [MagicMock()]  # type: ignore[list-item]  # Test setup: mock in typed list
+        driver.tool_call_history = [MagicMock()]  # Test setup: mock in typed list
         assert len(driver.tool_call_history) == 1
 
         driver.clear_tool_history()
@@ -1162,3 +1143,65 @@ class TestToolCallIdMatchingForArtifactDetection:
             f"got keys: {list(tool_calls[0].tool_input.keys())}"
         )
         assert tool_calls[0].tool_input["file_path"] == "/docs/adr/0001-architecture.md"
+
+
+class TestBuildOptionsAllowedTools:
+    """Tests for allowed_tools parameter in _build_options."""
+
+    def test_build_options_without_allowed_tools(self, driver: ClaudeCliDriver) -> None:
+        """When allowed_tools is None, options should not set allowed_tools on SDK options."""
+        options = driver._build_options(cwd="/test")
+        # Asserts the SDK's default factory value ([]). This verifies Amelia does not
+        # inject an explicit allowed_tools when the caller passes None.
+        assert options.allowed_tools == []
+
+    def test_build_options_with_allowed_tools(self, driver: ClaudeCliDriver) -> None:
+        """When allowed_tools is set, canonical names are mapped to CLI SDK names."""
+        options = driver._build_options(
+            cwd="/test",
+            allowed_tools=["read_file", "glob", "grep"],
+        )
+        assert options.allowed_tools == ["Read", "Glob", "Grep"]
+
+    def test_build_options_raises_on_unknown_canonical_names(self, driver: ClaudeCliDriver) -> None:
+        """Unknown canonical names raise ValueError to prevent silent misconfiguration."""
+        with pytest.raises(ValueError, match="Unknown canonical tool name: 'unknown_tool'"):
+            driver._build_options(
+                cwd="/test",
+                allowed_tools=["read_file", "unknown_tool"],
+            )
+
+    def test_build_options_warns_on_empty_allowed_tools(
+        self, driver: ClaudeCliDriver
+    ) -> None:
+        """Empty allowed_tools list logs a warning about no tools being available."""
+        with patch("amelia.drivers.cli.claude.logger") as mock_logger:
+            options = driver._build_options(cwd="/test", allowed_tools=[])
+        mock_logger.warning.assert_called_once_with(
+            "allowed_tools resolved to empty list — agent will have no tools"
+        )
+        assert options.allowed_tools == []
+
+
+class TestExecuteAgenticAllowedTools:
+    """Tests for allowed_tools parameter in execute_agentic."""
+
+    async def test_execute_agentic_passes_allowed_tools(self, driver: ClaudeCliDriver) -> None:
+        """execute_agentic passes allowed_tools through to _build_options."""
+        messages = [MockResultMessage(result="Done")]
+
+        with (
+            _patch_sdk_types(),
+            patch("amelia.drivers.cli.claude.ClaudeSDKClient", create_mock_sdk_client(messages)),
+            patch.object(driver, "_build_options", wraps=driver._build_options) as mock_build,
+        ):
+            async for _ in driver.execute_agentic(
+                prompt="test",
+                cwd="/test",
+                allowed_tools=["read_file", "glob"],
+            ):
+                pass
+
+            mock_build.assert_called_once()
+            call_kwargs = mock_build.call_args
+            assert call_kwargs.kwargs.get("allowed_tools") == ["read_file", "glob"]
