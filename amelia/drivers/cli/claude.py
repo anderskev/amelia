@@ -22,7 +22,7 @@ from claude_agent_sdk.types import (
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
-from amelia.core.constants import normalize_tool_name
+from amelia.core.constants import CANONICAL_TO_CLI, normalize_tool_name
 from amelia.drivers.base import AgenticMessage, AgenticMessageType, DriverUsage, GenerateResult
 from amelia.logging import log_claude_result
 
@@ -206,6 +206,7 @@ class ClaudeCliDriver:
         system_prompt: str | None = None,
         schema: type[BaseModel] | None = None,
         bypass_permissions: bool = False,
+        allowed_tools: list[str] | None = None,
     ) -> ClaudeAgentOptions:
         """Build ClaudeAgentOptions from driver configuration.
 
@@ -215,6 +216,8 @@ class ClaudeCliDriver:
             system_prompt: Optional system prompt to append.
             schema: Optional Pydantic model for structured output.
             bypass_permissions: Whether to bypass permission prompts for this call.
+            allowed_tools: Optional list of canonical tool names. Mapped to CLI SDK
+                names via CANONICAL_TO_CLI. Unknown names raise ValueError.
 
         Returns:
             Configured ClaudeAgentOptions instance.
@@ -243,14 +246,36 @@ class ClaudeCliDriver:
             # Resuming: use preset without append to skip --system-prompt flag
             effective_system_prompt = SystemPromptPreset(type="preset", preset="claude_code")
 
-        return ClaudeAgentOptions(
-            model=self.model,
-            cwd=cwd,
-            permission_mode=permission_mode,
-            system_prompt=effective_system_prompt,
-            resume=session_id,
-            output_format=output_format,
-        )
+        # Map canonical tool names to CLI SDK names
+        cli_allowed_tools: list[str] | None = None
+        if allowed_tools is not None:
+            cli_allowed_tools = []
+            for name in allowed_tools:
+                cli_name = CANONICAL_TO_CLI.get(name)
+                if cli_name:
+                    cli_allowed_tools.append(cli_name)
+                else:
+                    raise ValueError(
+                        f"Unknown canonical tool name: {name!r}. "
+                        f"Valid names: {sorted(CANONICAL_TO_CLI)}"
+                    )
+
+        # Build options kwargs. The SDK defaults allowed_tools to [] (no restriction),
+        # so we only include it when the caller explicitly provided a list.
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "cwd": cwd,
+            "permission_mode": permission_mode,
+            "system_prompt": effective_system_prompt,
+            "resume": session_id,
+            "output_format": output_format,
+        }
+        if cli_allowed_tools is not None:
+            if len(cli_allowed_tools) == 0:
+                logger.warning("allowed_tools resolved to empty list — agent will have no tools")
+            kwargs["allowed_tools"] = cli_allowed_tools
+
+        return ClaudeAgentOptions(**kwargs)
 
     async def generate(
         self,
@@ -375,6 +400,7 @@ class ClaudeCliDriver:
         session_id: str | None = None,
         instructions: str | None = None,
         schema: type[BaseModel] | None = None,
+        allowed_tools: list[str] | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[AgenticMessage]:
         """Execute prompt with full autonomous tool access using ClaudeSDKClient.
@@ -389,6 +415,8 @@ class ClaudeCliDriver:
             instructions: Runtime instructions for the agent. Passed via system_prompt.
             schema: Optional Pydantic model for structured output. When provided,
                 the agent's final response will be constrained to match this schema.
+            allowed_tools: Optional list of canonical tool names to allow.
+                When set, only these tools will be available to the agent.
 
         Yields:
             AgenticMessage for each event (thinking, tool_call, tool_result, result).
@@ -399,9 +427,10 @@ class ClaudeCliDriver:
             system_prompt=instructions,
             schema=schema,
             bypass_permissions=True,  # Agentic execution always bypasses permissions
+            allowed_tools=allowed_tools,
         )
 
-        logger.info(f"Starting agentic execution in {cwd}")
+        logger.info("Starting agentic execution", cwd=cwd)
 
         last_tool_name: str | None = None  # Track for tool_result messages
 
@@ -482,8 +511,8 @@ class ClaudeCliDriver:
                             model=self.model,
                         )
 
-        except Exception as e:
-            logger.error(f"Error in agentic execution: {e}")
+        except Exception:
+            logger.exception("Error in agentic execution")
             raise
 
     def clear_tool_history(self) -> None:
