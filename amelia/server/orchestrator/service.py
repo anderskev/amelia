@@ -2680,6 +2680,22 @@ class OrchestratorService:
                 f"Planning task already running for workflow {workflow_id}"
             )
 
+        if workflow.execution_state is None:
+            raise InvalidStateError(
+                "Cannot replan workflow without execution state",
+                workflow_id=workflow_id,
+                current_status=str(workflow.workflow_status),
+            )
+
+        # Resolve profile before any state mutation to avoid inconsistent state
+        profile = await self._get_profile_or_fail(
+            workflow_id,
+            workflow.execution_state.profile_id if workflow.execution_state else "default",
+            workflow.worktree_path,
+        )
+        if profile is None:
+            return
+
         # Delete stale checkpoint
         await self._delete_checkpoint(workflow_id)
 
@@ -2713,17 +2729,7 @@ class OrchestratorService:
             data={"stage": "architect", "replan": True},
         )
 
-        # Resolve profile for planning task
-        profile = await self._get_profile_or_fail(
-            workflow_id,
-            workflow.execution_state.profile_id if workflow.execution_state else "default",
-            workflow.worktree_path,
-        )
-        if profile is None:
-            return
-
         # Spawn planning task in background (reuses existing _run_planning_task)
-        assert workflow.execution_state is not None
         task = asyncio.create_task(
             self._run_planning_task(workflow_id, workflow, workflow.execution_state, profile)
         )
