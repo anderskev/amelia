@@ -1340,6 +1340,7 @@ class OrchestratorService:
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
         ) as saver:
+            # Table names are hardcoded above — safe from SQL injection
             for table in ("checkpoints", "writes", "checkpoint_blobs"):
                 await saver.conn.execute(
                     f"DELETE FROM {table} WHERE thread_id = ?",  # noqa: S608
@@ -2718,13 +2719,10 @@ class OrchestratorService:
             workflow.worktree_path,
         )
         if profile is None:
-            raise ValueError(f"Profile not found for workflow {workflow_id}")
-
-        profile = self._update_profile_working_dir(profile, workflow.worktree_path)
+            return
 
         # Spawn planning task in background (reuses existing _run_planning_task)
-        if workflow.execution_state is None:
-            raise ValueError(f"Execution state missing for workflow {workflow_id}")
+        assert workflow.execution_state is not None
         task = asyncio.create_task(
             self._run_planning_task(workflow_id, workflow, workflow.execution_state, profile)
         )

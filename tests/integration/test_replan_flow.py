@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from amelia.core.types import AgentConfig, Profile
 from amelia.server.database.connection import Database
 from amelia.server.database.profile_repository import ProfileRepository
 from amelia.server.database.repository import WorkflowRepository
@@ -176,6 +177,31 @@ async def test_orchestrator(
     )
 
 
+@pytest.fixture
+async def active_test_profile(
+    test_profile_repository: ProfileRepository,
+    valid_worktree: str,
+) -> Profile:
+    """Create and activate a test profile for replan tests."""
+    agent_config = AgentConfig(driver="cli", model="sonnet")
+    profile = Profile(
+        name="test",
+        tracker="noop",
+        working_dir=valid_worktree,
+        agents={
+            "architect": agent_config,
+            "developer": agent_config,
+            "reviewer": agent_config,
+            "plan_validator": agent_config,
+            "evaluator": agent_config,
+            "task_reviewer": agent_config,
+        },
+    )
+    await test_profile_repository.create_profile(profile)
+    await test_profile_repository.set_active("test")
+    return profile
+
+
 @pytest.mark.integration
 class TestReplanFlow:
     """Integration tests for the full replan lifecycle."""
@@ -184,31 +210,11 @@ class TestReplanFlow:
         self,
         test_orchestrator: OrchestratorService,
         test_repository: WorkflowRepository,
-        test_profile_repository: ProfileRepository,
+        active_test_profile: Profile,
         valid_worktree: str,
         test_event_bus: EventBus,
     ) -> None:
         """Full cycle: PENDING -> PLANNING -> BLOCKED -> replan -> PLANNING -> BLOCKED."""
-        from amelia.core.types import AgentConfig, Profile
-
-        # Create a test profile in the database
-        agent_config = AgentConfig(driver="cli", model="sonnet")
-        profile = Profile(
-            name="test",
-            tracker="noop",
-            working_dir=valid_worktree,
-            agents={
-                "architect": agent_config,
-                "developer": agent_config,
-                "reviewer": agent_config,
-                "plan_validator": agent_config,
-                "evaluator": agent_config,
-                "task_reviewer": agent_config,
-            },
-        )
-        await test_profile_repository.create_profile(profile)
-        await test_profile_repository.set_active("test")
-
         # Track events
         received_events: list[Any] = []
         test_event_bus.subscribe(lambda e: received_events.append(e))
@@ -289,30 +295,11 @@ class TestReplanFlow:
         self,
         test_orchestrator: OrchestratorService,
         test_repository: WorkflowRepository,
-        test_profile_repository: ProfileRepository,
+        active_test_profile: Profile,
         valid_worktree: str,
     ) -> None:
         """Replan should raise InvalidStateError for non-blocked workflows."""
-        from amelia.core.types import AgentConfig, Profile
         from amelia.server.exceptions import InvalidStateError
-
-        # Create profile
-        agent_config = AgentConfig(driver="cli", model="sonnet")
-        profile = Profile(
-            name="test",
-            tracker="noop",
-            working_dir=valid_worktree,
-            agents={
-                "architect": agent_config,
-                "developer": agent_config,
-                "reviewer": agent_config,
-                "plan_validator": agent_config,
-                "evaluator": agent_config,
-                "task_reviewer": agent_config,
-            },
-        )
-        await test_profile_repository.create_profile(profile)
-        await test_profile_repository.set_active("test")
 
         # Create a workflow in PLANNING status (not BLOCKED)
         request = CreateWorkflowRequest(
@@ -344,30 +331,10 @@ class TestReplanFlow:
         self,
         test_orchestrator: OrchestratorService,
         test_repository: WorkflowRepository,
-        test_profile_repository: ProfileRepository,
+        active_test_profile: Profile,
         valid_worktree: str,
     ) -> None:
         """Replan should clear stale plan fields before regenerating."""
-        from amelia.core.types import AgentConfig, Profile
-
-        # Create profile
-        agent_config = AgentConfig(driver="cli", model="sonnet")
-        profile = Profile(
-            name="test",
-            tracker="noop",
-            working_dir=valid_worktree,
-            agents={
-                "architect": agent_config,
-                "developer": agent_config,
-                "reviewer": agent_config,
-                "plan_validator": agent_config,
-                "evaluator": agent_config,
-                "task_reviewer": agent_config,
-            },
-        )
-        await test_profile_repository.create_profile(profile)
-        await test_profile_repository.set_active("test")
-
         # Phase 1: create initial plan
         request = CreateWorkflowRequest(
             issue_id="ISSUE-REPLAN-CLEAR",
