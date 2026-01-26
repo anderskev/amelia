@@ -2746,6 +2746,21 @@ class OrchestratorService:
             workflow.planned_at = None
             await self._repository.update(workflow)
 
+            # Spawn planning task in background (reuses existing _run_planning_task).
+            # Note: workflow/execution_state are only used as initial graph input
+            # (see _run_planning_task docstring). The cleared execution_state is
+            # intentional — it seeds a fresh planning run. The task re-fetches
+            # from the repository before any mutations, so staleness is safe.
+            task = asyncio.create_task(
+                self._run_planning_task(workflow_id, workflow, workflow.execution_state, profile)
+            )
+            self._planning_tasks[workflow_id] = task
+
+            def cleanup_planning(_: asyncio.Task[None]) -> None:
+                self._planning_tasks.pop(workflow_id, None)
+
+            task.add_done_callback(cleanup_planning)
+
         # Emit replanning event
         await self._emit(
             workflow_id,
@@ -2754,21 +2769,6 @@ class OrchestratorService:
             agent="architect",
             data={"stage": "architect", "replan": True},
         )
-
-        # Spawn planning task in background (reuses existing _run_planning_task).
-        # Note: workflow/execution_state are only used as initial graph input
-        # (see _run_planning_task docstring). The cleared execution_state is
-        # intentional — it seeds a fresh planning run. The task re-fetches
-        # from the repository before any mutations, so staleness is safe.
-        task = asyncio.create_task(
-            self._run_planning_task(workflow_id, workflow, workflow.execution_state, profile)
-        )
-        self._planning_tasks[workflow_id] = task
-
-        def cleanup_planning(_: asyncio.Task[None]) -> None:
-            self._planning_tasks.pop(workflow_id, None)
-
-        task.add_done_callback(cleanup_planning)
 
         logger.info(
             "Replan started",

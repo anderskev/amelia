@@ -84,3 +84,12 @@ class TestReplanRoute:
 
         response = client.post("/api/workflows/wf-busy/replan")
         assert response.status_code == 409
+
+    def test_replan_profile_not_found(self) -> None:
+        """Should return 400 when profile is not found."""
+        orch = get_orchestrator_mock()
+        orch.replan_workflow.side_effect = ValueError("Profile 'test' not found")
+        client = create_test_client(orch)
+
+        response = client.post("/api/workflows/wf-no-profile/replan")
+        assert response.status_code == 400
