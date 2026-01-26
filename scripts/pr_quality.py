@@ -44,6 +44,8 @@ class PRStats:
     changed_files: int
     thumbs_up: int  # +1 reactions on bot inline comments
     thumbs_down: int  # -1 reactions on bot inline comments
+    triaged_comments: int  # distinct comments with any +1/-1 reaction
+    valuable_comments: int  # distinct comments with at least one +1 reaction
 
     @property
     def total_bot_comments(self) -> int:
@@ -64,19 +66,19 @@ class PRStats:
     @property
     def triaged(self) -> int:
         """Inline comments that have been triaged (reacted to)."""
-        return self.thumbs_up + self.thumbs_down
+        return self.triaged_comments
 
     @property
     def untriaged(self) -> int:
         """Inline comments with no reaction yet."""
-        return self.review_comments - self.triaged
+        return self.review_comments - self.triaged_comments
 
     @property
     def valuable_pct(self) -> float | None:
         """Percentage of triaged inline comments marked valuable. None if none triaged."""
-        if self.triaged == 0:
+        if self.triaged_comments == 0:
             return None
-        return self.thumbs_up / self.triaged * 100
+        return self.valuable_comments / self.triaged_comments * 100
 
     @property
     def date(self) -> str:
@@ -160,17 +162,29 @@ class ReactionCounts:
     """Aggregate reaction counts across bot comments."""
     thumbs_up: int = 0
     thumbs_down: int = 0
+    triaged_comments: int = 0
+    valuable_comments: int = 0
 
 
 def count_bot_reactions(items: list[dict[str, Any]], login: str = BOT_LOGIN) -> ReactionCounts:
-    """Sum +1/-1 reactions on comments authored by the given login."""
+    """Sum +1/-1 reactions on comments authored by the given login.
+
+    Tracks both total reaction counts and distinct comment counts to avoid
+    negative untriaged values when a single comment has multiple reactions.
+    """
     counts = ReactionCounts()
     for item in items:
         if item.get("user", {}).get("login") != login:
             continue
         reactions = item.get("reactions", {})
-        counts.thumbs_up += reactions.get("+1", 0)
-        counts.thumbs_down += reactions.get("-1", 0)
+        up = reactions.get("+1", 0)
+        down = reactions.get("-1", 0)
+        counts.thumbs_up += up
+        counts.thumbs_down += down
+        if up or down:
+            counts.triaged_comments += 1
+        if up:
+            counts.valuable_comments += 1
     return counts
 
 
@@ -210,6 +224,8 @@ def fetch_pr_stats(pr: dict[str, Any]) -> PRStats:
         changed_files=detail.get("changed_files", 0) or 0,
         thumbs_up=reactions.thumbs_up,
         thumbs_down=reactions.thumbs_down,
+        triaged_comments=reactions.triaged_comments,
+        valuable_comments=reactions.valuable_comments,
     )
     print(
         f" {stats.total_bot_comments} comments, +{stats.additions}/-{stats.deletions} lines"
@@ -273,17 +289,16 @@ def print_table(stats_list: list[PRStats]) -> None:
     # Summary
     total_inline = sum(s.review_comments for s in stats_list)
     total_diff = sum(s.diff_size for s in stats_list)
-    total_up = sum(s.thumbs_up for s in stats_list)
-    total_down = sum(s.thumbs_down for s in stats_list)
-    total_triaged = total_up + total_down
+    total_triaged = sum(s.triaged_comments for s in stats_list)
+    total_valuable = sum(s.valuable_comments for s in stats_list)
     total_untriaged = total_inline - total_triaged
     overall_density = total_inline / total_diff * 100 if total_diff else 0
-    valuable_pct = total_up / total_triaged * 100 if total_triaged else 0
+    valuable_pct = total_valuable / total_triaged * 100 if total_triaged else 0
     print("-" * 120)
     print(
         f"{len(stats_list)} PRs, {total_diff} lines changed, "
         f"{total_inline} inline comments ({overall_density:.2f}/100L)  |  "
-        f"Triage: {total_up} valuable, {total_down} noise, "
+        f"Triage: {total_valuable} valuable, {total_triaged - total_valuable} noise, "
         f"{total_untriaged} untriaged"
         f"{f'  ({valuable_pct:.0f}% valuable)' if total_triaged else ''}"
     )
@@ -331,32 +346,30 @@ def print_weekly_summary(stats_list: list[PRStats]) -> None:
         prs = weeks[week]
         total_inline = sum(s.review_comments for s in prs)
         total_diff = sum(s.diff_size for s in prs)
-        total_up = sum(s.thumbs_up for s in prs)
-        total_down = sum(s.thumbs_down for s in prs)
-        total_untriaged = total_inline - total_up - total_down
+        triaged = sum(s.triaged_comments for s in prs)
+        valuable = sum(s.valuable_comments for s in prs)
+        total_untriaged = total_inline - triaged
         density = total_inline / total_diff * 100 if total_diff else 0
-        triaged = total_up + total_down
-        val_pct = fmt_pct(total_up / triaged * 100 if triaged else None)
+        val_pct = fmt_pct(valuable / triaged * 100 if triaged else None)
         print(
             f"{week:10}  {len(prs):>4}  {total_diff:>8}  "
             f"{total_inline:>6}  {density:>8.2f}  "
-            f"{total_up:>4}  {total_down:>4}  {total_untriaged:>4}  {val_pct:>5}"
+            f"{valuable:>4}  {triaged - valuable:>4}  {total_untriaged:>4}  {val_pct:>5}"
         )
 
     # Overall
     inline_all = sum(s.review_comments for s in stats_list)
     diff_all = sum(s.diff_size for s in stats_list)
-    up_all = sum(s.thumbs_up for s in stats_list)
-    down_all = sum(s.thumbs_down for s in stats_list)
-    untriaged_all = inline_all - up_all - down_all
+    triaged_all = sum(s.triaged_comments for s in stats_list)
+    valuable_all = sum(s.valuable_comments for s in stats_list)
+    untriaged_all = inline_all - triaged_all
     density_all = inline_all / diff_all * 100 if diff_all else 0
-    triaged_all = up_all + down_all
-    val_pct_all = fmt_pct(up_all / triaged_all * 100 if triaged_all else None)
+    val_pct_all = fmt_pct(valuable_all / triaged_all * 100 if triaged_all else None)
     print("-" * 75)
     print(
         f"{'Overall':10}  {len(stats_list):>4}  {diff_all:>8}  "
         f"{inline_all:>6}  {density_all:>8.2f}  "
-        f"{up_all:>4}  {down_all:>4}  {untriaged_all:>4}  {val_pct_all:>5}"
+        f"{valuable_all:>4}  {triaged_all - valuable_all:>4}  {untriaged_all:>4}  {val_pct_all:>5}"
     )
 
 

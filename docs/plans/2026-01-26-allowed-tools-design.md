@@ -51,16 +51,16 @@ All tools get canonical names in `ToolName` enum (`amelia/core/constants.py`):
 Named constants for common tool sets:
 
 ```python
-READONLY_TOOLS: list[str] = [
+READONLY_TOOLS: tuple[ToolName, ...] = (
     ToolName.READ_FILE,
     ToolName.GLOB,
     ToolName.GREP,
-    ToolName.TASK,
-    ToolName.TASK_OUTPUT,
     ToolName.WEB_FETCH,
     ToolName.WEB_SEARCH,
-]
+)
 ```
+
+> **Note:** `TASK`/`TASK_OUTPUT` are excluded because `TASK` spawns subagents with arbitrary tool access, which could bypass read-only restrictions.
 
 ### Interface Change
 
@@ -86,7 +86,7 @@ def execute_agentic(
 1. `execute_agentic()` accepts `allowed_tools` and passes it to `_build_options()`.
 2. `_build_options()` maps canonical names to CLI SDK names via `CANONICAL_TO_CLI`.
 3. The mapped list is passed to `ClaudeAgentOptions(allowed_tools=...)`.
-4. Unknown canonical names (no CLI mapping) are skipped with a debug log.
+4. Unknown canonical names (no CLI mapping) raise `ValueError` with the invalid name and a list of valid names.
 5. When `allowed_tools is None`, the parameter is omitted from `ClaudeAgentOptions`, preserving current behavior.
 
 The Claude Agent SDK natively supports `allowed_tools: list[str]` on `ClaudeAgentOptions`, so no hooks or workarounds are needed.
