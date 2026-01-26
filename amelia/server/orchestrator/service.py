@@ -1354,24 +1354,24 @@ class OrchestratorService:
             WorkflowNotFoundError: If workflow doesn't exist.
             InvalidStateError: If workflow is not in "blocked" state.
         """
-        workflow = await self._repository.get(workflow_id)
-        if not workflow:
-            raise WorkflowNotFoundError(workflow_id)
+        async with self._approval_lock:
+            workflow = await self._repository.get(workflow_id)
+            if not workflow:
+                raise WorkflowNotFoundError(workflow_id)
 
-        if workflow.workflow_status != WorkflowStatus.BLOCKED:
-            raise InvalidStateError(
-                f"Cannot approve workflow in '{workflow.workflow_status}' state",
+            if workflow.workflow_status != WorkflowStatus.BLOCKED:
+                raise InvalidStateError(
+                    f"Cannot approve workflow in '{workflow.workflow_status}' state",
+                    workflow_id=workflow_id,
+                    current_status=workflow.workflow_status,
+                )
+
+            # Emit RESUMED event for workflow being unblocked
+            await emit_workflow_event(
+                ExtWorkflowEventType.RESUMED,
                 workflow_id=workflow_id,
-                current_status=workflow.workflow_status,
             )
 
-        # Emit RESUMED event for workflow being unblocked
-        await emit_workflow_event(
-            ExtWorkflowEventType.RESUMED,
-            workflow_id=workflow_id,
-        )
-
-        async with self._approval_lock:
             await self._emit(
                 workflow_id,
                 EventType.APPROVAL_GRANTED,

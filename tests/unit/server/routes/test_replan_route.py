@@ -1,8 +1,5 @@
 """Unit tests for the replan workflow route handler."""
 
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from fastapi import FastAPI
@@ -15,6 +12,8 @@ from amelia.server.exceptions import (
 )
 from amelia.server.routes.workflows import configure_exception_handlers, router
 
+from .conftest import patch_lifespan
+
 
 def get_orchestrator_mock() -> MagicMock:
     """Create mock orchestrator."""
@@ -25,13 +24,7 @@ def get_orchestrator_mock() -> MagicMock:
 
 def create_test_client(orchestrator_mock: MagicMock) -> TestClient:
     """Create test client with mocked orchestrator."""
-    app = FastAPI()
-
-    @asynccontextmanager
-    async def noop_lifespan(_app: Any) -> AsyncGenerator[None, None]:
-        yield
-
-    app.router.lifespan_context = noop_lifespan
+    app = patch_lifespan(FastAPI())
 
     # Wire the dependency
     from amelia.server.dependencies import get_orchestrator
