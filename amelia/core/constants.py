@@ -62,7 +62,7 @@ TOOL_NAME_ALIASES: dict[str, str] = {
 
 CANONICAL_TO_CLI: dict[str, str] = {v: k for k, v in TOOL_NAME_ALIASES.items()}
 
-READONLY_TOOLS: list[str] = [
+READONLY_TOOLS: list[ToolName] = [
     ToolName.READ_FILE,
     ToolName.GLOB,
     ToolName.GREP,

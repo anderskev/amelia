@@ -6,6 +6,7 @@ Tests cover:
 - SDK message type handling (AssistantMessage, ResultMessage, TextBlock, etc.)
 - Error handling and clarification detection
 """
+import contextlib
 from collections.abc import AsyncIterator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -112,7 +113,7 @@ class MockResultMessage:
         self.total_cost_usd = total_cost_usd
 
 
-def _patch_sdk_types():
+def _patch_sdk_types() -> contextlib.AbstractContextManager[None]:
     """Create a context manager that patches SDK types for isinstance checks."""
     return patch.multiple(
         "amelia.drivers.cli.claude",
@@ -564,7 +565,7 @@ class TestClaudeCliDriverAgentic:
     def test_clear_tool_history(self, driver: ClaudeCliDriver) -> None:
         """Test clearing tool history."""
         # Manually add some history
-        driver.tool_call_history = [MagicMock()]  # type: ignore[list-item]  # Test setup: mock in typed list
+        driver.tool_call_history = [MagicMock()]  # Test setup: mock in typed list
         assert len(driver.tool_call_history) == 1
 
         driver.clear_tool_history()
@@ -1170,8 +1171,8 @@ class TestBuildOptionsAllowedTools:
     def test_build_options_without_allowed_tools(self, driver: ClaudeCliDriver) -> None:
         """When allowed_tools is None, options should not set allowed_tools on SDK options."""
         options = driver._build_options(cwd="/test")
-        # SDK defaults allowed_tools to []; when we don't pass it, it stays as default
-        assert options.allowed_tools is None or options.allowed_tools == []
+        # SDK defaults allowed_tools to [] when not explicitly provided
+        assert options.allowed_tools == []
 
     def test_build_options_with_allowed_tools(self, driver: ClaudeCliDriver) -> None:
         """When allowed_tools is set, canonical names are mapped to CLI SDK names."""

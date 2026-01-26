@@ -68,6 +68,7 @@ def test_canonical_to_cli_is_inverse_of_aliases() -> None:
     from amelia.core.constants import CANONICAL_TO_CLI, TOOL_NAME_ALIASES
     for cli_name, canonical in TOOL_NAME_ALIASES.items():
         assert CANONICAL_TO_CLI[canonical] == cli_name
+    assert len(CANONICAL_TO_CLI) == len(TOOL_NAME_ALIASES), "Duplicate canonical names detected in TOOL_NAME_ALIASES"
 
 
 def test_canonical_to_cli_covers_all_tool_names() -> None:
