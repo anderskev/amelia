@@ -77,7 +77,7 @@ async def bundle_files(
 - Resolves globs relative to `working_dir`
 - Respects `.gitignore` via `git ls-files` when in a git repo; falls back to hardcoded exclusions (`node_modules`, `__pycache__`, `.venv`, `.git`, `dist`, `build`) outside git repos
 - Reads file contents asynchronously via `asyncio.to_thread`
-- Estimates tokens using tiktoken (`cl100k_base` encoding)
+- Estimates tokens using tiktoken (`cl100k_base` encoding); counts are approximate for non-OpenAI models
 - Skips binary files (detected by null bytes in first 512 bytes)
 - Path traversal prevention: all resolved paths must be within `working_dir`
 - `working_dir` itself is validated at the API layer — must be within the profile's configured working directory
@@ -118,14 +118,15 @@ class Oracle:
 
 ### Flow
 
-1. Use FileBundler to gather codebase context from `working_dir` + `files` patterns
-2. Build a system prompt: "You are a consulting expert. Analyze the codebase context and provide advice on the given problem."
-3. Assemble prompt with problem statement + bundled file contents
-4. Call `self._driver.execute_agentic()` with `cwd=working_dir`
-5. Stream `AgenticMessage` events, emitting `ORACLE_CONSULTATION_THINKING` events via EventBus
-6. Collect the final result text
-7. Build `OracleConsultResult` with consultation metadata
-8. Emit `ORACLE_CONSULTATION_COMPLETED` or `ORACLE_CONSULTATION_FAILED`
+1. Emit `ORACLE_CONSULTATION_STARTED` via EventBus
+2. Use FileBundler to gather codebase context from `working_dir` + `files` patterns
+3. Build a system prompt: "You are a consulting expert. Analyze the codebase context and provide advice on the given problem."
+4. Assemble prompt with problem statement + bundled file contents
+5. Call `self._driver.execute_agentic()` with `cwd=working_dir`
+6. Stream `AgenticMessage` events, emitting `ORACLE_CONSULTATION_THINKING` events via EventBus
+7. Collect the final result text
+8. Build `OracleConsultResult` with consultation metadata
+9. Emit `ORACLE_CONSULTATION_COMPLETED` or `ORACLE_CONSULTATION_FAILED`
 
 ### Return Type
 
