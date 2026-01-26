@@ -2704,8 +2704,16 @@ class OrchestratorService:
             )
         profile = self._update_profile_working_dir(record, workflow.worktree_path)
 
-        # Delete stale checkpoint
-        await self._delete_checkpoint(workflow_id)
+        # Delete stale checkpoint (best-effort: the checkpoint will be
+        # regenerated, so a failure here should not block replanning)
+        try:
+            await self._delete_checkpoint(workflow_id)
+        except Exception:
+            logger.warning(
+                "Failed to delete stale checkpoint, continuing with replan",
+                workflow_id=workflow_id,
+                exc_info=True,
+            )
 
         # Clear plan-related fields from execution_state
         workflow.execution_state = workflow.execution_state.model_copy(
