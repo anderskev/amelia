@@ -75,3 +75,28 @@ def test_canonical_to_cli_covers_all_tool_names() -> None:
     from amelia.core.constants import CANONICAL_TO_CLI
     for member in ToolName:
         assert member.value in CANONICAL_TO_CLI, f"Missing CANONICAL_TO_CLI entry for {member}"
+
+
+def test_readonly_tools_contains_expected_tools() -> None:
+    """READONLY_TOOLS preset includes only safe read/search tools."""
+    from amelia.core.constants import READONLY_TOOLS
+    expected = [
+        ToolName.READ_FILE,
+        ToolName.GLOB,
+        ToolName.GREP,
+        ToolName.TASK,
+        ToolName.TASK_OUTPUT,
+        ToolName.WEB_FETCH,
+        ToolName.WEB_SEARCH,
+    ]
+    assert READONLY_TOOLS == expected
+
+
+def test_readonly_tools_excludes_write_and_exec() -> None:
+    """READONLY_TOOLS must not include any write or execution tools."""
+    from amelia.core.constants import READONLY_TOOLS
+    dangerous = {
+        ToolName.WRITE_FILE, ToolName.EDIT_FILE, ToolName.RUN_SHELL_COMMAND,
+        ToolName.NOTEBOOK_EDIT,
+    }
+    assert not dangerous.intersection(READONLY_TOOLS)

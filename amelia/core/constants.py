@@ -62,6 +62,16 @@ TOOL_NAME_ALIASES: dict[str, str] = {
 
 CANONICAL_TO_CLI: dict[str, str] = {v: k for k, v in TOOL_NAME_ALIASES.items()}
 
+READONLY_TOOLS: list[str] = [
+    ToolName.READ_FILE,
+    ToolName.GLOB,
+    ToolName.GREP,
+    ToolName.TASK,
+    ToolName.TASK_OUTPUT,
+    ToolName.WEB_FETCH,
+    ToolName.WEB_SEARCH,
+]
+
 
 def normalize_tool_name(raw_name: str) -> str:
     """Normalize driver-specific tool name to standard ToolName.
