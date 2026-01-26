@@ -231,3 +231,21 @@ class TestReplanWorkflow:
         stage_events = [e for e in received_events if e.event_type == EventType.STAGE_STARTED]
         assert len(stage_events) >= 1
         assert any("replan" in (e.message or "").lower() for e in stage_events)
+
+    async def test_replan_missing_profile_raises_without_failing_workflow(
+        self,
+        orchestrator: OrchestratorService,
+        mock_repository: AsyncMock,
+        mock_profile_repo: AsyncMock,
+    ) -> None:
+        """replan_workflow should raise ValueError for missing profile without setting FAILED."""
+        workflow = make_blocked_workflow()
+        mock_repository.get.return_value = workflow
+        mock_profile_repo.get_profile.return_value = None
+
+        with pytest.raises(ValueError, match="not found"):
+            await orchestrator.replan_workflow("wf-replan-1")
+
+        # Workflow should NOT be set to FAILED — the user should be able to
+        # fix the profile and retry since the workflow is still BLOCKED.
+        mock_repository.set_status.assert_not_called()

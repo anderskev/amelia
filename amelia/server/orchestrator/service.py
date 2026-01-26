@@ -2663,6 +2663,7 @@ class OrchestratorService:
             WorkflowNotFoundError: If workflow doesn't exist.
             InvalidStateError: If workflow is not in blocked status.
             WorkflowConflictError: If a planning task is already running.
+            ValueError: If profile is not found.
         """
         workflow = await self._repository.get(workflow_id)
         if workflow is None:
@@ -2688,14 +2689,20 @@ class OrchestratorService:
                 current_status=str(workflow.workflow_status),
             )
 
-        # Resolve profile before any state mutation to avoid inconsistent state
-        profile = await self._get_profile_or_fail(
-            workflow_id,
+        # Resolve profile without side-effects: replan is a user-initiated
+        # retry action, so a missing profile should raise an error to the
+        # caller without transitioning the workflow to FAILED. This keeps
+        # the workflow in BLOCKED so the user can fix the profile and retry.
+        if self._profile_repo is None:
+            raise ValueError(f"ProfileRepository not configured for workflow {workflow_id}")
+        record = await self._profile_repo.get_profile(
             workflow.execution_state.profile_id,
-            workflow.worktree_path,
         )
-        if profile is None:
-            raise ValueError(f"Profile not found for workflow {workflow_id}")
+        if record is None:
+            raise ValueError(
+                f"Profile '{workflow.execution_state.profile_id}' not found for workflow {workflow_id}"
+            )
+        profile = self._update_profile_working_dir(record, workflow.worktree_path)
 
         # Delete stale checkpoint
         await self._delete_checkpoint(workflow_id)
