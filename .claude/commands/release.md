@@ -77,7 +77,7 @@ git push -u origin "chore/release-${VERSION}"
 Create the PR with this structure (adapt summary based on actual changes):
 
 ```bash
-gh pr create --title "chore(release): ${VERSION}" --body "$(cat <<EOF
+gh pr create --label "release" --title "chore(release): ${VERSION}" --body "$(cat <<EOF
 ## Summary
 
 - Bump version to ${VERSION}
