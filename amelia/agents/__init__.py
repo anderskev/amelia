@@ -22,6 +22,7 @@ from amelia.agents.evaluator import (
     EvaluationResult,
     Evaluator,
 )
+from amelia.agents.oracle import Oracle
 from amelia.agents.reviewer import Reviewer
 
 
@@ -32,5 +33,6 @@ __all__ = [
     "EvaluatedItem",
     "EvaluationResult",
     "Evaluator",
+    "Oracle",
     "Reviewer",
 ]
