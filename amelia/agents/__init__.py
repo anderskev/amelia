@@ -11,6 +11,7 @@ Exports:
     Disposition: Enum for evaluation outcomes (accept, reject, defer).
     EvaluatedItem: A single evaluated feedback item with disposition.
     EvaluationResult: Collection of evaluated items with summary.
+    Oracle: Expert consultation agent for codebase analysis.
     Reviewer: Review code changes and provide structured feedback.
 """
 

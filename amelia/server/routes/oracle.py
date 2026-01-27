@@ -33,6 +33,7 @@ class OracleConsultRequest(BaseModel):
         files: Optional glob patterns for files to include.
         model: Optional model override.
         profile_id: Optional profile ID (uses active profile if omitted).
+        workflow_id: Optional workflow ID for cross-referencing with orchestrator runs.
     """
 
     problem: str
@@ -40,6 +41,7 @@ class OracleConsultRequest(BaseModel):
     files: list[str] | None = None
     model: str | None = None
     profile_id: str | None = None
+    workflow_id: str | None = None
 
 
 class OracleConsultResponse(BaseModel):
@@ -155,6 +157,7 @@ async def create_consultation(
         problem=request.problem,
         working_dir=request.working_dir,
         files=request.files,
+        workflow_id=request.workflow_id,
     )
 
     logger.info(
