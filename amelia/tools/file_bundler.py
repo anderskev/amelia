@@ -257,10 +257,10 @@ async def bundle_files(
         ValueError: If any resolved path escapes working_dir.
     """
     wd = Path(working_dir)
-    is_git = _is_git_repo(wd)
-    tracked = _get_git_tracked_files(wd) if is_git else None
+    is_git = await asyncio.to_thread(_is_git_repo, wd)
+    tracked = await asyncio.to_thread(_get_git_tracked_files, wd) if is_git else None
 
-    file_paths = _resolve_globs(wd, patterns, tracked, exclude_patterns)
+    file_paths = await asyncio.to_thread(_resolve_globs, wd, patterns, tracked, exclude_patterns)
 
     bundled: list[BundledFile] = []
     total_tokens = 0

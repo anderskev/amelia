@@ -7,12 +7,14 @@ pattern as brainstorm sessions.
 
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
 from pydantic import BaseModel
 
 from amelia.agents.oracle import Oracle, OracleConsultResult
-from amelia.core.types import AgentConfig, OracleConsultation, Profile
+from amelia.core.types import AgentConfig, OracleConsultation
+from amelia.server.database import ProfileRepository
+from amelia.server.dependencies import get_profile_repository
 from amelia.server.events.bus import EventBus
 
 
@@ -55,11 +57,6 @@ class OracleConsultResponse(BaseModel):
 # --- Dependency stubs (overridden in main.py) ---
 
 
-async def _get_profile(profile_id: str | None = None) -> Profile:
-    """Get profile -- overridden in main.py."""
-    raise NotImplementedError("Must be overridden via dependency_overrides")
-
-
 def _get_event_bus() -> EventBus:
     """Get EventBus -- overridden in main.py."""
     raise NotImplementedError("Must be overridden via dependency_overrides")
@@ -89,12 +86,12 @@ def _validate_working_dir(requested: str, profile_root: str) -> None:
 
 @router.post(
     "/consult",
-    status_code=status.HTTP_202_ACCEPTED,
     response_model=OracleConsultResponse,
 )
 async def consult(
     request: OracleConsultRequest,
-    background_tasks: BackgroundTasks,
+    profile_repo: ProfileRepository = Depends(get_profile_repository),
+    event_bus: EventBus = Depends(_get_event_bus),
 ) -> OracleConsultResponse:
     """Run an Oracle consultation.
 
@@ -106,16 +103,31 @@ async def consult(
 
     Args:
         request: Consultation request with problem and context.
-        background_tasks: FastAPI background tasks.
+        profile_repo: Profile repository for profile lookup.
+        event_bus: Event bus for streaming events.
 
     Returns:
         OracleConsultResponse with advice and consultation record.
 
     Raises:
         HTTPException: 400 if working_dir invalid or oracle not configured.
+        HTTPException: 404 if profile not found.
     """
     # Resolve profile
-    profile = await _get_profile(request.profile_id)
+    if request.profile_id:
+        profile = await profile_repo.get_profile(request.profile_id)
+        if profile is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Profile not found: {request.profile_id}",
+            )
+    else:
+        profile = await profile_repo.get_active_profile()
+        if profile is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active profile",
+            )
 
     # Validate working_dir
     _validate_working_dir(request.working_dir, profile.working_dir)
@@ -136,9 +148,6 @@ async def consult(
             model=request.model,
             options=agent_config.options,
         )
-
-    # Get event bus
-    event_bus = _get_event_bus()
 
     # Run consultation
     oracle = Oracle(config=agent_config, event_bus=event_bus)

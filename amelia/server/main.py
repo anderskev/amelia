@@ -48,7 +48,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from amelia import __version__
-from amelia.core.types import Profile
 from amelia.drivers.base import DriverInterface
 from amelia.drivers.factory import (
     cleanup_driver_session,
@@ -93,7 +92,6 @@ from amelia.server.routes.brainstorm import (
 )
 from amelia.server.routes.oracle import (
     _get_event_bus as oracle_get_event_bus,
-    _get_profile as oracle_get_profile,
     router as oracle_router,
 )
 from amelia.server.routes.prompts import get_prompt_repository, router as prompts_router
@@ -309,21 +307,6 @@ def create_app() -> FastAPI:
     application.dependency_overrides[get_cwd] = get_brainstorm_cwd
 
     # Set up Oracle dependencies
-    async def get_oracle_profile(profile_id: str | None = None) -> Profile:
-        """Get profile for Oracle consultations."""
-        profile_repo = get_profile_repository()
-        if profile_id:
-            profile = await profile_repo.get_profile(profile_id)
-            if profile is None:
-                raise HTTPException(status_code=404, detail=f"Profile not found: {profile_id}")
-            return profile
-        active = await profile_repo.get_active_profile()
-        if active is None:
-            raise HTTPException(status_code=400, detail="No active profile")
-        return active
-
-    application.dependency_overrides[oracle_get_profile] = get_oracle_profile
-
     def get_oracle_event_bus() -> EventBus:
         """Get EventBus for Oracle consultations."""
         bus: EventBus = application.state.event_bus

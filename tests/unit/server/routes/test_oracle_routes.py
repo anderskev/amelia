@@ -9,14 +9,30 @@ from fastapi.testclient import TestClient
 
 from amelia.agents.oracle import OracleConsultResult
 from amelia.core.types import OracleConsultation
-from amelia.server.routes.oracle import router
+from amelia.server.database import ProfileRepository
+from amelia.server.dependencies import get_profile_repository
+from amelia.server.routes.oracle import _get_event_bus, router
 
 
 @pytest.fixture
-def app() -> FastAPI:
-    """Create test FastAPI app with oracle router."""
+def mock_profile_repo() -> AsyncMock:
+    """Create mock profile repository."""
+    return AsyncMock(spec=ProfileRepository)
+
+
+@pytest.fixture
+def mock_event_bus() -> MagicMock:
+    """Create mock event bus."""
+    return MagicMock()
+
+
+@pytest.fixture
+def app(mock_profile_repo: AsyncMock, mock_event_bus: MagicMock) -> FastAPI:
+    """Create test FastAPI app with oracle router and dependency overrides."""
     test_app = FastAPI()
     test_app.include_router(router, prefix="/api/oracle")
+    test_app.dependency_overrides[get_profile_repository] = lambda: mock_profile_repo
+    test_app.dependency_overrides[_get_event_bus] = lambda: mock_event_bus
     return test_app
 
 
@@ -29,36 +45,33 @@ def client(app: FastAPI) -> TestClient:
 class TestOracleConsultRoute:
     """Tests for POST /api/oracle/consult."""
 
-    def test_consult_returns_202(self, client: TestClient):
-        """Consult endpoint should return 202 Accepted."""
-        with (
-            patch("amelia.server.routes.oracle._get_profile", new_callable=AsyncMock) as mock_get_profile,
-            patch("amelia.server.routes.oracle._get_event_bus") as mock_get_bus,
-            patch("amelia.server.routes.oracle.Oracle") as mock_oracle_cls,
-        ):
-            mock_profile = MagicMock()
-            mock_profile.working_dir = "/tmp/work"
-            mock_profile.get_agent_config.return_value = MagicMock(
-                driver="cli", model="sonnet"
-            )
-            mock_get_profile.return_value = mock_profile
-            mock_get_bus.return_value = MagicMock()
+    def test_consult_returns_200(
+        self, client: TestClient, mock_profile_repo: AsyncMock
+    ):
+        """Consult endpoint should return 200 OK."""
+        mock_profile = MagicMock()
+        mock_profile.working_dir = "/tmp/work"
+        mock_profile.get_agent_config.return_value = MagicMock(
+            driver="cli", model="sonnet"
+        )
+        mock_profile_repo.get_active_profile.return_value = mock_profile
 
-            consultation = OracleConsultation(
-                timestamp=datetime.now(UTC),
-                problem="How to refactor auth?",
-                advice="Use DI.",
-                model="sonnet",
-                session_id="abc",
-                tokens={},
-                files_consulted=[],
-                outcome="success",
-            )
-            mock_result = OracleConsultResult(
-                advice="Use DI.",
-                consultation=consultation,
-            )
+        consultation = OracleConsultation(
+            timestamp=datetime.now(UTC),
+            problem="How to refactor auth?",
+            advice="Use DI.",
+            model="sonnet",
+            session_id="abc",
+            tokens={},
+            files_consulted=[],
+            outcome="success",
+        )
+        mock_result = OracleConsultResult(
+            advice="Use DI.",
+            consultation=consultation,
+        )
 
+        with patch("amelia.server.routes.oracle.Oracle") as mock_oracle_cls:
             mock_oracle = MagicMock()
             mock_oracle.consult = AsyncMock(return_value=mock_result)
             mock_oracle_cls.return_value = mock_oracle
@@ -68,39 +81,37 @@ class TestOracleConsultRoute:
                 "working_dir": "/tmp/work",
             })
 
-        assert response.status_code == 202
+        assert response.status_code == 200
 
-    def test_consult_validates_working_dir(self, client: TestClient):
+    def test_consult_validates_working_dir(
+        self, client: TestClient, mock_profile_repo: AsyncMock
+    ):
         """Consult should reject working_dir outside profile root."""
-        with (
-            patch("amelia.server.routes.oracle._get_profile", new_callable=AsyncMock) as mock_get_profile,
-        ):
-            mock_profile = MagicMock()
-            mock_profile.working_dir = "/home/user/projects"
-            mock_get_profile.return_value = mock_profile
+        mock_profile = MagicMock()
+        mock_profile.working_dir = "/home/user/projects"
+        mock_profile_repo.get_active_profile.return_value = mock_profile
 
-            response = client.post("/api/oracle/consult", json={
-                "problem": "Analyze",
-                "working_dir": "/etc/passwd",
-            })
+        response = client.post("/api/oracle/consult", json={
+            "problem": "Analyze",
+            "working_dir": "/etc/passwd",
+        })
 
         assert response.status_code == 400
 
-    def test_consult_missing_oracle_config(self, client: TestClient):
+    def test_consult_missing_oracle_config(
+        self, client: TestClient, mock_profile_repo: AsyncMock
+    ):
         """Consult should return 400 if profile lacks oracle agent config."""
-        with (
-            patch("amelia.server.routes.oracle._get_profile", new_callable=AsyncMock) as mock_get_profile,
-        ):
-            mock_profile = MagicMock()
-            mock_profile.working_dir = "/tmp/work"
-            mock_profile.get_agent_config.side_effect = ValueError(
-                "Agent 'oracle' not configured"
-            )
-            mock_get_profile.return_value = mock_profile
+        mock_profile = MagicMock()
+        mock_profile.working_dir = "/tmp/work"
+        mock_profile.get_agent_config.side_effect = ValueError(
+            "Agent 'oracle' not configured"
+        )
+        mock_profile_repo.get_active_profile.return_value = mock_profile
 
-            response = client.post("/api/oracle/consult", json={
-                "problem": "Analyze",
-                "working_dir": "/tmp/work",
-            })
+        response = client.post("/api/oracle/consult", json={
+            "problem": "Analyze",
+            "working_dir": "/tmp/work",
+        })
 
         assert response.status_code == 400
