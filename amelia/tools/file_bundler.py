@@ -270,11 +270,19 @@ async def bundle_files(
 
     file_paths = await asyncio.to_thread(_resolve_globs, wd, patterns, tracked, exclude_patterns)
 
+    # Read files concurrently with a semaphore to avoid fd exhaustion
+    sem = asyncio.Semaphore(50)
+
+    async def _bounded_read(path: Path) -> tuple[Path, bytes | None]:
+        async with sem:
+            return path, await _read_file(path)
+
+    read_results = await asyncio.gather(*(_bounded_read(p) for p in file_paths))
+
     bundled: list[BundledFile] = []
     total_tokens = 0
 
-    for abs_path in file_paths:
-        raw = await _read_file(abs_path)
+    for abs_path, raw in read_results:
         if raw is None:
             continue
 

@@ -102,7 +102,7 @@ class Oracle:
             problem: The problem statement to analyze.
             working_dir: Root directory for codebase access.
             files: Optional glob patterns for files to include as context.
-                Defaults to ``["**/*.py", "**/*.md"]`` if not provided.
+                If not provided, no files are bundled.
             workflow_id: Optional workflow ID for cross-referencing.
 
         Returns:
@@ -124,43 +124,81 @@ class Oracle:
             message=f"Oracle consultation started: {problem[:100]}",
         ))
 
-        # Gather codebase context
-        if files is None:
-            patterns = ["**/*.py", "**/*.md"]
-            logger.info(
-                "No file patterns specified, using defaults",
-                session_id=session_id,
-                patterns=patterns,
-            )
+        # Gather codebase context only when file patterns are specified
+        files_consulted: list[str] = []
+        bundle_tokens = 0
+        if files:
+            bundle = await bundle_files(working_dir=working_dir, patterns=files)
+            files_consulted = [f.path for f in bundle.files]
+            bundle_tokens = bundle.total_tokens
         else:
-            patterns = files
-        bundle = await bundle_files(working_dir=working_dir, patterns=patterns)
-
-        files_consulted = [f.path for f in bundle.files]
+            bundle = None
+            logger.info(
+                "No file patterns specified, skipping file bundling",
+                session_id=session_id,
+            )
 
         # Build prompt with context
         context_parts: list[str] = [f"## Problem\n\n{problem}"]
-        if bundle.files:
+        if bundle and bundle.files:
             context_parts.append("\n## Codebase Context\n")
             for f in bundle.files:
                 context_parts.append(f"### {f.path}\n```\n{f.content}\n```\n")
 
         user_prompt = "\n".join(context_parts)
 
-        # Execute agentic consultation. The try/except wraps only the
-        # driver iteration so that bugs in event emission or model
-        # construction propagate naturally (not masked as "consultation
-        # failed").
+        # Execute agentic consultation. Events are emitted inline during
+        # iteration for real-time streaming. The try/except wraps the
+        # driver iteration so driver failures are handled distinctly;
+        # event emission errors propagate naturally.
         advice = ""
         try:
-            messages = [
-                msg
-                async for msg in self._driver.execute_agentic(
-                    prompt=user_prompt,
-                    cwd=working_dir,
-                    instructions=_SYSTEM_PROMPT,
-                )
-            ]
+            async for message in self._driver.execute_agentic(
+                prompt=user_prompt,
+                cwd=working_dir,
+                instructions=_SYSTEM_PROMPT,
+            ):
+                if message.type == AgenticMessageType.THINKING:
+                    self._emit(self._make_event(
+                        EventType.ORACLE_CONSULTATION_THINKING,
+                        session_id=session_id,
+                        message=message.content or "",
+                    ))
+
+                elif message.type == AgenticMessageType.TOOL_CALL:
+                    tool_name = message.tool_name or "unknown"
+                    logger.debug(
+                        "Oracle tool call",
+                        session_id=session_id,
+                        tool_name=tool_name,
+                    )
+                    self._emit(self._make_event(
+                        EventType.ORACLE_TOOL_CALL,
+                        session_id=session_id,
+                        message=f"Tool call: {tool_name}",
+                        tool_name=tool_name,
+                        tool_input=message.tool_input,
+                    ))
+
+                elif message.type == AgenticMessageType.TOOL_RESULT:
+                    tool_name = message.tool_name or "unknown"
+                    logger.debug(
+                        "Oracle tool result",
+                        session_id=session_id,
+                        tool_name=tool_name,
+                        is_error=message.is_error,
+                    )
+                    self._emit(self._make_event(
+                        EventType.ORACLE_TOOL_RESULT,
+                        session_id=session_id,
+                        message=f"Tool result: {tool_name}",
+                        tool_name=tool_name,
+                        is_error=message.is_error,
+                    ))
+
+                elif message.type == AgenticMessageType.RESULT:
+                    advice = message.content or ""
+
         except Exception as exc:
             logger.error(
                 "Oracle consultation failed",
@@ -187,50 +225,6 @@ class Oracle:
 
             return OracleConsultResult(advice="", consultation=consultation)
 
-        # Process messages outside the try block — event emission errors
-        # propagate naturally rather than being masked as driver failures.
-        for message in messages:
-            if message.type == AgenticMessageType.THINKING:
-                self._emit(self._make_event(
-                    EventType.ORACLE_CONSULTATION_THINKING,
-                    session_id=session_id,
-                    message=message.content or "",
-                ))
-
-            elif message.type == AgenticMessageType.TOOL_CALL:
-                tool_name = message.tool_name or "unknown"
-                logger.debug(
-                    "Oracle tool call",
-                    session_id=session_id,
-                    tool_name=tool_name,
-                )
-                self._emit(self._make_event(
-                    EventType.ORACLE_TOOL_CALL,
-                    session_id=session_id,
-                    message=f"Tool call: {tool_name}",
-                    tool_name=tool_name,
-                    tool_input=message.tool_input,
-                ))
-
-            elif message.type == AgenticMessageType.TOOL_RESULT:
-                tool_name = message.tool_name or "unknown"
-                logger.debug(
-                    "Oracle tool result",
-                    session_id=session_id,
-                    tool_name=tool_name,
-                    is_error=message.is_error,
-                )
-                self._emit(self._make_event(
-                    EventType.ORACLE_TOOL_RESULT,
-                    session_id=session_id,
-                    message=f"Tool result: {tool_name}",
-                    tool_name=tool_name,
-                    is_error=message.is_error,
-                ))
-
-            elif message.type == AgenticMessageType.RESULT:
-                advice = message.content or ""
-
         consultation = OracleConsultation(
             timestamp=timestamp,
             problem=problem,
@@ -239,7 +233,7 @@ class Oracle:
             session_id=session_id,
             workflow_id=workflow_id,
             files_consulted=files_consulted,
-            tokens={"context": bundle.total_tokens},
+            tokens={"context": bundle_tokens},
             outcome="success",
         )
 

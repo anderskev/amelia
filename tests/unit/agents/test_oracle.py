@@ -52,24 +52,40 @@ class TestOracleConsult:
             ])
             mock_get_driver.return_value = mock_driver
 
-            with patch("amelia.agents.oracle.bundle_files", new_callable=AsyncMock) as mock_bundle:
-                from amelia.tools.file_bundler import FileBundle
-
-                mock_bundle.return_value = FileBundle(
-                    files=[], total_tokens=0, working_dir=str(tmp_path),
-                )
-
-                oracle = Oracle(config)
-                result = await oracle.consult(
-                    problem="How to refactor auth?",
-                    working_dir=str(tmp_path),
-                )
+            oracle = Oracle(config)
+            result = await oracle.consult(
+                problem="How to refactor auth?",
+                working_dir=str(tmp_path),
+            )
 
         assert isinstance(result, OracleConsultResult)
         assert result.advice == "Use dependency injection."
         assert result.consultation.problem == "How to refactor auth?"
         assert result.consultation.outcome == "success"
         assert result.consultation.session_id  # Should be a UUID
+
+    async def test_consult_skips_bundling_without_files(self, tmp_path):
+        """consult() should not call bundle_files when files is None."""
+        config = AgentConfig(driver="cli", model="sonnet")
+
+        with patch("amelia.agents.oracle.get_driver") as mock_get_driver:
+            mock_driver = MagicMock()
+            mock_driver.execute_agentic = create_mock_execute_agentic([
+                AgenticMessage(type=AgenticMessageType.RESULT, content="Done"),
+            ])
+            mock_get_driver.return_value = mock_driver
+
+            with patch("amelia.agents.oracle.bundle_files", new_callable=AsyncMock) as mock_bundle:
+                oracle = Oracle(config)
+                result = await oracle.consult(
+                    problem="Analyze",
+                    working_dir=str(tmp_path),
+                )
+
+                mock_bundle.assert_not_called()
+
+        assert result.consultation.files_consulted == []
+        assert result.consultation.tokens == {"context": 0}
 
     async def test_consult_passes_files_to_bundler(self, tmp_path):
         """consult() should pass file patterns to bundle_files."""
@@ -116,18 +132,11 @@ class TestOracleConsult:
             ])
             mock_get_driver.return_value = mock_driver
 
-            with patch("amelia.agents.oracle.bundle_files", new_callable=AsyncMock) as mock_bundle:
-                from amelia.tools.file_bundler import FileBundle
-
-                mock_bundle.return_value = FileBundle(
-                    files=[], total_tokens=0, working_dir=str(tmp_path),
-                )
-
-                oracle = Oracle(config, event_bus=event_bus)
-                await oracle.consult(
-                    problem="Test",
-                    working_dir=str(tmp_path),
-                )
+            oracle = Oracle(config, event_bus=event_bus)
+            await oracle.consult(
+                problem="Test",
+                working_dir=str(tmp_path),
+            )
 
         event_types = [e.event_type for e in emitted]
         assert EventType.ORACLE_CONSULTATION_STARTED in event_types
@@ -160,18 +169,11 @@ class TestOracleConsult:
             ])
             mock_get_driver.return_value = mock_driver
 
-            with patch("amelia.agents.oracle.bundle_files", new_callable=AsyncMock) as mock_bundle:
-                from amelia.tools.file_bundler import FileBundle
-
-                mock_bundle.return_value = FileBundle(
-                    files=[], total_tokens=0, working_dir=str(tmp_path),
-                )
-
-                oracle = Oracle(config, event_bus=event_bus)
-                result = await oracle.consult(
-                    problem="How to refactor?",
-                    working_dir=str(tmp_path),
-                )
+            oracle = Oracle(config, event_bus=event_bus)
+            result = await oracle.consult(
+                problem="How to refactor?",
+                working_dir=str(tmp_path),
+            )
 
         event_types = [e.event_type for e in emitted]
         assert EventType.ORACLE_TOOL_CALL in event_types
@@ -208,18 +210,11 @@ class TestOracleConsult:
             mock_driver.execute_agentic = _failing_agentic
             mock_get_driver.return_value = mock_driver
 
-            with patch("amelia.agents.oracle.bundle_files", new_callable=AsyncMock) as mock_bundle:
-                from amelia.tools.file_bundler import FileBundle
-
-                mock_bundle.return_value = FileBundle(
-                    files=[], total_tokens=0, working_dir=str(tmp_path),
-                )
-
-                oracle = Oracle(config)
-                result = await oracle.consult(
-                    problem="Test",
-                    working_dir=str(tmp_path),
-                )
+            oracle = Oracle(config)
+            result = await oracle.consult(
+                problem="Test",
+                working_dir=str(tmp_path),
+            )
 
         assert result.consultation.outcome == "error"
         assert "Driver crashed" in (result.consultation.error_message or "")
