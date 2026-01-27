@@ -1,6 +1,7 @@
 """Tests for Oracle API routes."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -46,12 +47,13 @@ class TestOracleConsultRoute:
     """Tests for POST /api/oracle/consult."""
 
     def test_consult_returns_200(
-        self, client: TestClient, mock_profile_repo: AsyncMock
+        self, client: TestClient, mock_profile_repo: AsyncMock, tmp_path: Path
     ):
         """Consult endpoint should return 200 OK."""
+        work_dir = str(tmp_path)
         mock_profile = Profile(
             name="test",
-            working_dir="/tmp/work",
+            working_dir=work_dir,
             agents={"oracle": AgentConfig(driver="cli", model="sonnet")},
         )
         mock_profile_repo.get_active_profile.return_value = mock_profile
@@ -78,7 +80,7 @@ class TestOracleConsultRoute:
 
             response = client.post("/api/oracle/consult", json={
                 "problem": "How to refactor auth?",
-                "working_dir": "/tmp/work",
+                "working_dir": work_dir,
             })
 
         assert response.status_code == 200
@@ -102,19 +104,20 @@ class TestOracleConsultRoute:
         assert response.status_code == 400
 
     def test_consult_missing_oracle_config(
-        self, client: TestClient, mock_profile_repo: AsyncMock
+        self, client: TestClient, mock_profile_repo: AsyncMock, tmp_path: Path
     ):
         """Consult should return 400 if profile lacks oracle agent config."""
+        work_dir = str(tmp_path)
         mock_profile = Profile(
             name="test",
-            working_dir="/tmp/work",
+            working_dir=work_dir,
             agents={},
         )
         mock_profile_repo.get_active_profile.return_value = mock_profile
 
         response = client.post("/api/oracle/consult", json={
             "problem": "Analyze",
-            "working_dir": "/tmp/work",
+            "working_dir": work_dir,
         })
 
         assert response.status_code == 400

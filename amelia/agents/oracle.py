@@ -75,6 +75,8 @@ class Oracle:
         event_type: EventType,
         session_id: str,
         message: str,
+        *,
+        workflow_id: str | None = None,
         **kwargs: Any,
     ) -> WorkflowEvent:
         """Create a WorkflowEvent for Oracle consultations."""
@@ -82,7 +84,7 @@ class Oracle:
         return WorkflowEvent(
             id=str(uuid4()),
             domain=EventDomain.ORACLE,
-            workflow_id=session_id,
+            workflow_id=workflow_id or session_id,
             sequence=self._seq,
             timestamp=datetime.now(tz=UTC),
             agent="oracle",
@@ -127,6 +129,7 @@ class Oracle:
             EventType.ORACLE_CONSULTATION_STARTED,
             session_id=session_id,
             message=f"Oracle consultation started: {problem[:100]}",
+            workflow_id=workflow_id,
         ))
 
         # Gather codebase context only when file patterns are specified
@@ -169,6 +172,7 @@ class Oracle:
                         EventType.ORACLE_CONSULTATION_THINKING,
                         session_id=session_id,
                         message=message.content or "",
+                        workflow_id=workflow_id,
                     ))
 
                 elif message.type == AgenticMessageType.TOOL_CALL:
@@ -182,6 +186,7 @@ class Oracle:
                         EventType.ORACLE_TOOL_CALL,
                         session_id=session_id,
                         message=f"Tool call: {tool_name}",
+                        workflow_id=workflow_id,
                         tool_name=tool_name,
                         tool_input=message.tool_input,
                     ))
@@ -198,6 +203,7 @@ class Oracle:
                         EventType.ORACLE_TOOL_RESULT,
                         session_id=session_id,
                         message=f"Tool result: {tool_name}",
+                        workflow_id=workflow_id,
                         tool_name=tool_name,
                         is_error=message.is_error,
                     ))
@@ -230,6 +236,7 @@ class Oracle:
                 EventType.ORACLE_CONSULTATION_FAILED,
                 session_id=session_id,
                 message=f"Oracle consultation failed: {driver_error}",
+                workflow_id=workflow_id,
             ))
 
             return OracleConsultResult(advice="", consultation=consultation)
@@ -250,6 +257,7 @@ class Oracle:
             EventType.ORACLE_CONSULTATION_COMPLETED,
             session_id=session_id,
             message="Oracle consultation completed",
+            workflow_id=workflow_id,
         ))
 
         logger.info(

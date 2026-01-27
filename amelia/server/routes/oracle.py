@@ -72,10 +72,16 @@ def _validate_working_dir(requested: str, profile_root: str) -> None:
         profile_root: The profile's configured working directory.
 
     Raises:
-        HTTPException: If requested path is outside profile root.
+        HTTPException: If requested path is outside profile root or doesn't exist.
     """
+    requested_path = Path(requested).resolve()
+    if not requested_path.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"working_dir must be an existing directory: {requested}",
+        )
     try:
-        Path(requested).resolve().relative_to(Path(profile_root).resolve())
+        requested_path.relative_to(Path(profile_root).resolve())
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
