@@ -17,6 +17,7 @@ class EventDomain(StrEnum):
 
     WORKFLOW = "workflow"
     BRAINSTORM = "brainstorm"
+    ORACLE = "oracle"
 
 
 class EventLevel(StrEnum):
@@ -119,6 +120,12 @@ class EventType(StrEnum):
     BRAINSTORM_ARTIFACT_CREATED = "brainstorm_artifact_created"
     BRAINSTORM_SESSION_COMPLETED = "brainstorm_session_completed"
 
+    # Oracle consultation events
+    ORACLE_CONSULTATION_STARTED = "oracle_consultation_started"
+    ORACLE_CONSULTATION_THINKING = "oracle_consultation_thinking"
+    ORACLE_CONSULTATION_COMPLETED = "oracle_consultation_completed"
+    ORACLE_CONSULTATION_FAILED = "oracle_consultation_failed"
+
 
 # Event type to level mapping
 _INFO_TYPES: frozenset[EventType] = frozenset({
@@ -133,6 +140,9 @@ _INFO_TYPES: frozenset[EventType] = frozenset({
     EventType.APPROVAL_GRANTED,
     EventType.APPROVAL_REJECTED,
     EventType.REVIEW_COMPLETED,
+    EventType.ORACLE_CONSULTATION_STARTED,
+    EventType.ORACLE_CONSULTATION_COMPLETED,
+    EventType.ORACLE_CONSULTATION_FAILED,
 })
 
 _TRACE_TYPES: frozenset[EventType] = frozenset({
@@ -140,6 +150,7 @@ _TRACE_TYPES: frozenset[EventType] = frozenset({
     EventType.CLAUDE_TOOL_CALL,
     EventType.CLAUDE_TOOL_RESULT,
     EventType.AGENT_OUTPUT,
+    EventType.ORACLE_CONSULTATION_THINKING,
 })
 
 
