@@ -147,25 +147,20 @@ class Oracle:
 
         user_prompt = "\n".join(context_parts)
 
-        # Execute agentic consultation — only wrap the driver call so that
-        # bugs in event emission or model construction propagate naturally.
+        # Execute agentic consultation. The try/except wraps only the
+        # driver iteration so that bugs in event emission or model
+        # construction propagate naturally (not masked as "consultation
+        # failed").
         advice = ""
         try:
-            async for message in self._driver.execute_agentic(
-                prompt=user_prompt,
-                cwd=working_dir,
-                instructions=_SYSTEM_PROMPT,
-            ):
-                if message.type == AgenticMessageType.THINKING:
-                    self._emit(self._make_event(
-                        EventType.ORACLE_CONSULTATION_THINKING,
-                        session_id=session_id,
-                        message=message.content or "",
-                    ))
-
-                elif message.type == AgenticMessageType.RESULT:
-                    advice = message.content or ""
-
+            messages = [
+                msg
+                async for msg in self._driver.execute_agentic(
+                    prompt=user_prompt,
+                    cwd=working_dir,
+                    instructions=_SYSTEM_PROMPT,
+                )
+            ]
         except Exception as exc:
             logger.error(
                 "Oracle consultation failed",
@@ -191,6 +186,19 @@ class Oracle:
             ))
 
             return OracleConsultResult(advice="", consultation=consultation)
+
+        # Process messages outside the try block — event emission errors
+        # propagate naturally rather than being masked as driver failures.
+        for message in messages:
+            if message.type == AgenticMessageType.THINKING:
+                self._emit(self._make_event(
+                    EventType.ORACLE_CONSULTATION_THINKING,
+                    session_id=session_id,
+                    message=message.content or "",
+                ))
+
+            elif message.type == AgenticMessageType.RESULT:
+                advice = message.content or ""
 
         consultation = OracleConsultation(
             timestamp=timestamp,
