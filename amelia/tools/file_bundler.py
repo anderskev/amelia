@@ -6,6 +6,7 @@ bundles for use as LLM context. Respects .gitignore when in a git repo.
 
 import asyncio
 import fnmatch
+import functools
 import subprocess
 from pathlib import Path
 
@@ -51,16 +52,11 @@ _DEFAULT_EXCLUSIONS = frozenset({
     "build",
 })
 
-# Lazy-loaded encoder
-_encoder: tiktoken.Encoding | None = None
 
-
+@functools.lru_cache(maxsize=1)
 def _get_encoder() -> tiktoken.Encoding:
     """Get or create the tiktoken encoder (lazy singleton)."""
-    global _encoder
-    if _encoder is None:
-        _encoder = tiktoken.get_encoding("cl100k_base")
-    return _encoder
+    return tiktoken.get_encoding("cl100k_base")
 
 
 def _estimate_tokens(text: str) -> int:
@@ -96,13 +92,17 @@ def _is_git_repo(working_dir: Path) -> bool:
     Returns:
         True if inside a git repo.
     """
-    result = subprocess.run(
-        ["git", "rev-parse", "--git-dir"],
-        cwd=working_dir,
-        capture_output=True,
-        text=True,
-    )
-    return result.returncode == 0
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=working_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
 
 
 def _get_git_tracked_files(working_dir: Path) -> set[str]:
@@ -116,12 +116,16 @@ def _get_git_tracked_files(working_dir: Path) -> set[str]:
     Returns:
         Set of relative file paths tracked by git.
     """
-    result = subprocess.run(
-        ["git", "ls-files"],
-        cwd=working_dir,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=working_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return set()
     if result.returncode != 0:
         return set()
     return {line for line in result.stdout.strip().split("\n") if line}

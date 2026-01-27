@@ -195,6 +195,7 @@ class OracleConsultation(BaseModel):
         advice: The Oracle's advice (None until complete).
         model: LLM model used.
         session_id: UUIDv4, generated per-consultation by Oracle.consult().
+        workflow_id: Optional workflow ID for cross-referencing with orchestrator runs.
         tokens: Token counts (e.g., {"input": N, "output": M}).
         cost_usd: Estimated cost in USD.
         files_consulted: File paths included in context.
@@ -207,6 +208,7 @@ class OracleConsultation(BaseModel):
     advice: str | None = None
     model: str
     session_id: str
+    workflow_id: str | None = None
     tokens: dict[str, int] = Field(default_factory=dict)
     cost_usd: float | None = None
     files_consulted: list[str] = Field(default_factory=list)
