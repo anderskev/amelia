@@ -102,7 +102,7 @@ def _is_git_repo(working_dir: Path) -> bool:
             timeout=30,
         )
         return result.returncode == 0
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, OSError):
         return False
 
 
@@ -125,7 +125,7 @@ def _get_git_tracked_files(working_dir: Path) -> set[str]:
             text=True,
             timeout=30,
         )
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, OSError):
         return set()
     if result.returncode != 0:
         return set()

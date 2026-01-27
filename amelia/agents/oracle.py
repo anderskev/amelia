@@ -45,6 +45,11 @@ class Oracle:
     The agent can read additional files and run shell commands during
     its reasoning process.
 
+    Note:
+        Oracle instances are designed for single use (one ``consult()`` call
+        per instance). The internal sequence counter is not reset between
+        calls; create a new instance for each consultation.
+
     Args:
         config: Agent configuration with driver, model, and options.
         event_bus: Optional EventBus for emitting consultation events.
@@ -148,10 +153,11 @@ class Oracle:
         user_prompt = "\n".join(context_parts)
 
         # Execute agentic consultation. Events are emitted inline during
-        # iteration for real-time streaming. The try/except wraps the
-        # driver iteration so driver failures are handled distinctly;
-        # event emission errors propagate naturally.
+        # iteration for real-time streaming. The try/except captures driver
+        # failures; error-path event emissions are outside the try/except
+        # so programming errors in event construction propagate naturally.
         advice = ""
+        driver_error: Exception | None = None
         try:
             async for message in self._driver.execute_agentic(
                 prompt=user_prompt,
@@ -200,10 +206,13 @@ class Oracle:
                     advice = message.content or ""
 
         except Exception as exc:
+            driver_error = exc
+
+        if driver_error is not None:
             logger.error(
                 "Oracle consultation failed",
                 session_id=session_id,
-                error=str(exc),
+                error=str(driver_error),
             )
 
             consultation = OracleConsultation(
@@ -214,13 +223,13 @@ class Oracle:
                 workflow_id=workflow_id,
                 files_consulted=files_consulted,
                 outcome="error",
-                error_message=str(exc),
+                error_message=str(driver_error),
             )
 
             self._emit(self._make_event(
                 EventType.ORACLE_CONSULTATION_FAILED,
                 session_id=session_id,
-                message=f"Oracle consultation failed: {exc}",
+                message=f"Oracle consultation failed: {driver_error}",
             ))
 
             return OracleConsultResult(advice="", consultation=consultation)
