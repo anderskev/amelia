@@ -57,7 +57,7 @@ class OracleConsultResponse(BaseModel):
 # --- Dependency stubs (overridden in main.py) ---
 
 
-def _get_event_bus() -> EventBus:
+def get_event_bus() -> EventBus:
     """Get EventBus -- overridden in main.py."""
     raise NotImplementedError("Must be overridden via dependency_overrides")
 
@@ -88,10 +88,10 @@ def _validate_working_dir(requested: str, profile_root: str) -> None:
     "/consult",
     response_model=OracleConsultResponse,
 )
-async def consult(
+async def create_consultation(
     request: OracleConsultRequest,
     profile_repo: ProfileRepository = Depends(get_profile_repository),
-    event_bus: EventBus = Depends(_get_event_bus),
+    event_bus: EventBus = Depends(get_event_bus),
 ) -> OracleConsultResponse:
     """Run an Oracle consultation.
 

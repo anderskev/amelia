@@ -1,6 +1,6 @@
 """Tests for FileBundler utility."""
 
-import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -45,7 +45,7 @@ class TestBundleFiles:
         init_git_repo(repo)
         (repo / "hello.py").write_text("print('hello')")
         # Stage the file so git ls-files picks it up
-        os.system(f"cd {repo} && git add hello.py")
+        subprocess.run(["git", "add", "hello.py"], cwd=repo, check=True)
 
         bundle = await bundle_files(
             working_dir=str(repo),
@@ -67,7 +67,7 @@ class TestBundleFiles:
         (src / "a.py").write_text("a = 1")
         (src / "b.py").write_text("b = 2")
         (repo / "readme.md").write_text("# Readme")
-        os.system(f"cd {repo} && git add -A")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 
         bundle = await bundle_files(
             working_dir=str(repo),
@@ -84,7 +84,7 @@ class TestBundleFiles:
         (repo / ".gitignore").write_text("ignored.py\n")
         (repo / "included.py").write_text("yes")
         (repo / "ignored.py").write_text("no")
-        os.system(f"cd {repo} && git add -A")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 
         bundle = await bundle_files(
             working_dir=str(repo),
@@ -101,7 +101,7 @@ class TestBundleFiles:
         init_git_repo(repo)
         (repo / "text.py").write_text("x = 1")
         (repo / "binary.bin").write_bytes(b"\x00\x01\x02\x03" * 128)
-        os.system(f"cd {repo} && git add -A")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 
         bundle = await bundle_files(
             working_dir=str(repo),
@@ -130,7 +130,7 @@ class TestBundleFiles:
         init_git_repo(repo)
         (repo / "keep.py").write_text("keep")
         (repo / "skip.py").write_text("skip")
-        os.system(f"cd {repo} && git add -A")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 
         bundle = await bundle_files(
             working_dir=str(repo),

@@ -58,6 +58,7 @@ class Oracle:
         self._driver = get_driver(config.driver, model=config.model)
         self._event_bus = event_bus
         self._config = config
+        self._seq = 0
 
     def _emit(self, event: WorkflowEvent) -> None:
         """Emit event via EventBus if available."""
@@ -72,11 +73,12 @@ class Oracle:
         **kwargs: Any,
     ) -> WorkflowEvent:
         """Create a WorkflowEvent for Oracle consultations."""
+        self._seq += 1
         return WorkflowEvent(
             id=str(uuid4()),
             domain=EventDomain.ORACLE,
             workflow_id=session_id,
-            sequence=0,
+            sequence=self._seq,
             timestamp=datetime.now(tz=UTC),
             agent="oracle",
             event_type=event_type,
@@ -100,6 +102,7 @@ class Oracle:
             problem: The problem statement to analyze.
             working_dir: Root directory for codebase access.
             files: Optional glob patterns for files to include as context.
+                Defaults to ``["**/*.py", "**/*.md"]`` if not provided.
             workflow_id: Optional workflow ID for cross-referencing.
 
         Returns:
@@ -122,7 +125,15 @@ class Oracle:
         ))
 
         # Gather codebase context
-        patterns = files or ["**/*.py", "**/*.md"]
+        if files is None:
+            patterns = ["**/*.py", "**/*.md"]
+            logger.info(
+                "No file patterns specified, using defaults",
+                session_id=session_id,
+                patterns=patterns,
+            )
+        else:
+            patterns = files
         bundle = await bundle_files(working_dir=working_dir, patterns=patterns)
 
         files_consulted = [f.path for f in bundle.files]
@@ -136,7 +147,8 @@ class Oracle:
 
         user_prompt = "\n".join(context_parts)
 
-        # Execute agentic consultation
+        # Execute agentic consultation — only wrap the driver call so that
+        # bugs in event emission or model construction propagate naturally.
         advice = ""
         try:
             async for message in self._driver.execute_agentic(
@@ -153,30 +165,6 @@ class Oracle:
 
                 elif message.type == AgenticMessageType.RESULT:
                     advice = message.content or ""
-
-            consultation = OracleConsultation(
-                timestamp=timestamp,
-                problem=problem,
-                advice=advice,
-                model=self._config.model,
-                session_id=session_id,
-                workflow_id=workflow_id,
-                files_consulted=files_consulted,
-                tokens={"context": bundle.total_tokens},
-                outcome="success",
-            )
-
-            self._emit(self._make_event(
-                EventType.ORACLE_CONSULTATION_COMPLETED,
-                session_id=session_id,
-                message="Oracle consultation completed",
-            ))
-
-            logger.info(
-                "Oracle consultation completed",
-                session_id=session_id,
-                advice_length=len(advice),
-            )
 
         except Exception as exc:
             logger.error(
@@ -203,5 +191,29 @@ class Oracle:
             ))
 
             return OracleConsultResult(advice="", consultation=consultation)
+
+        consultation = OracleConsultation(
+            timestamp=timestamp,
+            problem=problem,
+            advice=advice,
+            model=self._config.model,
+            session_id=session_id,
+            workflow_id=workflow_id,
+            files_consulted=files_consulted,
+            tokens={"context": bundle.total_tokens},
+            outcome="success",
+        )
+
+        self._emit(self._make_event(
+            EventType.ORACLE_CONSULTATION_COMPLETED,
+            session_id=session_id,
+            message="Oracle consultation completed",
+        ))
+
+        logger.info(
+            "Oracle consultation completed",
+            session_id=session_id,
+            advice_length=len(advice),
+        )
 
         return OracleConsultResult(advice=advice, consultation=consultation)

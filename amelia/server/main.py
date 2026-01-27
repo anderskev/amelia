@@ -91,7 +91,7 @@ from amelia.server.routes.brainstorm import (
     router as brainstorm_router,
 )
 from amelia.server.routes.oracle import (
-    _get_event_bus as oracle_get_event_bus,
+    get_event_bus as oracle_get_event_bus,
     router as oracle_router,
 )
 from amelia.server.routes.prompts import get_prompt_repository, router as prompts_router

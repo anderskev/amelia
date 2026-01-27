@@ -11,7 +11,7 @@ from amelia.agents.oracle import OracleConsultResult
 from amelia.core.types import OracleConsultation
 from amelia.server.database import ProfileRepository
 from amelia.server.dependencies import get_profile_repository
-from amelia.server.routes.oracle import _get_event_bus, router
+from amelia.server.routes.oracle import get_event_bus, router
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def app(mock_profile_repo: AsyncMock, mock_event_bus: MagicMock) -> FastAPI:
     test_app = FastAPI()
     test_app.include_router(router, prefix="/api/oracle")
     test_app.dependency_overrides[get_profile_repository] = lambda: mock_profile_repo
-    test_app.dependency_overrides[_get_event_bus] = lambda: mock_event_bus
+    test_app.dependency_overrides[get_event_bus] = lambda: mock_event_bus
     return test_app
 
 

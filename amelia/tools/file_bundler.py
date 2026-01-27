@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 import tiktoken
+from loguru import logger
 from pydantic import BaseModel
 
 
@@ -234,7 +235,7 @@ async def _read_file(path: Path) -> bytes | None:
     """
     try:
         return await asyncio.to_thread(path.read_bytes)
-    except (OSError, PermissionError):
+    except OSError:
         return None
 
 
@@ -263,6 +264,9 @@ async def bundle_files(
     wd = Path(working_dir)
     is_git = await asyncio.to_thread(_is_git_repo, wd)
     tracked = await asyncio.to_thread(_get_git_tracked_files, wd) if is_git else None
+    if is_git and not tracked:
+        logger.warning("git ls-files returned no files, falling back to non-git mode")
+        tracked = None
 
     file_paths = await asyncio.to_thread(_resolve_globs, wd, patterns, tracked, exclude_patterns)
 
