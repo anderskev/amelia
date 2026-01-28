@@ -284,3 +284,86 @@ class TestResumeWorkflow:
         started_events = [e for e in saved_events if e.event_type == EventType.WORKFLOW_STARTED]
         assert len(started_events) == 1
         assert started_events[0].data["resumed"] is True
+
+
+class TestResumeEndpoint:
+    """Tests for POST /api/workflows/{id}/resume endpoint."""
+
+    def _get_test_app(self) -> "FastAPI":
+        """Create a test app with mocked dependencies."""
+        from fastapi import FastAPI
+
+        from amelia.server.routes.workflows import configure_exception_handlers, router
+
+        app = FastAPI()
+        app.include_router(router, prefix="/api")
+        configure_exception_handlers(app)
+
+        return app
+
+    async def test_resume_endpoint_success(self) -> None:
+        """POST /resume should return 200 with resumed status."""
+        from fastapi.testclient import TestClient
+
+        from amelia.server.dependencies import get_orchestrator
+
+        app = self._get_test_app()
+
+        mock_orchestrator = AsyncMock()
+        mock_workflow = MagicMock()
+        mock_workflow.id = "wf-1"
+        mock_orchestrator.resume_workflow = AsyncMock(return_value=mock_workflow)
+
+        app.dependency_overrides[get_orchestrator] = lambda: mock_orchestrator
+
+        client = TestClient(app)
+        response = client.post("/api/workflows/wf-1/resume")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "resumed"
+        assert data["workflow_id"] == "wf-1"
+
+    async def test_resume_endpoint_not_found(self) -> None:
+        """POST /resume for missing workflow should return 404."""
+        from fastapi.testclient import TestClient
+
+        from amelia.server.dependencies import get_orchestrator
+
+        app = self._get_test_app()
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.resume_workflow = AsyncMock(
+            side_effect=WorkflowNotFoundError("wf-missing")
+        )
+
+        app.dependency_overrides[get_orchestrator] = lambda: mock_orchestrator
+
+        client = TestClient(app)
+        response = client.post("/api/workflows/wf-missing/resume")
+
+        assert response.status_code == 404
+
+    async def test_resume_endpoint_conflict(self) -> None:
+        """POST /resume for non-FAILED workflow should return 422."""
+        from fastapi.testclient import TestClient
+
+        from amelia.server.dependencies import get_orchestrator
+
+        app = self._get_test_app()
+
+        mock_orchestrator = AsyncMock()
+        mock_orchestrator.resume_workflow = AsyncMock(
+            side_effect=InvalidStateError(
+                "Cannot resume",
+                workflow_id="wf-1",
+                current_status=WorkflowStatus.IN_PROGRESS,
+            )
+        )
+
+        app.dependency_overrides[get_orchestrator] = lambda: mock_orchestrator
+
+        client = TestClient(app)
+        response = client.post("/api/workflows/wf-1/resume")
+
+        assert response.status_code == 422

@@ -399,6 +399,29 @@ async def cancel_workflow(
     return ActionResponse(status="cancelled", workflow_id=workflow_id)
 
 
+@router.post("/{workflow_id}/resume", response_model=ActionResponse)
+async def resume_workflow(
+    workflow_id: str,
+    orchestrator: OrchestratorService = Depends(get_orchestrator),
+) -> ActionResponse:
+    """Resume a failed workflow from its last checkpoint.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+        orchestrator: Orchestrator service dependency.
+
+    Returns:
+        ActionResponse with status and workflow_id.
+
+    Raises:
+        WorkflowNotFoundError: If workflow doesn't exist.
+        InvalidStateError: If workflow cannot be resumed.
+    """
+    await orchestrator.resume_workflow(workflow_id)
+    logger.info("Resumed workflow", workflow_id=workflow_id)
+    return ActionResponse(status="resumed", workflow_id=workflow_id)
+
+
 @router.post("/{workflow_id}/approve", response_model=ActionResponse)
 async def approve_workflow(
     workflow_id: str,
