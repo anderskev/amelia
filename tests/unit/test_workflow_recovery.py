@@ -1,9 +1,11 @@
 """Tests for workflow recovery and resume functionality."""
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from amelia.server.exceptions import InvalidStateError, WorkflowNotFoundError
 from amelia.server.models.events import EventType
 from amelia.server.models.state import (
     InvalidStateTransitionError,
@@ -146,3 +148,139 @@ class TestRecoverInterruptedWorkflows:
 
         repository.set_status.assert_not_called()
         repository.save_event.assert_not_called()
+
+
+class TestResumeWorkflow:
+    """Tests for resume_workflow()."""
+
+    async def test_resume_validates_failed_status(
+        self,
+        service: OrchestratorService,
+        repository: AsyncMock,
+    ) -> None:
+        """Resuming a non-FAILED workflow should raise InvalidStateError."""
+        wf = _make_workflow("wf-1", WorkflowStatus.IN_PROGRESS)
+        repository.get = AsyncMock(return_value=wf)
+
+        with pytest.raises(InvalidStateError, match="must be in 'failed' status"):
+            await service.resume_workflow("wf-1")
+
+    async def test_resume_validates_workflow_exists(
+        self,
+        service: OrchestratorService,
+        repository: AsyncMock,
+    ) -> None:
+        """Resuming a non-existent workflow should raise WorkflowNotFoundError."""
+        repository.get = AsyncMock(return_value=None)
+
+        with pytest.raises(WorkflowNotFoundError):
+            await service.resume_workflow("wf-nonexistent")
+
+    async def test_resume_validates_worktree_available(
+        self,
+        service: OrchestratorService,
+        repository: AsyncMock,
+    ) -> None:
+        """Resuming when worktree is occupied should raise InvalidStateError."""
+        wf = _make_workflow("wf-1", WorkflowStatus.FAILED, worktree_path="/tmp/wt")
+        wf.execution_state = MagicMock()
+        repository.get = AsyncMock(return_value=wf)
+
+        # Simulate occupied worktree
+        service._active_tasks["/tmp/wt"] = ("wf-other", MagicMock())
+
+        with pytest.raises(InvalidStateError, match="worktree.*occupied"):
+            await service.resume_workflow("wf-1")
+
+        # Cleanup
+        service._active_tasks.clear()
+
+    async def test_resume_transitions_to_in_progress(
+        self,
+        service: OrchestratorService,
+        repository: AsyncMock,
+        event_bus: MagicMock,
+    ) -> None:
+        """Successful resume should clear error fields and set IN_PROGRESS."""
+        wf = _make_workflow("wf-1", WorkflowStatus.FAILED)
+        wf.failure_reason = "Server restarted"
+        wf.consecutive_errors = 3
+        wf.last_error_context = "some context"
+        wf.completed_at = datetime(2026, 1, 1, tzinfo=UTC)
+        wf.execution_state = MagicMock()
+        wf.worktree_path = "/tmp/wt-resume"
+        repository.get = AsyncMock(return_value=wf)
+
+        # Mock checkpoint validation
+        mock_state = MagicMock()
+        mock_state.values = {"some": "state"}
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+        ):
+            mock_saver = AsyncMock()
+            mock_saver.__aenter__ = AsyncMock(return_value=mock_saver)
+            mock_saver.__aexit__ = AsyncMock(return_value=False)
+
+            mp.setattr(
+                "amelia.server.orchestrator.service.AsyncSqliteSaver.from_conn_string",
+                MagicMock(return_value=mock_saver),
+            )
+
+            mock_graph = MagicMock()
+            mock_graph.aget_state = AsyncMock(return_value=mock_state)
+            mp.setattr(service, "_create_server_graph", MagicMock(return_value=mock_graph))
+
+            service._run_workflow_with_retry = AsyncMock()
+
+            await service.resume_workflow("wf-1")
+
+        # Verify error fields cleared
+        assert wf.failure_reason is None
+        assert wf.consecutive_errors == 0
+        assert wf.last_error_context is None
+        assert wf.completed_at is None
+        assert wf.workflow_status == WorkflowStatus.IN_PROGRESS
+
+        # Verify state was updated in DB
+        repository.update.assert_called_once_with(wf)
+
+    async def test_resume_emits_started_event(
+        self,
+        service: OrchestratorService,
+        repository: AsyncMock,
+        event_bus: MagicMock,
+    ) -> None:
+        """Successful resume should emit WORKFLOW_STARTED with resumed=True."""
+        wf = _make_workflow("wf-1", WorkflowStatus.FAILED)
+        wf.failure_reason = "Server restarted"
+        wf.consecutive_errors = 0
+        wf.last_error_context = None
+        wf.completed_at = None
+        wf.execution_state = MagicMock()
+        wf.worktree_path = "/tmp/wt-event"
+        repository.get = AsyncMock(return_value=wf)
+
+        mock_state = MagicMock()
+        mock_state.values = {"some": "state"}
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_saver = AsyncMock()
+            mock_saver.__aenter__ = AsyncMock(return_value=mock_saver)
+            mock_saver.__aexit__ = AsyncMock(return_value=False)
+            mp.setattr(
+                "amelia.server.orchestrator.service.AsyncSqliteSaver.from_conn_string",
+                MagicMock(return_value=mock_saver),
+            )
+            mock_graph = MagicMock()
+            mock_graph.aget_state = AsyncMock(return_value=mock_state)
+            mp.setattr(service, "_create_server_graph", MagicMock(return_value=mock_graph))
+            service._run_workflow_with_retry = AsyncMock()
+
+            await service.resume_workflow("wf-1")
+
+        # Check WORKFLOW_STARTED event with resumed=True
+        saved_events = [c[0][0] for c in repository.save_event.call_args_list]
+        started_events = [e for e in saved_events if e.event_type == EventType.WORKFLOW_STARTED]
+        assert len(started_events) == 1
+        assert started_events[0].data["resumed"] is True
