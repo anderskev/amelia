@@ -205,13 +205,13 @@ class WorkflowRepository:
             worktree_path: Optional filter by worktree path.
 
         Returns:
-            List of active workflows (pending, planning, in_progress, blocked).
+            List of active workflows (pending, in_progress, blocked).
         """
         if worktree_path:
             rows = await self._db.fetch_all(
                 """
                 SELECT state_json FROM workflows
-                WHERE status IN ('pending', 'planning', 'in_progress', 'blocked')
+                WHERE status IN ('pending', 'in_progress', 'blocked')
                 AND worktree_path = ?
                 ORDER BY started_at DESC
                 """,
@@ -221,7 +221,7 @@ class WorkflowRepository:
             rows = await self._db.fetch_all(
                 """
                 SELECT state_json FROM workflows
-                WHERE status IN ('pending', 'planning', 'in_progress', 'blocked')
+                WHERE status IN ('pending', 'in_progress', 'blocked')
                 ORDER BY started_at DESC
                 """
             )
@@ -236,7 +236,7 @@ class WorkflowRepository:
         result = await self._db.fetch_scalar(
             """
             SELECT COUNT(*) FROM workflows
-            WHERE status IN ('pending', 'planning', 'in_progress', 'blocked')
+            WHERE status IN ('pending', 'in_progress', 'blocked')
             """
         )
         # COUNT(*) always returns int; use isinstance for type narrowing
@@ -263,6 +263,32 @@ class WorkflowRepository:
             statuses,
         )
         return [ServerExecutionState.model_validate_json(row[0]) for row in rows]
+
+    async def migrate_planning_to_pending(self) -> int:
+        """Migrate stale 'planning' rows to 'pending' status.
+
+        Converts workflows left in the removed 'planning' status
+        (e.g., from a crash) to 'pending'. Also patches the
+        workflow_status field inside state_json.
+
+        Returns:
+            Number of rows migrated.
+        """
+        # Update status column
+        count = await self._db.execute(
+            "UPDATE workflows SET status = 'pending' WHERE status = 'planning'"
+        )
+        if not count:
+            return 0
+        # Patch workflow_status inside state_json
+        await self._db.execute(
+            """
+            UPDATE workflows
+            SET state_json = json_set(state_json, '$.workflow_status', 'pending')
+            WHERE json_extract(state_json, '$.workflow_status') = 'planning'
+            """
+        )
+        return count
 
     async def list_workflows(
         self,
