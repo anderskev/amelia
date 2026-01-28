@@ -878,8 +878,6 @@ class OrchestratorService:
 
         # Clear error state and transition to IN_PROGRESS
         workflow.failure_reason = None
-        workflow.consecutive_errors = 0
-        workflow.last_error_context = None
         workflow.completed_at = None
         workflow.workflow_status = WorkflowStatus.IN_PROGRESS
         await self._repository.update(workflow)

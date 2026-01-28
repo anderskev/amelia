@@ -30,11 +30,8 @@ class TestValidTransitions:
 
     def test_failed_to_completed_still_invalid(self) -> None:
         """FAILED -> COMPLETED should remain invalid (only IN_PROGRESS is allowed)."""
-        try:
+        with pytest.raises(InvalidStateTransitionError):
             validate_transition(WorkflowStatus.FAILED, WorkflowStatus.COMPLETED)
-            assert False, "Should have raised InvalidStateTransitionError"
-        except InvalidStateTransitionError:
-            pass
 
 
 @pytest.fixture
@@ -205,8 +202,6 @@ class TestResumeWorkflow:
         """Successful resume should clear error fields and set IN_PROGRESS."""
         wf = _make_workflow("wf-1", WorkflowStatus.FAILED)
         wf.failure_reason = "Server restarted"
-        wf.consecutive_errors = 3
-        wf.last_error_context = "some context"
         wf.completed_at = datetime(2026, 1, 1, tzinfo=UTC)
         wf.execution_state = MagicMock()
         wf.worktree_path = "/tmp/wt-resume"
@@ -238,8 +233,6 @@ class TestResumeWorkflow:
 
         # Verify error fields cleared
         assert wf.failure_reason is None
-        assert wf.consecutive_errors == 0
-        assert wf.last_error_context is None
         assert wf.completed_at is None
         assert wf.workflow_status == WorkflowStatus.IN_PROGRESS
 
@@ -255,8 +248,6 @@ class TestResumeWorkflow:
         """Successful resume should emit WORKFLOW_STARTED with resumed=True."""
         wf = _make_workflow("wf-1", WorkflowStatus.FAILED)
         wf.failure_reason = "Server restarted"
-        wf.consecutive_errors = 0
-        wf.last_error_context = None
         wf.completed_at = None
         wf.execution_state = MagicMock()
         wf.worktree_path = "/tmp/wt-event"
