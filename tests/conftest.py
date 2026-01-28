@@ -91,7 +91,12 @@ def _run_git_command(
         "--work-tree", str(work_tree),
         *args,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # Strip git env vars so parent process context can't interfere with test repos
+    clean_env = {
+        k: v for k, v in os.environ.items()
+        if not k.startswith("GIT_")
+    }
+    result = subprocess.run(cmd, capture_output=True, text=True, env=clean_env)
 
     if check and result.returncode != 0:
         error_msg = f"Git command failed: {' '.join(cmd)}\nstderr: {result.stderr}"
@@ -150,9 +155,14 @@ def init_git_repo(path: Path) -> Path:
         pass
 
     # Initialize the repository using git init (special case - no existing .git dir)
+    # Strip git env vars so parent process context (hooks, worktrees) can't interfere
+    clean_env = {
+        k: v for k, v in os.environ.items()
+        if not k.startswith("GIT_")
+    }
     git_dir = path / ".git"
     init_cmd = ["git", "init", str(path)]
-    result = subprocess.run(init_cmd, capture_output=True, text=True)
+    result = subprocess.run(init_cmd, capture_output=True, text=True, env=clean_env)
     if result.returncode != 0:
         raise subprocess.CalledProcessError(
             result.returncode,
