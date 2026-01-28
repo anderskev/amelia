@@ -1,5 +1,6 @@
 """Tests for FileBundler utility."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -7,6 +8,12 @@ import pytest
 
 from amelia.tools.file_bundler import BundledFile, FileBundle, bundle_files
 from tests.conftest import init_git_repo
+
+
+def _git_add(repo: Path, *args: str) -> None:
+    """Run git add with a clean environment (no inherited GIT_* vars)."""
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", "add", *args], cwd=repo, check=True, env=clean_env)
 
 
 class TestBundledFileModel:
@@ -45,7 +52,7 @@ class TestBundleFiles:
         init_git_repo(repo)
         (repo / "hello.py").write_text("print('hello')")
         # Stage the file so git ls-files picks it up
-        subprocess.run(["git", "add", "hello.py"], cwd=repo, check=True)
+        _git_add(repo, "hello.py")
 
         bundle = await bundle_files(
             working_dir=str(repo),
@@ -67,7 +74,7 @@ class TestBundleFiles:
         (src / "a.py").write_text("a = 1")
         (src / "b.py").write_text("b = 2")
         (repo / "readme.md").write_text("# Readme")
-        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        _git_add(repo, "-A")
 
         bundle = await bundle_files(
             working_dir=str(repo),
@@ -84,7 +91,7 @@ class TestBundleFiles:
         (repo / ".gitignore").write_text("ignored.py\n")
         (repo / "included.py").write_text("yes")
         (repo / "ignored.py").write_text("no")
-        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        _git_add(repo, "-A")
 
         bundle = await bundle_files(
             working_dir=str(repo),
@@ -101,7 +108,7 @@ class TestBundleFiles:
         init_git_repo(repo)
         (repo / "text.py").write_text("x = 1")
         (repo / "binary.bin").write_bytes(b"\x00\x01\x02\x03" * 128)
-        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        _git_add(repo, "-A")
 
         bundle = await bundle_files(
             working_dir=str(repo),
@@ -130,7 +137,7 @@ class TestBundleFiles:
         init_git_repo(repo)
         (repo / "keep.py").write_text("keep")
         (repo / "skip.py").write_text("skip")
-        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        _git_add(repo, "-A")
 
         bundle = await bundle_files(
             working_dir=str(repo),
