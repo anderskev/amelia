@@ -151,9 +151,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     repository = WorkflowRepository(database)
     profile_repo = ProfileRepository(database)
 
-    # Migrate stale 'planning' rows left from the removed status
-    await repository.migrate_planning_to_pending()
-
     # Create event bus
     event_bus = EventBus()
     # Wire WebSocket broadcasting and repository

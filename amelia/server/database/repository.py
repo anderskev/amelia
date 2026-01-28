@@ -264,32 +264,6 @@ class WorkflowRepository:
         )
         return [ServerExecutionState.model_validate_json(row[0]) for row in rows]
 
-    async def migrate_planning_to_pending(self) -> int:
-        """Migrate stale 'planning' rows to 'pending' status.
-
-        Converts workflows left in the removed 'planning' status
-        (e.g., from a crash) to 'pending'. Also patches the
-        workflow_status field inside state_json.
-
-        Returns:
-            Number of rows migrated.
-        """
-        # Update status column
-        count = await self._db.execute(
-            "UPDATE workflows SET status = 'pending' WHERE status = 'planning'"
-        )
-        if not count:
-            return 0
-        # Patch workflow_status inside state_json
-        await self._db.execute(
-            """
-            UPDATE workflows
-            SET state_json = json_set(state_json, '$.workflow_status', 'pending')
-            WHERE json_extract(state_json, '$.workflow_status') = 'planning'
-            """
-        )
-        return count
-
     async def list_workflows(
         self,
         status: WorkflowStatus | None = None,
