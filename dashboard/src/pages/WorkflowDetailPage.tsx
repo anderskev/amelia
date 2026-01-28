@@ -1,15 +1,18 @@
 /**
  * @fileoverview Workflow detail page with full status display.
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLoaderData } from 'react-router-dom';
+import { RotateCcw } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { AgentProgressBar, type AgentStage } from '@/components/AgentProgressBar';
 import { UsageCard } from '@/components/UsageCard';
+import { Button } from '@/components/ui/button';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
+import { useWorkflowActions } from '@/hooks/useWorkflowActions';
 import { truncateWorkflowId } from '@/utils';
 import { workflowDetailLoader } from '@/loaders';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -67,6 +70,28 @@ export default function WorkflowDetailPage() {
     // Sort by sequence number for correct ordering
     return Array.from(eventMap.values()).sort((a, b) => a.sequence - b.sequence);
   }, [workflow?.recent_events, storeEvents]);
+
+  // Determine if this failed workflow can be resumed from checkpoint
+  const isRecoverable = useMemo(() => {
+    if (workflow?.status !== 'failed') return false;
+    const failedEvents = allEvents
+      .filter((e: WorkflowEvent) => e.event_type === 'workflow_failed')
+      .sort((a: WorkflowEvent, b: WorkflowEvent) => b.sequence - a.sequence);
+    return failedEvents.length > 0 && failedEvents[0].data?.recoverable === true;
+  }, [workflow?.status, allEvents]);
+
+  const { resumeWorkflow, isActionPending } = useWorkflowActions();
+  const [isResuming, setIsResuming] = useState(false);
+
+  const handleResume = useCallback(async () => {
+    if (!workflow) return;
+    setIsResuming(true);
+    try {
+      await resumeWorkflow(workflow.id);
+    } finally {
+      setIsResuming(false);
+    }
+  }, [workflow, resumeWorkflow]);
 
   if (!workflow) {
     return (
@@ -134,6 +159,26 @@ export default function WorkflowDetailPage() {
               status="pending"
               className="flex-1"
             />
+          )}
+
+          {/* Recovery controls - shown for recoverable failed workflows */}
+          {isRecoverable && (
+            <div className="p-4 border border-border rounded-lg bg-card">
+              <h4 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-2">
+                RECOVERY
+              </h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                This workflow failed due to a server restart and can be resumed from its last checkpoint.
+              </p>
+              <Button
+                onClick={handleResume}
+                disabled={isResuming || isActionPending(workflow.id)}
+                variant="outline"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Resume
+              </Button>
+            </div>
           )}
 
           {/* Goal display - shown when not blocked or as secondary info */}
