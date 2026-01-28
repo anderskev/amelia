@@ -187,8 +187,24 @@ class TestResumeWorkflow:
         # Simulate occupied worktree
         service._active_tasks["/tmp/wt"] = ("wf-other", MagicMock())
 
-        with pytest.raises(InvalidStateError, match="worktree.*occupied"):
-            await service.resume_workflow("wf-1")
+        # Mock checkpoint validation so it passes (worktree check is after checkpoint)
+        mock_state = MagicMock()
+        mock_state.values = {"some": "state"}
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_saver = AsyncMock()
+            mock_saver.__aenter__ = AsyncMock(return_value=mock_saver)
+            mock_saver.__aexit__ = AsyncMock(return_value=False)
+            mp.setattr(
+                "amelia.server.orchestrator.service.AsyncSqliteSaver.from_conn_string",
+                MagicMock(return_value=mock_saver),
+            )
+            mock_graph = MagicMock()
+            mock_graph.aget_state = AsyncMock(return_value=mock_state)
+            mp.setattr(service, "_create_server_graph", MagicMock(return_value=mock_graph))
+
+            with pytest.raises(InvalidStateError, match="worktree.*occupied"):
+                await service.resume_workflow("wf-1")
 
         # Cleanup
         service._active_tasks.clear()

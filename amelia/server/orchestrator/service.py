@@ -851,16 +851,7 @@ class OrchestratorService:
                 current_status=workflow.workflow_status,
             )
 
-        # Check worktree is not occupied
-        if workflow.worktree_path in self._active_tasks:
-            existing_id, _ = self._active_tasks[workflow.worktree_path]
-            raise InvalidStateError(
-                f"Cannot resume: worktree is occupied by workflow {existing_id}",
-                workflow_id=workflow_id,
-                current_status=workflow.workflow_status,
-            )
-
-        # Validate checkpoint exists
+        # Validate checkpoint exists (read-only, safe outside lock)
         async with AsyncSqliteSaver.from_conn_string(
             str(self._checkpoint_path)
         ) as checkpointer:
@@ -876,26 +867,36 @@ class OrchestratorService:
                     current_status=workflow.workflow_status,
                 )
 
-        # Clear error state and transition to IN_PROGRESS
-        workflow.failure_reason = None
-        workflow.completed_at = None
-        workflow.workflow_status = WorkflowStatus.IN_PROGRESS
-        await self._repository.update(workflow)
+        async with self._start_lock:
+            # Check worktree is not occupied (under lock to prevent TOCTOU race)
+            if workflow.worktree_path in self._active_tasks:
+                existing_id, _ = self._active_tasks[workflow.worktree_path]
+                raise InvalidStateError(
+                    f"Cannot resume: worktree is occupied by workflow {existing_id}",
+                    workflow_id=workflow_id,
+                    current_status=workflow.workflow_status,
+                )
 
-        await self._emit(
-            workflow_id,
-            EventType.WORKFLOW_STARTED,
-            "Workflow resumed from checkpoint",
-            data={"resumed": True},
-        )
+            # Clear error state and transition to IN_PROGRESS
+            workflow.failure_reason = None
+            workflow.completed_at = None
+            workflow.workflow_status = WorkflowStatus.IN_PROGRESS
+            await self._repository.update(workflow)
 
-        logger.info("Resuming workflow", workflow_id=workflow_id)
+            await self._emit(
+                workflow_id,
+                EventType.WORKFLOW_STARTED,
+                "Workflow resumed from checkpoint",
+                data={"resumed": True},
+            )
 
-        # Launch workflow task (same as start_workflow)
-        task = asyncio.create_task(
-            self._run_workflow_with_retry(workflow_id, workflow)
-        )
-        self._active_tasks[workflow.worktree_path] = (workflow_id, task)
+            logger.info("Resuming workflow", workflow_id=workflow_id)
+
+            # Launch workflow task (same as start_workflow)
+            task = asyncio.create_task(
+                self._run_workflow_with_retry(workflow_id, workflow)
+            )
+            self._active_tasks[workflow.worktree_path] = (workflow_id, task)
 
         def cleanup_task(_: asyncio.Task[None]) -> None:
             """Clean up resources when resumed workflow task completes."""

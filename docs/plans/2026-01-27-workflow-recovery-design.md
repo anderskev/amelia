@@ -46,12 +46,15 @@ After processing, log a summary: "Recovery complete: {n} workflows marked failed
 - A valid LangGraph checkpoint must exist for the workflow's `thread_id` — open `AsyncSqliteSaver`, call `graph.aget_state(config)`, return 409 if checkpoint is missing or empty
 - The worktree path must not have an active workflow running (409 if occupied, checked via `_active_tasks`)
 
-**Execution:**
-1. Transition status from FAILED to IN_PROGRESS (add FAILED -> IN_PROGRESS to `VALID_TRANSITIONS`)
-2. Clear `failure_reason`, `consecutive_errors`, `last_error_context`; reset `completed_at` to None
-3. Emit `WORKFLOW_STARTED` event with `data={"resumed": True}`
-4. Create an `asyncio.Task` that calls the existing `_run_workflow` flow, which already detects checkpoints and resumes with `input_state = None`
-5. Register the task in `_active_tasks` with the standard cleanup callback
+**Concurrency:** The worktree check and task registration must be performed under `_start_lock` (the same `asyncio.Lock` used by `start_workflow`) to prevent TOCTOU races where two concurrent resume requests both pass the availability check. Checkpoint validation is read-only and can safely run outside the lock.
+
+**Execution (under `_start_lock`):**
+1. Check worktree is not occupied via `_active_tasks`
+2. Transition status from FAILED to IN_PROGRESS (add FAILED -> IN_PROGRESS to `VALID_TRANSITIONS`)
+3. Clear `failure_reason`, `consecutive_errors`, `last_error_context`; reset `completed_at` to None
+4. Emit `WORKFLOW_STARTED` event with `data={"resumed": True}`
+5. Create an `asyncio.Task` that calls the existing `_run_workflow` flow, which already detects checkpoints and resumes with `input_state = None`
+6. Register the task in `_active_tasks` with the standard cleanup callback
 
 **Response:** Return the workflow state as JSON.
 
