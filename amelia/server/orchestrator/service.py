@@ -2093,20 +2093,49 @@ class OrchestratorService:
 
 
     async def recover_interrupted_workflows(self) -> None:
-        """Recover workflows that were running when server crashed.
+        """Recover workflows that were running when server restarted.
 
-        Scans for workflows in non-terminal states (in_progress, blocked) and marks
-        them as failed with an appropriate reason. This prevents stale workflows from
-        persisting after server restarts.
-
-        Note:
-            This is a placeholder - full implementation will be added when LangGraph
-            integration is complete.
+        IN_PROGRESS workflows are marked FAILED (recoverable). BLOCKED workflows
+        get their APPROVAL_REQUIRED event re-emitted so dashboard clients see them.
         """
-        logger.info("Checking for interrupted workflows...")
-        # TODO: Query for workflows with status=in_progress or blocked
-        # and mark them as failed with appropriate reason
-        logger.info("No interrupted workflows to recover")
+        failed_count = 0
+        blocked_count = 0
+
+        # Handle IN_PROGRESS workflows — mark as FAILED
+        in_progress = await self._repository.find_by_status([WorkflowStatus.IN_PROGRESS])
+        for wf in in_progress:
+            await self._repository.set_status(
+                wf.id,
+                WorkflowStatus.FAILED,
+                failure_reason="Server restarted while workflow was running",
+            )
+            await self._emit(
+                wf.id,
+                EventType.WORKFLOW_FAILED,
+                "Server restarted while workflow was running",
+                data={"recoverable": True},
+            )
+            logger.info("Recovered interrupted workflow", workflow_id=wf.id)
+            failed_count += 1
+
+        # Handle BLOCKED workflows — re-emit approval events
+        blocked = await self._repository.find_by_status([WorkflowStatus.BLOCKED])
+        for wf in blocked:
+            await self._emit(
+                wf.id,
+                EventType.APPROVAL_REQUIRED,
+                "Plan ready for review - awaiting human approval (restored after restart)",
+                agent="human_approval",
+                data={"paused_at": "human_approval_node"},
+            )
+            logger.info("Restored blocked workflow approval", workflow_id=wf.id)
+            blocked_count += 1
+
+        logger.info(
+            "Recovery complete",
+            workflows_failed=failed_count,
+            approvals_restored=blocked_count,
+        )
 
     async def _run_planning_task(
         self,
