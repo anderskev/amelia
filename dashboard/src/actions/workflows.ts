@@ -99,6 +99,20 @@ export async function cancelAction({ params }: ActionFunctionArgs): Promise<Acti
   }
 }
 
+/**
+ * Resumes a failed workflow from its last checkpoint.
+ *
+ * Handles the resume action for a recoverable workflow, sending the request to the API.
+ *
+ * @param args - React Router action function arguments containing route params.
+ * @returns Action result indicating successful resume initiation or error details.
+ * @example
+ * ```typescript
+ * const result = await resumeAction({ params: { id: 'workflow-123' } });
+ * // Success: { success: true, action: 'resumed' }
+ * // Error: { success: false, action: 'resumed', error: 'Workflow ID required' }
+ * ```
+ */
 export async function resumeAction({ params }: ActionFunctionArgs): Promise<ActionResult> {
   if (!params.id) {
     return { success: false, action: 'resumed', error: 'Workflow ID required' };
