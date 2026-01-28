@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { approveAction, rejectAction, cancelAction } from '../workflows';
+import { approveAction, rejectAction, cancelAction, resumeAction } from '../workflows';
 import { api } from '../../api/client';
 import type { ActionFunctionArgs } from 'react-router-dom';
 
@@ -25,6 +25,7 @@ describe('Workflow Actions', () => {
       ['approveAction', approveAction, 'approved'],
       ['rejectAction', rejectAction, 'rejected'],
       ['cancelAction', cancelAction, 'cancelled'],
+      ['resumeAction', resumeAction, 'resumed'],
     ])('%s should return error if ID is missing', async (_name, action, actionType) => {
       const args = createActionArgs({});
       const result = await action(args);
@@ -121,6 +122,29 @@ describe('Workflow Actions', () => {
         success: false,
         action: 'cancelled',
         error: 'Cannot cancel',
+      });
+    });
+  });
+
+  describe('resumeAction', () => {
+    it('should resume workflow by ID from params', async () => {
+      vi.mocked(api.resumeWorkflow).mockResolvedValueOnce(undefined);
+
+      const result = await resumeAction(createActionArgs({ id: 'wf-1' }));
+
+      expect(api.resumeWorkflow).toHaveBeenCalledWith('wf-1');
+      expect(result).toEqual({ success: true, action: 'resumed' });
+    });
+
+    it('should return error on API failure', async () => {
+      vi.mocked(api.resumeWorkflow).mockRejectedValueOnce(new Error('Cannot resume'));
+
+      const result = await resumeAction(createActionArgs({ id: 'wf-1' }));
+
+      expect(result).toEqual({
+        success: false,
+        action: 'resumed',
+        error: 'Cannot resume',
       });
     });
   });

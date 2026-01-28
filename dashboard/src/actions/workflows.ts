@@ -99,6 +99,20 @@ export async function cancelAction({ params }: ActionFunctionArgs): Promise<Acti
   }
 }
 
+export async function resumeAction({ params }: ActionFunctionArgs): Promise<ActionResult> {
+  if (!params.id) {
+    return { success: false, action: 'resumed', error: 'Workflow ID required' };
+  }
+
+  try {
+    await api.resumeWorkflow(params.id);
+    return { success: true, action: 'resumed' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to resume workflow';
+    return { success: false, action: 'resumed', error: message };
+  }
+}
+
 /**
  * Replans a blocked workflow by regenerating the Architect plan.
  *
