@@ -298,6 +298,26 @@ export const api = {
   },
 
   /**
+   * Resume a failed workflow from its last checkpoint.
+   *
+   * @param id - The unique identifier of the workflow to resume.
+   * @returns Promise that resolves when the resume request is successful.
+   * @throws {ApiError} When the workflow is not found, not in a failed state, or the API request fails.
+   *
+   * @example
+   * ```typescript
+   * await api.resumeWorkflow('workflow-123');
+   * ```
+   */
+  async resumeWorkflow(id: string): Promise<void> {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/workflows/${id}/resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await handleResponse(response);
+  },
+
+  /**
    * Retrieves workflow history for completed, failed, and cancelled workflows.
    *
    * Makes parallel requests for each status type (completed, failed, cancelled)
