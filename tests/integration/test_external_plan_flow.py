@@ -34,7 +34,6 @@ from amelia.server.dependencies import get_orchestrator, get_repository
 from amelia.server.events.bus import EventBus
 from amelia.server.main import create_app
 from amelia.server.orchestrator.service import OrchestratorService
-from tests.conftest import init_git_repo
 
 
 # =============================================================================
@@ -175,7 +174,7 @@ class TestExternalPlanAtCreation:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         plan_content = "# Implementation Plan\n\n### Task 1: Do thing\n\nDo it."
@@ -222,7 +221,7 @@ class TestExternalPlanAtCreation:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create plan file in the git repo
@@ -273,7 +272,7 @@ class TestExternalPlanAtCreation:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         response = test_client.post(
@@ -305,7 +304,7 @@ class TestExternalPlanAtCreation:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         response = test_client.post(
@@ -342,7 +341,7 @@ class TestSetPlanEndpoint:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create workflow without plan
@@ -417,7 +416,7 @@ class TestSetPlanEndpoint:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create workflow
@@ -451,7 +450,7 @@ class TestSetPlanEndpoint:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create workflow with initial plan
@@ -527,7 +526,7 @@ class TestExternalPlanValidation:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create workflow
@@ -562,7 +561,7 @@ class TestExternalPlanValidation:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create workflow
@@ -602,7 +601,7 @@ class TestExternalPlanTaskCount:
         # Initialize a git repo
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Plan with 3 tasks

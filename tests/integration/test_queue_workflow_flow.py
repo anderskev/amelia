@@ -40,9 +40,6 @@ from amelia.server.main import create_app
 from amelia.server.models.state import ServerExecutionState
 from amelia.server.orchestrator.service import OrchestratorService
 
-# init_git_repo is imported from conftest.py via pytest fixture auto-discovery
-from tests.conftest import init_git_repo
-
 
 # =============================================================================
 # Fixtures
@@ -167,7 +164,7 @@ class TestQueueWorkflowCreation:
         # Initialize a git repo with settings
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create settings file in git repo
@@ -217,7 +214,7 @@ profiles:
         # Initialize a git repo (required for worktree validation)
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Mock LangGraph to prevent actual graph execution
@@ -505,7 +502,7 @@ class TestQueueThenStartFlow:
         # Initialize a git repo with settings
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create settings file in git repo
@@ -581,7 +578,7 @@ profiles:
         # Initialize a git repo with settings
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create settings file in git repo
@@ -655,7 +652,7 @@ class TestQueueMultiplePendingWorkflows:
         # Initialize a git repo with settings
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create settings file in git repo
@@ -726,7 +723,7 @@ profiles:
         # Initialize a git repo with settings
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create settings file in git repo
@@ -812,7 +809,7 @@ class TestQueuedWorkflowExecution:
         # Initialize a git repo with settings
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create settings file in git repo
@@ -866,7 +863,7 @@ profiles:
         # Initialize a git repo with settings
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create settings file in git repo
@@ -952,7 +949,7 @@ class TestQueuedWorkflowStateTransition:
         # Initialize a git repo with settings
         git_dir = tmp_path / "git-repo"
         git_dir.mkdir()
-        init_git_repo(git_dir)
+        (git_dir / ".git").mkdir()
         resolved_path = str(git_dir.resolve())
 
         # Create settings file in git repo

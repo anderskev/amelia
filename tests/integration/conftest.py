@@ -31,7 +31,7 @@ from amelia.server.models.state import (
     rebuild_server_execution_state,
 )
 from amelia.server.orchestrator.service import OrchestratorService
-from tests.conftest import AsyncIteratorMock, init_git_repo
+from tests.conftest import AsyncIteratorMock
 
 
 # Rebuild ImplementationState first (resolves EvaluationResult),
@@ -627,7 +627,8 @@ def valid_worktree(tmp_path: Path) -> str:
     """Create a valid git worktree directory with required settings file."""
     worktree = tmp_path / "worktree"
     worktree.mkdir()
-    init_git_repo(worktree)
+    # Create fake .git directory - production code only checks .git exists
+    (worktree / ".git").mkdir()
 
     # Worktree settings are required (no fallback to server settings)
     settings_content = """

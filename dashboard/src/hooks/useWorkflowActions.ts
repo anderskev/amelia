@@ -37,10 +37,18 @@ interface UseWorkflowActionsResult {
   cancelWorkflow: (workflowId: string, previousStatus: WorkflowStatus) => Promise<void>;
 
   /**
+   * Resumes a failed workflow from its last checkpoint.
+   *
+   * @param workflowId - The unique identifier of the workflow to resume.
+   * @returns A promise that resolves when the resume request is complete.
+   */
+  resumeWorkflow: (workflowId: string) => Promise<void>;
+
+  /**
    * Checks if any action is currently pending for the specified workflow.
    *
    * @param workflowId - The unique identifier of the workflow to check.
-   * @returns True if an action (approve, reject, or cancel) is pending for this workflow.
+   * @returns True if an action (approve, reject, cancel, or resume) is pending for this workflow.
    */
   isActionPending: (workflowId: string) => boolean;
 }
@@ -141,13 +149,31 @@ export function useWorkflowActions(): UseWorkflowActionsResult {
     [addPendingAction, removePendingAction]
   );
 
+  const resumeWorkflow = useCallback(
+    async (workflowId: string) => {
+      const actionId = `resume-${workflowId}`;
+      addPendingAction(actionId);
+
+      try {
+        await api.resumeWorkflow(workflowId);
+        toast.success('Workflow resumed');
+      } catch (error) {
+        toast.error(`Resume failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        removePendingAction(actionId);
+      }
+    },
+    [addPendingAction, removePendingAction]
+  );
+
   const isActionPending = useCallback(
     (workflowId: string) => {
       return pendingActions.some(
         (id) =>
           id === `approve-${workflowId}` ||
           id === `reject-${workflowId}` ||
-          id === `cancel-${workflowId}`
+          id === `cancel-${workflowId}` ||
+          id === `resume-${workflowId}`
       );
     },
     [pendingActions]
@@ -157,6 +183,7 @@ export function useWorkflowActions(): UseWorkflowActionsResult {
     approveWorkflow,
     rejectWorkflow,
     cancelWorkflow,
+    resumeWorkflow,
     isActionPending,
   };
 }
