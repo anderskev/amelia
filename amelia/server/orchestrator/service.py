@@ -1034,7 +1034,11 @@ class OrchestratorService:
             )
 
             try:
-                await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
+                # Only set status to IN_PROGRESS if not already in that state.
+                # This handles resumed workflows which are already IN_PROGRESS.
+                workflow = await self._repository.get(workflow_id)
+                if workflow and workflow.workflow_status != WorkflowStatus.IN_PROGRESS:
+                    await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
 
                 was_interrupted = False
                 # Use astream with stream_mode="updates" to detect interrupts
