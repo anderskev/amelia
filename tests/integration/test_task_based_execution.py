@@ -8,6 +8,8 @@ the orchestrator's routing logic and node transitions:
 4. Execution halts when max review iterations reached
 """
 
+import os
+import subprocess
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
@@ -26,6 +28,51 @@ from tests.integration.conftest import (
     make_profile,
     make_reviewer_agentic_messages,
 )
+
+
+@pytest.fixture
+def git_repo(tmp_path: Path) -> Path:
+    """Create a real git repository for testing commit behavior.
+
+    This fixture creates a minimal git repository with user config and
+    initial commit. Required by tests that verify actual git operations.
+    """
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    # Isolate from parent git environment
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+    subprocess.run(["git", "init", str(repo_dir)], env=clean_env, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=repo_dir,
+        env=clean_env,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=repo_dir,
+        env=clean_env,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "commit.gpgsign", "false"],
+        cwd=repo_dir,
+        env=clean_env,
+        check=True,
+    )
+
+    (repo_dir / "README.md").write_text("# Test")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, env=clean_env, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial"],
+        cwd=repo_dir,
+        env=clean_env,
+        check=True,
+    )
+
+    return repo_dir
 
 
 @pytest.fixture(autouse=True)

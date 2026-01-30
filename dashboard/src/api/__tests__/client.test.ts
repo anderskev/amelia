@@ -89,6 +89,11 @@ describe('API Client', () => {
         id: 'wf-1',
         expectedUrl: '/api/workflows/wf-1/cancel',
       },
+      {
+        method: 'resumeWorkflow' as const,
+        id: 'wf-1',
+        expectedUrl: '/api/workflows/wf-1/resume',
+      },
     ])(
       '$method should POST to correct endpoint without body',
       async ({ method, id, expectedUrl }) => {

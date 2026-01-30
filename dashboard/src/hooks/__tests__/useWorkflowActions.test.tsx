@@ -49,6 +49,14 @@ describe('useWorkflowActions', () => {
       successMessage: 'Workflow cancelled',
       errorPrefix: 'Cancellation failed',
     },
+    {
+      action: 'resumeWorkflow' as const,
+      actionId: 'resume',
+      apiMethod: 'resumeWorkflow' as const,
+      args: ['wf-1'] as const,
+      successMessage: 'Workflow resumed',
+      errorPrefix: 'Resume failed',
+    },
   ])('$action', ({ action, actionId, apiMethod, args, successMessage, errorPrefix }) => {
     it('should add pending action during request', async () => {
       vi.mocked(api[apiMethod]).mockImplementationOnce(
