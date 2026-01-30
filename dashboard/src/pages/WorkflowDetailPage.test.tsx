@@ -360,7 +360,6 @@ describe('WorkflowDetailPage resume button', () => {
       issue_id: 'ACTIVE-TEST',
       worktree_path: '/tmp/worktrees/active-test',
       status: 'in_progress',
-      current_stage: 'developer',
     });
 
     const router = createMemoryRouter(
