@@ -75,7 +75,7 @@ class TestStateTransitions:
         assert exc.value.current == current
         assert exc.value.target == target
 
-    @pytest.mark.parametrize("terminal", ["completed", "failed", "cancelled"])
+    @pytest.mark.parametrize("terminal", ["completed", "cancelled"])
     def test_terminal_states_cannot_transition(self, terminal: WorkflowStatus) -> None:
         """Terminal states cannot transition to any other state."""
         all_states: list[WorkflowStatus] = [
@@ -90,6 +90,22 @@ class TestStateTransitions:
             if target != terminal:
                 with pytest.raises(InvalidStateTransitionError):
                     validate_transition(terminal, target)
+
+    def test_failed_only_allows_in_progress(self) -> None:
+        """FAILED state can only transition to IN_PROGRESS (for resume)."""
+        all_states: list[WorkflowStatus] = [
+            "pending",
+            "blocked",
+            "completed",
+            "failed",
+            "cancelled",
+        ]
+        # These should all be invalid
+        for target in all_states:
+            with pytest.raises(InvalidStateTransitionError):
+                validate_transition("failed", target)
+        # Only IN_PROGRESS is valid (for resume)
+        validate_transition("failed", "in_progress")
 
 
 class TestServerExecutionState:

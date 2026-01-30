@@ -37,7 +37,7 @@ VALID_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
     WorkflowStatus.IN_PROGRESS: {WorkflowStatus.BLOCKED, WorkflowStatus.COMPLETED, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED},
     WorkflowStatus.BLOCKED: {WorkflowStatus.PENDING, WorkflowStatus.IN_PROGRESS, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED},
     WorkflowStatus.COMPLETED: set(),  # Terminal state
-    WorkflowStatus.FAILED: set(),  # Terminal state
+    WorkflowStatus.FAILED: {WorkflowStatus.IN_PROGRESS},  # Resumable via recovery
     WorkflowStatus.CANCELLED: set(),  # Terminal state
 }
 
