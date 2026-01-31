@@ -1,4 +1,5 @@
 """Database connection management with SQLite."""
+import contextlib
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -383,10 +384,9 @@ class Database:
 
         # Migration: Drop state_json column (no longer used)
         # ImplementationState now lives in LangGraph checkpoints, not our DB
-        try:
+        with contextlib.suppress(Exception):
+            # Column already dropped or SQLite version doesn't support DROP COLUMN
             await self.execute("ALTER TABLE workflows DROP COLUMN state_json")
-        except Exception:
-            pass  # Column already dropped or SQLite version doesn't support DROP COLUMN
 
         # Unique constraint: one active workflow per worktree
         # Note: 'pending' is intentionally excluded - multiple pending workflows
