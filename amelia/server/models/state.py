@@ -4,13 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import BaseModel, Field
-
-
-if TYPE_CHECKING:
-    from amelia.pipelines.implementation.state import ImplementationState
 
 
 class WorkflowStatus(StrEnum):
@@ -149,16 +145,15 @@ class PlanCache(BaseModel):
 
 
 class ServerExecutionState(BaseModel):
-    """Extended ExecutionState for server-side workflow tracking.
+    """Server-side workflow tracking state.
 
-    This model extends the core ExecutionState with server-specific fields
-    for persistence and tracking.
+    This model stores workflow metadata for persistence and tracking.
+    The actual ImplementationState lives in LangGraph checkpoints.
 
     Attributes:
         id: Unique workflow identifier (UUID).
         issue_id: Issue being worked on.
         worktree_path: Absolute path to git worktree root.
-        execution_state: Core orchestration state.
         workflow_status: Current workflow status.
         started_at: When workflow started.
         completed_at: When workflow ended (success or failure).
@@ -183,11 +178,6 @@ class ServerExecutionState(BaseModel):
     issue_cache: str | None = Field(
         default=None,
         description="Serialized Issue JSON for reconstructing initial state",
-    )
-
-    execution_state: ImplementationState | None = Field(
-        default=None,
-        description="Core orchestration state",
     )
     workflow_status: WorkflowStatus = Field(
         default=WorkflowStatus.PENDING,
@@ -223,34 +213,3 @@ class ServerExecutionState(BaseModel):
             ]
         }
     }
-
-
-def rebuild_server_execution_state() -> None:
-    """Rebuild ServerExecutionState to resolve forward references.
-
-    Must be called after the application has finished importing to enable
-    Pydantic validation of ImplementationState in execution_state field.
-
-    This function imports ImplementationState and its TYPE_CHECKING dependencies,
-    then calls model_rebuild() to refresh Pydantic's type resolution.
-
-    Example:
-        from amelia.server.models.state import rebuild_server_execution_state
-        rebuild_server_execution_state()
-    """
-    import sys  # noqa: PLC0415
-
-    from amelia.agents.evaluator import EvaluationResult  # noqa: PLC0415
-    from amelia.pipelines.implementation.state import ImplementationState  # noqa: PLC0415
-
-    # Inject types into this module's namespace for get_type_hints() compatibility
-    module = sys.modules[__name__]
-    module.ImplementationState = ImplementationState  # type: ignore[attr-defined]  # Dynamic module injection for LangGraph
-    module.EvaluationResult = EvaluationResult  # type: ignore[attr-defined]  # Dynamic module injection for LangGraph
-
-    ServerExecutionState.model_rebuild(
-        _types_namespace={
-            "ImplementationState": ImplementationState,
-            "EvaluationResult": EvaluationResult,
-        }
-    )
