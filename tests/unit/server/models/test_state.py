@@ -73,12 +73,12 @@ class TestStateTransitions:
     def test_terminal_states_cannot_transition(self, terminal: WorkflowStatus) -> None:
         """Terminal states cannot transition to any other state."""
         all_states: list[WorkflowStatus] = [
-            "pending",
-            "in_progress",
-            "blocked",
-            "completed",
-            "failed",
-            "cancelled",
+            WorkflowStatus.PENDING,
+            WorkflowStatus.IN_PROGRESS,
+            WorkflowStatus.BLOCKED,
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.FAILED,
+            WorkflowStatus.CANCELLED,
         ]
         for target in all_states:
             if target != terminal:
@@ -88,18 +88,18 @@ class TestStateTransitions:
     def test_failed_only_allows_in_progress(self) -> None:
         """FAILED state can only transition to IN_PROGRESS (for resume)."""
         all_states: list[WorkflowStatus] = [
-            "pending",
-            "blocked",
-            "completed",
-            "failed",
-            "cancelled",
+            WorkflowStatus.PENDING,
+            WorkflowStatus.BLOCKED,
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.FAILED,
+            WorkflowStatus.CANCELLED,
         ]
         # These should all be invalid
         for target in all_states:
             with pytest.raises(InvalidStateTransitionError):
-                validate_transition("failed", target)
+                validate_transition(WorkflowStatus.FAILED, target)
         # Only IN_PROGRESS is valid (for resume)
-        validate_transition("failed", "in_progress")
+        validate_transition(WorkflowStatus.FAILED, WorkflowStatus.IN_PROGRESS)
 
 
 class TestServerExecutionState:
@@ -140,8 +140,6 @@ class TestPlanCache:
         assert cache.goal is None
         assert cache.plan_markdown is None
         assert cache.plan_path is None
-        assert cache.tool_calls == []
-        assert cache.tool_results == []
         assert cache.total_tasks is None
         assert cache.current_task_index is None
 
@@ -151,8 +149,6 @@ class TestPlanCache:
             goal="Implement feature X",
             plan_markdown="# Plan\n- Step 1",
             plan_path="/path/to/plan.md",
-            tool_calls=[{"tool_name": "write_file", "tool_input": {"file_path": "/plan.md"}}],
-            tool_results=[{"output": "success"}],
             total_tasks=5,
             current_task_index=2,
         )
@@ -160,8 +156,6 @@ class TestPlanCache:
         assert cache.goal == "Implement feature X"
         assert cache.plan_markdown == "# Plan\n- Step 1"
         assert cache.plan_path == "/path/to/plan.md"
-        assert len(cache.tool_calls) == 1
-        assert len(cache.tool_results) == 1
         assert cache.total_tasks == 5
         assert cache.current_task_index == 2
 
@@ -180,15 +174,12 @@ class TestPlanCache:
         assert restored.plan_markdown == original.plan_markdown
         assert restored.total_tasks == original.total_tasks
 
-    def test_from_checkpoint_values_extracts_plan_path(self) -> None:
-        """from_checkpoint_values extracts plan_path from write_file tool calls."""
+    def test_from_checkpoint_values(self) -> None:
+        """from_checkpoint_values reads plan_path directly from values."""
         values = {
             "goal": "Test goal",
             "plan_markdown": "# Plan",
-            "tool_calls": [
-                {"tool_name": "write_file", "tool_input": {"file_path": "/path/to/plan.md"}},
-            ],
-            "tool_results": [{"output": "success"}],
+            "plan_path": "/path/to/plan.md",
             "total_tasks": 5,
             "current_task_index": 1,
         }
@@ -210,8 +201,6 @@ class TestPlanCache:
         assert cache.goal is None
         assert cache.plan_markdown is None
         assert cache.plan_path is None
-        assert cache.tool_calls == []
-        assert cache.tool_results == []
 
 
 class TestServerExecutionStateWithNewFields:

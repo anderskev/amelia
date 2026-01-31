@@ -2068,7 +2068,6 @@ class OrchestratorService:
             # Check for goal and plan_markdown from agentic execution
             goal = checkpoint_state.values.get("goal")
             plan_markdown = checkpoint_state.values.get("plan_markdown")
-            tool_calls = checkpoint_state.values.get("tool_calls", [])
 
             # Log checkpoint values for debugging
             logger.info(
@@ -2078,7 +2077,6 @@ class OrchestratorService:
                 goal_preview=goal[:100] if goal else None,
                 has_plan_markdown=plan_markdown is not None,
                 plan_markdown_length=len(plan_markdown) if plan_markdown else 0,
-                tool_calls_count=len(tool_calls),
             )
 
             if goal is None and plan_markdown is None:
@@ -2098,7 +2096,6 @@ class OrchestratorService:
             logger.debug(
                 "Synced plan to plan_cache column",
                 workflow_id=workflow_id,
-                tool_calls_count=len(plan_cache.tool_calls),
                 has_plan_path=plan_cache.plan_path is not None,
             )
 
@@ -2629,7 +2626,6 @@ class OrchestratorService:
             plan_markdown=plan_result.plan_markdown,
             plan_path=str(plan_result.plan_path) if plan_result.plan_path else None,
             total_tasks=plan_result.total_tasks,
-            tool_calls=[],
         )
         await self._repository.update_plan_cache(workflow_id, plan_cache)
 

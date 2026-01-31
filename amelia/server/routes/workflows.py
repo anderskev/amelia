@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
@@ -327,23 +326,16 @@ async def get_workflow(
     events = await repository.get_recent_events(workflow_id, limit=50)
     recent_events = [event.model_dump(mode="json") for event in events]
 
-    # Extract plan data - prefer plan_cache, fall back to execution_state
+    # Extract plan data from plan_cache
     goal: str | None = None
     plan_markdown: str | None = None
     plan_path: str | None = None
-    tool_calls: list[dict[str, Any]] = []
-    tool_results: list[dict[str, Any]] = []
-    final_response: str | None = None
 
     if workflow.plan_cache is not None:
-        # Use plan_cache column
         goal = workflow.plan_cache.goal
         plan_markdown = workflow.plan_cache.plan_markdown
         plan_path = workflow.plan_cache.plan_path
-        tool_calls = workflow.plan_cache.tool_calls
-        tool_results = workflow.plan_cache.tool_results
 
-    # DEBUG: Log what API sees from database
     logger.info(
         "API returning workflow detail",
         workflow_id=workflow_id,
@@ -367,9 +359,6 @@ async def get_workflow(
         plan_path=plan_path,
         token_usage=token_usage,
         recent_events=recent_events,
-        tool_calls=tool_calls,
-        tool_results=tool_results,
-        final_response=final_response,
     )
 
 
