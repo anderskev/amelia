@@ -73,12 +73,12 @@ class TestStateTransitions:
     def test_terminal_states_cannot_transition(self, terminal: WorkflowStatus) -> None:
         """Terminal states cannot transition to any other state."""
         all_states: list[WorkflowStatus] = [
-            "pending",
-            "in_progress",
-            "blocked",
-            "completed",
-            "failed",
-            "cancelled",
+            WorkflowStatus.PENDING,
+            WorkflowStatus.IN_PROGRESS,
+            WorkflowStatus.BLOCKED,
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.FAILED,
+            WorkflowStatus.CANCELLED,
         ]
         for target in all_states:
             if target != terminal:
@@ -88,18 +88,18 @@ class TestStateTransitions:
     def test_failed_only_allows_in_progress(self) -> None:
         """FAILED state can only transition to IN_PROGRESS (for resume)."""
         all_states: list[WorkflowStatus] = [
-            "pending",
-            "blocked",
-            "completed",
-            "failed",
-            "cancelled",
+            WorkflowStatus.PENDING,
+            WorkflowStatus.BLOCKED,
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.FAILED,
+            WorkflowStatus.CANCELLED,
         ]
         # These should all be invalid
         for target in all_states:
             with pytest.raises(InvalidStateTransitionError):
-                validate_transition("failed", target)
+                validate_transition(WorkflowStatus.FAILED, target)
         # Only IN_PROGRESS is valid (for resume)
-        validate_transition("failed", "in_progress")
+        validate_transition(WorkflowStatus.FAILED, WorkflowStatus.IN_PROGRESS)
 
 
 class TestServerExecutionState:
