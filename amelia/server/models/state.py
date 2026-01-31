@@ -111,9 +111,19 @@ class PlanCache(BaseModel):
 
         # Extract plan_path from Write tool calls
         for tc in tool_calls:
-            tool_name = getattr(tc, "tool_name", None) or tc.get("tool_name")
-            tool_input = getattr(tc, "tool_input", None) or tc.get("tool_input", {})
-            if tool_name == "write_file" and "file_path" in tool_input:
+            # Handle both dict and Pydantic model tool calls
+            if isinstance(tc, dict):
+                tool_name = tc.get("tool_name")
+                tool_input = tc.get("tool_input", {})
+            else:
+                tool_name = getattr(tc, "tool_name", None)
+                tool_input = getattr(tc, "tool_input", None) or {}
+
+            if (
+                tool_name == "write_file"
+                and isinstance(tool_input, dict)
+                and "file_path" in tool_input
+            ):
                 plan_path = str(tool_input["file_path"])
                 break
 
