@@ -82,8 +82,6 @@ class PlanCache(BaseModel):
         goal: The high-level goal for the implementation.
         plan_markdown: The full plan in markdown format.
         plan_path: Path to the plan file on disk.
-        tool_calls: List of tool calls made during planning.
-        tool_results: List of tool results from planning.
         total_tasks: Total number of tasks in the plan.
         current_task_index: Index of the current task being executed.
     """
@@ -91,8 +89,6 @@ class PlanCache(BaseModel):
     goal: str | None = None
     plan_markdown: str | None = None
     plan_path: str | None = None
-    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
-    tool_results: list[dict[str, Any]] = Field(default_factory=list)
     total_tasks: int | None = None
     current_task_index: int | None = None
 
@@ -106,49 +102,14 @@ class PlanCache(BaseModel):
         Returns:
             PlanCache instance with extracted plan data.
         """
-        tool_calls = values.get("tool_calls", [])
-        plan_path: str | None = None
-
-        # Extract plan_path from Write tool calls
-        for tc in tool_calls:
-            # Handle both dict and Pydantic model tool calls
-            if isinstance(tc, dict):
-                tool_name = tc.get("tool_name")
-                tool_input = tc.get("tool_input", {})
-            else:
-                tool_name = getattr(tc, "tool_name", None)
-                tool_input = getattr(tc, "tool_input", None) or {}
-
-            if (
-                tool_name == "write_file"
-                and isinstance(tool_input, dict)
-                and "file_path" in tool_input
-            ):
-                plan_path = str(tool_input["file_path"])
-                break
-
-        # Serialize tool_calls and tool_results to dicts if they're Pydantic models
-        serialized_tool_calls = []
-        for tc in tool_calls:
-            if hasattr(tc, "model_dump"):
-                serialized_tool_calls.append(tc.model_dump(mode="json"))
-            elif isinstance(tc, dict):
-                serialized_tool_calls.append(tc)
-
-        tool_results = values.get("tool_results", [])
-        serialized_tool_results = []
-        for tr in tool_results:
-            if hasattr(tr, "model_dump"):
-                serialized_tool_results.append(tr.model_dump(mode="json"))
-            elif isinstance(tr, dict):
-                serialized_tool_results.append(tr)
+        plan_path = values.get("plan_path")
+        if plan_path is not None:
+            plan_path = str(plan_path)
 
         return cls(
             goal=values.get("goal"),
             plan_markdown=values.get("plan_markdown"),
             plan_path=plan_path,
-            tool_calls=serialized_tool_calls,
-            tool_results=serialized_tool_results,
             total_tasks=values.get("total_tasks"),
             current_task_index=values.get("current_task_index"),
         )
