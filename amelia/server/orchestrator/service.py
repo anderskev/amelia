@@ -968,6 +968,22 @@ class OrchestratorService:
         # Get current HEAD as base commit (we're starting fresh)
         base_commit = await get_git_head(state.worktree_path)
 
+        # Hydrate plan fields from plan_cache if present (external plans)
+        plan_fields: dict[str, Any] = {}
+        if state.plan_cache is not None:
+            plan_cache = state.plan_cache
+            if plan_cache.goal is not None:
+                plan_fields["goal"] = plan_cache.goal
+            if plan_cache.plan_markdown is not None:
+                plan_fields["plan_markdown"] = plan_cache.plan_markdown
+            if plan_cache.plan_path is not None:
+                plan_fields["plan_path"] = plan_cache.plan_path
+                plan_fields["external_plan"] = True
+            if plan_cache.total_tasks is not None:
+                plan_fields["total_tasks"] = plan_cache.total_tasks
+            if plan_cache.current_task_index is not None:
+                plan_fields["current_task_index"] = plan_cache.current_task_index
+
         # Reconstruct ImplementationState
         impl_state = ImplementationState(
             workflow_id=state.id,
@@ -976,6 +992,7 @@ class OrchestratorService:
             status="pending",
             issue=issue,
             base_commit=base_commit,
+            **plan_fields,
         )
 
         logger.debug(
@@ -983,6 +1000,7 @@ class OrchestratorService:
             workflow_id=state.id,
             issue_id=state.issue_id,
             profile_id=profile.name,
+            has_plan_cache=state.plan_cache is not None,
         )
 
         return impl_state.model_dump(mode="json")
@@ -1436,6 +1454,9 @@ class OrchestratorService:
         # Get profile from settings using profile_id
         if workflow.profile_id is None:
             logger.error("No profile_id in workflow", workflow_id=workflow_id)
+            await self._repository.set_status(
+                workflow_id, WorkflowStatus.FAILED, failure_reason="Missing profile_id"
+            )
             return
         profile = await self._get_profile_or_fail(
             workflow_id, workflow.profile_id, workflow.worktree_path
