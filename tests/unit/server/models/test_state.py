@@ -1,24 +1,17 @@
 """Tests for workflow state models."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 import pytest
 
-from amelia.core.types import AgentConfig, Profile
-from amelia.pipelines.implementation.state import ImplementationState
 from amelia.server.models.state import (
     InvalidStateTransitionError,
     PlanCache,
     ServerExecutionState,
     WorkflowStatus,
-    rebuild_server_execution_state,
     validate_transition,
 )
-
-
-# Resolve forward references for ImplementationState
-rebuild_server_execution_state()
 
 
 def make_state(**overrides: Any) -> ServerExecutionState:
@@ -135,37 +128,6 @@ class TestServerExecutionState:
         assert restored.issue_id == original.issue_id
         assert restored.workflow_status == original.workflow_status
         assert restored.started_at == original.started_at
-
-
-class TestServerExecutionStateComposition:
-    """Test ServerExecutionState with embedded ImplementationState."""
-
-    def test_server_state_accepts_execution_state(self) -> None:
-        """ServerExecutionState can hold an ImplementationState."""
-        profile = Profile(
-            name="test",
-            tracker="noop",
-            working_dir="/tmp/test",
-            agents={
-                "architect": AgentConfig(driver="cli", model="sonnet"),
-                "developer": AgentConfig(driver="cli", model="sonnet"),
-                "reviewer": AgentConfig(driver="cli", model="sonnet"),
-            },
-        )
-        core_state = ImplementationState(
-            workflow_id="wf-123",
-            created_at=datetime.now(UTC),
-            status="running",
-            profile_id=profile.name,
-        )
-        server_state = ServerExecutionState(
-            id="wf-123",
-            issue_id="ISSUE-456",
-            worktree_path="/tmp/test",
-            execution_state=core_state,
-        )
-        assert server_state.execution_state is not None
-        assert server_state.execution_state.profile_id == "test"
 
 
 class TestPlanCache:

@@ -11,12 +11,7 @@ from amelia.server.models.events import EventLevel, WorkflowEvent
 from amelia.server.models.state import (
     InvalidStateTransitionError,
     ServerExecutionState,
-    rebuild_server_execution_state,
 )
-
-
-# Resolve forward references for ImplementationState
-rebuild_server_execution_state()
 
 
 class TestWorkflowRepository:
