@@ -217,7 +217,6 @@ class TestQueueAndPlanWorkflow:
 
         assert workflow_id is not None
 
-        # Check state was saved with plan and planned_at
         # create() is called once for initial workflow creation
         # update() may be called multiple times (_sync_plan_from_checkpoint + status update)
         mock_repository.create.assert_called_once()
@@ -226,7 +225,6 @@ class TestQueueAndPlanWorkflow:
         # Check the final updated state (last call to update)
         updated_state = mock_repository.update.call_args[0][0]
         assert updated_state.workflow_status == "blocked"
-        assert updated_state.planned_at is not None
         # execution_state is synced from checkpoint via _sync_plan_from_checkpoint
         assert updated_state.execution_state is not None
 
@@ -386,13 +384,13 @@ class TestQueueAndPlanWorkflow:
             assert mock_repository.update.call_count >= 1
 
     @pytest.mark.asyncio
-    async def test_queue_and_plan_sets_planning_status_immediately(
+    async def test_queue_and_plan_sets_pending_status_immediately(
         self,
         orchestrator: OrchestratorService,
         mock_repository: MagicMock,
         valid_worktree: str,
     ) -> None:
-        """Workflow status is 'planning' immediately after queue_and_plan_workflow."""
+        """Workflow status is 'pending' immediately after queue_and_plan_workflow."""
         request = CreateWorkflowRequest(
             issue_id="ISSUE-123",
             worktree_path=valid_worktree,
@@ -416,8 +414,7 @@ class TestQueueAndPlanWorkflow:
 
             # Check the created state has planning status
             created_state = mock_repository.create.call_args[0][0]
-            assert created_state.workflow_status == "planning"
-            assert created_state.current_stage == "architect"
+            assert created_state.workflow_status == "pending"
 
             # Cancel the background task
             if workflow_id in orchestrator._planning_tasks:

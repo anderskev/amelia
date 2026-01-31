@@ -89,6 +89,11 @@ describe('API Client', () => {
         id: 'wf-1',
         expectedUrl: '/api/workflows/wf-1/cancel',
       },
+      {
+        method: 'resumeWorkflow' as const,
+        id: 'wf-1',
+        expectedUrl: '/api/workflows/wf-1/resume',
+      },
     ])(
       '$method should POST to correct endpoint without body',
       async ({ method, id, expectedUrl }) => {
@@ -372,7 +377,7 @@ describe('API Client', () => {
             status: 'completed',
             created_at: '2025-01-01T09:00:00Z',
             started_at: '2025-01-01T10:00:00Z',
-            current_stage: null,
+
             total_cost_usd: null,
             total_tokens: null,
             total_duration_ms: null,
@@ -420,7 +425,7 @@ describe('API Client', () => {
             status: 'completed',
             created_at: '2025-01-01T09:00:00Z',
             started_at: '2025-01-01T10:00:00Z',
-            current_stage: null,
+
             total_cost_usd: null,
             total_tokens: null,
             total_duration_ms: null,

@@ -4,8 +4,8 @@ Tests the full replan cycle with real OrchestratorService, real repository,
 mocking only at the LangGraph boundary.
 
 Flow tested:
-1. queue_and_plan_workflow → PLANNING → BLOCKED (original plan)
-2. replan_workflow → PLANNING → BLOCKED (new plan)
+1. queue_and_plan_workflow → PENDING → BLOCKED (original plan)
+2. replan_workflow → PENDING → BLOCKED (new plan)
 3. Verify plan data is updated and events are emitted correctly
 """
 from typing import Any
@@ -34,12 +34,12 @@ class TestReplanFlow:
         valid_worktree: str,
         test_event_bus: EventBus,
     ) -> None:
-        """Full cycle: PENDING -> PLANNING -> BLOCKED -> replan -> PLANNING -> BLOCKED."""
+        """Full cycle: PENDING → BLOCKED → replan → PENDING → BLOCKED."""
         # Track events
         received_events: list[Any] = []
         test_event_bus.subscribe(lambda e: received_events.append(e))
 
-        # Phase 1: queue_and_plan_workflow -> PLANNING -> BLOCKED
+        # Phase 1: queue_and_plan_workflow -> PENDING -> BLOCKED
         request = CreateWorkflowRequest(
             issue_id="ISSUE-REPLAN-INTEG",
             worktree_path=valid_worktree,
@@ -62,14 +62,11 @@ class TestReplanFlow:
         workflow = await test_repository.get(workflow_id)
         assert workflow is not None
         assert workflow.workflow_status == WorkflowStatus.BLOCKED
-        assert workflow.planned_at is not None
         assert workflow.execution_state is not None
         assert workflow.execution_state.goal == "Original goal from architect"
         assert "Original Plan" in (workflow.execution_state.plan_markdown or "")
 
-        original_planned_at = workflow.planned_at
-
-        # Phase 2: replan -> PLANNING -> BLOCKED (with new plan)
+        # Phase 2: replan -> PENDING -> BLOCKED (with new plan)
         async with mock_langgraph_for_planning(
             goal="New goal after replan",
             plan_markdown="# Revised Plan\n\n### Task 1: Revised task",
@@ -84,8 +81,6 @@ class TestReplanFlow:
         workflow = await test_repository.get(workflow_id)
         assert workflow is not None
         assert workflow.workflow_status == WorkflowStatus.BLOCKED
-        assert workflow.planned_at is not None
-        assert workflow.planned_at != original_planned_at  # New timestamp
         assert workflow.execution_state is not None
         assert workflow.execution_state.goal == "New goal after replan"
         assert "Revised Plan" in (workflow.execution_state.plan_markdown or "")
@@ -121,7 +116,7 @@ class TestReplanFlow:
         """Replan should raise InvalidStateError for non-blocked workflows."""
         from amelia.server.exceptions import InvalidStateError
 
-        # Create a workflow in PLANNING status (not BLOCKED)
+        # Create a workflow in PENDING status (not BLOCKED)
         request = CreateWorkflowRequest(
             issue_id="ISSUE-REPLAN-REJECT",
             worktree_path=valid_worktree,

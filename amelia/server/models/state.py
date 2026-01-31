@@ -17,7 +17,6 @@ class WorkflowStatus(StrEnum):
     """Status for server workflow execution."""
 
     PENDING = "pending"  # Not yet started
-    PLANNING = "planning"  # Architect generating plan
     IN_PROGRESS = "in_progress"  # Currently executing
     BLOCKED = "blocked"  # Awaiting human approval
     COMPLETED = "completed"  # Successfully finished
@@ -34,12 +33,11 @@ class WorkflowType(StrEnum):
 
 # State machine validation - prevents invalid transitions
 VALID_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
-    WorkflowStatus.PENDING: {WorkflowStatus.PLANNING, WorkflowStatus.IN_PROGRESS, WorkflowStatus.CANCELLED, WorkflowStatus.FAILED},
-    WorkflowStatus.PLANNING: {WorkflowStatus.BLOCKED, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED},
+    WorkflowStatus.PENDING: {WorkflowStatus.BLOCKED, WorkflowStatus.IN_PROGRESS, WorkflowStatus.CANCELLED, WorkflowStatus.FAILED},
     WorkflowStatus.IN_PROGRESS: {WorkflowStatus.BLOCKED, WorkflowStatus.COMPLETED, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED},
-    WorkflowStatus.BLOCKED: {WorkflowStatus.PLANNING, WorkflowStatus.IN_PROGRESS, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED},
+    WorkflowStatus.BLOCKED: {WorkflowStatus.PENDING, WorkflowStatus.IN_PROGRESS, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED},
     WorkflowStatus.COMPLETED: set(),  # Terminal state
-    WorkflowStatus.FAILED: set(),  # Terminal state
+    WorkflowStatus.FAILED: {WorkflowStatus.IN_PROGRESS},  # Resumable via recovery
     WorkflowStatus.CANCELLED: set(),  # Terminal state
 }
 
@@ -92,11 +90,7 @@ class ServerExecutionState(BaseModel):
         workflow_status: Current workflow status.
         started_at: When workflow started.
         completed_at: When workflow ended (success or failure).
-        stage_timestamps: When each stage started.
-        current_stage: Currently executing stage.
         failure_reason: Error message when status is "failed".
-        consecutive_errors: Number of consecutive transient errors (resets on success).
-        last_error_context: Context from the most recent error (for debugging).
     """
 
     id: str = Field(..., description="Unique workflow identifier")
@@ -127,29 +121,9 @@ class ServerExecutionState(BaseModel):
         default=None,
         description="When workflow ended",
     )
-    planned_at: datetime | None = Field(
-        default=None,
-        description="When workflow planning (architect stage) completed",
-    )
-    stage_timestamps: dict[str, datetime] = Field(
-        default_factory=dict,
-        description="When each stage started",
-    )
-    current_stage: str | None = Field(
-        default=None,
-        description="Currently executing stage",
-    )
     failure_reason: str | None = Field(
         default=None,
         description="Error message when failed",
-    )
-    consecutive_errors: int = Field(
-        default=0,
-        description="Number of consecutive transient errors (resets on success)",
-    )
-    last_error_context: str | None = Field(
-        default=None,
-        description="Context from the most recent error (for debugging)",
     )
 
     model_config = {
@@ -161,16 +135,10 @@ class ServerExecutionState(BaseModel):
                     "worktree_path": "/home/user/project",
                     "workflow_status": "in_progress",
                     "started_at": "2025-01-01T12:00:00Z",
-                    "current_stage": "development",
                 }
             ]
         }
     }
-
-    @property
-    def is_planned(self) -> bool:
-        """Return True if the workflow has completed planning."""
-        return self.planned_at is not None
 
 
 def rebuild_server_execution_state() -> None:

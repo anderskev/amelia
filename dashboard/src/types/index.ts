@@ -11,7 +11,6 @@
  * The current execution state of a workflow.
  *
  * - `pending`: Workflow has been created but not yet started
- * - `planning`: Architect agent is generating the implementation plan
  * - `in_progress`: Workflow is actively executing
  * - `blocked`: Workflow is waiting for human approval or input
  * - `completed`: Workflow finished successfully
@@ -25,7 +24,6 @@
  */
 export type WorkflowStatus =
   | 'pending'
-  | 'planning'
   | 'in_progress'
   | 'blocked'
   | 'completed'
@@ -57,9 +55,6 @@ export interface WorkflowSummary {
 
   /** ISO 8601 timestamp when the workflow started, or null if not yet started. */
   started_at: string | null;
-
-  /** Name of the current execution stage (e.g., 'architect', 'developer', 'reviewer'). */
-  current_stage: string | null;
 
   /** Total cost in USD for all token usage, or null if not available. */
   total_cost_usd: number | null;
@@ -195,7 +190,14 @@ export type EventType =
   | 'claude_thinking'
   | 'claude_tool_call'
   | 'claude_tool_result'
-  | 'agent_output';
+  | 'agent_output'
+  // Oracle consultation
+  | 'oracle_consultation_started'
+  | 'oracle_consultation_thinking'
+  | 'oracle_tool_call'
+  | 'oracle_tool_result'
+  | 'oracle_consultation_completed'
+  | 'oracle_consultation_failed';
 
 /**
  * A single event emitted during workflow execution.
@@ -249,6 +251,9 @@ export interface WorkflowEvent {
 
   /** LLM model used for this event (for trace events). */
   model?: string;
+
+  /** Per-consultation session ID (independent from workflow_id, used by Oracle events). */
+  session_id?: string;
 }
 
 // ============================================================================

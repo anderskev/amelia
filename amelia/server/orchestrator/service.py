@@ -628,7 +628,6 @@ class OrchestratorService:
             execution_state=execution_state,
             workflow_status=WorkflowStatus.PENDING,
             # No started_at - workflow hasn't started
-            # No planned_at - not planned yet
         )
 
         # Save to database
@@ -789,7 +788,7 @@ class OrchestratorService:
             raise WorkflowNotFoundError(workflow_id)
 
         # Check if workflow is in a cancellable state (not terminal)
-        cancellable_states = {WorkflowStatus.PENDING, WorkflowStatus.PLANNING, WorkflowStatus.IN_PROGRESS, WorkflowStatus.BLOCKED}
+        cancellable_states = {WorkflowStatus.PENDING, WorkflowStatus.IN_PROGRESS, WorkflowStatus.BLOCKED}
         if workflow.workflow_status not in cancellable_states:
             raise InvalidStateError(
                 f"Cannot cancel workflow in '{workflow.workflow_status}' state",
@@ -801,6 +800,9 @@ class OrchestratorService:
         if workflow.worktree_path in self._active_tasks:
             _, task = self._active_tasks[workflow.worktree_path]
             task.cancel()
+
+        if workflow_id in self._planning_tasks:
+            self._planning_tasks[workflow_id].cancel()
 
         # Persist the cancelled status to database
         await self._repository.set_status(workflow_id, WorkflowStatus.CANCELLED)
@@ -817,6 +819,98 @@ class OrchestratorService:
             workflow_id=workflow_id,
             reason=reason,
         )
+
+    async def resume_workflow(self, workflow_id: str) -> ServerExecutionState:
+        """Resume a failed workflow from its last checkpoint.
+
+        Validates the workflow is in FAILED status, has a valid checkpoint,
+        and the worktree is not occupied. Then clears error state, transitions
+        to IN_PROGRESS, and re-launches the workflow task.
+
+        Args:
+            workflow_id: The workflow to resume.
+
+        Returns:
+            The updated workflow state.
+
+        Raises:
+            WorkflowNotFoundError: If workflow doesn't exist.
+            InvalidStateError: If workflow is not FAILED, has no checkpoint,
+                or its worktree is occupied.
+        """
+        workflow = await self._repository.get(workflow_id)
+        if not workflow:
+            raise WorkflowNotFoundError(workflow_id)
+
+        if workflow.workflow_status != WorkflowStatus.FAILED:
+            raise InvalidStateError(
+                f"Cannot resume: workflow must be in 'failed' status, "
+                f"got '{workflow.workflow_status}'",
+                workflow_id=workflow_id,
+                current_status=workflow.workflow_status,
+            )
+
+        # Validate checkpoint exists (read-only, safe outside lock)
+        async with AsyncSqliteSaver.from_conn_string(
+            str(self._checkpoint_path)
+        ) as checkpointer:
+            graph = self._create_server_graph(checkpointer)
+            config: RunnableConfig = {
+                "configurable": {"thread_id": workflow_id},
+            }
+            checkpoint_state = await graph.aget_state(config)
+            if checkpoint_state is None or not checkpoint_state.values:
+                raise InvalidStateError(
+                    "Cannot resume: no checkpoint found for workflow",
+                    workflow_id=workflow_id,
+                    current_status=workflow.workflow_status,
+                )
+
+        async with self._start_lock:
+            # Check worktree is not occupied (under lock to prevent TOCTOU race)
+            if workflow.worktree_path in self._active_tasks:
+                existing_id, _ = self._active_tasks[workflow.worktree_path]
+                raise InvalidStateError(
+                    f"Cannot resume: worktree is occupied by workflow {existing_id}",
+                    workflow_id=workflow_id,
+                    current_status=workflow.workflow_status,
+                )
+
+            # Clear error state and transition to IN_PROGRESS
+            workflow.failure_reason = None
+            workflow.completed_at = None
+            workflow.workflow_status = WorkflowStatus.IN_PROGRESS
+            await self._repository.update(workflow)
+
+            await self._emit(
+                workflow_id,
+                EventType.WORKFLOW_STARTED,
+                "Workflow resumed from checkpoint",
+                data={"resumed": True},
+            )
+
+            logger.info("Resuming workflow", workflow_id=workflow_id)
+
+            # Launch workflow task (same as start_workflow)
+            task = asyncio.create_task(
+                self._run_workflow_with_retry(workflow_id, workflow)
+            )
+            self._active_tasks[workflow.worktree_path] = (workflow_id, task)
+
+        def cleanup_task(_: asyncio.Task[None]) -> None:
+            """Clean up resources when resumed workflow task completes."""
+            self._active_tasks.pop(workflow.worktree_path, None)
+            self._sequence_counters.pop(workflow_id, None)
+            self._sequence_locks.pop(workflow_id, None)
+            logger.debug(
+                "Resumed workflow task completed",
+                workflow_id=workflow_id,
+                worktree_path=workflow.worktree_path,
+            )
+
+        task.add_done_callback(cleanup_task)
+
+        return workflow
 
     async def cancel_all_workflows(self, timeout: float = 5.0) -> None:
         """Cancel all active workflows gracefully.
@@ -939,7 +1033,11 @@ class OrchestratorService:
             )
 
             try:
-                await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
+                # Only set status to IN_PROGRESS if not already in that state.
+                # This handles resumed workflows which are already IN_PROGRESS.
+                workflow = await self._repository.get(workflow_id)
+                if workflow and workflow.workflow_status != WorkflowStatus.IN_PROGRESS:
+                    await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
 
                 was_interrupted = False
                 # Use astream with stream_mode="updates" to detect interrupts
@@ -1001,14 +1099,12 @@ class OrchestratorService:
                         await emit_workflow_event(
                             ExtWorkflowEventType.APPROVAL_REQUESTED,
                             workflow_id=workflow_id,
-                            stage="human_approval_node",
                         )
                         await self._repository.set_status(workflow_id, WorkflowStatus.BLOCKED)
                         # Emit PAUSED event for workflow being blocked
                         await emit_workflow_event(
                             ExtWorkflowEventType.PAUSED,
                             workflow_id=workflow_id,
-                            stage="human_approval_node",
                         )
                         break
                     # Handle combined mode chunk
@@ -1023,20 +1119,14 @@ class OrchestratorService:
                     # Check for task failure before marking complete (multi-task mode)
                     await self._emit_task_failed_if_applicable(workflow_id)
 
-                    # Fetch fresh state from DB to get accurate current_stage
-                    # (the local state variable is stale - _handle_stream_chunk updates DB)
-                    fresh_state = await self._repository.get(workflow_id)
-                    final_stage = fresh_state.current_stage if fresh_state else None
                     await self._emit(
                         workflow_id,
                         EventType.WORKFLOW_COMPLETED,
                         "Workflow completed successfully",
-                        data={"final_stage": final_stage},
                     )
                     await emit_workflow_event(
                         ExtWorkflowEventType.COMPLETED,
                         workflow_id=workflow_id,
-                        stage=final_stage,
                     )
                     await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
 
@@ -1074,24 +1164,10 @@ class OrchestratorService:
         while attempt <= retry_config.max_retries:
             try:
                 await self._run_workflow(workflow_id, state)
-                # Success - reset error tracking if needed
-                # Re-fetch state to avoid overwriting changes from _sync_plan_from_checkpoint
-                if state.consecutive_errors > 0:
-                    fresh_state = await self._repository.get(workflow_id)
-                    if fresh_state is not None:
-                        fresh_state.consecutive_errors = 0
-                        fresh_state.last_error_context = None
-                        await self._repository.update(fresh_state)
                 return  # Success
 
             except TRANSIENT_EXCEPTIONS as e:
                 attempt += 1
-                # Re-fetch state to avoid overwriting changes from _sync_plan_from_checkpoint
-                fresh_state = await self._repository.get(workflow_id)
-                if fresh_state is not None:
-                    fresh_state.consecutive_errors = attempt
-                    fresh_state.last_error_context = f"{type(e).__name__}: {str(e)}"
-                    await self._repository.update(fresh_state)
 
                 if attempt > retry_config.max_retries:
                     logger.exception("Workflow failed after retries exhausted", workflow_id=workflow_id)
@@ -1130,13 +1206,6 @@ class OrchestratorService:
 
             except Exception as e:
                 # Non-transient error - fail immediately
-                # Re-fetch state to avoid overwriting changes from _sync_plan_from_checkpoint
-                fresh_state = await self._repository.get(workflow_id)
-                if fresh_state is not None:
-                    fresh_state.consecutive_errors = attempt + 1
-                    fresh_state.last_error_context = f"{type(e).__name__}: {str(e)}"
-                    await self._repository.update(fresh_state)
-
                 logger.exception("Workflow failed with non-transient error", workflow_id=workflow_id)
                 await self._emit(
                     workflow_id,
@@ -1241,15 +1310,10 @@ class OrchestratorService:
                     # Emit stage events for each node
                     await self._handle_combined_stream_chunk(workflow_id, chunk_tuple)
 
-                # Fetch fresh state from DB to get accurate current_stage
-                # (the local state variable is stale - _handle_stream_chunk updates DB)
-                fresh_state = await self._repository.get(workflow_id)
-                final_stage = fresh_state.current_stage if fresh_state else None
                 await self._emit(
                     workflow_id,
                     EventType.WORKFLOW_COMPLETED,
                     "Review workflow completed",
-                    data={"final_stage": final_stage},
                 )
                 await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
 
@@ -1638,12 +1702,6 @@ class OrchestratorService:
         """
         for node_name, output in chunk.items():
             if node_name in STAGE_NODES:
-                # Update current_stage in workflow state
-                state = await self._repository.get(workflow_id)
-                if state is not None:
-                    state.current_stage = node_name
-                    await self._repository.update(state)
-
                 # Emit agent-specific messages based on node
                 await self._emit_agent_messages(workflow_id, node_name, output)
 
@@ -2111,20 +2169,49 @@ class OrchestratorService:
 
 
     async def recover_interrupted_workflows(self) -> None:
-        """Recover workflows that were running when server crashed.
+        """Recover workflows that were running when server restarted.
 
-        Scans for workflows in non-terminal states (in_progress, blocked) and marks
-        them as failed with an appropriate reason. This prevents stale workflows from
-        persisting after server restarts.
-
-        Note:
-            This is a placeholder - full implementation will be added when LangGraph
-            integration is complete.
+        IN_PROGRESS workflows are marked FAILED (recoverable). BLOCKED workflows
+        get their APPROVAL_REQUIRED event re-emitted so dashboard clients see them.
         """
-        logger.info("Checking for interrupted workflows...")
-        # TODO: Query for workflows with status=in_progress or blocked
-        # and mark them as failed with appropriate reason
-        logger.info("No interrupted workflows to recover")
+        failed_count = 0
+        blocked_count = 0
+
+        # Handle IN_PROGRESS workflows — mark as FAILED
+        in_progress = await self._repository.find_by_status([WorkflowStatus.IN_PROGRESS])
+        for wf in in_progress:
+            await self._repository.set_status(
+                wf.id,
+                WorkflowStatus.FAILED,
+                failure_reason="Server restarted while workflow was running",
+            )
+            await self._emit(
+                wf.id,
+                EventType.WORKFLOW_FAILED,
+                "Server restarted while workflow was running",
+                data={"recoverable": True},
+            )
+            logger.info("Recovered interrupted workflow", workflow_id=wf.id)
+            failed_count += 1
+
+        # Handle BLOCKED workflows — re-emit approval events
+        blocked = await self._repository.find_by_status([WorkflowStatus.BLOCKED])
+        for wf in blocked:
+            await self._emit(
+                wf.id,
+                EventType.APPROVAL_REQUIRED,
+                "Plan ready for review - awaiting human approval (restored after restart)",
+                agent="human_approval",
+                data={"paused_at": "human_approval_node"},
+            )
+            logger.info("Restored blocked workflow approval", workflow_id=wf.id)
+            blocked_count += 1
+
+        logger.info(
+            "Recovery complete",
+            workflows_failed=failed_count,
+            approvals_restored=blocked_count,
+        )
 
     async def _run_planning_task(
         self,
@@ -2203,8 +2290,8 @@ class OrchestratorService:
                             )
                             return
 
-                        # Only update if still planning
-                        if fresh.workflow_status != WorkflowStatus.PLANNING:
+                        # Only update if still pending (planning in background)
+                        if fresh.workflow_status != WorkflowStatus.PENDING:
                             logger.info(
                                 "Planning finished but workflow status changed",
                                 workflow_id=workflow_id,
@@ -2212,14 +2299,7 @@ class OrchestratorService:
                             )
                             return
 
-                        # Set planned_at and status to blocked.
-                        # Uses repository.update() instead of set_status()
-                        # because multiple fields change atomically (status,
-                        # planned_at, current_stage). The PLANNING status
-                        # guard is checked above.
-                        fresh.planned_at = datetime.now(UTC)
                         fresh.workflow_status = WorkflowStatus.BLOCKED
-                        fresh.current_stage = None  # Clear stage, waiting for approval
                         await self._repository.update(fresh)
 
                         await self._emit(
@@ -2255,7 +2335,7 @@ class OrchestratorService:
                 # Mark workflow as failed using fresh state
                 try:
                     fresh = await self._repository.get(workflow_id)
-                    if fresh is not None and fresh.workflow_status == WorkflowStatus.PLANNING:
+                    if fresh is not None and fresh.workflow_status == WorkflowStatus.PENDING:
                         fresh.workflow_status = WorkflowStatus.FAILED
                         fresh.failure_reason = f"Planning failed: {e}"
                         await self._repository.update(fresh)
@@ -2315,14 +2395,13 @@ class OrchestratorService:
             task_description=request.task_description,
         )
 
-        # Create ServerExecutionState in planning status (architect running)
+        # Create ServerExecutionState in pending status (architect running)
         state = ServerExecutionState(
             id=workflow_id,
             issue_id=request.issue_id,
             worktree_path=resolved_path,
             execution_state=execution_state,
-            workflow_status=WorkflowStatus.PLANNING,
-            current_stage="architect",
+            workflow_status=WorkflowStatus.PENDING,
             # Note: started_at is None - workflow hasn't started yet
         )
 
@@ -2514,7 +2593,7 @@ class OrchestratorService:
         """Set or replace the plan for a queued workflow.
 
         This method allows setting an external plan on a workflow that is
-        in pending or planning status. The plan will be validated and stored
+        in pending status. The plan will be validated and stored
         in the standard plan location.
 
         Args:
@@ -2528,7 +2607,7 @@ class OrchestratorService:
 
         Raises:
             WorkflowNotFoundError: If workflow doesn't exist.
-            InvalidStateError: If workflow not in pending/planning status.
+            InvalidStateError: If workflow not in pending status.
             WorkflowConflictError: If plan exists and force=False, or architect running.
             FileNotFoundError: If plan_file doesn't exist.
         """
@@ -2537,11 +2616,11 @@ class OrchestratorService:
         if workflow is None:
             raise WorkflowNotFoundError(workflow_id)
 
-        # Check status - only allow setting plan on pending or planning workflows
-        valid_statuses = {WorkflowStatus.PENDING, WorkflowStatus.PLANNING}
+        # Check status - only allow setting plan on pending workflows
+        valid_statuses = {WorkflowStatus.PENDING}
         if workflow.workflow_status not in valid_statuses:
             raise InvalidStateError(
-                f"Workflow must be in pending or planning status, "
+                f"Workflow must be in pending status, "
                 f"but is in {workflow.workflow_status}",
                 workflow_id=workflow_id,
                 current_status=str(workflow.workflow_status),
@@ -2611,17 +2690,10 @@ class OrchestratorService:
             }
         )
 
-        # Update workflow - transition from planning to pending if needed
-        new_status = (
-            WorkflowStatus.PENDING
-            if workflow.workflow_status == WorkflowStatus.PLANNING
-            else workflow.workflow_status
-        )
-
+        # Update workflow with plan data
         updated_workflow = workflow.model_copy(
             update={
                 "execution_state": updated_execution_state,
-                "workflow_status": new_status,
             }
         )
         await self._repository.update(updated_workflow)
@@ -2656,7 +2728,7 @@ class OrchestratorService:
         """Regenerate the plan for a blocked workflow.
 
         Deletes the stale LangGraph checkpoint, clears plan-related fields,
-        transitions the workflow back to PLANNING, and spawns a fresh
+        transitions the workflow back to PENDING, and spawns a fresh
         planning task using the same issue/profile.
 
         Args:
@@ -2736,15 +2808,12 @@ class OrchestratorService:
                 }
             )
 
-            # Transition to PLANNING.
+            # Transition to PENDING.
             # Design note: we use repository.update() instead of set_status()
             # because multiple fields must change atomically (status,
-            # current_stage, planned_at, execution_state). The BLOCKED →
-            # PLANNING guard is enforced explicitly above. This is the same
-            # pattern used by _run_planning_task for PLANNING → BLOCKED.
-            workflow.workflow_status = WorkflowStatus.PLANNING
-            workflow.current_stage = "architect"
-            workflow.planned_at = None
+            # execution_state). The BLOCKED → PENDING guard is enforced
+            # explicitly above.
+            workflow.workflow_status = WorkflowStatus.PENDING
             await self._repository.update(workflow)
 
             # Emit replanning event inside the lock, before spawning the task,

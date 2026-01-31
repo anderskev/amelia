@@ -37,16 +37,14 @@ class TestStateTransitions:
         "current,target",
         [
             ("pending", "in_progress"),
-            ("pending", "planning"),
+            ("pending", "blocked"),
             ("pending", "cancelled"),
             ("pending", "failed"),  # Workflows can fail during startup
-            ("planning", "blocked"),
-            ("planning", "failed"),
-            ("planning", "cancelled"),
             ("in_progress", "blocked"),
             ("in_progress", "completed"),
             ("in_progress", "failed"),
             ("in_progress", "cancelled"),
+            ("blocked", "pending"),
             ("blocked", "in_progress"),
             ("blocked", "failed"),
             ("blocked", "cancelled"),
@@ -63,13 +61,8 @@ class TestStateTransitions:
         [
             ("pending", "completed"),
             # ("pending", "failed") is now valid - workflows can fail during startup
-            ("pending", "blocked"),
-            ("planning", "pending"),
-            ("planning", "completed"),
-            ("planning", "in_progress"),
             ("in_progress", "pending"),
             ("in_progress", "in_progress"),
-            ("blocked", "pending"),
             ("blocked", "completed"),
         ],
     )
@@ -82,12 +75,11 @@ class TestStateTransitions:
         assert exc.value.current == current
         assert exc.value.target == target
 
-    @pytest.mark.parametrize("terminal", ["completed", "failed", "cancelled"])
+    @pytest.mark.parametrize("terminal", ["completed", "cancelled"])
     def test_terminal_states_cannot_transition(self, terminal: WorkflowStatus) -> None:
         """Terminal states cannot transition to any other state."""
         all_states: list[WorkflowStatus] = [
             "pending",
-            "planning",
             "in_progress",
             "blocked",
             "completed",
@@ -98,6 +90,22 @@ class TestStateTransitions:
             if target != terminal:
                 with pytest.raises(InvalidStateTransitionError):
                     validate_transition(terminal, target)
+
+    def test_failed_only_allows_in_progress(self) -> None:
+        """FAILED state can only transition to IN_PROGRESS (for resume)."""
+        all_states: list[WorkflowStatus] = [
+            "pending",
+            "blocked",
+            "completed",
+            "failed",
+            "cancelled",
+        ]
+        # These should all be invalid
+        for target in all_states:
+            with pytest.raises(InvalidStateTransitionError):
+                validate_transition("failed", target)
+        # Only IN_PROGRESS is valid (for resume)
+        validate_transition("failed", "in_progress")
 
 
 class TestServerExecutionState:
@@ -157,29 +165,4 @@ class TestServerExecutionStateComposition:
         )
         assert server_state.execution_state is not None
         assert server_state.execution_state.profile_id == "test"
-
-
-class TestServerExecutionStatePlannedAt:
-    """Tests for planned_at field."""
-
-    def test_planned_at_defaults_to_none(self) -> None:
-        """planned_at should default to None for new workflows."""
-        state = make_state()
-        assert state.planned_at is None
-
-    def test_planned_at_can_be_set(self) -> None:
-        """planned_at can be set to a datetime."""
-        now = datetime.now(UTC)
-        state = make_state(planned_at=now)
-        assert state.planned_at == now
-
-    def test_is_planned_property_false_when_no_plan(self) -> None:
-        """is_planned should return False when planned_at is None."""
-        state = make_state()
-        assert state.is_planned is False
-
-    def test_is_planned_property_true_when_planned(self) -> None:
-        """is_planned should return True when planned_at is set."""
-        state = make_state(planned_at=datetime.now(UTC))
-        assert state.is_planned is True
 

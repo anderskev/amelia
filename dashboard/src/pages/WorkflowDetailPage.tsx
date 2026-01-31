@@ -3,30 +3,20 @@
  */
 import { useCallback, useMemo } from 'react';
 import { useLoaderData } from 'react-router-dom';
+import { RotateCcw } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
-import { AgentProgressBar, type AgentStage } from '@/components/AgentProgressBar';
 import { UsageCard } from '@/components/UsageCard';
+import { Button } from '@/components/ui/button';
 import { useElapsedTime, useAutoRevalidation } from '@/hooks';
+import { useWorkflowActions } from '@/hooks/useWorkflowActions';
 import { truncateWorkflowId } from '@/utils';
 import { workflowDetailLoader } from '@/loaders';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowEvent } from '@/types';
-
-/**
- * Determines completed stages based on current stage.
- * Stages progress: pm -> architect -> developer -> reviewer
- */
-function getCompletedStages(currentStage: string | null): AgentStage[] {
-  const stageOrder: AgentStage[] = ['pm', 'architect', 'developer', 'reviewer'];
-  if (!currentStage) return [];
-  const currentIndex = stageOrder.indexOf(currentStage as AgentStage);
-  if (currentIndex === -1) return [];
-  return stageOrder.slice(0, currentIndex);
-}
 
 /**
  * Displays comprehensive workflow details with progress and activity.
@@ -68,6 +58,23 @@ export default function WorkflowDetailPage() {
     return Array.from(eventMap.values()).sort((a, b) => a.sequence - b.sequence);
   }, [workflow?.recent_events, storeEvents]);
 
+  // Determine if this failed workflow can be resumed from checkpoint
+  const isRecoverable = useMemo(() => {
+    if (workflow?.status !== 'failed') return false;
+    const failedEvents = allEvents
+      .filter((e: WorkflowEvent) => e.event_type === 'workflow_failed')
+      .sort((a: WorkflowEvent, b: WorkflowEvent) => b.sequence - a.sequence);
+    const latest = failedEvents[0];
+    return latest !== undefined && latest.data?.recoverable === true;
+  }, [workflow?.status, allEvents]);
+
+  const { resumeWorkflow, isActionPending } = useWorkflowActions();
+
+  const handleResume = useCallback(async () => {
+    if (!workflow) return;
+    await resumeWorkflow(workflow.id);
+  }, [workflow, resumeWorkflow]);
+
   if (!workflow) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
@@ -84,10 +91,6 @@ export default function WorkflowDetailPage() {
   // Show approval controls when blocked (awaiting human approval)
   const needsApproval = workflow.status === 'blocked';
   const goalSummary = workflow.goal || 'Awaiting plan generation';
-
-  // Determine agent progress
-  const currentStage = workflow.current_stage as AgentStage | null;
-  const completedStages = getCompletedStages(workflow.current_stage);
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -112,16 +115,6 @@ export default function WorkflowDetailPage() {
         </PageHeader.Right>
       </PageHeader>
 
-      {/* Agent Progress Bar - shows workflow stage progress */}
-      {workflow.status === 'in_progress' && currentStage && (
-        <div className="px-6 py-3 border-b border-border bg-muted/10">
-          <AgentProgressBar
-            currentStage={currentStage}
-            completedStages={completedStages}
-          />
-        </div>
-      )}
-
       <div className="flex-1 overflow-hidden grid grid-cols-2 gap-4 p-6 min-h-0">
         {/* Left column: Plan Review (when blocked) or Pipeline Canvas */}
         <div className="flex flex-col gap-4 overflow-y-auto min-h-0">
@@ -134,6 +127,26 @@ export default function WorkflowDetailPage() {
               status="pending"
               className="flex-1"
             />
+          )}
+
+          {/* Recovery controls - shown for recoverable failed workflows */}
+          {isRecoverable && (
+            <div className="p-4 border border-border rounded-lg bg-card">
+              <h4 className="font-heading text-xs font-semibold tracking-widest text-muted-foreground mb-2">
+                RECOVERY
+              </h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                This workflow can be resumed from its last checkpoint.
+              </p>
+              <Button
+                onClick={handleResume}
+                disabled={isActionPending(workflow.id)}
+                variant="outline"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Resume
+              </Button>
+            </div>
           )}
 
           {/* Goal display - shown when not blocked or as secondary info */}

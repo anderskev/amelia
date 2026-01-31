@@ -207,7 +207,6 @@ async def list_workflows(
                 status=w.workflow_status,
                 created_at=w.created_at,
                 started_at=w.started_at,
-                current_stage=w.current_stage,
                 total_cost_usd=token_summary.total_cost_usd if token_summary else None,
                 total_tokens=(
                     token_summary.total_input_tokens + token_summary.total_output_tokens
@@ -233,7 +232,7 @@ async def list_active_workflows(
 ) -> WorkflowListResponse:
     """List all active workflows.
 
-    Active workflows are those in pending, planning, in_progress, or blocked status.
+    Active workflows are those in pending, in_progress, or blocked status.
 
     Args:
         worktree: Filter by worktree path.
@@ -266,7 +265,6 @@ async def list_active_workflows(
                 status=w.workflow_status,
                 created_at=w.created_at,
                 started_at=w.started_at,
-                current_stage=w.current_stage,
                 total_cost_usd=token_summary.total_cost_usd if token_summary else None,
                 total_tokens=(
                     token_summary.total_input_tokens + token_summary.total_output_tokens
@@ -364,7 +362,6 @@ async def get_workflow(
         started_at=workflow.started_at,
         completed_at=workflow.completed_at,
         failure_reason=workflow.failure_reason,
-        current_stage=workflow.current_stage,
         goal=goal,
         plan_markdown=plan_markdown,
         plan_path=plan_path,
@@ -397,6 +394,29 @@ async def cancel_workflow(
     await orchestrator.cancel_workflow(workflow_id)
     logger.info("Cancelled workflow", workflow_id=workflow_id)
     return ActionResponse(status="cancelled", workflow_id=workflow_id)
+
+
+@router.post("/{workflow_id}/resume", response_model=ActionResponse)
+async def resume_workflow(
+    workflow_id: str,
+    orchestrator: OrchestratorService = Depends(get_orchestrator),
+) -> ActionResponse:
+    """Resume a failed workflow from its last checkpoint.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+        orchestrator: Orchestrator service dependency.
+
+    Returns:
+        ActionResponse with status and workflow_id.
+
+    Raises:
+        WorkflowNotFoundError: If workflow doesn't exist.
+        InvalidStateError: If workflow cannot be resumed.
+    """
+    await orchestrator.resume_workflow(workflow_id)
+    logger.info("Resumed workflow", workflow_id=workflow_id)
+    return ActionResponse(status="resumed", workflow_id=workflow_id)
 
 
 @router.post("/{workflow_id}/approve", response_model=ActionResponse)
@@ -501,7 +521,7 @@ async def set_workflow_plan(
 
     Raises:
         WorkflowNotFoundError: If workflow doesn't exist (404).
-        InvalidStateError: If workflow not in pending/planning state (422).
+        InvalidStateError: If workflow not in pending state (422).
         WorkflowConflictError: If plan exists and force=False (409).
     """
     result = await orchestrator.set_workflow_plan(
@@ -526,14 +546,14 @@ async def replan_workflow(
     """Replan a blocked workflow by regenerating the Architect plan.
 
     Deletes the stale checkpoint, clears plan fields, and spawns a
-    new planning task. The workflow transitions from blocked to planning.
+    new planning task. The workflow transitions from blocked to pending.
 
     Args:
         workflow_id: Unique workflow identifier.
         orchestrator: Orchestrator service dependency.
 
     Returns:
-        ActionResponse with status "planning" and workflow_id.
+        ActionResponse with status "replanning" and workflow_id.
 
     Raises:
         WorkflowNotFoundError: If workflow doesn't exist.
@@ -542,7 +562,7 @@ async def replan_workflow(
     """
     await orchestrator.replan_workflow(workflow_id)
     logger.info("Replan started", workflow_id=workflow_id)
-    return ActionResponse(status="planning", workflow_id=workflow_id)
+    return ActionResponse(status="replanning", workflow_id=workflow_id)
 
 
 def configure_exception_handlers(app: FastAPI) -> None:
