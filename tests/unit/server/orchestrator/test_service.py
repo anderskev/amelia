@@ -819,56 +819,6 @@ async def test_get_workflow_by_worktree_uses_cache(
 
 
 # =============================================================================
-# Policy Hook Tests
-# =============================================================================
-
-
-async def test_start_workflow_denied_by_policy_hook(
-    orchestrator: OrchestratorService,
-    valid_worktree: str,
-) -> None:
-    """Should raise PolicyDeniedError when policy hook denies workflow start."""
-    from amelia.ext.exceptions import PolicyDeniedError
-    from amelia.ext.registry import get_registry
-
-    # Create a denying policy hook
-    class DenyingPolicyHook:
-        """Policy hook that denies all workflow starts."""
-
-        async def on_workflow_start(
-            self,
-            workflow_id: str,
-            profile: object,
-            issue_id: str,
-        ) -> bool:
-            return False
-
-        async def on_approval_request(
-            self,
-            workflow_id: str,
-            approval_type: str,
-        ) -> bool | None:
-            return None
-
-    registry = get_registry()
-    denying_hook = DenyingPolicyHook()
-    registry.register_policy_hook(denying_hook)
-
-    try:
-        with pytest.raises(PolicyDeniedError) as exc_info:
-            await orchestrator.start_workflow(
-                issue_id="ISSUE-123",
-                worktree_path=valid_worktree,
-                )
-
-        assert "denied by policy" in exc_info.value.reason.lower()
-        assert exc_info.value.hook_name == "DenyingPolicyHook"
-    finally:
-        # Cleanup: remove the hook to avoid affecting other tests
-        registry.clear()
-
-
-# =============================================================================
 # Plan Sync Tests
 # =============================================================================
 
@@ -1056,7 +1006,6 @@ class TestRunWorkflowCheckpointResume:
             patch.object(orchestrator, "_get_profile_or_fail", return_value=mock_profile),
             patch.object(orchestrator, "_emit", new=AsyncMock()),
             patch("amelia.server.orchestrator.service.AsyncSqliteSaver") as mock_saver,
-            patch("amelia.server.orchestrator.service.emit_workflow_event", new=AsyncMock()),
         ):
             # Setup AsyncSqliteSaver context manager
             mock_checkpointer = MagicMock()
@@ -1117,7 +1066,6 @@ class TestRunWorkflowCheckpointResume:
             patch.object(orchestrator, "_get_profile_or_fail", return_value=mock_profile),
             patch.object(orchestrator, "_emit", new=AsyncMock()),
             patch("amelia.server.orchestrator.service.AsyncSqliteSaver") as mock_saver,
-            patch("amelia.server.orchestrator.service.emit_workflow_event", new=AsyncMock()),
         ):
             mock_checkpointer = MagicMock()
             mock_saver.from_conn_string.return_value.__aenter__ = AsyncMock(
