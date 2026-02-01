@@ -96,16 +96,19 @@ The current `events` table stores everything: thinking blocks, tool calls, strea
 CREATE TABLE workflow_log (
     id UUID PRIMARY KEY,
     workflow_id UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+    sequence INTEGER NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     level TEXT NOT NULL CHECK (level IN ('info', 'warning', 'error')),
     event_type TEXT NOT NULL,
     agent TEXT,
     message TEXT NOT NULL,
     data JSONB,
-    is_error BOOLEAN NOT NULL DEFAULT FALSE
+    is_error BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (workflow_id, sequence)
 );
 
-CREATE INDEX idx_workflow_log_workflow ON workflow_log(workflow_id, timestamp);
+-- Sequence provides deterministic ordering under concurrency (timestamps can collide)
+CREATE INDEX idx_workflow_log_workflow ON workflow_log(workflow_id, sequence);
 CREATE INDEX idx_workflow_log_errors ON workflow_log(workflow_id) WHERE is_error = TRUE;
 ```
 
@@ -115,11 +118,23 @@ Result: ~10-20 rows per workflow instead of thousands.
 
 ```sql
 CHECK (event_type IN (
+    -- Lifecycle
     'workflow_created', 'workflow_started', 'workflow_completed', 'workflow_failed', 'workflow_cancelled',
+    -- Stages
     'stage_started', 'stage_completed',
+    -- Approval
     'approval_required', 'approval_granted', 'approval_rejected',
+    -- Artifacts
     'file_created', 'file_modified', 'file_deleted',
+    -- Review
     'review_requested', 'review_completed', 'revision_requested',
+    -- Tasks
+    'task_started', 'task_completed', 'task_failed',
+    -- Oracle
+    'oracle_consultation_started', 'oracle_consultation_completed', 'oracle_consultation_failed',
+    -- Brainstorm
+    'brainstorm_session_created', 'brainstorm_session_completed', 'brainstorm_artifact_created',
+    -- System
     'system_error', 'system_warning'
 ))
 ```
